@@ -23,9 +23,9 @@ def create_app():
         from .models.order_list import OrderList
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser
-        # 注册路由蓝图（暂不影响，可保留占位）
-        # from .routes import punch_bp, order_bp, auth_bp
-        # app.register_blueprint(punch_bp)
+        # 注册路由蓝图
+        from .routes.punch_routes import punch_bp
+        app.register_blueprint(punch_bp)
 
     return app
 

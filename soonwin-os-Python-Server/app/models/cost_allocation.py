@@ -2,7 +2,7 @@ from extensions import db
 from datetime import datetime
 
 class CostAllocation(db.Model):
-    __tablename__ = "cost_allocation"
+    __tablename__ = "CostAllocation"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     cost_name = db.Column(db.String(100), nullable=False, comment="费用名称（如物料损耗、房租）")
     cost_amount = db.Column(db.Numeric(12, 2), nullable=False, comment="费用金额（元）")

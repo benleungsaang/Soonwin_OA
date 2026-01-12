@@ -2,7 +2,7 @@ from extensions import db
 from datetime import datetime
 
 class TotpUser(db.Model):
-    __tablename__ = "totp_user"
+    __tablename__ = "TotpUser"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     emp_id = db.Column(db.String(20), unique=True, nullable=False, comment="关联员工工号")
     name = db.Column(db.String(50), nullable=False, comment="员工姓名")

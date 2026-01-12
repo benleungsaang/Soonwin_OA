@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 
 class Employee(db.Model):
-    __tablename__ = "employee"  # 对应数据库表名
+    __tablename__ = "Employee"  # 对应数据库表名
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4, comment="UUID主键")
     name = db.Column(db.String(50), nullable=False, comment="员工姓名")
     emp_id = db.Column(db.String(20), unique=True, nullable=False, comment="工号（唯一标识）")

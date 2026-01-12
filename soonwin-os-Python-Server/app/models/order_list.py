@@ -2,7 +2,7 @@ from extensions import db
 from datetime import datetime
 
 class OrderList(db.Model):
-    __tablename__ = "order_list"
+    __tablename__ = "OrderList"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键（序号）")
     is_new = db.Column(db.Integer, comment="新旧（1=新/0=旧）")
     area = db.Column(db.String(50), comment="地区")
