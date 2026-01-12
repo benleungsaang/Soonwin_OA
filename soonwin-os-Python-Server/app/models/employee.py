@@ -1,0 +1,25 @@
+from extensions import db
+from datetime import datetime
+import uuid
+
+class Employee(db.Model):
+    __tablename__ = "employee"  # 对应数据库表名
+    id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4, comment="UUID主键")
+    name = db.Column(db.String(50), nullable=False, comment="员工姓名")
+    emp_id = db.Column(db.String(20), unique=True, nullable=False, comment="工号（唯一标识）")
+    dept = db.Column(db.String(50), comment="部门")
+    phone_mac = db.Column(db.String(20), unique=True, nullable=False, comment="手机MAC地址（唯一）")
+    inner_ip = db.Column(db.String(20), unique=True, nullable=False, comment="内网IP（固定）")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+
+    # 定义序列化方法，便于接口返回JSON数据
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "emp_id": self.emp_id,
+            "dept": self.dept,
+            "phone_mac": self.phone_mac,
+            "inner_ip": self.inner_ip,
+            "create_time": self.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        }

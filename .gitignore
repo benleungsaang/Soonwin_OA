@@ -1,0 +1,89 @@
+﻿# ===================== 基础通用忽略 (所有项目通用) =====================
+# 系统自动生成的缓存/临时文件
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*~
+
+# 编辑器/IDE 配置文件 (你的项目里有 .vscode)
+.vscode/
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# ===================== Vue前端项目专属忽略 (soonwin-oa-VUE-FrontEnd) =====================
+# node依赖包 (项目里有 node_modules，必忽略，体积超大)
+node_modules/
+
+# 环境变量文件 (前端环境配置，私密信息)
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# 打包构建产物
+dist/
+build/
+out/
+
+# 日志文件
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 缓存文件
+.eslintcache
+*.tgz
+
+# ===================== Python后端项目专属忽略 (soonwin-os-Python-Server) =====================
+# Python虚拟环境 (项目里有 venv，必忽略)
+venv/
+env/
+ENV/
+env/
+.venv/
+env3/
+
+# Python编译缓存文件 (项目里有 __pycache__，必忽略)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 数据库文件 (项目里有 soonwin_oa.db，必忽略，防止提交本地数据库)
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# 迁移文件缓存
+migrations/versions/
+
+# Python日志/临时文件
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# 依赖安装清单 【注意：requirements.txt 不要忽略！要提交】
+
+# ===================== 项目文档/文件 针对性忽略 =====================
+# 你的项目里有大量PDF/TXT/MD技术文档，按需忽略规则：
+# ✅ 建议保留：技术文档 .md 后缀文件 (比如 机器验收系统技术文档.md)
+# ✅ 建议忽略：所有PDF、TXT 格式的技术文档/方案文档 (体积大+无需版本控制)
+*.pdf
+*.txt
+
+# ===================== 其他补充忽略 =====================
+# 本地配置文件
+.local
+*.local.conf
