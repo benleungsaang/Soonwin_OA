@@ -40,8 +40,8 @@
       </el-form>
 
       <!-- 打卡记录表格 -->
-      <el-table 
-        :data="punchRecords" 
+      <el-table
+        :data="punchRecords"
         v-loading="loading"
         style="width: 100%"
         stripe
@@ -65,10 +65,10 @@
 
       <!-- 分页组件 -->
       <el-pagination
-        v-model:current-page="page"
-        v-model:page-size="size"
+        :current-page="pagination.page"
+        :page-size="pagination.size"
         :page-sizes="[10, 20, 50, 100]"
-        :total="total"
+        :total="pagination.total"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
@@ -89,9 +89,11 @@ import { PunchRecord } from '@/types';
 const router = useRouter();
 
 // 分页参数
-const page = ref(1);
-const size = ref(10);
-const total = ref(0);
+const pagination = ref({
+  page: 1,
+  size: 10,
+  total: 0
+});
 
 // 搜索表单
 const searchForm = ref({
@@ -110,18 +112,19 @@ const fetchPunchRecords = async () => {
   loading.value = true;
   try {
     const params = {
-      page: page.value,
-      size: size.value,
+      page: pagination.value.page,
+      size: pagination.value.size,
       name: searchForm.value.name || undefined,
       emp_id: searchForm.value.empId || undefined,
       punch_type: searchForm.value.punchType || undefined,
       start_date: searchForm.value.punchTimeRange?.[0] || undefined,
       end_date: searchForm.value.punchTimeRange?.[1] || undefined,
     };
-    
+
     const response = await request.get('/api/punch-records', { params });
-    punchRecords.value = response.list;
-    total.value = response.total;
+    punchRecords.value = response.data;
+    pagination.value.total = response.total;
+    console.log(response)
   } catch (error) {
     console.error('Error fetching punch records:', error);
     ElMessage.error('获取打卡记录失败');
@@ -138,7 +141,7 @@ const resetSearch = () => {
     punchType: '',
     punchTimeRange: [],
   };
-  page.value = 1;
+  pagination.value.page = 1;
   fetchPunchRecords();
 };
 
@@ -149,14 +152,14 @@ const refreshData = () => {
 
 // 处理分页大小改变
 const handleSizeChange = (newSize: number) => {
-  size.value = newSize;
-  page.value = 1;
+  pagination.value.size = newSize;
+  pagination.value.page = 1;
   fetchPunchRecords();
 };
 
 // 处理当前页改变
 const handleCurrentChange = (newPage: number) => {
-  page.value = newPage;
+  pagination.value.page = newPage;
   fetchPunchRecords();
 };
 
@@ -177,7 +180,7 @@ const logout = async () => {
         type: 'warning',
       }
     );
-    
+
     // 清除本地存储的token
     localStorage.removeItem('oa_token');
     // 提示用户

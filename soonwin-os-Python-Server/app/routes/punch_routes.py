@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, redirect, Response
 from extensions import db
 from app.models.employee import Employee
 from app.models.punch_record import PunchRecord
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 
@@ -128,10 +128,41 @@ def punch():
 
 @punch_bp.route('/api/punch-records', methods=['GET'])
 def get_punch_records():
-    """获取全部打卡记录接口"""
+    """获取打卡记录接口，支持分页和筛选"""
     try:
-        # 查询所有打卡记录，按打卡时间倒序排列
-        punch_records = PunchRecord.query.order_by(PunchRecord.punch_time.desc()).all()
+        # 获取分页参数
+        page = request.args.get('page', 1, type=int)
+        size = request.args.get('size', 10, type=int)
+        
+        # 获取筛选参数
+        name = request.args.get('name')
+        emp_id = request.args.get('emp_id')
+        punch_type = request.args.get('punch_type')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        # 构建查询
+        query = PunchRecord.query
+        
+        # 应用筛选条件
+        if name:
+            query = query.filter(PunchRecord.name.contains(name))
+        if emp_id:
+            query = query.filter(PunchRecord.emp_id.contains(emp_id))
+        if punch_type:
+            query = query.filter(PunchRecord.punch_type == punch_type)
+        if start_date:
+            start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(PunchRecord.punch_time >= start_datetime)
+        if end_date:
+            end_datetime = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)  # 包含结束日期的整天
+            query = query.filter(PunchRecord.punch_time < end_datetime)
+        
+        # 计算总数
+        total = query.count()
+        
+        # 应用分页和排序
+        punch_records = query.order_by(PunchRecord.punch_time.desc()).offset((page - 1) * size).limit(size).all()
         
         # 将打卡记录转换为字典格式
         records_list = []
@@ -148,10 +179,14 @@ def get_punch_records():
         
         # 使用json.dumps确保中文正确显示
         import json
+        from datetime import timedelta
         response_data = {
             "code": 200,
             "msg": "获取打卡记录成功",
-            "data": records_list
+            "data": records_list,
+            "total": total,
+            "page": page,
+            "size": size
         }
         return Response(
             json.dumps(response_data, ensure_ascii=False, separators=(',', ':')),
