@@ -2,6 +2,13 @@ from extensions import db
 from datetime import datetime
 import uuid
 
+class UserStatus:
+    """用户状态枚举"""
+    PENDING_BINDING = "pending_binding"  # 待绑定
+    PENDING_APPROVAL = "pending_approval"  # 待审批
+    ACTIVE = "active"  # 激活
+    INACTIVE = "inactive"  # 停用
+
 class Employee(db.Model):
     __tablename__ = "Employee"  # 对应数据库表名
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4, comment="UUID主键")
@@ -10,6 +17,8 @@ class Employee(db.Model):
     dept = db.Column(db.String(50), comment="部门")
     phone_mac = db.Column(db.String(20), unique=True, nullable=False, comment="手机MAC地址（唯一）")
     inner_ip = db.Column(db.String(20), unique=True, nullable=False, comment="内网IP（固定）")
+    user_role = db.Column(db.String(10), default='user', comment="用户角色（admin/user）")
+    status = db.Column(db.String(20), default=UserStatus.PENDING_BINDING, comment="用户状态")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
 
     # 定义序列化方法，便于接口返回JSON数据
@@ -21,5 +30,7 @@ class Employee(db.Model):
             "dept": self.dept,
             "phone_mac": self.phone_mac,
             "inner_ip": self.inner_ip,
+            "user_role": self.user_role,
+            "status": self.status,
             "create_time": self.create_time.strftime("%Y-%m-%d %H:%M:%S")
         }

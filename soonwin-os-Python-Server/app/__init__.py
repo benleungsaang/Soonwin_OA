@@ -26,6 +26,10 @@ def create_app():
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
+        
+        # 注册用户管理路由蓝图
+        from .routes.user_routes import user_bp
+        app.register_blueprint(user_bp, url_prefix='/api')  # 恢复url_prefix
 
     return app
 

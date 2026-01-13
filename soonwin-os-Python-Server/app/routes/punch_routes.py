@@ -1,10 +1,20 @@
 import subprocess
 import re
-from flask import Blueprint, request, jsonify, redirect
+import json
+from flask import Blueprint, request, jsonify, redirect, Response
 from extensions import db
 from app.models.employee import Employee
 from app.models.punch_record import PunchRecord
 from datetime import datetime
+
+
+
+# ===================== 这里是全局变量插入位置 =====================
+# 定义服务器静态IP全局变量（你的服务器固定内网IP，按需修改即可）
+SERVER_INNER_IP = "192.168.30.53"
+# =================================================================
+
+
 
 # 创建蓝图
 punch_bp = Blueprint('punch', __name__)
@@ -33,6 +43,7 @@ def get_mac_by_ip(ip):
 
 @punch_bp.route('/punch', methods=['GET'])
 def punch():
+    print(request.headers)
     """打卡接口"""
     # 获取真实IP - 先检查X-Forwarded-For头部
     forwarded = request.headers.get('X-Forwarded-For')
@@ -41,22 +52,22 @@ def punch():
         user_ip = forwarded.split(',')[0].strip()
     else:
         user_ip = request.remote_addr
-    
+
     # 1. 内网校验
     if not is_inner_net(user_ip):
         # 外网访问异常处理
         return jsonify({"code": 403, "msg": "非公司内网设备，禁止打卡！"}), 403
-        
+
     # 2. 获取MAC地址
     user_mac = get_mac_by_ip(user_ip)
-    
+
     # 3. 检查是否已有对应MAC地址的员工记录
     employee = Employee.query.filter_by(phone_mac=user_mac).first()
-    
+
     # 如果没有找到对应MAC地址的员工记录，检查是否IP已存在
     if not employee:
         employee = Employee.query.filter_by(inner_ip=user_ip).first()
-        
+
         # 如果MAC和IP都未记录，则创建一个新的临时员工记录
         if not employee:
             # 创建临时员工记录（待管理员后续绑定）
@@ -70,7 +81,7 @@ def punch():
             db.session.add(temp_employee)
             db.session.commit()
             employee = temp_employee
-    
+
     # 4. 打卡类型判断
     hour = datetime.now().hour
     if 6 <= hour < 12:
@@ -80,20 +91,20 @@ def punch():
     else:
         # 非打卡时间异常处理
         return jsonify({"code": 400, "msg": "非打卡时间（6:00-22:00）！"}), 400
-    
+
     # 5. 重复打卡限制（30分钟内）
-    from datetime import timedelta
-    time_threshold = datetime.now() - timedelta(minutes=30)
-    last_punch = PunchRecord.query.filter(
-        PunchRecord.emp_id == employee.emp_id,
-        PunchRecord.punch_type == punch_type,
-        PunchRecord.punch_time > time_threshold
-    ).order_by(PunchRecord.punch_time.desc()).first()
-    
-    if last_punch:
-        # 重复打卡异常处理
-        return jsonify({"code": 400, "msg": f"30分钟内已完成{punch_type}，无需重复打卡！"}), 400
-    
+    # from datetime import timedelta
+    # time_threshold = datetime.now() - timedelta(minutes=30)
+    # last_punch = PunchRecord.query.filter(
+    #     PunchRecord.emp_id == employee.emp_id,
+    #     PunchRecord.punch_type == punch_type,
+    #     PunchRecord.punch_time > time_threshold
+    # ).order_by(PunchRecord.punch_time.desc()).first()
+
+    # if last_punch:
+    #     # 重复打卡异常处理
+    #     return jsonify({"code": 400, "msg": f"30分钟内已完成{punch_type}，无需重复打卡！"}), 400
+
     # 6. 记录存储
     new_punch = PunchRecord(
         emp_id=employee.emp_id,
@@ -105,11 +116,49 @@ def punch():
     )
     db.session.add(new_punch)
     db.session.commit()
-    
+
     # 7. 重定向到前端开发服务器（测试阶段）
     punch_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 使用当前服务器IP地址，根据实际请求IP来确定
-    redirect_url = f"http://{user_ip}:5173/punch-success?name={employee.name}&emp_id={employee.emp_id}&punch_type={punch_type}&punch_time={punch_time_str}"
-    
+    # 使用固定的前端开发服务器地址（localhost:5173 或实际IP:5173）
+    redirect_url = f"http://{SERVER_INNER_IP}:5173/punch-success?name={employee.name}&emp_id={employee.emp_id}&punch_type={punch_type}&punch_time={punch_time_str}"
+
     # 返回重定向响应（测试阶段，实际部署时可以返回JSON）
     return redirect(redirect_url)
+
+
+@punch_bp.route('/api/punch-records', methods=['GET'])
+def get_punch_records():
+    """获取全部打卡记录接口"""
+    try:
+        # 查询所有打卡记录，按打卡时间倒序排列
+        punch_records = PunchRecord.query.order_by(PunchRecord.punch_time.desc()).all()
+        
+        # 将打卡记录转换为字典格式
+        records_list = []
+        for record in punch_records:
+            records_list.append({
+                'id': record.id,
+                'emp_id': record.emp_id,
+                'name': record.name,
+                'punch_type': record.punch_type,
+                'punch_time': record.punch_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'inner_ip': record.inner_ip,
+                'phone_mac': record.phone_mac
+            })
+        
+        # 使用json.dumps确保中文正确显示
+        import json
+        response_data = {
+            "code": 200,
+            "msg": "获取打卡记录成功",
+            "data": records_list
+        }
+        return Response(
+            json.dumps(response_data, ensure_ascii=False, separators=(',', ':')),
+            mimetype='application/json; charset=utf-8'
+        )
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取打卡记录失败: {str(e)}"
+        }), 500

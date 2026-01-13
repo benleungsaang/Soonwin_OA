@@ -4,7 +4,7 @@
       <div class="success-icon">
         <el-icon class="icon"><Check /></el-icon>
       </div>
-      <el-title level="2" class="title">打卡成功！</el-title>
+      <h2 class="title">打卡成功！</h2>
       <el-divider></el-divider>
       <div class="info-list">
         <el-descriptions :column="1" border>

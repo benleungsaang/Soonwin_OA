@@ -4,6 +4,8 @@ import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import HomeView from '@/views/HomeView.vue';
 import LoginView from '@/views/LoginView.vue';
 import PunchSuccessView from '@/views/PunchSuccessView.vue';
+import PunchRecordsView from '@/views/PunchRecordsView.vue';
+import EmployeeManagementView from '@/views/EmployeeManagementView.vue';
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -31,6 +33,18 @@ const routes: RouteRecordRaw[] = [
     name: 'order',
     component: () => import('@/views/OrderView.vue'), // 懒加载组件（优化性能）
     meta: { title: '订单管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/punch-records',
+    name: 'punchRecords',
+    component: PunchRecordsView,
+    meta: { title: '打卡记录', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/employee-management',
+    name: 'employeeManagement',
+    component: EmployeeManagementView,
+    meta: { title: '员工管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   }
 ];
 

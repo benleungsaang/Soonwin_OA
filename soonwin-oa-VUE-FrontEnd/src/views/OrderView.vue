@@ -1,6 +1,10 @@
 <template>
   <div class="order-container">
-    <el-page-header content="订单管理系统"></el-page-header>
+    <el-page-header content="订单管理系统">
+      <template #extra>
+        <el-button @click="logout">退出登录</el-button>
+      </template>
+    </el-page-header>
     <el-card shadow="hover" class="order-card">
       <!-- 订单筛选区域 -->
       <el-form :model="searchForm" :inline="true" class="search-form">
@@ -77,10 +81,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '@/utils/request';
 import { OrderList } from '@/types'; // 引用订单类型定义
+
+// 路由实例
+const router = useRouter();
 
 // 搜索表单数据
 const searchForm = reactive({
@@ -182,6 +190,33 @@ const handlePageSizeChange = (size: number) => {
 const handleCurrentPageChange = (page: number) => {
   pageParams.page = page;
   loadOrderList();
+};
+
+// 退出登录
+const logout = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要退出登录吗？',
+      '确认退出',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    
+    // 清除本地存储的token
+    localStorage.removeItem('oa_token');
+    // 提示用户
+    ElMessage.success('已退出登录');
+    // 跳转到登录页
+    router.push('/login');
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel') {
+      console.error('退出登录失败：', error);
+    }
+  }
 };
 </script>
 

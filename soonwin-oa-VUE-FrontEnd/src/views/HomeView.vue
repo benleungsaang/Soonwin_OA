@@ -18,9 +18,21 @@
               <el-icon><Document /></el-icon>
               <span>订单管理</span>
             </el-menu-item>
-            <el-menu-item index="3" @click="goToLogin" v-else>
+            <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken">
+              <el-icon><Clock /></el-icon>
+              <span>打卡记录</span>
+            </el-menu-item>
+            <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken">
+              <el-icon><User /></el-icon>
+              <span>员工管理</span>
+            </el-menu-item>
+            <el-menu-item index="5" @click="goToLogin" v-if="!hasToken">
               <el-icon><User /></el-icon>
               <span>登录</span>
+            </el-menu-item>
+            <el-menu-item index="6" @click="logout" v-if="hasToken">
+              <el-icon><SwitchButton /></el-icon>
+              <span>退出登录</span>
             </el-menu-item>
           </el-menu>
         </el-card>
@@ -32,7 +44,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { CreditCard, Document, User } from '@element-plus/icons-vue';
+import { CreditCard, Document, User, Clock, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 // 路由实例
@@ -63,8 +75,30 @@ const goToOrder = () => {
   router.push('/order');
 };
 
+// 跳转打卡记录页面（需登录）
+const goToPunchRecords = () => {
+  router.push('/punch-records');
+};
+
+// 跳转员工管理页面（需登录）
+const goToEmployeeManagement = () => {
+  router.push('/employee-management');
+};
+
 // 跳转登录页
 const goToLogin = () => {
+  router.push('/login');
+};
+
+// 退出登录
+const logout = () => {
+  // 清除本地存储的token
+  localStorage.removeItem('oa_token');
+  // 更新登录状态
+  hasToken.value = false;
+  // 提示用户
+  ElMessage.success('已退出登录');
+  // 跳转到登录页
   router.push('/login');
 };
 </script>
