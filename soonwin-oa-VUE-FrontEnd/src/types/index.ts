@@ -11,13 +11,19 @@ declare module 'vue-router' {
 
 // 员工信息类型
 export interface Employee {
-  id: number;
+  id: string; // UUID
   name: string;
   emp_id: string;
   dept?: string;
   phone_mac: string;
   inner_ip: string;
+  user_role: string;
+  status: string;
+  remarks?: string; // 备注信息
+  last_login_time?: string;
+  login_device?: string;
   create_time: string;
+  device_count?: number; // 设备数量
 }
 
 // 打卡记录类型
@@ -29,6 +35,8 @@ export interface PunchRecord {
   punch_time: string;
   inner_ip?: string;
   phone_mac?: string;
+  last_login_time?: string;
+  login_device?: string;
 }
 
 // JWT登录响应类型

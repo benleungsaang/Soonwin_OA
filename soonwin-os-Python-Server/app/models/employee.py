@@ -19,6 +19,9 @@ class Employee(db.Model):
     inner_ip = db.Column(db.String(20), unique=True, nullable=False, comment="内网IP（固定）")
     user_role = db.Column(db.String(10), default='user', comment="用户角色（admin/user）")
     status = db.Column(db.String(20), default=UserStatus.PENDING_BINDING, comment="用户状态")
+    remarks = db.Column(db.Text, comment="备注信息")
+    last_login_time = db.Column(db.DateTime, comment="上次登录时间")
+    login_device = db.Column(db.String(100), comment="登录设备")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
 
     # 定义序列化方法，便于接口返回JSON数据
@@ -32,5 +35,8 @@ class Employee(db.Model):
             "inner_ip": self.inner_ip,
             "user_role": self.user_role,
             "status": self.status,
+            "remarks": self.remarks,
+            "last_login_time": self.last_login_time.strftime("%Y-%m-%d %H:%M:%S") if self.last_login_time else None,
+            "login_device": self.login_device,
             "create_time": self.create_time.strftime("%Y-%m-%d %H:%M:%S")
         }

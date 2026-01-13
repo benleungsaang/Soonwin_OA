@@ -30,6 +30,10 @@ def create_app():
         # 注册用户管理路由蓝图
         from .routes.user_routes import user_bp
         app.register_blueprint(user_bp, url_prefix='/api')  # 恢复url_prefix
+        
+        # 注册订单管理路由蓝图
+        from .routes.order_routes import order_bp
+        app.register_blueprint(order_bp, url_prefix='/api')
 
     return app
 

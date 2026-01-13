@@ -1,6 +1,6 @@
 <template>
   <div class="punch-records-container">
-    <el-page-header content="打卡记录">
+    <el-page-header content="打卡记录" @back="goBack">
       <template #extra>
         <el-button @click="logout">退出登录</el-button>
       </template>
@@ -61,11 +61,17 @@
         <el-table-column prop="punch_time" label="打卡时间" width="180" />
         <el-table-column prop="inner_ip" label="打卡IP" width="150" />
         <el-table-column prop="phone_mac" label="设备MAC" width="180" />
+        <el-table-column prop="last_login_time" label="最后登录时间" width="180">
+          <template #default="scope">
+            {{ scope.row.last_login_time ? new Date(scope.row.last_login_time).toLocaleString('zh-CN') : '无记录' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="login_device" label="登录设备" width="180" />
       </el-table>
 
       <!-- 分页组件 -->
       <el-pagination
-        :current-page="pagination.page"
+        v-model="pagination.page"
         :page-size="pagination.size"
         :page-sizes="[10, 20, 50, 100]"
         :total="pagination.total"
@@ -122,9 +128,12 @@ const fetchPunchRecords = async () => {
     };
 
     const response = await request.get('/api/punch-records', { params });
-    punchRecords.value = response.data;
-    pagination.value.total = response.total;
-    console.log(response)
+    // 现在API返回格式统一：{code: 200, msg: "...", data: {list: [...], total: x, page: x, size: x}}
+    // request拦截器会返回data部分，即{list: [...], total: x, page: x, size: x}
+    punchRecords.value = response.list || [];  // 打卡记录数组
+    pagination.value.total = response.total || 0;
+    pagination.value.page = response.page || 1;
+    pagination.value.size = response.size || 10;
   } catch (error) {
     console.error('Error fetching punch records:', error);
     ElMessage.error('获取打卡记录失败');
@@ -159,6 +168,8 @@ const handleSizeChange = (newSize: number) => {
 
 // 处理当前页改变
 const handleCurrentChange = (newPage: number) => {
+  // 当使用v-model时，不需要手动更新pagination.value.page，因为v-model会自动更新
+  // 但为了明确起见，我们仍然可以设置它
   pagination.value.page = newPage;
   fetchPunchRecords();
 };
@@ -167,6 +178,11 @@ const handleCurrentChange = (newPage: number) => {
 onMounted(() => {
   fetchPunchRecords();
 });
+
+// 返回上一页
+const goBack = () => {
+  router.go(-1);
+};
 
 // 退出登录
 const logout = async () => {

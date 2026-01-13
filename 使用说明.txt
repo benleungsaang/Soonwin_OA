@@ -1,0 +1,50 @@
+到新设备时，先在准备要创建目录的地方克隆项目
+注意如果想在 G:/project/【要克隆的项目名】
+那你应该在 G:/project执行git命令
+
+git clone 项目地址.git
+
+
+后端 => soonwin-os-Python-Server
+
+重新获取依赖
+# 第一步：安装 pipreqs 工具本身
+pip install pipreqs
+
+# 第二步：在项目根目录，生成 requirements.txt 文件
+# --encoding=utf8 解决中文注释/中文路径报错，必加参数
+pipreqs . --encoding=utf8 --force
+
+在其它功能脚本中：
+init_db.py
+新建项目时，创建数据库
+
+init_admin_script.py
+利用本地脚本生成一个管理员账号
+
+如果数据库有变动，请参照
+1. quick_db_fix.py - 快速修复数据库结构问题
+2. db_migrate.py - 完整的迁移管理工具
+3. migration_guide.py - 迁移指南和最佳实践
+
+
+
+前端 => soonwin-oa-VUE-FrontEnd
+
+重新获取依赖
+
+# ============ 第一步：清理所有冲突文件+残留文件（必做，解决所有干扰项） ============
+# 1. 删除npm的锁文件，解决yarn/npm混用冲突（核心）
+rm -r -fo package-lock.json
+# 2. 删除残缺的依赖文件夹
+rm -r -fo node_modules
+# 3. 如果有旧的yarn.lock也删掉，避免缓存版本干扰
+rm -r -fo yarn.lock
+
+# ============ 第二步：清除yarn缓存 + 配置国内镜像源（必做，加速+防下载失败） ============
+yarn cache clean
+yarn config set registry https://registry.npmmirror.com/
+
+# ============ 第三步：终极核心命令！跳过Node版本校验 + 强制重装所有依赖（100%成功！） ============
+yarn install --ignore-engines --force
+

@@ -7,14 +7,25 @@
       <!-- 登录表单 -->
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" label-width="80px" v-if="!showBindForm">
         <el-form-item label="员工工号" prop="empId">
-          <el-input v-model="loginForm.empId" placeholder="请输入工号">
+          <el-input 
+            v-model="loginForm.empId" 
+            placeholder="请输入工号" 
+            @keyup.enter="focusTotpCode"
+            ref="empIdInputRef"
+          >
             <template #prefix>
               <el-icon><User /></el-icon>
             </template>
           </el-input>
         </el-form-item>
         <el-form-item label="动态验证码" prop="totpCode">
-          <el-input v-model="loginForm.totpCode" placeholder="请输入6位动态码" type="number">
+          <el-input 
+            v-model="loginForm.totpCode" 
+            placeholder="请输入6位动态码" 
+            type="number"
+            @keyup.enter="handleLogin"
+            ref="totpCodeInputRef"
+          >
             <template #prefix>
               <el-icon><Lock /></el-icon>
             </template>
@@ -77,6 +88,9 @@ const router = useRouter();
 // 表单引用
 const loginFormRef = ref<FormInstance | null>(null);
 const bindFormRef = ref<FormInstance | null>(null);
+// 输入框引用
+const empIdInputRef = ref<any>(null);
+const totpCodeInputRef = ref<any>(null);
 // 加载状态
 const isLoading = ref(false);
 const isBinding = ref(false);
@@ -122,6 +136,23 @@ const bindRules = reactive<FormRules>({
     { len: 6, message: '验证码长度为6位', trigger: 'blur' },
   ],
 });
+
+// 跳转到验证码输入框
+const focusTotpCode = () => {
+  // 校验工号输入
+  if (!loginFormRef.value) return;
+  
+  loginFormRef.value.validateField('empId', (errorMessage) => {
+    if (!errorMessage) {
+      // 工号验证通过，将焦点切换到验证码输入框
+      setTimeout(() => {
+        if (totpCodeInputRef.value) {
+          totpCodeInputRef.value.focus();
+        }
+      }, 100); // 添加短暂延迟确保DOM更新
+    }
+  });
+};
 
 // 处理登录逻辑
 const handleLogin = async () => {

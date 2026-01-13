@@ -9,8 +9,20 @@ interface ApiResponse<T = any> {
 }
 
 // 创建Axios实例
+const getBaseURL = () => {
+  // 在开发环境中使用相对路径，通过Vite代理转发请求
+  if (import.meta.env.MODE === 'development') {
+    return '';
+  }
+  // 在生产环境中使用当前访问的域名和端口5000
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
+  const port = 5000; // 后端服务端口固定为5000
+  return `${protocol}//${hostname}:${port}`;
+};
+
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: getBaseURL(),
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json;charset=utf-8',

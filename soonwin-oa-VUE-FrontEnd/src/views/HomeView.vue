@@ -85,6 +85,11 @@ const goToEmployeeManagement = () => {
   router.push('/employee-management');
 };
 
+// 跳转设备管理页面（需登录）
+const goToDeviceManagement = () => {
+  router.push('/device-management');
+};
+
 // 跳转登录页
 const goToLogin = () => {
   router.push('/login');
