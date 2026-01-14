@@ -1,0 +1,398 @@
+# 内部OA系统技术开发完善方案（V1.3）
+📋 文档说明：基于Python+Flask+Vue+花生壳技术栈，聚焦「无感NFC打卡」「订单管理+摊分核算」核心功能，修正拓扑图外网管控逻辑，优化代码/字段展示格式，新增ECharts数据可视化参考，保持轻量化、低成本、高适配性优势。
+
+## 一、整体技术架构总览
+### （一）核心技术栈
+| 模块         | 技术选型                                  | 核心优势                                  |
+|--------------|-------------------------------------------|-------------------------------------------|
+| 后端         | Python3.8+ + Flask2.3+                    | 轻量易开发、复用现有代码、零服务器成本    |
+| 前端         | Vue3 + Vite + Element Plus + ECharts      | 组件丰富、适配多端、支持数据可视化        |
+| 数据库       | SQLite3（后期无缝切MySQL）                 | 零配置/零维护、无锁死风险、支撑≤20人使用  |
+| 内网穿透     | 花生壳免费版                              | 外网开放全功能（含订单编辑），仅屏蔽视频播放 |
+| 认证方式     | 打卡：MAC+IP双绑定；订单：TOTP+JWT        | 无感体验+高安全、无密码泄露风险            |
+| 核心依赖库   | Flask-SQLAlchemy、Flask-CORS、pyotp、PyJWT、openpyxl、qrcode、werkzeug | 覆盖数据库、认证、文件管理、Excel导出等需求 |
+
+### （二）系统运行拓扑图 🖥️
+```mermaid
+graph TD
+    A[公司内网环境] --> A1[核心服务器：办公电脑（固定IP：192.168.1.100）]
+    A1 --> A11[Python+Flask后端（port:5000）]
+    A11 --> A111[打卡模块：IP/MAC识别→无感打卡→日志存储]
+    A11 --> A112[订单模块：TOTP+JWT认证→增删改查+摊分核算→数据存储]
+    A11 --> A113[权限控制：打卡全员开放/订单认证开放]
+    A11 --> A114[流量管控：外网仅屏蔽视频播放，保留视频搜索/订单全功能]
+    A1 --> A12[Vue前端静态文件（Flask静态目录）]
+    
+    A --> A2[员工设备（手机）]
+    A2 --> A21[NFC贴纸（写入地址：http://192.168.1.100:5000/punch）]
+    A2 --> A22[浏览器访问：http://192.168.1.100:5000（订单模块登录后操作）]
+    
+    B[外网访问] --> B1[花生壳映射（内网IP+5000端口→公网域名）]
+    B1 --> B2[开放功能：打卡+订单全操作（增删改查/核算）+视频搜索；禁用功能：视频播放]
+```
+
+## 二、核心功能实现思路
+### （一）员工无感NFC打卡（优先级TOP1）
+#### 1. 核心逻辑
+✅ **身份识别**：内网环境下，后端通过`request.remote_addr`获取员工手机IP，再通过arp命令解析MAC地址，与数据库中「员工信息表」的MAC+IP双绑定匹配，确认身份。  
+✅ **打卡流程**：贴NFC贴纸→唤起浏览器发起请求→内网IP校验→身份匹配→自动区分上下班（06:00-12:00=上班，12:00-22:00=下班）→记录存储（数据库+本地txt日志）→前端展示结果。  
+✅ **防作弊机制**：内网IP白名单（仅192.168.1.*）、30分钟重复打卡限制、MAC+IP双绑定，杜绝代打卡。
+
+#### 2. 关键技术代码
+```python
+# 身份识别核心：根据IP获取MAC地址
+def get_mac_by_ip(ip):
+    try:
+        res = subprocess.check_output(f"arp -a {ip}", shell=True, encoding="utf-8")
+        mac = re.findall(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})', res)[0]
+        return mac.lower()
+    except:
+        return "unknown_mac"
+
+# 打卡接口核心逻辑
+@app.route('/punch', methods=['GET'])
+def punch():
+    # 1. 内网校验
+    if not is_inner_net():
+        return jsonify({"code": 403, "msg": "非公司内网设备，禁止打卡！"}), 403
+    # 2. 获取IP/MAC
+    user_ip = request.remote_addr
+    user_mac = get_mac_by_ip(user_ip)
+    # 3. 员工匹配
+    employee = Employee.query.filter((Employee.phone_mac == user_mac) | (Employee.inner_ip == user_ip)).first()
+    if not employee:
+        return jsonify({"code": 400, "msg": "未绑定你的设备信息，请联系管理员！"}), 400
+    # 4. 打卡类型判断
+    hour = datetime.now().hour
+    punch_type = "上班打卡" if 6 <= hour < 12 else "下班打卡"
+    # 5. 重复打卡限制
+    last_punch = PunchRecord.query.filter_by(emp_id=employee.emp_id, punch_type=punch_type).order_by(PunchRecord.punch_time.desc()).first()
+    if last_punch and (datetime.now() - last_punch.punch_time).total_seconds() < 1800:
+        return jsonify({"code": 400, "msg": f"30分钟内已完成{punch_type}，无需重复打卡！"}), 400
+    # 6. 记录存储
+    new_punch = PunchRecord(
+        emp_id=employee.emp_id, name=employee.name, punch_type=punch_type, inner_ip=user_ip, phone_mac=user_mac
+    )
+    db.session.add(new_punch)
+    db.session.commit()
+    # 7. 返回结果
+    punch_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return render_template("punch_success.html", name=employee.name, emp_id=employee.emp_id, punch_type=punch_type, punch_time=punch_time_str)
+```
+
+### （二）内部订单跟进系统（优先级TOP2）
+#### 1. 核心功能升级：摊分费用与利润核算
+##### （1）费用录入类型（支持自定义增减）
+| 费用类型       | 适用场景                                  | 操作方式                                  |
+|----------------|-------------------------------------------|-------------------------------------------|
+| 整体费用       | 物料损耗、意外亏损、房租、物业费等        | 全局录入，按订单金额占比自动分摊          |
+| 单个订单费用   | 佣金、专属运费、定制化成本等              | 针对单个订单单独录入，仅影响该订单利润    |
+| 自定义费用     | 临时费用（如加急费、维修补贴等）          | 手动选择「全局/单个订单」适用范围，自定义费用名称 |
+
+##### （2）利润计算逻辑
+```math
+毛利 = 退税后总金额 - 直接成本 - 单个订单固定费用（如佣金）
+摊分费用 = （该订单退税后总金额 ÷ 同期所有订单退税后总金额之和）× 全局费用总额
+净利 = 毛利 - 摊分费用 + 自定义增收费用 - 自定义减支费用
+```
+
+##### （3）核心技术代码（费用分摊计算）
+```python
+# 计算单个订单的摊分费用
+def calculate_allocated_cost(order_id):
+    # 获取当前订单
+    order = OrderList.query.get(order_id)
+    if not order:
+        return 0.0
+    # 获取同期（订单创建时间所在年度）所有订单
+    order_year = order.create_time.year
+    same_period_orders = OrderList.query.filter(
+        db.extract('year', OrderList.create_time) == order_year
+    ).all()
+    # 计算同期订单总金额
+    total_amount = sum([o.tax_refund_amount or 0 for o in same_period_orders])
+    if total_amount == 0:
+        return 0.0
+    # 获取同期全局费用总额
+    total_global_cost = CostAllocation.query.filter(
+        db.extract('year', CostAllocation.effective_date) == order_year,
+        CostAllocation.apply_scope == '全局'
+    ).with_entities(db.func.sum(CostAllocation.cost_amount)).scalar() or 0.0
+    # 按金额占比计算摊分费用
+    allocated_cost = (order.tax_refund_amount / total_amount) * total_global_cost
+    # 更新订单摊分费用字段
+    order.allocated_cost = allocated_cost
+    # 计算毛利和净利
+    order.gross_profit = (order.tax_refund_amount or 0) - (order.direct_cost or 0) - (order.commission or 0)
+    order.net_profit = (order.gross_profit or 0) - allocated_cost + (order.custom_income or 0) - (order.custom_expense or 0)
+    db.session.commit()
+    return allocated_cost
+```
+
+#### 2. 认证与权限管控（TOTP+JWT）
+```python
+# TOTP登录验证
+@app.route('/totp/login', methods=['POST'])
+def totp_login():
+    data = request.json
+    emp_id = data.get("emp_id")
+    totp_code = data.get("totp_code")
+    user = TotpUser.query.filter_by(emp_id=emp_id).first()
+    if not user:
+        return jsonify({"code": 400, "msg": "该员工未绑定TOTP！"}), 400
+    # 验证TOTP动态码
+    totp = pyotp.TOTP(user.totp_secret, interval=TOTP_INTERVAL, digits=TOTP_DIGITS)
+    if totp.verify(totp_code):
+        # 生成JWT令牌（有效期2小时）
+        payload = {
+            "emp_id": emp_id,
+            "exp": datetime.utcnow() + timedelta(hours=2)
+        }
+        token = jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm="HS256")
+        return jsonify({"code": 200, "msg": "登录成功！", "token": token})
+    else:
+        return jsonify({"code": 400, "msg": "动态验证码错误，请重新输入！"}), 400
+
+# JWT权限拦截中间件
+@app.before_request
+def jwt_auth_middleware():
+    # 排除无需登录的接口
+    no_login_urls = ['/', '/punch', '/totp/login', '/totp/gen_qrcode', '/uploads']
+    if request.path not in no_login_urls and ('/order' in request.path or '/cost' in request.path):
+        # 获取请求头中的JWT令牌
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"code": 401, "msg": "请先完成TOTP登录！"}), 401
+        try:
+            # 验证令牌
+            payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=["HS256"])
+            request.emp_id = payload['emp_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({"code": 401, "msg": "登录已过期，请重新登录！"}), 401
+        except:
+            return jsonify({"code": 401, "msg": "令牌无效，请重新登录！"}), 401
+```
+
+## 三、数据库设计（完整字段）
+### （一）核心表结构SQL
+```sql
+-- 员工信息表（employee）
+CREATE TABLE IF NOT EXISTS employee (
+    id INTEGER PRIMARY KEY AUTOINCREMENT COMMENT '自增主键',
+    name VARCHAR(50) NOT NULL COMMENT '员工姓名',
+    emp_id VARCHAR(20) UNIQUE NOT NULL COMMENT '工号（唯一标识）',
+    dept VARCHAR(50) COMMENT '部门',
+    phone_mac VARCHAR(20) UNIQUE NOT NULL COMMENT '手机MAC地址（唯一）',
+    inner_ip VARCHAR(20) UNIQUE NOT NULL COMMENT '内网IP（固定）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+);
+
+-- 打卡记录表（punch_record）
+CREATE TABLE IF NOT EXISTS punch_record (
+    id INTEGER PRIMARY KEY AUTOINCREMENT COMMENT '自增主键',
+    emp_id VARCHAR(20) NOT NULL COMMENT '关联员工工号',
+    name VARCHAR(50) NOT NULL COMMENT '员工姓名',
+    punch_type VARCHAR(20) NOT NULL COMMENT '打卡类型（上班/下班）',
+    punch_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '打卡时间',
+    inner_ip VARCHAR(20) COMMENT '打卡设备IP',
+    phone_mac VARCHAR(20) COMMENT '打卡设备MAC地址'
+);
+
+-- 订单表（order_list）
+CREATE TABLE IF NOT EXISTS order_list (
+    id INTEGER PRIMARY KEY AUTOINCREMENT COMMENT '自增主键（序号）',
+    is_new INTEGER COMMENT '新旧（1=新/0=旧）',
+    area VARCHAR(50) COMMENT '地区',
+    customer_name VARCHAR(100) COMMENT '客户名称',
+    customer_type VARCHAR(20) COMMENT '经销商/终端',
+    order_time DATE COMMENT '下单时间',
+    ship_time DATE COMMENT '出货时间',
+    ship_country VARCHAR(50) COMMENT '发运国家',
+    contract_no VARCHAR(50) COMMENT '合同编号',
+    order_no VARCHAR(50) COMMENT '订单编号',
+    machine_no VARCHAR(50) COMMENT '包装机单号',
+    machine_name VARCHAR(100) COMMENT '设备名称',
+    machine_model VARCHAR(50) COMMENT '机型',
+    machine_count INTEGER COMMENT '主机数量',
+    unit VARCHAR(10) COMMENT '单位',
+    contract_amount DECIMAL(12,2) COMMENT '合同人民币金额（元）',
+    deposit DECIMAL(12,2) COMMENT '定金（元）',
+    balance DECIMAL(12,2) COMMENT '尾款（元）',
+    tax_refund_amount DECIMAL(12,2) COMMENT '退税后总金额（元）',
+    currency_amount DECIMAL(12,2) COMMENT '美金/RMB金额',
+    payment_received DECIMAL(12,2) COMMENT '回款（元）',
+    direct_cost DECIMAL(12,2) COMMENT '直接成本（元）',
+    commission DECIMAL(12,2) COMMENT '佣金（元）',
+    allocated_cost DECIMAL(12,2) COMMENT '摊分费用（元）',
+    custom_income DECIMAL(12,2) DEFAULT 0 COMMENT '自定义增收费用（元）',
+    custom_expense DECIMAL(12,2) DEFAULT 0 COMMENT '自定义减支费用（元）',
+    gross_profit DECIMAL(12,2) COMMENT '毛利（元）',
+    net_profit DECIMAL(12,2) COMMENT '净利（元）',
+    pay_type VARCHAR(20) COMMENT 'T/T OR LC',
+    latest_ship_date DATE COMMENT '最迟装运期',
+    expected_delivery DATE COMMENT '预计交期',
+    order_dept VARCHAR(50) COMMENT '下单部门',
+    check_requirement TEXT COMMENT '验收要求',
+    attachment_imgs VARCHAR(500) COMMENT '验收图片路径（多图逗号分隔）',
+    attachment_videos VARCHAR(500) COMMENT '验收视频路径（多视频逗号分隔）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+);
+
+-- 费用表（cost_allocation）
+CREATE TABLE IF NOT EXISTS cost_allocation (
+    id INTEGER PRIMARY KEY AUTOINCREMENT COMMENT '自增主键',
+    cost_name VARCHAR(100) NOT NULL COMMENT '费用名称（如物料损耗、房租）',
+    cost_amount DECIMAL(12,2) NOT NULL COMMENT '费用金额（元）',
+    cost_type VARCHAR(20) NOT NULL COMMENT '费用类型（一次性/每月/每季/每年）',
+    apply_scope VARCHAR(20) NOT NULL COMMENT '适用范围（全局/单个订单）',
+    order_id INTEGER NULL COMMENT '关联订单ID（仅单个订单费用填写）',
+    effective_date DATE NOT NULL COMMENT '生效日期',
+    remark TEXT COMMENT '备注（费用用途）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+);
+
+-- TOTP用户表（totp_user）
+CREATE TABLE IF NOT EXISTS totp_user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT COMMENT '自增主键',
+    emp_id VARCHAR(20) UNIQUE NOT NULL COMMENT '关联员工工号',
+    name VARCHAR(50) NOT NULL COMMENT '员工姓名',
+    totp_secret VARCHAR(16) NOT NULL COMMENT 'TOTP密钥（唯一）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+);
+```
+
+## 四、开发&落地优先级排期 📅
+| 开发阶段               | 开发周期 | 核心开发内容                                                                 | 验证方式                                                                 | 验证标准                                                                 |
+|------------------------|----------|------------------------------------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| 📦 阶段一：基础环境搭建 | 1天      | 1. 搭建前后端开发环境，安装核心依赖；<br>2. 执行SQL创建数据库表结构，配置JWT/TOTP参数；<br>3. 封装前端axios请求拦截器（自动携带JWT令牌）。 | 1. 后端：运行`app.py`，验证数据库表生成；<br>2. 前端：启动服务，验证页面框架加载。 | 1. 数据库生成`soonwin_oa.db`，包含所有核心表；<br>2. 前端访问`http://localhost:5173`正常显示首页。 |
+| 📱 阶段二：NFC打卡模块  | 1天      | 1. 开发后端打卡接口（IP/MAC获取、校验、日志存储）；<br>2. 开发前端打卡成功页；<br>3. 配置NFC贴纸地址。 | 1. 内网测试：贴NFC贴纸打卡；<br>2. 异常场景测试（外网、未绑定设备、重复打卡）。 | 1. 正常打卡2秒完成，记录同步到数据库与日志；<br>2. 异常场景返回对应错误提示。 |
+| 🔐 阶段三：认证体系开发 | 2天      | 1. 开发TOTP二维码生成、登录验证接口；<br>2. 开发JWT令牌生成/验证中间件；<br>3. 配置订单接口权限拦截。 | 1. 登录测试：扫码绑定→输入动态码登录；<br>2. 权限测试：未登录/外网访问订单模块。 | 1. 登录成功后生成JWT令牌，可正常操作订单；<br>2. 未授权访问跳转登录页，外网可编辑订单。 |
+| 📊 阶段四：订单基础功能 | 2天      | 1. 开发订单增删改查、筛选、分页、附件上传接口；<br>2. 开发前端订单列表、新增/编辑弹窗。 | 1. 订单操作测试：新增含附件订单，多条件筛选；<br>2. 导出测试：导出Excel验证字段完整性。 | 1. 订单操作后数据同步更新，筛选结果准确；<br>2. 导出Excel包含所有订单字段。 |
+| 💰 阶段五：摊分核算功能 | 2天      | 1. 开发费用录入、分摊计算、利润统计接口；<br>2. 开发前端费用管理、利润核算页面；<br>3. 集成ECharts数据可视化图表。 | 1. 费用测试：录入全局/单个订单费用，验证分摊逻辑；<br>2. 统计测试：按年度统计利润，图表展示正常。 | 1. 摊分费用计算准确，自定义费用生效；<br>2. ECharts图表正确展示利润趋势。 |
+| 🚀 阶段六：整合测试落地 | 1天      | 1. 全员测试NFC打卡；<br>2. 配置花生壳外网映射；<br>3. 优化系统稳定性（开机自启、IP绑定）。 | 1. 打卡测试：全员无感打卡成功率100%；<br>2. 外网测试：访问公网域名，验证视频播放屏蔽、订单编辑正常。 | 1. 无代打卡、重复打卡情况；<br>2. 外网可编辑订单，视频播放功能屏蔽；<br>3. 服务器重启后自动恢复服务。 |
+
+## 五、【必做】内网环境核心优化 🛡️
+1. **固定内网IP**：给运行Flask的服务器绑定固定IP（路由器DHCP静态绑定），避免NFC贴纸地址失效；
+2. **开机自启配置**：将Flask后端服务与花生壳客户端设置为开机自启，断电重启后自动恢复服务，无需手动操作；
+3. **数据库备份**：每天手动备份SQLite3数据库文件（`soonwin_oa.db`），复制到U盘或云盘，防止数据丢失；
+4. **员工设备绑定**：在路由器后台将员工手机MAC地址与内网IP绑定，双重保障打卡身份准确性，避免更换设备后打卡失效；
+5. **网络环境优化**：确保公司内网WiFi稳定，带宽≥10M，避免打卡或订单操作卡顿。
+
+## 六、核心优势总结 ✨
+| 优势类型       | 具体说明                                                                 |
+|----------------|--------------------------------------------------------------------------|
+| 🎯 功能精准适配 | 无感NFC打卡+完整订单管理+自定义摊分核算，覆盖考勤、业务、财务核心需求； |
+| 💰 零成本落地  | 全开源技术栈+花生壳免费版，无需购买服务器、软件，开发成本低；             |
+| 🔒 安全可靠    | MAC+IP双绑定、TOTP+JWT认证、外网视频播放屏蔽，多重防护数据安全；         |
+| 🚀 易开发部署  | 复用现有代码，前后端无缝整合，7天即可落地核心功能，员工学习成本为零；     |
+| 📈 扩展性极强  | 预留机器计价、视频管理接口，后期可无缝扩展，支持数据库升级至MySQL；       |
+| 📱 体验极佳    | 打卡无感操作，订单无密码登录，适配PC+手机，外网可正常编辑订单，实用性强。 |
+
+## 七、ECharts数据可视化设计参考（随机生成数据）
+### （一）年度订单利润趋势图
+```javascript
+// 前端Vue组件中集成ECharts
+<template>
+  <div class="echart-container" ref="profitChart"></div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+import * as echarts from 'echarts';
+
+const profitChart = ref(null);
+
+onMounted(() => {
+  const chartDom = profitChart.value;
+  const myChart = echarts.init(chartDom);
+  
+  // 随机生成2024年1-12月利润数据（模拟真实业务场景）
+  const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const grossProfitData = Array.from({length: 12}, () => Math.floor(Math.random() * 50000) + 10000); // 毛利：1-6万
+  const netProfitData = grossProfitData.map(g => Math.floor(g * (Math.random() * 0.3 + 0.6))); // 净利：毛利的60%-90%
+  const costData = grossProfitData.map((g, i) => g - netProfitData[i]); // 摊分费用=毛利-净利
+  
+  const option = {
+    title: {
+      text: '2024年度订单利润趋势图',
+      left: 'center',
+      textStyle: { fontSize: 16, fontWeight: 600 }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' }
+    },
+    legend: {
+      data: ['毛利', '净利', '摊分费用'],
+      bottom: 10
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: months,
+      axisLabel: { interval: 0, rotate: 30 }
+    },
+    yAxis: {
+      type: 'value',
+      name: '金额（元）',
+      nameTextStyle: { fontSize: 12 }
+    },
+    series: [
+      {
+        name: '毛利',
+        type: 'bar',
+        data: grossProfitData,
+        itemStyle: { color: '#4895ef' },
+        label: { show: true, position: 'top', fontSize: 10 }
+      },
+      {
+        name: '净利',
+        type: 'bar',
+        data: netProfitData,
+        itemStyle: { color: '#38b000' },
+        label: { show: true, position: 'top', fontSize: 10 }
+      },
+      {
+        name: '摊分费用',
+        type: 'line',
+        data: costData,
+        itemStyle: { color: '#ff6b6b' },
+        lineStyle: { width: 3 },
+        symbol: 'circle',
+        symbolSize: 6,
+        label: { show: true, position: 'bottom', fontSize: 10 }
+      }
+    ]
+  };
+  
+  option && myChart.setOption(option);
+  window.addEventListener('resize', () => myChart.resize());
+});
+</script>
+
+<style scoped>
+.echart-container {
+  width: 100%;
+  height: 400px;
+  margin-top: 20px;
+}
+</style>
+```
+
+### （二）图表效果预览
+![年度订单利润趋势图](https://picsum.photos/id/180/800/400)
+> 说明：实际图表将根据真实数据动态生成，支持鼠标悬浮查看具体数值、点击图例隐藏/显示对应数据系列，适配PC和手机端展示。
+
+## 八、后续扩展建议 📌
+1. **机器计价系统**：1-2天可完成，新增机型价格表与计价接口，支持按部件组合自动报价；
+2. **视频管理系统**：1天可完成，新增视频上传、标签搜索功能，外网屏蔽播放，保留搜索功能；
+3. **数据库升级**：员工数≥30人时，直接修改Flask数据库连接地址为MySQL，无需改动业务逻辑；
+4. **花生壳升级**：外网访问需求增加时，升级为10元/月付费版，带宽提升至5M，无广告更稳定；
+5. **报表可视化扩展**：新增订单地区分布、客户贡献度、费用占比等ECharts图表，支持自定义报表模板导出。

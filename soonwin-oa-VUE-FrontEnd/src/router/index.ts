@@ -6,6 +6,7 @@ import LoginView from '@/views/LoginView.vue';
 import PunchSuccessView from '@/views/PunchSuccessView.vue';
 import PunchRecordsView from '@/views/PunchRecordsView.vue';
 import EmployeeManagementView from '@/views/EmployeeManagementView.vue';
+import ExpenseManagementView from '@/views/ExpenseManagementView.vue';
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -38,13 +39,19 @@ const routes: RouteRecordRaw[] = [
     path: '/punch-records',
     name: 'punchRecords',
     component: PunchRecordsView,
-    meta: { title: '打卡记录', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+    meta: { title: '打卡记录', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
   {
     path: '/employee-management',
     name: 'employeeManagement',
     component: EmployeeManagementView,
-    meta: { title: '员工管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+    meta: { title: '员工管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  },
+  {
+    path: '/expense-management',
+    name: 'expenseManagement',
+    component: ExpenseManagementView,
+    meta: { title: '费用管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   }
 ];
 
@@ -63,7 +70,25 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('oa_token');
     if (token) {
-      next(); // 已登录，放行
+      // 检查是否需要管理员权限
+      if (to.meta.requiresAdmin) {
+        try {
+          // 解码JWT token获取用户角色信息
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.user_role === 'admin') {
+            next(); // 管理员权限，放行
+          } else {
+            // 非管理员用户尝试访问管理员页面
+            alert('您没有权限访问此页面！');
+            next('/'); // 返回首页
+          }
+        } catch (error) {
+          console.error('解析用户信息失败:', error);
+          next('/login'); // 解析失败，跳转登录页
+        }
+      } else {
+        next(); // 已登录，放行
+      }
     } else {
       next('/login'); // 未登录，跳转登录页
     }

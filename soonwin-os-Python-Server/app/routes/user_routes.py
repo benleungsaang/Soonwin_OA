@@ -5,6 +5,7 @@ from app.models.punch_record import PunchRecord
 from app.models.totp_user import TotpUser
 from app.models.order_list import OrderList
 from app.models.cost_allocation import CostAllocation
+from app.utils.auth_utils import require_admin, require_auth
 from datetime import datetime, timedelta
 import pyotp
 import jwt
@@ -82,6 +83,7 @@ def init_admin():
         }), 500
 
 @user_bp.route('/employee', methods=['POST'])
+@require_admin  # 只有管理员可以创建员工
 def create_employee():
     """创建员工"""
     try:
@@ -154,6 +156,7 @@ def create_employee():
         }), 500
 
 @user_bp.route('/employees', methods=['GET'])
+@require_admin  # 只有管理员可以查看所有员工
 def get_employees():
     """获取所有员工"""
     try:
@@ -198,6 +201,7 @@ def get_employees():
         }), 500
 
 @user_bp.route('/employee/<emp_id>', methods=['PUT'])
+@require_admin  # 只有管理员可以更新员工信息
 def update_employee(emp_id):
     """更新员工信息"""
     try:
@@ -289,6 +293,7 @@ def update_employee(emp_id):
         }), 500
 
 @user_bp.route('/employee/<emp_id>', methods=['DELETE'])
+@require_admin  # 只有管理员可以删除员工
 def delete_employee(emp_id):
     """删除员工"""
     try:
@@ -428,7 +433,7 @@ def totp_login():
 
         # 检查员工状态
         if employee.user_role != 'admin':
-            if employee.status != 'active':
+            if employee.status != 'active' and employee.status != 'pending_binding':
                 return jsonify({
                     "code": 403,
                     "msg": "员工账户未激活",
@@ -449,6 +454,20 @@ def totp_login():
         is_valid = totp.verify(data['totp_code'])
 
         if is_valid:
+            # 如果员工状态是"待绑定"，验证成功后更新为"已激活"
+            if employee.status == 'pending_binding':
+                employee.status = 'active'
+                db.session.commit()
+            
+            # 更新最后登录时间和设备信息
+            employee.last_login_time = datetime.now()
+            # 获取客户端IP作为登录设备IP
+            login_device_ip = request.remote_addr or 'unknown'
+            # 获取User-Agent作为设备信息
+            user_agent = request.headers.get('User-Agent', 'unknown')
+            employee.login_device = f"IP: {login_device_ip}, Browser: {user_agent}"
+            db.session.commit()
+            
             # 生成JWT令牌
             payload = {
                 'emp_id': employee.emp_id,

@@ -7,6 +7,88 @@
     </el-page-header>
     <el-divider></el-divider>
 
+    <!-- 费用汇总信息卡片 -->
+    <el-card shadow="hover" class="expense-summary-card" style="margin-bottom: 20px;">
+      <template #header>
+        <div class="card-header">
+          <span>年度费用汇总</span>
+          <div class="summary-actions">
+            <el-select v-model="currentYear" placeholder="选择年份" @change="fetchExpenseSummary" style="width: 120px; margin-right: 10px;">
+              <el-option 
+                v-for="year in yearOptions" 
+                :key="year" 
+                :label="year" 
+                :value="year"
+              ></el-option>
+            </el-select>
+            <el-button size="small" @click="fetchExpenseSummary">刷新</el-button>
+          </div>
+        </div>
+      </template>
+      <div class="summary-content" v-if="expenseSummary">
+        <el-row :gutter="20">
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">订单总数</div>
+              <div class="summary-value">{{ expenseSummary.total_orders }}</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">合同总金额</div>
+              <div class="summary-value">¥{{ formatCurrency(expenseSummary.total_contract_amount) }}</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">总毛利</div>
+              <div class="summary-value">¥{{ formatCurrency(expenseSummary.total_gross_profit) }}</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">费用分摊总额</div>
+              <div class="summary-value" :class="expenseSummary.total_expense_allocation >= 0 ? 'positive' : 'negative'">
+                {{ expenseSummary.total_expense_allocation >= 0 ? '+' : '' }}¥{{ formatCurrency(expenseSummary.total_expense_allocation) }}
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20" style="margin-top: 15px;">
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">估算净利</div>
+              <div class="summary-value" :class="expenseSummary.net_profit_estimate >= 0 ? 'positive' : 'negative'">
+                ¥{{ formatCurrency(expenseSummary.net_profit_estimate) }}
+              </div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">最后更新</div>
+              <div class="summary-value">{{ expenseSummary.last_updated }}</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item">
+              <div class="summary-label">计算状态</div>
+              <div class="summary-value" :class="expenseSummary.calculation_status === 'completed' ? 'success' : 'warning'">
+                {{ expenseSummary.calculation_status === 'completed' ? '已完成' : expenseSummary.calculation_status === 'failed' ? '失败' : '未计算' }}
+              </div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="summary-item" style="text-align: right;">
+              <el-button type="primary" size="small" @click="updateExpenseAllocations">更新费用分摊</el-button>
+            </div>
+          </el-col>
+        </el-row>
+      </div>
+      <div v-else class="no-summary-data">
+        暂无费用汇总数据，请点击"更新费用分摊"按钮进行计算
+      </div>
+    </el-card>
+
     <el-card shadow="hover" class="management-card">
       <!-- 搜索筛选区域 -->
       <el-form :model="searchForm" :inline="true" class="search-form">
@@ -359,6 +441,17 @@ import request from '@/utils/request';
 // 路由实例
 const router = useRouter();
 
+// 当前年份
+const currentYear = ref(new Date().getFullYear());
+// 年份选项
+const yearOptions = ref<number[]>([]);
+for (let i = currentYear.value - 5; i <= currentYear.value + 2; i++) {
+  yearOptions.value.push(i);
+}
+
+// 费用汇总信息
+const expenseSummary = ref<any>(null);
+
 // 分页参数
 const pagination = ref({
   page: 1,
@@ -629,7 +722,41 @@ const goBack = () => {
 // 组件挂载时获取数据
 onMounted(() => {
   fetchOrders();
+  fetchExpenseSummary(); // 获取费用汇总信息
 });
+
+// 获取费用汇总信息
+const fetchExpenseSummary = async () => {
+  try {
+    const response: any = await request.get('/api/orders/expense-summary', {
+      params: {
+        year: currentYear.value
+      }
+    });
+    expenseSummary.value = response.data;
+  } catch (error) {
+    console.error('获取费用汇总失败：', error);
+    ElMessage.error('获取费用汇总失败');
+    // 即使失败也设置为null，显示提示信息
+    expenseSummary.value = null;
+  }
+};
+
+// 更新费用分摊
+const updateExpenseAllocations = async () => {
+  try {
+    const response: any = await request.post('/api/calculate-expense-allocations', {
+      target_year: currentYear.value
+    });
+    ElMessage.success(response.msg || '费用分摊更新成功');
+    // 更新费用汇总信息
+    fetchExpenseSummary();
+    // 刷新订单列表，以便显示更新后的净利
+    fetchOrders();
+  } catch (error: any) {
+    ElMessage.error(error.message || '费用分摊更新失败');
+  }
+};
 
 // 退出登录
 const logout = async () => {
@@ -668,6 +795,62 @@ const logout = async () => {
 
 .management-card {
   margin-top: 20px;
+}
+
+.expense-summary-card {
+  margin-top: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-content {
+  padding: 10px 0;
+}
+
+.summary-item {
+  text-align: center;
+  padding: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 5px;
+}
+
+.summary-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.summary-value.positive {
+  color: #67c23a;
+}
+
+.summary-value.negative {
+  color: #f56c6c;
+}
+
+.summary-value.success {
+  color: #67c23a;
+}
+
+.summary-value.warning {
+  color: #e6a23c;
+}
+
+.no-summary-data {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
 }
 
 .search-form {

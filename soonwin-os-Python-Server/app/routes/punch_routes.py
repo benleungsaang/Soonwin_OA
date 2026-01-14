@@ -2,10 +2,13 @@ import subprocess
 import re
 import json
 import socket
+import jwt
+import config
 from flask import Blueprint, request, jsonify, redirect, Response
 from extensions import db
 from app.models.employee import Employee
 from app.models.punch_record import PunchRecord
+from app.utils.auth_utils import require_admin, require_auth
 from datetime import datetime, timedelta
 
 
@@ -268,6 +271,43 @@ def punch():
 def get_employee_info(emp_id):
     """获取员工信息接口（包含备注字段）"""
     try:
+        # 从请求头获取认证信息
+        token = request.headers.get('Authorization')
+        if token and token.startswith("Bearer "):
+            token = token[7:]
+            try:
+                # 解码JWT令牌
+                payload = jwt.decode(token, config.JWT_SECRET_KEY, algorithms=['HS256'])
+                current_emp_id = payload['emp_id']
+                current_user_role = payload['user_role']
+                
+                # 普通用户只能查看自己的信息，管理员可以查看任意员工信息
+                if current_user_role != 'admin' and current_emp_id != emp_id:
+                    return jsonify({
+                        "code": 403,
+                        "msg": "权限不足，只能查看自己的信息",
+                        "data": None
+                    }), 403
+            except jwt.ExpiredSignatureError:
+                return jsonify({
+                    "code": 401,
+                    "msg": "令牌已过期",
+                    "data": None
+                }), 401
+            except jwt.InvalidTokenError:
+                return jsonify({
+                    "code": 401,
+                    "msg": "无效的令牌",
+                    "data": None
+                }), 401
+        else:
+            # 如果没有提供token，也只允许查看自己的信息
+            return jsonify({
+                "code": 401,
+                "msg": "需要认证才能访问员工信息",
+                "data": None
+            }), 401
+
         # 查找员工记录
         employee = Employee.query.filter_by(emp_id=emp_id).first()
         
@@ -290,6 +330,7 @@ def get_employee_info(emp_id):
 
 
 @punch_bp.route('/api/replace-device-mac', methods=['POST'])
+@require_admin  # 只有管理员可以替换设备MAC
 def replace_device_mac():
     """替换设备MAC地址：将临时员工的设备MAC转移到正式员工，并删除临时员工"""
     try:
@@ -401,6 +442,7 @@ def update_employee_remarks():
 
 
 @punch_bp.route('/api/punch-records', methods=['GET'])
+@require_admin  # 只有管理员可以查看打卡记录
 def get_punch_records():
     """获取打卡记录接口，支持分页和筛选"""
     try:

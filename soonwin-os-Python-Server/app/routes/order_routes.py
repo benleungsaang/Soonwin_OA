@@ -15,9 +15,9 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
-def serialize_order(order):
+def serialize_order(order, include_expense_allocations=False):
     """将订单对象转换为字典格式"""
-    return {
+    order_dict = {
         'id': order.id,
         'is_new': order.is_new,
         'area': order.area,
@@ -56,6 +56,20 @@ def serialize_order(order):
         'create_time': order.create_time.strftime('%Y-%m-%d %H:%M:%S') if order.create_time else None,
         'update_time': order.update_time.strftime('%Y-%m-%d %H:%M:%S') if order.update_time else None
     }
+    
+    # 如果需要包含费用分摊信息
+    if include_expense_allocations:
+        # 计算该订单的费用分摊总额
+        from app.models.expense import ExpenseAllocation
+        total_expense_allocation = db.session.query(
+            db.func.sum(ExpenseAllocation.allocated_amount)
+        ).filter(ExpenseAllocation.order_id == order.id).scalar() or 0.0
+        
+        order_dict['total_expense_allocation'] = float(total_expense_allocation)
+        # 重新计算净利，减去费用分摊
+        order_dict['net_profit_with_expense'] = order_dict['gross_profit'] - order_dict['allocated_cost'] - order_dict['total_expense_allocation']
+    
+    return order_dict
 
 @order_bp.route('/orders', methods=['GET'])
 def get_orders():
@@ -113,8 +127,11 @@ def get_orders():
         # 应用分页和排序
         orders = query.order_by(OrderList.create_time.desc()).offset((page - 1) * size).limit(size).all()
 
+        # 检查是否需要包含费用分摊信息
+        include_expense_allocations = request.args.get('include_expense_allocations', 'false').lower() == 'true'
+        
         # 序列化订单数据
-        orders_list = [serialize_order(order) for order in orders]
+        orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations) for order in orders]
 
         # 返回统一格式的数据，与打卡记录API保持一致
         import json
@@ -361,5 +378,76 @@ def get_order_statistics():
         return jsonify({
             "code": 500,
             "msg": f"获取订单统计失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@order_bp.route('/orders/expense-summary', methods=['GET'])
+def get_order_expense_summary():
+    """获取订单费用分摊汇总信息"""
+    try:
+        # 获取查询参数中的年份
+        target_year = request.args.get('year', type=int)
+        if not target_year:
+            target_year = datetime.now().year  # 默认为当前年份
+
+        # 计算该年度的订单总数
+        total_orders = db.session.query(db.func.count(OrderList.id)).filter(
+            db.extract('year', OrderList.create_time) == target_year
+        ).scalar() or 0
+
+        # 计算该年度的订单总金额
+        total_contract_amount = db.session.query(
+            db.func.sum(OrderList.contract_amount)
+        ).filter(
+            db.extract('year', OrderList.create_time) == target_year
+        ).scalar() or 0.0
+
+        # 计算该年度的总毛利
+        total_gross_profit = db.session.query(
+            db.func.sum(OrderList.gross_profit)
+        ).filter(
+            db.extract('year', OrderList.create_time) == target_year
+        ).scalar() or 0.0
+
+        # 计算该年度的费用分摊总金额
+        from app.models.expense import Expense, ExpenseAllocation
+        total_expense_allocation = db.session.query(
+            db.func.sum(ExpenseAllocation.allocated_amount)
+        ).join(Expense, ExpenseAllocation.expense_id == Expense.id).filter(
+            Expense.target_year == target_year
+        ).scalar() or 0.0
+
+        # 计算更新时间（最后计算费用分摊的时间）
+        from app.models.expense import ExpenseCalculationRecord
+        latest_calc = ExpenseCalculationRecord.query.filter(
+            ExpenseCalculationRecord.target_year == target_year
+        ).order_by(ExpenseCalculationRecord.calculation_time.desc()).first()
+
+        summary_data = {
+            'year': target_year,
+            'total_orders': total_orders,
+            'total_contract_amount': float(total_contract_amount),
+            'total_gross_profit': float(total_gross_profit),
+            'total_expense_allocation': float(total_expense_allocation),
+            'net_profit_estimate': float(total_gross_profit) - float(total_expense_allocation),
+            'last_updated': latest_calc.calculation_time.strftime('%Y-%m-%d %H:%M:%S') if latest_calc else '未计算',
+            'calculation_status': latest_calc.status if latest_calc else '未计算'
+        }
+
+        import json
+        from flask import Response
+        response_data = {
+            "code": 200,
+            "msg": f"获取{target_year}年订单费用汇总成功",
+            "data": summary_data
+        }
+        # 使用自定义编码器处理Decimal类型
+        json_response = json.dumps(response_data, cls=DecimalEncoder, ensure_ascii=False)
+        return Response(json_response, mimetype='application/json')
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取订单费用汇总失败: {str(e)}",
             "data": None
         }), 500

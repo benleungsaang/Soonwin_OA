@@ -17,7 +17,7 @@ class Employee(db.Model):
     dept = db.Column(db.String(50), comment="部门")
     phone_mac = db.Column(db.String(20), unique=True, nullable=False, comment="手机MAC地址（唯一）")
     inner_ip = db.Column(db.String(20), unique=True, nullable=False, comment="内网IP（固定）")
-    user_role = db.Column(db.String(10), default='user', comment="用户角色（admin/user）")
+    user_role = db.Column(db.String(10), default='user', comment="用户角色（admin/sales/user）")
     status = db.Column(db.String(20), default=UserStatus.PENDING_BINDING, comment="用户状态")
     remarks = db.Column(db.Text, comment="备注信息")
     last_login_time = db.Column(db.DateTime, comment="上次登录时间")

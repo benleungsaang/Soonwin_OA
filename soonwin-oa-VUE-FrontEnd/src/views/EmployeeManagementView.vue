@@ -17,8 +17,8 @@
         </div>
       </template>
 
-      <el-table 
-        :data="employees" 
+      <el-table
+        :data="employees"
         v-loading="loading"
         style="width: 100%"
         stripe
@@ -35,14 +35,14 @@
         </el-table-column>
         <el-table-column prop="user_role" label="角色" width="100">
           <template #default="scope">
-            <el-tag :type="scope.row.user_role === 'admin' ? 'danger' : 'success'">
-              {{ scope.row.user_role === 'admin' ? '管理员' : '普通用户' }}
+            <el-tag :type="getRoleType(scope.row.user_role)">
+              {{ getRoleText(scope.row.user_role) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="120">
           <template #default="scope">
-            <el-tag 
+            <el-tag
               :type="getStatusType(scope.row.status)"
             >
               {{ getStatusText(scope.row.status) }}
@@ -77,16 +77,8 @@
         </el-table-column>
         <el-table-column label="操作" width="380">
           <template #default="scope">
-            <el-button 
-              size="small" 
-              type="primary"
-              :disabled="scope.row.status !== 'pending_approval'"
-              @click="approveEmployee(scope.row)"
-            >
-              审批
-            </el-button>
-            <el-button 
-              size="small" 
+            <el-button
+              size="small"
               type="info"
               @click="showEditDialog(scope.row)"
             >
@@ -94,15 +86,15 @@
             </el-button>
             <template v-if="isTempEmployee(scope.row.emp_id)">
               <!-- 临时员工的操作：替换设备或删除 -->
-              <el-button 
-                size="small" 
+              <el-button
+                size="small"
                 type="warning"
                 @click="showReplaceDeviceDialogFunc(scope.row)"
               >
                 替换到已有设备
               </el-button>
-              <el-button 
-                size="small" 
+              <el-button
+                size="small"
                 type="danger"
                 @click="deleteEmployee(scope.row)"
               >
@@ -111,14 +103,21 @@
             </template>
             <template v-else>
               <!-- 正式员工的操作：删除 -->
-              <el-button 
-                size="small" 
+              <el-button
+                size="small"
                 type="danger"
                 @click="deleteEmployee(scope.row)"
               >
                 删除
               </el-button>
-            </template>
+                          <el-button 
+                            size="small" 
+                            type="primary"
+                            v-if="scope.row.status === 'pending_approval'"
+                            @click="activateEmployee(scope.row)"
+                          >
+                            激活账号
+                          </el-button>            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -138,13 +137,14 @@
           <el-form-item label="角色" prop="user_role">
             <el-select v-model="newEmployee.user_role" placeholder="请选择角色">
               <el-option label="普通用户" value="user" />
+              <el-option label="业务员" value="sales" />
               <el-option label="管理员" value="admin" />
             </el-select>
           </el-form-item>
           <el-form-item label="备注信息">
-            <el-input 
-              v-model="newEmployee.remarks" 
-              placeholder="请输入备注信息" 
+            <el-input
+              v-model="newEmployee.remarks"
+              placeholder="请输入备注信息"
               type="textarea"
               :rows="3"
             />
@@ -157,7 +157,7 @@
           </span>
         </template>
       </el-dialog>
-      
+
       <!-- 编辑员工对话框 -->
       <el-dialog v-model="showEditDialogVisible" title="编辑员工信息" width="500px">
         <el-form :model="editEmployee" :rules="employeeRules" ref="editEmployeeFormRef" label-width="100px">
@@ -173,6 +173,7 @@
           <el-form-item label="角色" prop="user_role">
             <el-select v-model="editEmployee.user_role" placeholder="请选择角色">
               <el-option label="普通用户" value="user" />
+              <el-option label="业务员" value="sales" />
               <el-option label="管理员" value="admin" />
             </el-select>
           </el-form-item>
@@ -185,9 +186,9 @@
             </el-select>
           </el-form-item>
           <el-form-item label="备注信息">
-            <el-input 
-              v-model="editEmployee.remarks" 
-              placeholder="请输入备注信息" 
+            <el-input
+              v-model="editEmployee.remarks"
+              placeholder="请输入备注信息"
               type="textarea"
               :rows="3"
             />
@@ -206,21 +207,21 @@
           </span>
         </template>
       </el-dialog>
-      
+
       <!-- 替换设备对话框 -->
       <el-dialog v-model="showReplaceDeviceDialog" title="替换设备MAC" width="500px">
         <div v-if="currentEmployee">
           <p>将临时员工 <strong>{{ currentEmployee.name }}</strong> (ID: {{ currentEmployee.emp_id }}) 的设备转移至：</p>
           <el-form label-width="120px" style="margin-top: 20px;">
             <el-form-item label="目标员工ID：">
-              <el-input 
-                v-model="targetEmployeeId" 
+              <el-input
+                v-model="targetEmployeeId"
                 placeholder="请输入目标员工ID"
                 style="width: 200px;"
               />
-              <el-button 
-                type="primary" 
-                @click="replaceDeviceMac" 
+              <el-button
+                type="primary"
+                @click="replaceDeviceMac"
                 :disabled="!targetEmployeeId"
                 style="margin-left: 10px;"
               >
@@ -353,25 +354,26 @@ const createEmployee = async () => {
   }
 };
 
-// 审批员工
-const approveEmployee = async (employee: Employee) => {
+// 激活员工账号
+const activateEmployee = async (employee: Employee) => {
   try {
     await ElMessageBox.confirm(
-      `确定要审批员工 ${employee.name}(${employee.emp_id}) 吗？`,
-      '确认审批',
+      `确定要激活员工 ${employee.name}(${employee.emp_id}) 的账号吗？激活后员工可申请绑定TOTP验证器`,
+      '确认激活账号',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }
     );
-    
-    await request.put(`/api/employee/${employee.emp_id}`, { status: 'active' });
-    ElMessage.success('员工审批成功');
+
+    // 激活员工账号，状态从"待审批"变为"待绑定"
+    await request.put(`/api/employee/${employee.emp_id}`, { status: 'pending_binding' });
+    ElMessage.success('员工账号激活成功');
     fetchEmployees(); // 刷新列表
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('员工审批失败');
+      ElMessage.error('员工账号激活失败');
     }
   }
 };
@@ -388,7 +390,7 @@ const deleteEmployee = async (employee: Employee) => {
         type: 'danger'
       }
     );
-    
+
     // 调用真正的删除API
     await request.delete(`/api/employee/${employee.emp_id}`);
     ElMessage.success('员工删除成功');
@@ -422,7 +424,7 @@ const showEditDialog = (employee: Employee) => {
 const updateEmployee = async () => {
   try {
     await editEmployeeFormRef.value.validate();
-    
+
     // 如果员工ID被修改，则需要特殊处理
     if (originalEmpId !== editEmployee.value.emp_id) {
       // 首先更新员工信息（不包括ID）
@@ -444,7 +446,7 @@ const updateEmployee = async () => {
         remarks: editEmployee.value.remarks
       });
     }
-    
+
     ElMessage.success('员工信息更新成功');
     showEditDialogVisible.value = false;
     fetchEmployees(); // 刷新列表
@@ -548,10 +550,29 @@ const replaceDeviceMac = async () => {
   } catch (error: any) {
     // 检查是否是取消操作
     if (error !== 'cancel') {
-      // 如果有自定义错误消息，显示它；否则显示通用错误
-      const errorMessage = error?.response?.data?.msg || error?.message || '设备替换失败';
-      ElMessage.error(errorMessage);
+      // 错误已经通过拦截器处理，这里不再需要特殊处理
+      // 拦截器会自动显示格式化的错误消息
     }
+  }
+};
+
+// 获取角色文本
+const getRoleText = (role: string) => {
+  switch (role) {
+    case 'admin': return '管理员';
+    case 'sales': return '业务员';
+    case 'user': return '普通用户';
+    default: return role;
+  }
+};
+
+// 获取角色类型
+const getRoleType = (role: string) => {
+  switch (role) {
+    case 'admin': return 'danger';
+    case 'sales': return 'warning';
+    case 'user': return 'success';
+    default: return 'info';
   }
 };
 
@@ -567,7 +588,7 @@ const logout = async () => {
         type: 'warning',
       }
     );
-    
+
     // 清除本地存储的token
     localStorage.removeItem('oa_token');
     // 提示用户

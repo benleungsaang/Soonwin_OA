@@ -54,7 +54,13 @@ service.interceptors.response.use(
       return res.data;
     }
     // 业务错误（code≠200）
-    ElMessage.error(res.msg || '操作失败');
+    const errorMsg = res.code ? `[${res.code}] ${res.msg}` : res.msg || '操作失败';
+    ElMessage({
+      message: errorMsg,
+      type: 'error',
+      duration: 5000, // 延长显示时间到5秒
+      showClose: true  // 显示关闭按钮
+    });
     // 令牌过期（code=401）：清除令牌并跳转登录页
     if (res.code === 401) {
       localStorage.removeItem('oa_token');
@@ -64,8 +70,32 @@ service.interceptors.response.use(
   },
   (error: AxiosError) => {
     // 网络错误或服务器错误
-    const errMsg = error.message || '网络异常，请重试';
-    ElMessage.error(errMsg);
+    let errorMsg = '网络异常，请重试';
+    if (error.response) {
+      // 服务器返回了错误状态码
+      const status = error.response.status;
+      const data = error.response.data;
+      if (data && typeof data === 'object' && data.code && data.msg) {
+        // 如果后端返回了标准格式的错误信息，使用后端的错误信息
+        errorMsg = `[${data.code}] ${data.msg}`;
+      } else {
+        // 否则使用HTTP状态码和状态文本
+        errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+      }
+    } else if (error.request) {
+      // 请求已发出但没有收到响应（网络错误等）
+      errorMsg = '网络连接失败，请检查网络';
+    } else {
+      // 其他错误
+      errorMsg = error.message || '请求配置错误';
+    }
+    // 显示错误信息，延长显示时间
+    ElMessage({
+      message: errorMsg,
+      type: 'error',
+      duration: 5000, // 延长显示时间到5秒
+      showClose: true  // 显示关闭按钮
+    });
     return Promise.reject(error);
   }
 );

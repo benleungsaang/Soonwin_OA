@@ -23,6 +23,7 @@ def create_app():
         from .models.order_list import OrderList
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser
+        from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -34,6 +35,10 @@ def create_app():
         # 注册订单管理路由蓝图
         from .routes.order_routes import order_bp
         app.register_blueprint(order_bp, url_prefix='/api')
+        
+        # 注册费用管理路由蓝图
+        from .routes.expense_routes import expense_bp
+        app.register_blueprint(expense_bp, url_prefix='/api')
 
     return app
 

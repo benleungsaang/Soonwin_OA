@@ -15,17 +15,26 @@ pip install pipreqs
 # --encoding=utf8 解决中文注释/中文路径报错，必加参数
 pipreqs . --encoding=utf8 --force
 
-在其它功能脚本中：
-init_db.py
 新建项目时，创建数据库
+sqlite-migrate的所有操作都靠终端命令完成，命令极少，记 4 个就够用，99% 的场景只用前 2 个：
 
+# ✅ 1. 初始化迁移（生成migrations文件夹 + 数据库内的_migrations元数据表，你现在要执行的）
+.\venv\Scripts\sqlite-migrate.exe init oa_system.db
+
+# ✅ 2. 执行所有未完成的迁移（核心命令，写完sql迁移文件后执行）
+.\venv\Scripts\sqlite-migrate.exe apply oa_system.db
+
+# ✅ 3. 回滚上一次的迁移（写错字段/逻辑时用，超级实用）
+.\venv\Scripts\sqlite-migrate.exe revert oa_system.db
+
+# ✅ 4. 查看迁移状态（哪些已执行、哪些待执行，一目了然）
+.\venv\Scripts\sqlite-migrate.exe status oa_system.db
+
+
+在其它功能脚本中：
 init_admin_script.py
 利用本地脚本生成一个管理员账号
 
-如果数据库有变动，请参照
-1. quick_db_fix.py - 快速修复数据库结构问题
-2. db_migrate.py - 完整的迁移管理工具
-3. migration_guide.py - 迁移指南和最佳实践
 
 
 
