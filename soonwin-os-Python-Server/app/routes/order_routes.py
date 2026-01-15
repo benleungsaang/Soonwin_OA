@@ -1,10 +1,13 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from app.models.order_list import OrderList
+from app.models.order import Order
 from app.models.employee import Employee
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
+
+# 从expense模型导入相关类
+from app.models.expense import AnnualTarget, Expense, ExpenseAllocation, ExpenseCalculationRecord, IndividualExpense
 
 # 创建蓝图
 order_bp = Blueprint('order', __name__)
@@ -36,17 +39,17 @@ def serialize_order(order, include_expense_allocations=False):
         'contract_amount': float(order.contract_amount) if order.contract_amount else 0.0,
         'deposit': float(order.deposit) if order.deposit else 0.0,
         'balance': float(order.balance) if order.balance else 0.0,
+        'tax_rate': float(order.tax_rate) if order.tax_rate else 13.0,
         'tax_refund_amount': float(order.tax_refund_amount) if order.tax_refund_amount else 0.0,
         'currency_amount': float(order.currency_amount) if order.currency_amount else 0.0,
         'payment_received': float(order.payment_received) if order.payment_received else 0.0,
-        'direct_cost': float(order.direct_cost) if order.direct_cost else 0.0,
-        'commission': float(order.commission) if order.commission else 0.0,
-        'allocated_cost': float(order.allocated_cost) if order.allocated_cost else 0.0,
-        'custom_income': float(order.custom_income) if order.custom_income else 0.0,
-        'custom_expense': float(order.custom_expense) if order.custom_expense else 0.0,
-        'gross_profit': float(order.gross_profit) if order.gross_profit else 0.0,
+        'machine_cost': float(order.machine_cost) if order.machine_cost else 0.0,
         'net_profit': float(order.net_profit) if order.net_profit else 0.0,
+        'proportionate_cost': float(order.proportionate_cost) if order.proportionate_cost else 0.0,
+        'individual_cost': float(order.individual_cost) if order.individual_cost else 0.0,
+        'gross_profit': float(order.gross_profit) if order.gross_profit else 0.0,
         'pay_type': order.pay_type,
+        'commission': float(order.commission) if order.commission else 0.0,
         'latest_ship_date': order.latest_ship_date.strftime('%Y-%m-%d') if order.latest_ship_date else None,
         'expected_delivery': order.expected_delivery.strftime('%Y-%m-%d') if order.expected_delivery else None,
         'order_dept': order.order_dept,
@@ -56,7 +59,7 @@ def serialize_order(order, include_expense_allocations=False):
         'create_time': order.create_time.strftime('%Y-%m-%d %H:%M:%S') if order.create_time else None,
         'update_time': order.update_time.strftime('%Y-%m-%d %H:%M:%S') if order.update_time else None
     }
-    
+
     # 如果需要包含费用分摊信息
     if include_expense_allocations:
         # 计算该订单的费用分摊总额
@@ -64,11 +67,11 @@ def serialize_order(order, include_expense_allocations=False):
         total_expense_allocation = db.session.query(
             db.func.sum(ExpenseAllocation.allocated_amount)
         ).filter(ExpenseAllocation.order_id == order.id).scalar() or 0.0
-        
+
         order_dict['total_expense_allocation'] = float(total_expense_allocation)
         # 重新计算净利，减去费用分摊
-        order_dict['net_profit_with_expense'] = order_dict['gross_profit'] - order_dict['allocated_cost'] - order_dict['total_expense_allocation']
-    
+        order_dict['net_profit_with_expense'] = order_dict['gross_profit'] - order_dict['proportionate_cost'] - order_dict['individual_cost'] - order_dict['total_expense_allocation']
+
     return order_dict
 
 @order_bp.route('/orders', methods=['GET'])
@@ -93,43 +96,43 @@ def get_orders():
         order_status = request.args.get('order_status')  # 可以是 'unshipped', 'shipped', 'completed' 等
 
         # 构建查询
-        query = OrderList.query
+        query = Order.query
 
         # 应用筛选条件
         if customer_name:
-            query = query.filter(OrderList.customer_name.contains(customer_name))
+            query = query.filter(Order.customer_name.contains(customer_name))
         if order_no:
-            query = query.filter(OrderList.order_no.contains(order_no))
+            query = query.filter(Order.order_no.contains(order_no))
         if machine_name:
-            query = query.filter(OrderList.machine_name.contains(machine_name))
+            query = query.filter(Order.machine_name.contains(machine_name))
         if area:
-            query = query.filter(OrderList.area.contains(area))
+            query = query.filter(Order.area.contains(area))
         if is_new is not None:
-            query = query.filter(OrderList.is_new == is_new)
+            query = query.filter(Order.is_new == is_new)
         if ship_country:
-            query = query.filter(OrderList.ship_country.contains(ship_country))
+            query = query.filter(Order.ship_country.contains(ship_country))
         if order_dept:
-            query = query.filter(OrderList.order_dept.contains(order_dept))
+            query = query.filter(Order.order_dept.contains(order_dept))
         if pay_type:
-            query = query.filter(OrderList.pay_type.contains(pay_type))
+            query = query.filter(Order.pay_type.contains(pay_type))
         if customer_type:
-            query = query.filter(OrderList.customer_type.contains(customer_type))
+            query = query.filter(Order.customer_type.contains(customer_type))
         if start_date:
             start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(OrderList.order_time >= start_datetime)
+            query = query.filter(Order.order_time >= start_datetime)
         if end_date:
             end_datetime = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-            query = query.filter(OrderList.order_time < end_datetime)
+            query = query.filter(Order.order_time < end_datetime)
 
         # 计算总数
         total = query.count()
 
         # 应用分页和排序
-        orders = query.order_by(OrderList.create_time.desc()).offset((page - 1) * size).limit(size).all()
+        orders = query.order_by(Order.create_time.desc()).offset((page - 1) * size).limit(size).all()
 
         # 检查是否需要包含费用分摊信息
         include_expense_allocations = request.args.get('include_expense_allocations', 'false').lower() == 'true'
-        
+
         # 序列化订单数据
         orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations) for order in orders]
 
@@ -169,35 +172,35 @@ def create_order():
             }), 400
 
         # 创建订单记录
-        new_order = OrderList(
+        new_order = Order(
             is_new=data.get('is_new'),
-            area=data.get('area'),
-            customer_name=data.get('customer_name'),
-            customer_type=data.get('customer_type'),
+            area=data.get('area', ''),
+            customer_name=data.get('customer_name', ''),
+            customer_type=data.get('customer_type', ''),
             order_time=datetime.strptime(data.get('order_time'), '%Y-%m-%d').date() if data.get('order_time') else None,
             ship_time=datetime.strptime(data.get('ship_time'), '%Y-%m-%d').date() if data.get('ship_time') else None,
             ship_country=data.get('ship_country'),
-            contract_no=data.get('contract_no'),
+            contract_no=data.get('contract_no', ''),
             order_no=data.get('order_no'),
             machine_no=data.get('machine_no'),
-            machine_name=data.get('machine_name'),
-            machine_model=data.get('machine_model'),
-            machine_count=data.get('machine_count'),
-            unit=data.get('unit'),
-            contract_amount=data.get('contract_amount'),
-            deposit=data.get('deposit'),
-            balance=data.get('balance'),
-            tax_refund_amount=data.get('tax_refund_amount'),
-            currency_amount=data.get('currency_amount'),
-            payment_received=data.get('payment_received'),
-            direct_cost=data.get('direct_cost'),
-            commission=data.get('commission'),
-            allocated_cost=data.get('allocated_cost'),
-            custom_income=data.get('custom_income', 0),
-            custom_expense=data.get('custom_expense', 0),
-            gross_profit=data.get('gross_profit'),
-            net_profit=data.get('net_profit'),
-            pay_type=data.get('pay_type'),
+            machine_name=data.get('machine_name', '包装机'),
+            machine_model=data.get('machine_model', ''),
+            machine_count=data.get('machine_count', 1),
+            unit=data.get('unit', 'set'),
+            contract_amount=data.get('contract_amount', 0),
+            deposit=data.get('deposit', 0),
+            balance=data.get('balance', 0),
+            tax_rate=data.get('tax_rate', 13.0),
+            tax_refund_amount=data.get('tax_refund_amount', 0),
+            currency_amount=data.get('currency_amount', 0),
+            payment_received=data.get('payment_received', 0),
+            machine_cost=data.get('machine_cost', 0),
+            net_profit=data.get('net_profit', 0),
+            proportionate_cost=data.get('proportionate_cost', 0),
+            individual_cost=data.get('individual_cost', 0),
+            gross_profit=data.get('gross_profit', 0),
+            pay_type=data.get('pay_type', 'T/T'),
+            commission=data.get('commission', 0),
             latest_ship_date=datetime.strptime(data.get('latest_ship_date'), '%Y-%m-%d').date() if data.get('latest_ship_date') else None,
             expected_delivery=datetime.strptime(data.get('expected_delivery'), '%Y-%m-%d').date() if data.get('expected_delivery') else None,
             order_dept=data.get('order_dept'),
@@ -233,7 +236,7 @@ def create_order():
 def get_order(order_id):
     """获取单个订单详情"""
     try:
-        order = OrderList.query.get_or_404(order_id)
+        order = Order.query.get_or_404(order_id)
         order_data = serialize_order(order)
 
         import json
@@ -257,7 +260,7 @@ def get_order(order_id):
 def update_order(order_id):
     """更新订单信息"""
     try:
-        order = OrderList.query.get_or_404(order_id)
+        order = Order.query.get_or_404(order_id)
         data = request.get_json()
         if not data:
             return jsonify({
@@ -284,17 +287,17 @@ def update_order(order_id):
         if 'contract_amount' in data: order.contract_amount = data['contract_amount']
         if 'deposit' in data: order.deposit = data['deposit']
         if 'balance' in data: order.balance = data['balance']
+        if 'tax_rate' in data: order.tax_rate = data['tax_rate']
         if 'tax_refund_amount' in data: order.tax_refund_amount = data['tax_refund_amount']
         if 'currency_amount' in data: order.currency_amount = data['currency_amount']
         if 'payment_received' in data: order.payment_received = data['payment_received']
-        if 'direct_cost' in data: order.direct_cost = data['direct_cost']
-        if 'commission' in data: order.commission = data['commission']
-        if 'allocated_cost' in data: order.allocated_cost = data['allocated_cost']
-        if 'custom_income' in data: order.custom_income = data['custom_income']
-        if 'custom_expense' in data: order.custom_expense = data['custom_expense']
-        if 'gross_profit' in data: order.gross_profit = data['gross_profit']
+        if 'machine_cost' in data: order.machine_cost = data['machine_cost']
         if 'net_profit' in data: order.net_profit = data['net_profit']
+        if 'proportionate_cost' in data: order.proportionate_cost = data['proportionate_cost']
+        if 'individual_cost' in data: order.individual_cost = data['individual_cost']
+        if 'gross_profit' in data: order.gross_profit = data['gross_profit']
         if 'pay_type' in data: order.pay_type = data['pay_type']
+        if 'commission' in data: order.commission = data['commission']
         if 'latest_ship_date' in data and data['latest_ship_date']: order.latest_ship_date = datetime.strptime(data['latest_ship_date'], '%Y-%m-%d').date()
         if 'expected_delivery' in data and data['expected_delivery']: order.expected_delivery = datetime.strptime(data['expected_delivery'], '%Y-%m-%d').date()
         if 'order_dept' in data: order.order_dept = data['order_dept']
@@ -327,7 +330,7 @@ def update_order(order_id):
 def delete_order(order_id):
     """删除订单"""
     try:
-        order = OrderList.query.get_or_404(order_id)
+        order = Order.query.get_or_404(order_id)
         db.session.delete(order)
         db.session.commit()
 
@@ -349,13 +352,13 @@ def get_order_statistics():
     """获取订单统计信息"""
     try:
         # 计算总订单数
-        total_orders = db.session.query(db.func.count(OrderList.id)).scalar()
+        total_orders = db.session.query(db.func.count(Order.id)).scalar()
         # 计算总金额
-        total_amount = db.session.query(db.func.sum(OrderList.contract_amount)).scalar() or 0.0
+        total_amount = db.session.query(db.func.sum(Order.contract_amount)).scalar() or 0.0
         # 计算总毛利
-        total_gross_profit = db.session.query(db.func.sum(OrderList.gross_profit)).scalar() or 0.0
+        total_gross_profit = db.session.query(db.func.sum(Order.gross_profit)).scalar() or 0.0
         # 计算总净利
-        total_net_profit = db.session.query(db.func.sum(OrderList.net_profit)).scalar() or 0.0
+        total_net_profit = db.session.query(db.func.sum(Order.net_profit)).scalar() or 0.0
 
         statistics_data = {
             'total_orders': total_orders,
@@ -392,22 +395,22 @@ def get_order_expense_summary():
             target_year = datetime.now().year  # 默认为当前年份
 
         # 计算该年度的订单总数
-        total_orders = db.session.query(db.func.count(OrderList.id)).filter(
-            db.extract('year', OrderList.create_time) == target_year
+        total_orders = db.session.query(db.func.count(Order.id)).filter(
+            db.extract('year', Order.create_time) == target_year
         ).scalar() or 0
 
         # 计算该年度的订单总金额
         total_contract_amount = db.session.query(
-            db.func.sum(OrderList.contract_amount)
+            db.func.sum(Order.contract_amount)
         ).filter(
-            db.extract('year', OrderList.create_time) == target_year
+            db.extract('year', Order.create_time) == target_year
         ).scalar() or 0.0
 
         # 计算该年度的总毛利
         total_gross_profit = db.session.query(
-            db.func.sum(OrderList.gross_profit)
+            db.func.sum(Order.gross_profit)
         ).filter(
-            db.extract('year', OrderList.create_time) == target_year
+            db.extract('year', Order.create_time) == target_year
         ).scalar() or 0.0
 
         # 计算该年度的费用分摊总金额
@@ -424,6 +427,10 @@ def get_order_expense_summary():
             ExpenseCalculationRecord.target_year == target_year
         ).order_by(ExpenseCalculationRecord.calculation_time.desc()).first()
 
+        # 获取年度目标
+        annual_target_record = AnnualTarget.query.filter_by(target_year=target_year).first()
+        annual_target = float(annual_target_record.target_amount) if annual_target_record else 10000000.00
+
         summary_data = {
             'year': target_year,
             'total_orders': total_orders,
@@ -432,7 +439,8 @@ def get_order_expense_summary():
             'total_expense_allocation': float(total_expense_allocation),
             'net_profit_estimate': float(total_gross_profit) - float(total_expense_allocation),
             'last_updated': latest_calc.calculation_time.strftime('%Y-%m-%d %H:%M:%S') if latest_calc else '未计算',
-            'calculation_status': latest_calc.status if latest_calc else '未计算'
+            'calculation_status': latest_calc.status if latest_calc else '未计算',
+            'annual_target': annual_target
         }
 
         import json
@@ -449,5 +457,206 @@ def get_order_expense_summary():
         return jsonify({
             "code": 500,
             "msg": f"获取订单费用汇总失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@order_bp.route('/orders/update-proportionate-cost', methods=['POST'])
+def update_order_proportionate_cost():
+    """更新订单摊分费用 - 按订单金额比例分摊到指定年度的所有订单"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "code": 400,
+                "msg": "请求数据不能为空",
+                "data": None
+            }), 400
+
+        target_year = data.get('target_year')
+        if not target_year:
+            return jsonify({
+                "code": 400,
+                "msg": "必须指定目标年份",
+                "data": None
+            }), 400
+
+        # 获取年度目标
+        annual_target_record = AnnualTarget.query.filter_by(target_year=target_year).first()
+        if not annual_target_record:
+            # 如果没有找到对应年份的年度目标，则使用默认值创建
+            annual_target_record = AnnualTarget(
+                target_year=target_year,
+                target_amount=10000000.00
+            )
+            db.session.add(annual_target_record)
+            db.session.commit()
+        
+        annual_target = float(annual_target_record.target_amount) if annual_target_record.target_amount else 10000000.00
+
+        # 获取该年份的所有费用记录
+        expenses = Expense.query.filter(Expense.target_year == target_year, Expense.expense_type == '全面分摊').all()
+
+        if not expenses:
+            # 创建计算记录
+            calc_record = ExpenseCalculationRecord(
+                calculation_time=datetime.now(),
+                target_year=target_year,
+                status='completed',
+                remark='该年份没有需要分摊的费用'
+            )
+            db.session.add(calc_record)
+            db.session.commit()
+
+            return jsonify({
+                "code": 200,
+                "msg": f"该年份({target_year})没有需要分摊的费用",
+                "data": {
+                    "target_year": target_year,
+                    "total_expenses": 0,
+                    "total_orders": 0,
+                    "calculation_time": calc_record.calculation_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        # 获取该年份的所有订单
+        orders = Order.query.filter(
+            db.extract('year', Order.create_time) == target_year
+        ).all()
+
+        if not orders:
+            # 创建计算记录
+            calc_record = ExpenseCalculationRecord(
+                calculation_time=datetime.now(),
+                target_year=target_year,
+                status='completed',
+                remark=f'该年份({target_year})没有订单，无法分摊费用'
+            )
+            db.session.add(calc_record)
+            db.session.commit()
+
+            return jsonify({
+                "code": 200,
+                "msg": f"该年份({target_year})没有订单，无法分摊费用",
+                "data": {
+                    "target_year": target_year,
+                    "total_expenses": len(expenses),
+                    "total_orders": 0,
+                    "calculation_time": calc_record.calculation_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        # 计算所有订单的总金额
+        total_order_amount = sum(
+            float(order.contract_amount) if order.contract_amount else 0.0
+            for order in orders
+        )
+
+        # 计算摊分总额（年度目标和订单总金额中的较大值）
+        allocation_base = max(annual_target, total_order_amount)
+
+        if allocation_base <= 0:
+            # 创建计算记录
+            calc_record = ExpenseCalculationRecord(
+                calculation_time=datetime.now(),
+                target_year=target_year,
+                status='completed',
+                remark=f'该年份({target_year})摊分基础金额为0，无法按比例分摊'
+            )
+            db.session.add(calc_record)
+            db.session.commit()
+
+            return jsonify({
+                "code": 200,
+                "msg": f"该年份({target_year})摊分基础金额为0，无法按比例分摊",
+                "data": {
+                    "target_year": target_year,
+                    "total_expenses": len(expenses),
+                    "total_orders": len(orders),
+                    "total_order_amount": total_order_amount,
+                    "annual_target": annual_target,
+                    "allocation_base": allocation_base,
+                    "calculation_time": calc_record.calculation_time.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        # 更新每个订单的proportionate_cost字段
+        for order in orders:
+            order_amount = float(order.contract_amount) if order.contract_amount else 0.0
+            if allocation_base > 0:
+                # 计算该订单应分摊的费用总和
+                order_total_expense = sum(
+                    (order_amount / allocation_base) * float(expense.amount) if expense.amount else 0.0
+                    for expense in expenses
+                )
+                
+                # 更新订单的摊分费用字段
+                order.proportionate_cost = order_total_expense
+            else:
+                order.proportionate_cost = 0.0
+
+        # 创建计算记录
+        calc_record = ExpenseCalculationRecord(
+            calculation_time=datetime.now(),
+            target_year=target_year,
+            status='completed',
+            remark=f'成功更新{len(orders)}个订单的摊分费用'
+        )
+        db.session.add(calc_record)
+        db.session.commit()
+
+        # 计算订单的总成本
+        total_direct_cost = sum(
+            float(order.machine_cost) if order.machine_cost else 0.0
+            for order in orders
+        )
+
+        # 计算总净利 (订单金额 - 成本 - 摊分费用)
+        total_net_profit = total_order_amount - total_direct_cost - sum(
+            float(expense.amount) if expense.amount else 0.0
+            for expense in expenses
+        )
+
+        # 计算总费用
+        total_expense_amount = sum(
+            float(expense.amount) if expense.amount else 0.0
+            for expense in expenses
+        )
+
+        # 计算总毛利 (订单金额 - 成本)
+        total_gross_profit = total_order_amount - total_direct_cost
+
+        return jsonify({
+            "code": 200,
+            "msg": "订单摊分费用更新完成",
+            "data": {
+                "target_year": target_year,
+                "total_expenses": len(expenses),
+                "total_orders": len(orders),
+                "total_order_amount": total_order_amount,
+                "annual_target": annual_target,
+                "allocation_base": allocation_base,
+                "total_net_profit": total_net_profit,
+                "total_gross_profit": total_gross_profit,
+                "total_direct_cost": total_direct_cost,
+                "total_expense_amount": total_expense_amount,
+                "calculation_time": calc_record.calculation_time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        # 创建失败的计算记录
+        calc_record = ExpenseCalculationRecord(
+            calculation_time=datetime.now(),
+            target_year=target_year if 'target_year' in locals() else data.get('target_year') if 'data' in locals() else 0,
+            status='failed',
+            remark=f'订单摊分费用更新失败: {str(e)}'
+        )
+        db.session.add(calc_record)
+        db.session.commit()
+
+        return jsonify({
+            "code": 500,
+            "msg": f"订单摊分费用更新失败: {str(e)}",
             "data": None
         }), 500

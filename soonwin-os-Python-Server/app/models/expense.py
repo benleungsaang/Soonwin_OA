@@ -2,6 +2,20 @@ from extensions import db
 from datetime import datetime
 
 
+class AnnualTarget(db.Model):
+    """
+    年度目标模型
+    存储每年的年度目标值
+    """
+    __tablename__ = "AnnualTarget"
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
+    target_year = db.Column(db.Integer, nullable=False, comment="目标年份")
+    target_amount = db.Column(db.Numeric(15, 2), default=10000000.00, comment="年度目标金额（元）")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+
 class Expense(db.Model):
     """
     费用记录模型
@@ -28,13 +42,13 @@ class ExpenseAllocation(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     expense_id = db.Column(db.Integer, db.ForeignKey('Expense.id'), nullable=False, comment="费用记录ID")
-    order_id = db.Column(db.Integer, db.ForeignKey('OrderList.id'), nullable=False, comment="订单ID")
+    order_id = db.Column(db.Integer, db.ForeignKey('Order.id'), nullable=False, comment="订单ID")
     allocated_amount = db.Column(db.Numeric(12, 2), nullable=False, comment="分摊金额")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     
     # 关联关系
     expense = db.relationship('Expense', backref=db.backref('allocations', lazy=True))
-    order = db.relationship('OrderList', backref=db.backref('expense_allocations', lazy=True))
+    order = db.relationship('Order', backref=db.backref('expense_allocations', lazy=True))
 
 
 class ExpenseCalculationRecord(db.Model):
@@ -49,3 +63,22 @@ class ExpenseCalculationRecord(db.Model):
     target_year = db.Column(db.Integer, nullable=False, comment="计算目标年份")
     status = db.Column(db.String(20), default='completed', comment="计算状态（completed/failed）")
     remark = db.Column(db.Text, comment="备注信息")
+
+
+class IndividualExpense(db.Model):
+    """
+    个别费用模型
+    存储订单的个别费用
+    """
+    __tablename__ = "IndividualExpense"
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
+    order_id = db.Column(db.Integer, db.ForeignKey('Order.id'), nullable=False, comment="订单ID", index=True)
+    name = db.Column(db.String(100), nullable=False, comment="费用名称")
+    amount = db.Column(db.Numeric(12, 2), nullable=False, comment="费用金额（元，可正可负）")
+    remark = db.Column(db.Text, comment="备注信息")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+    
+    # 关联关系
+    order = db.relationship('Order', backref=db.backref('individual_expenses', lazy=True, cascade='all, delete-orphan'))

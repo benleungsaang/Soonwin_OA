@@ -20,22 +20,22 @@ def create_app():
     with app.app_context():
         from .models.employee import Employee
         from .models.punch_record import PunchRecord
-        from .models.order_list import OrderList
+        from .models.order import Order
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser
-        from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord
+        from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
-        
+
         # 注册用户管理路由蓝图
         from .routes.user_routes import user_bp
         app.register_blueprint(user_bp, url_prefix='/api')  # 恢复url_prefix
-        
+
         # 注册订单管理路由蓝图
         from .routes.order_routes import order_bp
         app.register_blueprint(order_bp, url_prefix='/api')
-        
+
         # 注册费用管理路由蓝图
         from .routes.expense_routes import expense_bp
         app.register_blueprint(expense_bp, url_prefix='/api')

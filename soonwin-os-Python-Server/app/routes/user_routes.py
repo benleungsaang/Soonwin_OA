@@ -3,7 +3,7 @@ from extensions import db
 from app.models.employee import Employee
 from app.models.punch_record import PunchRecord
 from app.models.totp_user import TotpUser
-from app.models.order_list import OrderList
+from app.models.order import Order
 from app.models.cost_allocation import CostAllocation
 from app.utils.auth_utils import require_admin, require_auth
 from datetime import datetime, timedelta
@@ -42,7 +42,7 @@ def init_admin():
         import uuid
         # 生成基于管理员ID和随机数的唯一MAC地址
         unique_mac = f"FF:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:FE".upper()
-        
+
         # 创建管理员员工记录
         admin_employee = Employee(
             name="管理员",
@@ -111,7 +111,7 @@ def create_employee():
             unique_mac = f"AA:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:BB".upper()
         else:
             unique_mac = data.get('phone_mac')
-        
+
         # 创建员工记录
         new_employee = Employee(
             name=data['name'],
@@ -244,13 +244,13 @@ def update_employee(emp_id):
                 Employee.phone_mac == new_phone_mac,
                 Employee.emp_id != emp_id  # 排除当前员工
             ).first()
-            
+
             if existing_employee_with_mac:
                 return jsonify({
                     "code": 400,
                     "msg": f"MAC地址 {new_phone_mac} 已被员工 {existing_employee_with_mac.name}({existing_employee_with_mac.emp_id}) 使用"
                 }), 400
-        
+
         # 更新员工信息
         employee.name = data.get('name', employee.name)
         employee.dept = data.get('dept', employee.dept)
@@ -458,7 +458,7 @@ def totp_login():
             if employee.status == 'pending_binding':
                 employee.status = 'active'
                 db.session.commit()
-            
+
             # 更新最后登录时间和设备信息
             employee.last_login_time = datetime.now()
             # 获取客户端IP作为登录设备IP
@@ -467,7 +467,7 @@ def totp_login():
             user_agent = request.headers.get('User-Agent', 'unknown')
             employee.login_device = f"IP: {login_device_ip}, Browser: {user_agent}"
             db.session.commit()
-            
+
             # 生成JWT令牌
             payload = {
                 'emp_id': employee.emp_id,
