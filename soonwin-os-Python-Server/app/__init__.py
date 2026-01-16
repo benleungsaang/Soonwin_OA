@@ -24,6 +24,7 @@ def create_app():
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser
         from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
+        from .models.order_inspection import OrderInspection, InspectionItem
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -39,6 +40,14 @@ def create_app():
         # 注册费用管理路由蓝图
         from .routes.expense_routes import expense_bp
         app.register_blueprint(expense_bp, url_prefix='/api')
+
+        # 注册验收管理路由蓝图
+        from .routes.inspection_routes import inspection_bp
+        app.register_blueprint(inspection_bp, url_prefix='/api')
+
+        # 注册认证相关路由蓝图
+        from .routes.auth_routes import auth_bp
+        app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
     return app
 

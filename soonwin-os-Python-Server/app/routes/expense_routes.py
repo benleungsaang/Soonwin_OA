@@ -82,7 +82,7 @@ expense_bp = Blueprint('expense', __name__)
 @expense_bp.route('/expenses', methods=['GET'])
 @require_admin
 def get_expenses():
-    """获取费用列表，支持分页和筛选"""
+    """获取费用列表，支持分页和筛选，同时返回年度费用汇总"""
     try:
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
@@ -94,6 +94,10 @@ def get_expenses():
         expense_type = request.args.get('expense_type')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+
+        # 如果没有指定年份，则默认使用当前年份
+        if not target_year:
+            target_year = datetime.now().year
 
         # 构建查询
         query = Expense.query
@@ -121,17 +125,97 @@ def get_expenses():
         # 序列化费用数据
         expenses_list = [serialize_expense(expense) for expense in expenses]
 
-        # 返回统一格式的数据
+        # 获取该年份的费用汇总信息
+        # 获取该年份的总开支（正数）和总收入（负数的绝对值）
+        total_expenses_query = db.session.query(
+            db.func.sum(Expense.amount)
+        ).filter(
+            Expense.target_year == target_year,
+            Expense.expense_type == '全面分摊'
+        )
+        # 分别计算总开支和总收入
+        total_expenses_raw = db.session.query(Expense.amount).filter(
+            Expense.target_year == target_year,
+            Expense.expense_type == '全面分摊'
+        ).all()
+
+        total_expenditure = float(sum(amount for amount, in total_expenses_raw if amount > 0)) if total_expenses_raw else 0.0  # 总开支
+        total_income = float(sum(amount for amount, in total_expenses_raw if amount < 0)) if total_expenses_raw else 0.0  # 总收入
+
+        # 获取该年份的订单数量
+        total_orders = db.session.query(
+            db.func.count(Order.id)
+        ).filter(
+            db.extract('year', Order.create_time) == target_year
+        ).scalar() or 0
+
+        # 获取该年份的订单总金额（合同价）
+        total_order_amount = db.session.query(
+            db.func.sum(Order.contract_amount)
+        ).filter(
+            db.extract('year', Order.create_time) == target_year
+        ).scalar()
+        total_order_amount = float(total_order_amount) if total_order_amount is not None else 0.0
+
+        # 获取该年份的订单总成本（机器成本）
+        machine_cost_amount = db.session.query(
+            db.func.sum(Order.machine_cost)
+        ).filter(
+            db.extract('year', Order.create_time) == target_year
+        ).scalar()
+        machine_cost_amount = float(machine_cost_amount) if machine_cost_amount is not None else 0.0
+
+        # 总运营成本（租金、水电、网络运营、人力、额外费用等）
+        total_expenses = total_expenses_query.scalar()
+        total_expenses = float(total_expenses) if total_expenses is not None else 0.0
+
+        # 获取该年份的订单总独立费用（每个订单单独承担的费用）
+        individual_cost_amount = db.session.query(
+            db.func.sum(Order.individual_cost)
+        ).filter(
+            db.extract('year', Order.create_time) == target_year
+        ).scalar()
+        individual_cost_amount = float(individual_cost_amount) if individual_cost_amount is not None else 0.0
+
+        # 获取最近一次计算记录
+        latest_calc = ExpenseCalculationRecord.query.filter(
+            ExpenseCalculationRecord.target_year == target_year
+        ).order_by(ExpenseCalculationRecord.calculation_time.desc()).first()
+
+        # 获取年度目标
+        annual_target_record = AnnualTarget.query.filter_by(target_year=target_year).first()
+        annual_target = float(annual_target_record.target_amount) if annual_target_record else 10000000.00
+
+        # 净利 = 合同金额 - 机器成本 - 运营成本 - 个别费用
+        net_profit = total_order_amount - machine_cost_amount - total_expenses - individual_cost_amount
+
+        # 构建汇总数据
+        summary_data = {
+            "year": target_year,
+            "total_expenses": float(total_expenses),
+            "total_expenditure": float(total_expenditure),
+            "total_income": float(total_income),
+            "total_orders": total_orders,
+            "total_order_amount": float(total_order_amount),
+            "latest_calculation": serialize_calculation_record(latest_calc) if latest_calc else None,
+            "annual_target": annual_target,
+            "machine_cost_amount": float(machine_cost_amount),
+            "individual_cost_amount": float(individual_cost_amount),
+            "net_profit": float(net_profit),
+        }
+
+        # 返回统一格式的数据，包含费用列表和年度汇总
         import json
         from flask import Response
         response_data = {
             "code": 200,
-            "msg": "获取费用列表成功",
+            "msg": "获取费用列表和年度汇总成功",
             "data": {
                 "list": expenses_list,
                 "total": total,
                 "page": page,
-                "size": size
+                "size": size,
+                "yearly_summary": summary_data
             }
         }
         # 使用自定义编码器处理Decimal类型
@@ -431,7 +515,7 @@ def calculate_expense_allocations():
             )
             db.session.add(annual_target_record)
             db.session.commit()
-        
+
         annual_target = float(annual_target_record.target_amount) if annual_target_record.target_amount else 10000000.00
 
         # 删除该年份的现有分摊记录
@@ -552,7 +636,7 @@ def calculate_expense_allocations():
             remark=f'成功为{len(expenses)}笔费用分摊到{len(orders)}个订单'
         )
         db.session.add(calc_record)
-        
+
         # 更新每个订单的proportionate_cost字段
         for order in orders:
             order_amount = float(order.contract_amount) if order.contract_amount else 0.0
@@ -562,7 +646,7 @@ def calculate_expense_allocations():
                     (order_amount / allocation_base) * float(expense.amount) if expense.amount else 0.0
                     for expense in expenses
                 )
-                
+
                 # 更新订单的摊分费用字段
                 order.proportionate_cost = order_total_expense
             else:
@@ -639,17 +723,14 @@ def get_yearly_expense_summary(year):
             Expense.target_year == year,
             Expense.expense_type == '全面分摊'
         )
-
-        total_expenses = total_expenses_query.scalar() or 0.0
-
         # 分别计算总开支和总收入
         total_expenses_raw = db.session.query(Expense.amount).filter(
             Expense.target_year == year,
             Expense.expense_type == '全面分摊'
         ).all()
 
-        total_expenditure = sum(amount for amount, in total_expenses_raw if amount < 0)  # 总开支
-        total_income = sum(amount for amount, in total_expenses_raw if amount > 0)  # 总收入
+        total_expenditure = float(sum(amount for amount, in total_expenses_raw if amount > 0)) if total_expenses_raw else 0.0  # 总开支
+        total_income = float(sum(amount for amount, in total_expenses_raw if amount < 0)) if total_expenses_raw else 0.0  # 总收入
 
         # 获取该年份的订单数量
         total_orders = db.session.query(
@@ -658,12 +739,34 @@ def get_yearly_expense_summary(year):
             db.extract('year', Order.create_time) == year
         ).scalar() or 0
 
-        # 获取该年份的订单总金额
+        # 获取该年份的订单总金额（合同价）
         total_order_amount = db.session.query(
             db.func.sum(Order.contract_amount)
         ).filter(
             db.extract('year', Order.create_time) == year
-        ).scalar() or 0.0
+        ).scalar()
+        total_order_amount = float(total_order_amount) if total_order_amount is not None else 0.0
+
+        # 获取该年份的订单总成本（机器成本）
+        machine_cost_amount = db.session.query(
+            db.func.sum(Order.machine_cost)
+        ).filter(
+            db.extract('year', Order.create_time) == year
+        ).scalar()
+        machine_cost_amount = float(machine_cost_amount) if machine_cost_amount is not None else 0.0
+
+        # 总运营成本（租金、水电、网络运营、人力、额外费用等）
+        total_expenses = total_expenses_query.scalar()
+        total_expenses = float(total_expenses) if total_expenses is not None else 0.0
+
+        # 获取该年份的订单总独立费用（每个订单单独承担的费用）
+        individual_cost_amount = db.session.query(
+            db.func.sum(Order.individual_cost)
+        ).filter(
+            db.extract('year', Order.create_time) == year
+        ).scalar()
+        individual_cost_amount = float(individual_cost_amount) if individual_cost_amount is not None else 0.0
+
 
         # 获取最近一次计算记录
         latest_calc = ExpenseCalculationRecord.query.filter(
@@ -674,6 +777,10 @@ def get_yearly_expense_summary(year):
         annual_target_record = AnnualTarget.query.filter_by(target_year=year).first()
         annual_target = float(annual_target_record.target_amount) if annual_target_record else 10000000.00
 
+        # 净利 = 合同金额 - 机器成本 - 运营成本 - 个别费用
+        net_profit = total_order_amount - machine_cost_amount - total_expenses - individual_cost_amount
+
+        # 构建汇总数据
         summary_data = {
             "year": year,
             "total_expenses": float(total_expenses),
@@ -682,7 +789,10 @@ def get_yearly_expense_summary(year):
             "total_orders": total_orders,
             "total_order_amount": float(total_order_amount),
             "latest_calculation": serialize_calculation_record(latest_calc) if latest_calc else None,
-            "annual_target": annual_target
+            "annual_target": annual_target,
+            "machine_cost_amount": float(machine_cost_amount),
+            "individual_cost_amount": float(individual_cost_amount),
+            "net_profit": float(net_profit),
         }
 
         import json
@@ -829,9 +939,9 @@ def update_annual_target(target_id):
             }), 400
 
         # 更新年度目标字段
-        if 'target_year' in data: 
+        if 'target_year' in data:
             annual_target.target_year = data['target_year']
-        if 'target_amount' in data: 
+        if 'target_amount' in data:
             annual_target.target_amount = data['target_amount']
 
         db.session.commit()
@@ -1093,11 +1203,11 @@ def update_individual_expense(expense_id):
             }), 400
 
         # 更新个别费用字段
-        if 'name' in data: 
+        if 'name' in data:
             individual_expense.name = data['name']
-        if 'amount' in data: 
+        if 'amount' in data:
             individual_expense.amount = data['amount']
-        if 'remark' in data: 
+        if 'remark' in data:
             individual_expense.remark = data['remark']
 
         db.session.commit()
@@ -1158,7 +1268,7 @@ def delete_individual_expense(expense_id):
     try:
         individual_expense = IndividualExpense.query.get_or_404(expense_id)
         order_id = individual_expense.order_id
-        
+
         db.session.delete(individual_expense)
         db.session.commit()
 

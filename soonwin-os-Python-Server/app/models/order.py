@@ -40,3 +40,45 @@ class Order(db.Model):
     attachment_videos = db.Column(db.String(500), comment="验收视频路径（多视频逗号分隔）")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    # 定义序列化方法，便于接口返回JSON数据
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "is_new": self.is_new,
+            "area": self.area,
+            "customer_name": self.customer_name,
+            "customer_type": self.customer_type,
+            "order_time": self.order_time.strftime('%Y-%m-%d') if self.order_time else None,
+            "ship_time": self.ship_time.strftime('%Y-%m-%d') if self.ship_time else None,
+            "ship_country": self.ship_country,
+            "contract_no": self.contract_no,
+            "order_no": self.order_no,
+            "machine_no": self.machine_no,
+            "machine_name": self.machine_name,
+            "machine_model": self.machine_model,
+            "machine_count": self.machine_count,
+            "unit": self.unit,
+            "contract_amount": float(self.contract_amount) if self.contract_amount else 0.0,
+            "deposit": float(self.deposit) if self.deposit else 0.0,
+            "balance": float(self.balance) if self.balance else 0.0,
+            "tax_rate": float(self.tax_rate) if self.tax_rate else 13.0,
+            "tax_refund_amount": float(self.tax_refund_amount) if self.tax_refund_amount else 0.0,
+            "currency_amount": float(self.currency_amount) if self.currency_amount else 0.0,
+            "payment_received": float(self.payment_received) if self.payment_received else 0.0,
+            "machine_cost": float(self.machine_cost) if self.machine_cost else 0.0,
+            "net_profit": float(self.net_profit) if self.net_profit else 0.0,
+            "proportionate_cost": float(self.proportionate_cost) if self.proportionate_cost else 0.0,
+            "individual_cost": float(self.individual_cost) if self.individual_cost else 0.0,
+            "gross_profit": float(self.gross_profit) if self.gross_profit else 0.0,
+            "pay_type": self.pay_type,
+            "commission": float(self.commission) if self.commission else 0.0,
+            "latest_ship_date": self.latest_ship_date.strftime('%Y-%m-%d') if self.latest_ship_date else None,
+            "expected_delivery": self.expected_delivery.strftime('%Y-%m-%d') if self.expected_delivery else None,
+            "order_dept": self.order_dept,
+            "check_requirement": self.check_requirement,
+            "attachment_imgs": self.attachment_imgs,
+            "attachment_videos": self.attachment_videos,
+            "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
+            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None
+        }

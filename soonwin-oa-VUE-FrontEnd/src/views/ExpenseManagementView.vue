@@ -1,6 +1,6 @@
 <template>
   <div class="expense-management-container">
-    <el-page-header content="费用管理" @back="goBack">
+    <el-page-header content="运营费用管理" @back="goBack">
       <template #extra>
         <el-button @click="logout">退出登录</el-button>
       </template>
@@ -26,18 +26,13 @@
           <el-input v-model="searchForm.name" placeholder="请输入费用名称" clearable></el-input>
         </el-form-item>
         <el-form-item label="年份">
-          <el-select v-model="searchForm.targetYear" placeholder="请选择年份" clearable>
+          <el-select v-model="searchForm.targetYear" placeholder="请选择年份" style="width:100px;">
             <el-option
               v-for="year in yearOptions"
               :key="year"
               :label="year"
               :value="year"
             ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="费用类型">
-          <el-select v-model="searchForm.expenseType" placeholder="请选择费用类型" clearable>
-            <el-option label="全面分摊" value="全面分摊"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -57,15 +52,10 @@
         <el-table-column prop="name" label="费用名称" width="150" />
         <el-table-column prop="amount" label="费用金额" width="120">
           <template #default="scope">
-            <span :class="scope.row.amount >= 0 ? 'negative' : 'positive'">
+            <span :class="scope.row.amount >= 0 ? 'positive' : 'negative'">
               {{ formatCurrency(scope.row.amount || 0) }}
               <!-- {{ scope.row.amount >= 0 ? `+${Math.abs(scope.row.amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : `-${Math.abs(scope.row.amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` }} -->
             </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="expense_type" label="费用类型" width="120">
-          <template #default="scope">
-            <el-tag type="success">{{ scope.row.expense_type }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="target_year" label="目标年份" width="100" />
@@ -126,62 +116,39 @@
     <el-card shadow="hover" class="allocation-card" style="margin-top: 20px;">
       <template #header>
         <div class="card-header">
-          <span>年度摊分费用汇总</span>
+          <span>年度运营费用汇总</span>
         </div>
       </template>
 
 
       <!-- 年度汇总信息表格 -->
       <div v-if="yearlySummary" class="summary-info">
-        <h4>{{ yearlySummary.year }}年费用汇总</h4>
         <div style="display: flex; justify-content:flex-start; align-items: center; margin-bottom: 15px;">
-
-      <el-form :model="summaryForm" :inline="true" class="allocation-form">
-        <el-form-item label="选择年份">
-          <el-select v-model="summaryForm.targetYear" placeholder="请选择年份" clearable style="width:100px" @change="onYearChange">
-            <el-option
-              v-for="year in yearOptions"
-              :key="year"
-              :label="year"
-              :value="year"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-      </el-form>
           <div>
             <strong>年度目标: </strong>
-            <span>¥{{ formatCurrency(yearlySummary.annual_target, 'css') }}</span>
-            <el-button size="small" @click="showAnnualTargetDialog" style="margin-left: 10px;">修改年度目标</el-button>
+            <span @click="showAnnualTargetDialog" style="cursor:pointer;"> ¥{{ formatCurrency(yearlySummary.annual_target) }}</span>
           </div>
         </div>
         <el-table :data="[yearlySummary]" style="width: 100%" border>
           <el-table-column prop="year" label="年份" width="100" />
-          <el-table-column prop="total_expenditure" label="年度总开支" width="150">
+          <el-table-column prop="total_expenditure" label="运营总开支" width="150">
             <template #default="scope">
-              <span :class="scope.row.total_expenditure >= 0 ? 'negative' : 'positive'">
+              <span :class="scope.row.total_expenditure < 0 ? 'negative' : 'positive'">
                 {{ formatCurrency(scope.row.total_expenditure || 0) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="total_income" label="年度总收入" width="150">
+          <el-table-column prop="total_income" label="运营总收入" width="150">
             <template #default="scope">
-              <span :class="scope.row.total_income >= 0 ? 'negative' : 'positive'">
+              <span :class="scope.row.total_income < 0 ? 'negative' : 'positive'">
                 {{ formatCurrency(scope.row.total_income || 0) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="total_expenses" label="合计分摊费用" width="150">
+          <el-table-column prop="total_expenses" label="合计运营费用" width="150">
             <template #default="scope">
-              <span :class="scope.row.total_expenses >= 0 ? 'negative' : 'positive'">
+              <span :class="scope.row.total_expenses < 0 ? 'negative' : 'positive'">
                 {{ formatCurrency(scope.row.total_expenses) }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="total_orders" label="订单数量" width="120" />
-          <el-table-column prop="total_order_amount" label="订单总金额" width="150">
-            <template #default="scope">
-              <span :class="scope.row.total_order_amount >= 0 ? 'negative' : 'positive'">
-                {{ formatCurrency(scope.row.total_order_amount*-1 || 0) }}
               </span>
             </template>
           </el-table-column>
@@ -208,15 +175,10 @@
           </el-input>
           <div class="expense-type-selector">
             <el-radio-group v-model="newExpense.expenseSign" style="margin-top: 5px;">
-              <el-radio :label="-1">支出</el-radio>
-              <el-radio :label="1">收入</el-radio>
+              <el-radio :label="1">支出</el-radio>
+              <el-radio :label="-1">收入</el-radio>
             </el-radio-group>
           </div>
-        </el-form-item>
-        <el-form-item label="费用类型" prop="expenseType">
-          <el-select v-model="newExpense.expenseType" placeholder="请选择费用类型" disabled>
-            <el-option label="全面分摊" value="全面分摊" />
-          </el-select>
         </el-form-item>
         <el-form-item label="目标年份" prop="targetYear">
           <el-select v-model="newExpense.targetYear" placeholder="请选择年份">
@@ -262,11 +224,6 @@
             </el-radio-group>
           </div>
         </el-form-item>
-        <!-- <el-form-item label="费用类型" prop="expenseType">
-          <el-select v-model="editExpense.expenseType" placeholder="请选择费用类型" disabled>
-            <el-option label="全面分摊" value="全面分摊" />
-          </el-select>
-        </el-form-item> -->
         <el-form-item label="目标年份" prop="targetYear">
           <el-select v-model="editExpense.targetYear" placeholder="请选择年份">
             <el-option
@@ -335,9 +292,14 @@ for (let i = currentYear - 5; i <= currentYear + 2; i++) {
 
 // 格式化货币显示
 const formatCurrency = (value: number) => {
-  if (value === null || value === undefined) return '0.00';
-  const formattedValue = Math.abs(Number(value)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return value >= 0 ? `+${formattedValue}` : `-${formattedValue}`;
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '0.00';
+  }
+  const numValue = Number(value);
+  if (Number.isNaN(numValue)) {
+    return '0.00';
+  }
+  return Math.abs(numValue).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
 // 费用数据
@@ -434,10 +396,19 @@ const fetchExpenses = async () => {
     };
 
     const response: any = await request.get('/api/expenses', { params });
+
+    // 处理费用列表数据
     expenses.value = response.list || [];
     pagination.value.total = response.total || 0;
     pagination.value.page = response.page || 1;
     pagination.value.size = response.size || 10;
+
+    // 处理年度费用汇总数据（现在包含在同一个响应中）
+    if (response.yearly_summary) {
+      yearlySummary.value = response.yearly_summary;
+      // 更新汇总表单的年份选择
+      summaryForm.value.targetYear = response.yearly_summary.year;
+    }
   } catch (error) {
     console.error('Error fetching expenses:', error);
     ElMessage.error('获取费用列表失败');
@@ -666,9 +637,7 @@ const handleCurrentChange = (newPage: number) => {
 // 组件挂载时获取数据
 onMounted(async () => {
   fetchExpenses();
-  // 自动加载当前年份的年度费用汇总
-  summaryForm.value.targetYear = new Date().getFullYear();
-  await getYearlySummary();
+  // fetchExpenses现在会同时获取费用列表和年度汇总数据，所以不需要单独调用getYearlySummary()
   // 从年度汇总信息中提取费用分摊计算结果
   if (yearlySummary.value) {
     // 从年度汇总中构造费用分摊计算结果

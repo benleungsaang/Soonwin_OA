@@ -94,8 +94,8 @@
     </Filter>
     <FolderPairs>
         <Pair>
-            <Left>E:\Soonwin_OA_BaseCode</Left>
-            <Right>E:\Soonwin_OA</Right>
+            <Left>E:\Soonwin_OA</Left>
+            <Right>E:\Soonwin_OA_BaseCode</Right>
         </Pair>
     </FolderPairs>
     <Errors Ignore="false" Retry="0" Delay="5"/>

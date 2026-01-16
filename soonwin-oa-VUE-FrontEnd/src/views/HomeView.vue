@@ -14,6 +14,14 @@
               <el-icon><Document /></el-icon>
               <span>订单管理</span>
             </el-menu-item>
+            <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
+              <el-icon><Finished /></el-icon>
+              <span>订单验收</span>
+            </el-menu-item>
+            <el-menu-item index="4" @click="goToExpenseManagement" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><Money /></el-icon>
+              <span>运营费用</span>
+            </el-menu-item>
             <el-menu-item index="2" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
               <el-icon><Clock /></el-icon>
               <span>打卡记录</span>
@@ -21,10 +29,6 @@
             <el-menu-item index="3" @click="goToEmployeeManagement" v-if="hasToken && isCurrentUserAdmin">
               <el-icon><User /></el-icon>
               <span>员工管理</span>
-            </el-menu-item>
-            <el-menu-item index="4" @click="goToExpenseManagement" v-if="hasToken && isCurrentUserAdmin">
-              <el-icon><Money /></el-icon>
-              <span>费用管理</span>
             </el-menu-item>
             <el-menu-item index="5" @click="goToLogin" v-if="!hasToken">
               <el-icon><User /></el-icon>
@@ -44,7 +48,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { CreditCard, Document, User, Clock, SwitchButton, Money } from '@element-plus/icons-vue';
+import { CreditCard, Document, User, Clock, SwitchButton, Money, Finished } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 // 路由实例
@@ -122,6 +126,11 @@ const goToDeviceManagement = () => {
 // 跳转登录页
 const goToLogin = () => {
   router.push('/login');
+};
+
+// 跳转登录页
+const goToOrderInspection = () => {
+  router.push('/order-inspection');
 };
 
 // 退出登录

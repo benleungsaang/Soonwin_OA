@@ -7,6 +7,8 @@ import PunchSuccessView from '@/views/PunchSuccessView.vue';
 import PunchRecordsView from '@/views/PunchRecordsView.vue';
 import EmployeeManagementView from '@/views/EmployeeManagementView.vue';
 import ExpenseManagementView from '@/views/ExpenseManagementView.vue';
+import OrderInspectionView from '@/views/OrderInspectionView.vue';
+import InspectionReportView from '@/views/InspectionReportView.vue';
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -52,6 +54,19 @@ const routes: RouteRecordRaw[] = [
     name: 'expenseManagement',
     component: ExpenseManagementView,
     meta: { title: '费用管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  },
+  {
+    path: '/order-inspection',
+    name: 'orderInspection',
+    component: OrderInspectionView,
+    meta: { title: '订单验收', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/inspection-report/:inspectionId',
+    name: 'inspectionReport',
+    component: InspectionReportView,
+    props: true,
+    meta: { title: '验收报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   }
 ];
 
