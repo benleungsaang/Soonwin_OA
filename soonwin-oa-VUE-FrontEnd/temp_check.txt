@@ -1,0 +1,1000 @@
+﻿<template>
+  <div class="order-inspection-container">
+    <div class="header">
+      <div class="header-content">
+        <el-page-header @back="goBack" content="订单验收" />
+      </div>
+    </div>
+
+    <!-- 订单列表 -->
+    <div class="order-list-section">
+      <el-card>
+        <template #header>
+          <div class="card-header">
+            <span>待验收订单列表</span>
+          </div>
+        </template>
+        
+        <el-table 
+          :data="orders" 
+          style="width: 100%" 
+          @row-click="showOrderDetails"
+          v-loading="loading"
+        >
+          <el-table-column prop="contract_no" label="合同编号" width="150" />
+          <el-table-column prop="machine_name" label="名称" width="150" />
+          <el-table-column prop="machine_model" label="机型" width="120" />
+          <el-table-column prop="order_time" label="下单时间" width="120">
+            <template #default="scope">
+              {{ formatDate(scope.row.order_time) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="ship_time" label="出货时间" width="120">
+            <template #default="scope">
+              {{ formatDate(scope.row.ship_time) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="检查完成进度" width="150">
+            <template #default="scope">
+              <el-progress 
+                :percentage="getOrderInspectionProgress(scope.row.id)" 
+                :status="getOrderInspectionStatus(scope.row.id)"
+                :show-text="false"
+                height="20px"
+              />
+              <div class="progress-text">
+                {{ getOrderInspectionProgress(scope.row.id) }}%
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150" v-if="isUserAdmin">
+            <template #default="scope">
+              <el-button 
+                type="primary" 
+                size="small"
+                @click.stop="startInspection(scope.row)"
+              >
+                开始验收
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        
+        <el-pagination
+          class="pagination"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+          :current-page="currentPage"
+          :page-sizes="[10, 20, 50, 100]"
+          :page-size="pageSize"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+        />
+      </el-card>
+    </div>
+
+    <!-- 订单验收详情弹窗（整合了订单详情和验收管理） -->
+    <el-dialog
+      v-model="orderDetailDialogVisible"
+      :title="`订单验收详情 - ${selectedOrderDetail?.contract_no || selectedOrder?.contract_no || ''}`"
+      width="80%"
+      :before-close="handleCloseOrderDetailDialog"
+    >
+      <div v-if="selectedOrderDetail || selectedOrder">
+        <!-- 订单基础信息 -->
+        <el-card class="order-info-card">
+          <template #header>
+            <div class="card-header">
+              <span>订单基础数据</span>
+            </div>
+          </template>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="合同编号">{{ (selectedOrderDetail || selectedOrder).contract_no }}</el-descriptions-item>
+            <el-descriptions-item label="订单编号">{{ (selectedOrderDetail || selectedOrder).order_no }}</el-descriptions-item>
+            <el-descriptions-item label="包装机单号">{{ (selectedOrderDetail || selectedOrder).machine_no }}</el-descriptions-item>
+            <el-descriptions-item label="名称">{{ (selectedOrderDetail || selectedOrder).machine_name }}</el-descriptions-item>
+            <el-descriptions-item label="机型">{{ (selectedOrderDetail || selectedOrder).machine_model }}</el-descriptions-item>
+            <el-descriptions-item label="主机数量">{{ (selectedOrderDetail || selectedOrder).machine_count }}</el-descriptions-item>
+            <el-descriptions-item label="下单时间">{{ formatDate((selectedOrderDetail || selectedOrder).order_time) }}</el-descriptions-item>
+            <el-descriptions-item label="出货时间">{{ formatDate((selectedOrderDetail || selectedOrder).ship_time) }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+
+        <!-- 检查项区域 -->
+        <el-card class="inspection-items-card" style="margin-top: 20px;">
+          <template #header>
+            <div class="card-header">
+              <span>检查项</span>
+              <div>
+                <el-button 
+                  v-if="isUserAdmin" 
+                  type="primary" 
+                  size="small"
+                  @click="showAddItemDialog('parent')"
+                >
+                  添加大项
+                </el-button>
+                <el-button 
+                  v-if="isUserAdmin" 
+                  type="success" 
+                  size="small"
+                  @click="showAddItemDialog('sub')"
+                >
+                  添加细项
+                </el-button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 检查项列表 -->
+          <div v-for="parentItem in groupedItems" :key="parentItem.id" class="inspection-group">
+            <div class="parent-item">
+              <div class="parent-header">
+                <div class="parent-title-container">
+                  <span 
+                    v-if="!parentItem.isEditing"
+                    class="parent-title"
+                    @dblclick="startEditing(parentItem, 'parent')"
+                  >
+                    {{ parentItem.item_category }}
+                  </span>
+                  <el-input
+                    v-else
+                    v-model="parentItem.editingValue"
+                    @blur="finishEditing(parentItem, 'parent')"
+                    @keyup.enter="finishEditing(parentItem, 'parent')"
+                    ref="parentInputRef"
+                  />
+                </div>
+                <div class="parent-progress">
+                  <el-progress 
+                    :percentage="parentItem.progress" 
+                    :status="parentItem.progress === 100 ? 'success' : 'warning'"
+                    :show-text="false"
+                    height="10px"
+                  />
+                  <span class="progress-text">{{ parentItem.progress }}%</span>
+                </div>
+                <el-button 
+                  v-if="isUserAdmin" 
+                  type="danger" 
+                  size="small"
+                  @click="deleteItem(parentItem)"
+                >
+                  删除
+                </el-button>
+              </div>
+              
+              <div class="sub-items">
+                <div 
+                  v-for="subItem in parentItem.children" 
+                  :key="subItem.id" 
+                  class="sub-item"
+                >
+                  <div class="sub-item-header">
+                    <div class="sub-item-name-container">
+                      <span 
+                        v-if="!subItem.isEditing"
+                        class="sub-item-name"
+                        @dblclick="startEditing(subItem, 'sub')"
+                      >
+                        {{ subItem.item_name }}
+                      </span>
+                      <el-input
+                        v-else
+                        v-model="subItem.editingValue"
+                        @blur="finishEditing(subItem, 'sub')"
+                        @keyup.enter="finishEditing(subItem, 'sub')"
+                      />
+                    </div>
+                    <div class="sub-item-actions">
+                      <el-radio-group 
+                        v-model="subItem.inspection_result" 
+                        @change="updateInspectionItem(subItem)"
+                        :disabled="!isUserGeneral"
+                      >
+                        <el-radio label="pending">未检查</el-radio>
+                        <el-radio label="normal">正常</el-radio>
+                        <el-radio label="defect">不正常</el-radio>
+                        <el-radio label="not_applicable">没此项</el-radio>
+                      </el-radio-group>
+                      <el-button 
+                        v-if="isUserAdmin" 
+                        type="danger" 
+                        size="small"
+                        @click="deleteItem(subItem)"
+                        style="margin-left: 10px;"
+                      >
+                        删除
+                      </el-button>
+                    </div>
+                  </div>
+                  
+                  <div class="sub-item-content">
+                    <div v-if="subItem.inspection_result === 'normal'" class="upload-section normal-upload">
+                      <el-upload
+                        class="upload-demo"
+                        :action="uploadUrl"
+                        :headers="uploadHeaders"
+                        :on-success="(response, file) => handlePhotoUploadSuccess(response, subItem, 'normal')"
+                        :on-error="handlePhotoUploadError"
+                        :show-file-list="false"
+                        list-type="picture"
+                      >
+                        <el-button size="small" type="primary">上传照片</el-button>
+                        <div v-if="subItem.photo_path" class="photo-preview">
+                          <img :src="subItem.photo_path" alt="正常照片" style="max-width: 100px; max-height: 100px;">
+                        </div>
+                      </el-upload>
+                    </div>
+                    
+                    <div v-if="subItem.inspection_result === 'defect'" class="defect-section">
+                      <el-upload
+                        class="upload-demo"
+                        :action="uploadUrl"
+                        :headers="uploadHeaders"
+                        :on-success="(response, file) => handlePhotoUploadSuccess(response, subItem, 'defect')"
+                        :on-error="handlePhotoUploadError"
+                        :show-file-list="false"
+                        list-type="picture"
+                      >
+                        <el-button size="small" type="danger">上传缺陷照片</el-button>
+                        <div v-if="subItem.photo_path" class="photo-preview">
+                          <img :src="subItem.photo_path" alt="缺陷照片" style="max-width: 100px; max-height: 100px;">
+                        </div>
+                      </el-upload>
+                      <el-input
+                        v-model="subItem.description"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="请输入缺陷描述"
+                        @blur="updateInspectionItem(subItem)"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 在大项下添加细项按钮 -->
+                <div class="add-sub-item" v-if="isUserAdmin">
+                  <el-button 
+                    type="info" 
+                    size="small"
+                    @click="showAddSubItemDialog(parentItem.id, parentItem.item_category)"
+                  >
+                    + 添加细项
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 添加的独立检查项（没有父项的） -->
+          <div v-for="item in standaloneItems" :key="item.id" class="standalone-item">
+            <div class="sub-item-header">
+              <div class="sub-item-name-container">
+                <span 
+                  v-if="!item.isEditing"
+                  class="sub-item-name"
+                  @dblclick="startEditing(item, 'sub')"
+                >
+                  {{ item.item_name }}
+                </span>
+                <el-input
+                  v-else
+                  v-model="item.editingValue"
+                  @blur="finishEditing(item, 'sub')"
+                  @keyup.enter="finishEditing(item, 'sub')"
+                />
+              </div>
+              <div class="sub-item-actions">
+                <el-radio-group 
+                  v-model="item.inspection_result" 
+                  @change="updateInspectionItem(item)"
+                  :disabled="!isUserGeneral"
+                >
+                  <el-radio label="pending">未检查</el-radio>
+                  <el-radio label="normal">正常</el-radio>
+                  <el-radio label="defect">不正常</el-radio>
+                  <el-radio label="not_applicable">没此项</el-radio>
+                </el-radio-group>
+                <el-button 
+                  v-if="isUserAdmin" 
+                  type="danger" 
+                  size="small"
+                  @click="deleteItem(item)"
+                  style="margin-left: 10px;"
+                >
+                  删除
+                </el-button>
+              </div>
+            </div>
+            
+            <div class="sub-item-content" v-if="item.inspection_result !== 'not_applicable' && item.inspection_result !== 'pending'">
+              <div v-if="item.inspection_result === 'normal'" class="upload-section normal-upload">
+                <el-upload
+                  class="upload-demo"
+                  :action="uploadUrl"
+                  :headers="uploadHeaders"
+                  :on-success="(response, file) => handlePhotoUploadSuccess(response, item, 'normal')"
+                  :on-error="handlePhotoUploadError"
+                  :show-file-list="false"
+                  list-type="picture"
+                >
+                  <el-button size="small" type="primary">上传照片</el-button>
+                  <div v-if="item.photo_path" class="photo-preview">
+                    <img :src="item.photo_path" alt="正常照片" style="max-width: 100px; max-height: 100px;">
+                  </div>
+                </el-upload>
+              </div>
+              
+              <div v-if="item.inspection_result === 'defect'" class="defect-section">
+                <el-upload
+                  class="upload-demo"
+                  :action="uploadUrl"
+                  :headers="uploadHeaders"
+                  :on-success="(response, file) => handlePhotoUploadSuccess(response, item, 'defect')"
+                  :on-error="handlePhotoUploadError"
+                  :show-file-list="false"
+                  list-type="picture"
+                >
+                  <el-button size="small" type="danger">上传缺陷照片</el-button>
+                  <div v-if="item.photo_path" class="photo-preview">
+                    <img :src="item.photo_path" alt="缺陷照片" style="max-width: 100px; max-height: 100px;">
+                  </div>
+                </el-upload>
+                <el-input
+                  v-model="item.description"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="请输入缺陷描述"
+                  @blur="updateInspectionItem(item)"
+                />
+              </div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 底部操作区域 -->
+        <div class="bottom-actions">
+          <div class="progress-summary">
+            <p>检查项进度：{{ selectedInspection?.completed_items || 0 }} / {{ selectedInspection?.total_items || 0 }}</p>
+          </div>
+          <div class="action-buttons">
+            <el-button @click="cacheData">缓存</el-button>
+            <el-button @click="closeDialog">关闭</el-button>
+            <el-button 
+              type="primary" 
+              @click="saveAndClose"
+            >
+              保存
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 添加检查项对话框 -->
+    <el-dialog
+      v-model="addItemDialogVisible"
+      title="添加检查项"
+      width="500px"
+      :before-close="closeAddItemDialog"
+    >
+      <el-form :model="newItemForm" :rules="itemRules" ref="itemFormRef" label-width="100px">
+        <el-form-item label="类型" prop="itemType">
+          <el-radio-group v-model="newItemForm.itemType">
+            <el-radio label="parent">大项</el-radio>
+            <el-radio label="sub">细项</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        
+        <el-form-item 
+          label="大项" 
+          prop="parentItem"
+          v-if="newItemForm.itemType === 'sub'"
+        >
+          <el-select 
+            v-model="newItemForm.parentItem" 
+            placeholder="请选择大项"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in parentItems"
+              :key="item.id"
+              :label="item.item_category"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item 
+          label="名称" 
+          prop="itemName"
+        >
+          <el-input 
+            v-model="newItemForm.itemName" 
+            :placeholder="newItemForm.itemType === 'parent' ? '请输入大项名称，如：配件、外观等' : '请输入细项名称，如：部件1、角度1等'"
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeAddItemDialog">取消</el-button>
+          <el-button type="primary" @click="confirmAddItem">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue';
+import request from '@/utils/request';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { useRouter } from 'vue-router';
+
+// 响应式数据
+const orders = ref<any[]>([]);
+const loading = ref(false);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+const detailDialogVisible = ref(false);
+const orderDetailDialogVisible = ref(false);
+const addItemDialogVisible = ref(false);
+const addSubItemDialogVisible = ref(false);
+const selectedOrder = ref<any>({});
+const selectedOrderDetail = ref<any>(null);
+const selectedInspection = ref<any>(null);
+const items = ref<any[]>([]);
+const token = ref(localStorage.getItem('oa_token') || '');
+
+// 新检查项表单
+const newItemForm = ref({
+  itemType: 'sub', // 'parent' 或 'sub'
+  parentItem: null as number | null,
+  itemName: '',
+  itemCategory: '' // 用于父项的类别
+});
+
+const itemRules = {
+  itemType: [
+    { required: true, message: '请选择类型', trigger: 'change' }
+  ],
+  itemName: [
+    { required: true, message: '请输入名称', trigger: 'blur' }
+  ]
+};
+
+
+
+// 计算属性
+const groupedItems = computed(() => {
+  return items.value
+    .filter((item: any) => item.item_type === 'parent')
+    .map((parent: any) => {
+      const children = items.value.filter((child: any) => child.parent_id === parent.id);
+      return {
+        ...parent,
+        children: children,
+        completed_children: children.filter((child: any) => 
+          child.inspection_result === 'normal' || child.inspection_result === 'not_applicable'
+        ).length,
+        total_children: children.length,
+        progress: children.length > 0 
+          ? Math.round((children.filter((child: any) => 
+              child.inspection_result === 'normal' || child.inspection_result === 'not_applicable'
+            ).length / children.length) * 100)
+          : 0
+      };
+    });
+});
+
+const standaloneItems = computed(() => {
+  return items.value.filter((item: any) => item.item_type === 'sub' && item.parent_id === null);
+});
+
+const parentItems = computed(() => {
+  return items.value.filter((item: any) => item.item_type === 'parent');
+});
+
+// 提交按钮是否可点击的条件
+const canSubmit = computed(() => {
+  if (!selectedInspection.value) return false;
+  
+  // 所有细项都必须完成（正常项有照片，缺陷项有照片加描述，无此项直接完成）
+  const allSubItems = items.value.filter((item: any) => item.item_type === 'sub');
+  
+  if (allSubItems.length === 0) {
+    return false; // 如果没有检查项，不能提交
+  }
+  
+  for (const item of allSubItems) {
+    if (item.inspection_result === 'pending') {
+      return false;
+    }
+    if (item.inspection_result === 'normal' && !item.photo_path) {
+      return false;
+    }
+    if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
+      return false;
+    }
+  }
+  
+  return true; // 所有检查项都符合要求
+});
+
+// 获取用户角色
+const userRole = ref('');
+const isUserAdmin = computed(() => userRole.value === 'admin');
+const isUserGeneral = computed(() => userRole.value !== 'admin');
+
+// 上传配置
+const uploadUrl = computed(() => {
+  // 开发环境下使用代理，生产环境下使用完整URL
+  if (import.meta.env.MODE === 'development') {
+    return '/api/upload'; // 假设后端有上传接口
+  }
+  return `${window.location.protocol}//${window.location.hostname}:5000/api/upload`;
+});
+
+const uploadHeaders = computed(() => {
+  return {
+    'Authorization': `Bearer ${token.value}`
+  };
+});
+
+// 格式化日期
+const formatDate = (dateString: string) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toISOString().split('T')[0];
+};
+
+// 显示订单详情
+const showOrderDetails = async (row: any) => {
+  selectedOrderDetail.value = { ...row };
+  orderDetailDialogVisible.value = true;
+  
+  // 获取或创建验收数据
+  await refreshInspectionData();
+};
+
+// 关闭订单详情对话框
+const handleCloseOrderDetailDialog = () => {
+  orderDetailDialogVisible.value = false;
+  selectedOrderDetail.value = null;
+  selectedInspection.value = null;
+  items.value = [];
+};
+
+// 显示添加检查项对话框
+const showAddItemDialog = (type: 'parent' | 'sub') => {
+  newItemForm.value = {
+    itemType: type,
+    parentItem: null,
+    itemName: '',
+    itemCategory: type === 'parent' ? '' : (parentItems.value.length > 0 ? parentItems.value[0].item_category : '')
+  };
+  addItemDialogVisible.value = true;
+};
+
+// 显示添加子项对话框
+const showAddSubItemDialog = (parentId: number, parentCategory: string) => {
+  newItemForm.value = {
+    itemType: 'sub',
+    parentItem: parentId,
+    itemName: '',
+    itemCategory: parentCategory
+  };
+  addItemDialogVisible.value = true;
+};
+
+// 关闭添加检查项对话框
+const closeAddItemDialog = () => {
+  addItemDialogVisible.value = false;
+};
+
+// 确认添加检查项
+const confirmAddItem = async () => {
+  if (!selectedOrderDetail.value && !selectedOrder.value) {
+    ElMessage.error('请先选择一个订单');
+    return;
+  }
+  
+  const orderId = selectedOrderDetail.value ? selectedOrderDetail.value.id : selectedOrder.value.id;
+  
+  try {
+    // 检查是否已有验收记录，如果没有则创建
+    let inspectionId = (selectedOrderDetail.value || selectedOrder.value).inspection_id;
+    if (!inspectionId) {
+      const newInspection: any = await request.post('/api/inspections', {
+        order_id: orderId,
+        remarks: '订单验收记录'
+      });
+      inspectionId = newInspection.id;
+      // 更新订单列表中的ID
+      if (selectedOrderDetail.value) selectedOrderDetail.value.inspection_id = inspectionId;
+      if (selectedOrder.value) selectedOrder.value.inspection_id = inspectionId;
+    }
+    
+    const payload: any = {
+      inspection_id: inspectionId,
+      item_type: newItemForm.value.itemType,
+      item_name: newItemForm.value.itemName,
+      item_category: newItemForm.value.itemType === 'parent' ? newItemForm.value.itemName : newItemForm.value.itemCategory
+    };
+    
+    if (newItemForm.value.itemType === 'sub' && newItemForm.value.parentItem) {
+      payload.parent_id = newItemForm.value.parentItem;
+    }
+    
+    const result: any = await request.post(`/api/inspections/${inspectionId}/items`, payload);
+    ElMessage.success('检查项添加成功');
+    
+    // 重新获取详情
+    await refreshInspectionData();
+    closeAddItemDialog();
+  } catch (error) {
+    console.error('添加检查项失败:', error);
+    ElMessage.error('添加检查项失败');
+  }
+};
+
+// 获取验收数据
+const refreshInspectionData = async () => {
+  const orderId = selectedOrderDetail.value ? selectedOrderDetail.value.id : selectedOrder.value.id;
+  
+  try {
+    // 检查是否已有验收记录
+    let inspectionId = (selectedOrderDetail.value || selectedOrder.value).inspection_id;
+    if (!inspectionId) {
+      const inspectionRes: any = await request.get('/api/inspections', {
+        params: {
+          order_no: (selectedOrderDetail.value || selectedOrder.value).order_no
+        }
+      });
+      if (inspectionRes.list && inspectionRes.list.length > 0) {
+        inspectionId = inspectionRes.list[0].id;
+        // 更新订单列表中的ID
+        if (selectedOrderDetail.value) selectedOrderDetail.value.inspection_id = inspectionId;
+        if (selectedOrder.value) selectedOrder.value.inspection_id = inspectionId;
+      }
+    }
+    
+    if (inspectionId) {
+      const response: any = await request.get(`/api/inspections/${inspectionId}`);
+      selectedInspection.value = response;
+      // 初始化items并保存原始状态
+      items.value = (response.items || []).map((item: any) => {
+        return {
+          ...item,
+          original_inspection_result: item.inspection_result,
+          original_description: item.description,
+          original_photo_path: item.photo_path
+        };
+      });
+    }
+  } catch (error) {
+    console.error('获取验收详情失败:', error);
+    ElMessage.error('获取验收详情失败');
+  }
+};
+
+// 开始编辑
+const startEditing = (item: any, type: 'parent' | 'sub') => {
+  if (!isUserAdmin.value) return;
+  item.isEditing = true;
+  item.editingValue = type === 'parent' ? item.item_category : item.item_name;
+};
+
+// 完成编辑
+const finishEditing = async (item: any, type: 'parent' | 'sub') => {
+  if (!item.isEditing) return;
+  
+  const updatedValue = item.editingValue.trim();
+  if (updatedValue && updatedValue !== (type === 'parent' ? item.item_category : item.item_name)) {
+    if (type === 'parent') {
+      item.item_category = updatedValue;
+    } else {
+      item.item_name = updatedValue;
+    }
+    
+    try {
+      // 更新到后端
+      await request.put(`/api/inspections/${item.inspection_id}/items/${item.id}`, {
+        item_category: item.item_category,
+        item_name: item.item_name,
+        inspection_result: item.inspection_result,
+        photo_path: item.photo_path,
+        description: item.description,
+        sort_order: item.sort_order
+      });
+      ElMessage.success('项目更新成功');
+    } catch (error) {
+      console.error('更新项目失败:', error);
+      ElMessage.error('更新项目失败');
+      // 恢复原始值
+      if (type === 'parent') {
+        item.item_category = (type === 'parent' ? item.item_category : item.item_name).replace(updatedValue, (type === 'parent' ? item.item_category : item.item_name));
+      } else {
+        item.item_name = (type === 'parent' ? item.item_category : item.item_name).replace(updatedValue, (type === 'parent' ? item.item_category : item.item_name));
+      }
+    }
+  }
+  
+  item.isEditing = false;
+  item.editingValue = '';
+};
+
+// 删除检查项
+const deleteItem = async (item: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除检查项 "${item.item_type === 'parent' ? item.item_category : item.item_name}" 吗？`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+    
+    await request.delete(`/api/inspections/${item.inspection_id}/items/${item.id}`);
+    ElMessage.success('检查项删除成功');
+    
+    // 重新获取详情
+    await refreshInspectionData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除检查项失败:', error);
+      ElMessage.error('删除检查项失败');
+    }
+  }
+};
+
+// 缓存数据
+const cacheData = async () => {
+  try {
+    // 更新所有检查项
+    for (const item of items.value) {
+      await request.put(`/api/inspections/${item.inspection_id}/items/${item.id}`, {
+        item_category: item.item_category,
+        item_name: item.item_name,
+        inspection_result: item.inspection_result,
+        photo_path: item.photo_path,
+        description: item.description,
+        sort_order: item.sort_order
+      });
+      
+      // 更新原始状态
+      item.original_inspection_result = item.inspection_result;
+      item.original_description = item.description;
+      item.original_photo_path = item.photo_path;
+    }
+    
+    // 更新验收记录
+    if (selectedInspection.value) {
+      await request.put(`/api/inspections/${selectedInspection.value.id}`, {
+        remarks: selectedInspection.value.remarks || '验收记录'
+      });
+    }
+    
+    ElMessage.success('数据已缓存');
+  } catch (error) {
+    console.error('缓存数据失败:', error);
+    ElMessage.error('缓存数据失败');
+  }
+};
+
+// 保存并关闭
+const saveAndClose = async () => {
+  try {
+    await cacheData();
+    orderDetailDialogVisible.value = false;
+  } catch (error) {
+    console.error('保存数据失败:', error);
+    ElMessage.error('保存数据失败');
+  }
+};
+
+// 检查是否有变更
+const hasUnsavedChanges = () => {
+  return items.value.some(item => 
+    item.inspection_result !== item.original_inspection_result || 
+    item.description !== item.original_description ||
+    item.photo_path !== item.original_photo_path
+  );
+};
+
+// 关闭对话框
+const closeDialog = async () => {
+  // 检查是否有未保存的更改
+  if (hasUnsavedChanges()) {
+    try {
+      const result = await ElMessageBox.confirm(
+        '当前有未保存的更改，是否保存？',
+        '提示',
+        {
+          confirmButtonText: '保存',
+          cancelButtonText: '不保存',
+          type: 'warning'
+        }
+      );
+      
+      if (result === 'confirm') {
+        await cacheData();
+      }
+    } catch (error) {
+      // 用户点击了取消，不关闭对话框
+      return;
+    }
+  }
+  
+  orderDetailDialogVisible.value = false;
+};
+
+// 获取订单列表
+const fetchOrders = async () => {
+  loading.value = true;
+  try {
+    const response: any = await request.get('/api/orders', {
+      params: {
+        page: currentPage.value,
+        size: pageSize.value
+      }
+    });
+    
+    orders.value = response.list || [];
+    total.value = response.total || 0;
+    
+    // 获取每个订单的验收进度
+    for (const order of orders.value) {
+      try {
+        // 先检查订单号是否存在，避免空参数调用API
+        if (order.order_no && order.order_no.trim() !== '') {
+          const inspectionRes: any = await request.get('/api/inspections', {
+            params: {
+              order_no: order.order_no
+            }
+          });
+        
+          if (inspectionRes.list && inspectionRes.list.length > 0) {
+            const inspection = inspectionRes.list[0];
+            order.inspection_progress = inspection.inspection_progress || 0;
+            order.inspection_id = inspection.id;
+          } else {
+            // 如果没有验收记录，不自动创建，只设置默认值
+            order.inspection_progress = 0;
+            order.inspection_id = null;
+          }
+        } else {
+          // 如果订单号为空，也不自动创建验收记录
+          order.inspection_progress = 0;
+          order.inspection_id = null;
+        }
+      } catch (error) {
+        console.error(`获取订单 ${order.order_no} 验收进度失败:`, error);
+        // 设置默认值
+        order.inspection_progress = 0;
+        order.inspection_id = null;
+      }
+    }
+  } catch (error) {
+    console.error('获取订单列表失败:', error);
+    ElMessage.error('获取订单列表失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 获取订单验收进度
+const getOrderInspectionProgress = (orderId: number) => {
+  const order = orders.value.find((o: any) => o.id === orderId);
+  return order ? (order.inspection_progress || 0) : 0;
+};
+
+const getOrderInspectionStatus = (orderId: number) => {
+  const progress = getOrderInspectionProgress(orderId);
+  if (progress === 100) return 'success';
+  if (progress > 0) return 'warning';
+  return '';
+};
+
+// 开始验收
+const startInspection = async (row: any) => {
+  selectedOrder.value = row;
+  selectedOrderDetail.value = null; // 清除之前选择的详情
+  
+  // 获取或创建验收数据
+  orderDetailDialogVisible.value = true;
+  await refreshInspectionData();
+};
+
+// 查看验收报告
+const viewInspectionReport = async (order: any) => {
+  try {
+    // 获取或创建验收记录
+    let inspectionId = order.inspection_id;
+    if (!inspectionId) {
+      const newInspection: any = await request.post('/api/inspections', {
+        order_id: order.id,
+        remarks: '订单验收记录'
+      });
+      inspectionId = newInspection.id;
+      order.inspection_id = inspectionId;
+    }
+    
+    // 跳转到验收报告页面（在新窗口打开）
+    window.open(`/api/inspections/${inspectionId}/report`, '_blank');
+  } catch (error) {
+    console.error('查看验收报告失败:', error);
+    ElMessage.error('查看验收报告失败');
+  }
+};
+
+// 关闭详情对话框
+const handleCloseDetailDialog = () => {
+  detailDialogVisible.value = false;
+  selectedInspection.value = null;
+  items.value = [];
+};
+
+
+
+// 更新检查项
+const updateInspectionItem = async (item: any) => {
+  // 验证检查结果要求
+  if (item.inspection_result === 'normal' && !item.photo_path) {
+    ElMessage.error('正常项需要上传照片');
+    // 恢复到之前的状态
+    item.inspection_result = item.original_inspection_result || 'pending';
+    return;
+  }
+  
+  if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
+    if (!item.photo_path) {
+      ElMessage.error('缺陷项需要上传照片');
+    } else if (!item.description) {
+      ElMessage.error('缺陷项需要填写描述');
+    }
+    // 恢复到之前的状态
+    item.inspection_result = item.original_inspection_result || 'pending';
+    return;
+  }
+  
+  try {
+    const payload: any = {
+      item_category: item.item_category,
+      item_name: item.item_name,
+      inspection_result: item.inspection_result,
+      photo_path: item.photo_path,
+      description: item.description,
+      sort_order: item.sort_order
+    };
+    
+    const result: any = await request.put(`/api/inspections/${item.inspection_id}/items/${item.id}`, payload);
+    ElMessage.success('检查项更新成功');
+    
+    // 更新本地数据
+    const itemIndex = items.value.findIndex((i: any) => i.id === item.id);
+    if (itemIndex !== -1) {
+      items.value[itemIndex] = { ...item };
+    }
+  } catch (error) {
+    console.error('更新检查项失败:', error);
+    ElMessage.error('更新检查项失败');
+  }
+};
+
+// 上传照片成功回调
+const handlePhotoUploadSuccess = (response: any, item: any, type: string) => {
+  // 根据后端实际返回的数据结构调整
+  if (response && typeof response === 'object') {
+    // 如果响应数据在data字段中
+    if (response.data && response.data.path) {
+      item.photo_path = response.data.path;
+    } else if (response.data && response.data.url) {
+      item.photo_path = response.data.url;
+    } else if (response.path) {

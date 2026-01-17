@@ -29,17 +29,17 @@ def calculate_inspection_progress(inspection_id):
         InspectionItem.inspection_id == inspection_id,
         InspectionItem.item_type == 'sub'
     ).scalar() or 0
-    
+
     completed_items = db.session.query(db.func.count(InspectionItem.id)).filter(
         InspectionItem.inspection_id == inspection_id,
         InspectionItem.item_type == 'sub',
         InspectionItem.inspection_result.in_(['normal', 'not_applicable'])
     ).scalar() or 0
-    
+
     progress = 0
     if total_items > 0:
         progress = int((completed_items / total_items) * 100)
-    
+
     # 更新验收记录的进度信息
     inspection = OrderInspection.query.get(inspection_id)
     if inspection:
@@ -52,9 +52,9 @@ def calculate_inspection_progress(inspection_id):
             inspection.inspection_status = 'in_progress'
         else:
             inspection.inspection_status = 'pending'
-        
+
         db.session.commit()
-    
+
     return progress, completed_items, total_items
 
 @inspection_bp.route('/inspections', methods=['GET'])
@@ -64,17 +64,17 @@ def get_inspections():
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
-        
+
         # 获取筛选参数
         order_no = request.args.get('order_no')
         contract_no = request.args.get('contract_no')
         machine_name = request.args.get('machine_name')
         machine_model = request.args.get('machine_model')
         inspection_status = request.args.get('inspection_status')
-        
+
         # 构建查询
         query = db.session.query(OrderInspection, Order).join(Order, OrderInspection.order_id == Order.id)
-        
+
         # 应用筛选条件
         if order_no:
             query = query.filter(Order.order_no.contains(order_no))
@@ -86,13 +86,13 @@ def get_inspections():
             query = query.filter(Order.machine_model.contains(machine_model))
         if inspection_status:
             query = query.filter(OrderInspection.inspection_status == inspection_status)
-        
+
         # 计算总数
         total = query.count()
-        
+
         # 应用分页和排序
         results = query.order_by(OrderInspection.create_time.desc()).offset((page - 1) * size).limit(size).all()
-        
+
         # 序列化数据
         inspections_list = []
         for inspection, order in results:
@@ -102,7 +102,7 @@ def get_inspections():
             inspection_dict['completed_items'] = inspection.completed_items
             inspection_dict['total_items'] = inspection.total_items
             inspections_list.append(inspection_dict)
-        
+
         import json
         from flask import Response
         response_data = {
@@ -129,171 +129,8 @@ def get_inspections():
 @inspection_bp.route('/inspections', methods=['POST'])
 def create_inspection():
     """创建验收记录"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                "code": 400,
-                "msg": "请求数据不能为空",
-                "data": None
-            }), 400
+    return ''
 
-        # 检查订单是否存在
-        order_id = data.get('order_id')
-        order = Order.query.get(order_id)
-        if not order:
-            return jsonify({
-                "code": 400,
-                "msg": "订单不存在",
-                "data": None
-            }), 400
-
-        # 检查是否已存在该订单的验收记录
-        existing_inspection = OrderInspection.query.filter_by(order_id=order_id).first()
-        if existing_inspection:
-            return jsonify({
-                "code": 400,
-                "msg": "该订单已创建验收记录",
-                "data": existing_inspection.to_dict()
-            }), 400
-
-        # 创建验收记录
-        new_inspection = OrderInspection(
-            order_id=order_id,
-            inspection_status='pending',
-            inspection_progress=0,
-            total_items=0,
-            completed_items=0,
-            remarks=data.get('remarks', '')
-        )
-        db.session.add(new_inspection)
-        db.session.commit()
-
-        # 为新创建的验收记录添加默认检查项
-        default_inspection_items = [
-            # 配件大项
-            {
-                'item_category': '配件',
-                'item_name': '主要配件',
-                'item_type': 'parent'
-            },
-            {
-                'item_category': '配件',
-                'item_name': '螺丝及紧固件',
-                'item_type': 'sub',
-                'parent_id': None  # 这个ID将在创建父项后更新
-            },
-            {
-                'item_category': '配件',
-                'item_name': '密封圈',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            # 外观大项
-            {
-                'item_category': '外观',
-                'item_name': '外观',
-                'item_type': 'parent'
-            },
-            {
-                'item_category': '外观',
-                'item_name': '表面划痕检查',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            {
-                'item_category': '外观',
-                'item_name': '喷漆质量',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            # 功能大项
-            {
-                'item_category': '功能',
-                'item_name': '功能',
-                'item_type': 'parent'
-            },
-            {
-                'item_category': '功能',
-                'item_name': '启动测试',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            {
-                'item_category': '功能',
-                'item_name': '运行稳定性',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            # 包装大项
-            {
-                'item_category': '包装',
-                'item_name': '包装',
-                'item_type': 'parent'
-            },
-            {
-                'item_category': '包装',
-                'item_name': '包装完整性',
-                'item_type': 'sub',
-                'parent_id': None
-            },
-            {
-                'item_category': '包装',
-                'item_name': '运输防护',
-                'item_type': 'sub',
-                'parent_id': None
-            }
-        ]
-
-        # 创建默认检查项
-        parent_items = {}  # 存储父项，以便子项可以引用
-        for item_info in default_inspection_items:
-            new_item = InspectionItem(
-                inspection_id=new_inspection.id,
-                item_category=item_info['item_category'],
-                item_name=item_info['item_name'],
-                item_type=item_info['item_type'],
-                inspection_result='pending',
-                sort_order=0
-            )
-            
-            if item_info['item_type'] == 'parent':
-                # 保存父项以便后续子项引用
-                db.session.add(new_item)
-                db.session.flush()  # 获取ID但不提交
-                parent_items[item_info['item_category']] = new_item.id
-            else:
-                # 为子项设置parent_id
-                parent_id = parent_items.get(item_info['item_category'])
-                if parent_id:
-                    new_item.parent_id = parent_id
-                db.session.add(new_item)
-
-        db.session.commit()
-
-        # 重新计算进度（虽然此时没有完成项，但确保数据一致性）
-        calculate_inspection_progress(new_inspection.id)
-
-        # 序列化创建的验收记录
-        inspection_data = new_inspection.to_dict()
-
-        import json
-        from flask import Response
-        response_data = {
-            "code": 200,
-            "msg": "验收记录创建成功",
-            "data": inspection_data
-        }
-        # 使用自定义编码器处理Decimal类型
-        json_response = json.dumps(response_data, cls=DecimalEncoder, ensure_ascii=False)
-        return Response(json_response, mimetype='application/json')
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "code": 500,
-            "msg": f"创建验收记录失败: {str(e)}",
-            "data": None
-        }), 500
 
 
 @inspection_bp.route('/inspections/<int:inspection_id>', methods=['GET'])
@@ -301,17 +138,17 @@ def get_inspection_detail(inspection_id):
     """获取验收详情"""
     try:
         inspection = OrderInspection.query.get_or_404(inspection_id)
-        
+
         # 获取检查项
         items = InspectionItem.query.filter_by(inspection_id=inspection_id).order_by(InspectionItem.sort_order, InspectionItem.create_time).all()
-        
+
         # 序列化数据
         inspection_dict = inspection.to_dict()
-        
+
         # 按层级组织检查项
         parent_items = [item for item in items if item.item_type == 'parent']
         child_items = [item for item in items if item.item_type == 'sub']
-        
+
         # 为每个父项添加子项
         for parent in parent_items:
             parent_dict = parent.to_dict()
@@ -322,13 +159,13 @@ def get_inspection_detail(inspection_id):
             if parent_dict['total_children'] > 0:
                 parent_dict['progress'] = int((parent_dict['completed_children'] / parent_dict['total_children']) * 100)
             parent.serialized_data = parent_dict
-        
+
         items_list = [item.serialized_data if hasattr(item, 'serialized_data') else item.to_dict() for item in parent_items]
         # 添加没有父项的子项（如果有的话）
         for child in child_items:
             if child.parent_id is None:
                 items_list.append(child.to_dict())
-        
+
         inspection_dict['items'] = items_list
 
         import json
@@ -363,7 +200,7 @@ def update_inspection(inspection_id):
             }), 400
 
         # 更新验收记录字段
-        if 'remarks' in data: 
+        if 'remarks' in data:
             inspection.remarks = data['remarks']
 
         db.session.commit()
@@ -394,11 +231,11 @@ def get_inspection_items(inspection_id):
     try:
         # 获取检查项
         items = InspectionItem.query.filter_by(inspection_id=inspection_id).order_by(InspectionItem.sort_order, InspectionItem.create_time).all()
-        
+
         # 按层级组织检查项
         parent_items = [item for item in items if item.item_type == 'parent']
         child_items = [item for item in items if item.item_type == 'sub']
-        
+
         # 为每个父项添加子项
         for parent in parent_items:
             parent_dict = parent.to_dict()
@@ -409,7 +246,7 @@ def get_inspection_items(inspection_id):
             if parent_dict['total_children'] > 0:
                 parent_dict['progress'] = int((parent_dict['completed_children'] / parent_dict['total_children']) * 100)
             parent.serialized_data = parent_dict
-        
+
         items_list = [item.serialized_data if hasattr(item, 'serialized_data') else item.to_dict() for item in parent_items]
         # 添加没有父项的子项（如果有的话）
         for child in child_items:
@@ -461,7 +298,7 @@ def create_inspection_item(inspection_id):
         # 检查是否为父级项还是子项
         item_type = data.get('item_type', 'sub')
         parent_id = data.get('parent_id')
-        
+
         # 如果是子项，验证父项是否存在
         if item_type == 'sub' and parent_id:
             parent_item = InspectionItem.query.get(parent_id)
@@ -516,7 +353,7 @@ def update_inspection_item(inspection_id, item_id):
     """更新检查项"""
     try:
         item = InspectionItem.query.filter_by(id=item_id, inspection_id=inspection_id).first_or_404()
-        
+
         data = request.get_json()
         if not data:
             return jsonify({
@@ -534,7 +371,7 @@ def update_inspection_item(inspection_id, item_id):
         if 'sort_order' in data: item.sort_order = data['sort_order']
 
         db.session.commit()
-        
+
         # 重新计算进度
         progress, completed_items, total_items = calculate_inspection_progress(inspection_id)
 
@@ -569,10 +406,10 @@ def delete_inspection_item(inspection_id, item_id):
     """删除检查项"""
     try:
         item = InspectionItem.query.filter_by(id=item_id, inspection_id=inspection_id).first_or_404()
-        
+
         db.session.delete(item)
         db.session.commit()
-        
+
         # 重新计算进度
         progress, completed_items, total_items = calculate_inspection_progress(inspection_id)
 
@@ -604,7 +441,7 @@ def get_inspection_progress(inspection_id):
     """获取验收进度"""
     try:
         inspection = OrderInspection.query.get_or_404(inspection_id)
-        
+
         # 重新计算并获取进度
         progress, completed_items, total_items = calculate_inspection_progress(inspection_id)
 
@@ -637,14 +474,14 @@ def get_inspection_report(inspection_id):
     """获取验收报告"""
     try:
         inspection = OrderInspection.query.get_or_404(inspection_id)
-        
+
         # 获取检查项
         items = InspectionItem.query.filter_by(inspection_id=inspection_id).order_by(InspectionItem.sort_order, InspectionItem.create_time).all()
-        
+
         # 按层级组织检查项
         parent_items = [item for item in items if item.item_type == 'parent']
         child_items = [item for item in items if item.item_type == 'sub']
-        
+
         # 为每个父项添加子项
         for parent in parent_items:
             parent_dict = parent.to_dict()
@@ -655,7 +492,7 @@ def get_inspection_report(inspection_id):
             if parent_dict['total_children'] > 0:
                 parent_dict['progress'] = int((parent_dict['completed_children'] / parent_dict['total_children']) * 100)
             parent.serialized_data = parent_dict
-        
+
         items_list = [item.serialized_data if hasattr(item, 'serialized_data') else item.to_dict() for item in parent_items]
         # 添加没有父项的子项（如果有的话）
         for child in child_items:
@@ -688,5 +525,168 @@ def get_inspection_report(inspection_id):
         return jsonify({
             "code": 500,
             "msg": f"获取验收报告失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@inspection_bp.route('/inspections/<int:inspection_id>/items/batch', methods=['POST'])
+def batch_update_inspection_items(inspection_id):
+    """批量创建、更新和删除检查项"""
+    try:
+        data = request.get_json()
+        if not data or 'items' not in data:
+            return jsonify({
+                "code": 400,
+                "msg": "请求数据不能为空，且必须包含items字段",
+                "data": None
+            }), 400
+
+        items_data = data['items']
+        inspection = OrderInspection.query.get(inspection_id)
+        if not inspection:
+            return jsonify({
+                "code": 400,
+                "msg": "验收记录不存在",
+                "data": None
+            }), 400
+
+        created_items = []
+        updated_items = []
+        deleted_items = []
+        
+        # 分离各种操作类型
+        items_to_delete = []
+        items_to_create = []
+        items_to_update = []
+        
+        for item_data in items_data:
+            item_id = item_data.get('id')
+            
+            if item_data.get('_toBeDeleted'):
+                items_to_delete.append(item_data)
+            elif item_data.get('is_local_new') or not item_id:
+                items_to_create.append(item_data)
+            else:
+                items_to_update.append(item_data)
+        
+        # 首先，处理删除操作
+        for item_data in items_to_delete:
+            item_id = item_data.get('id')
+            item = InspectionItem.query.filter_by(id=item_id, inspection_id=inspection_id).first()
+            if item:
+                # 如果是父项，还需删除其所有子项
+                if item.item_type == 'parent':
+                    child_items = InspectionItem.query.filter_by(parent_id=item.id, inspection_id=inspection_id).all()
+                    for child in child_items:
+                        db.session.delete(child)
+                        deleted_items.append(child)
+                
+                db.session.delete(item)
+                deleted_items.append(item)
+        
+        # 然后，创建所有新项目并获取它们的ID
+        temp_to_real_id_map = {}  # 临时ID到真实ID的映射
+        created_item_lookup = {}  # 用于查找已创建的项目
+        
+        # 先创建所有新项目（不设置parent_id，暂时设置为null）
+        for item_data in items_to_create:
+            item_id = item_data.get('id')
+            
+            new_item = InspectionItem(
+                inspection_id=inspection_id,
+                parent_id=None,  # 暂时设置为null
+                item_category=item_data.get('item_category', ''),
+                item_name=item_data.get('item_name', ''),
+                item_type=item_data.get('item_type', 'sub'),
+                inspection_result=item_data.get('inspection_result', 'pending'),
+                photo_path=item_data.get('photo_path'),
+                description=item_data.get('description'),
+                sort_order=item_data.get('sort_order', 0)
+            )
+            db.session.add(new_item)
+            db.session.flush()  # 获取新创建项目的ID
+            created_items.append(new_item)
+            
+            # 记录临时ID到真实ID的映射（如果原ID不是None，即为前端生成的临时ID）
+            if item_id is not None:
+                temp_to_real_id_map[item_id] = new_item.id
+            
+            # 记录创建的项目，便于后续设置parent_id
+            created_item_lookup[(new_item.item_name, new_item.item_category, new_item.item_type)] = new_item
+        
+        # 更新项目的parent_id关系（对于新建项目）
+        for item_data in items_to_create:
+            # 找到对应的已创建项目
+            created_item = created_item_lookup.get((item_data.get('item_name', ''), 
+                                                   item_data.get('item_category', ''), 
+                                                   item_data.get('item_type', 'sub')))
+            
+            if created_item:
+                parent_id = item_data.get('parent_id')
+                if parent_id is not None:
+                    if parent_id in temp_to_real_id_map:
+                        # 如果parent_id是临时ID，替换为真实ID
+                        created_item.parent_id = temp_to_real_id_map[parent_id]
+                    else:
+                        # 如果parent_id不是临时ID，直接使用（可能是已存在的项目）
+                        created_item.parent_id = parent_id
+        
+        # 处理更新现有项目
+        for item_data in items_to_update:
+            item_id = item_data.get('id')
+            item = InspectionItem.query.filter_by(id=item_id, inspection_id=inspection_id).first()
+            if item:
+                # 检查parent_id是否需要更新
+                parent_id = item_data.get('parent_id')
+                if parent_id is not None:
+                    if parent_id in temp_to_real_id_map:
+                        # 如果parent_id是临时ID，替换为真实ID
+                        item.parent_id = temp_to_real_id_map[parent_id]
+                    else:
+                        item.parent_id = parent_id
+                else:
+                    item.parent_id = item_data.get('parent_id', item.parent_id)
+                
+                item.item_category = item_data.get('item_category', item.item_category)
+                item.item_name = item_data.get('item_name', item.item_name)
+                item.item_type = item_data.get('item_type', item.item_type)
+                item.inspection_result = item_data.get('inspection_result', item.inspection_result)
+                item.photo_path = item_data.get('photo_path', item.photo_path)
+                item.description = item_data.get('description', item.description)
+                item.sort_order = item_data.get('sort_order', item.sort_order)
+                updated_items.append(item)
+
+        db.session.commit()
+
+        # 重新计算进度
+        calculate_inspection_progress(inspection_id)
+
+        # 返回创建、更新和删除的项目信息
+        created_items_data = [item.to_dict() for item in created_items]
+        updated_items_data = [item.to_dict() for item in updated_items]
+        deleted_items_data = [item.to_dict() for item in deleted_items]
+
+        import json
+        from flask import Response
+        response_data = {
+            "code": 200,
+            "msg": "批量操作成功",
+            "data": {
+                "created_items": created_items_data,
+                "updated_items": updated_items_data,
+                "deleted_items": deleted_items_data,
+                "total_created": len(created_items),
+                "total_updated": len(updated_items),
+                "total_deleted": len(deleted_items)
+            }
+        }
+        # 使用自定义编码器处理Decimal类型
+        json_response = json.dumps(response_data, cls=DecimalEncoder, ensure_ascii=False)
+        return Response(json_response, mimetype='application/json')
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"批量操作失败: {str(e)}",
             "data": None
         }), 500

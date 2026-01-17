@@ -48,6 +48,10 @@ def create_app():
         # 注册认证相关路由蓝图
         from .routes.auth_routes import auth_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
+        
+        # 注册上传相关路由蓝图
+        from .routes.upload_routes import upload_bp
+        app.register_blueprint(upload_bp, url_prefix='/api')
 
     return app
 
