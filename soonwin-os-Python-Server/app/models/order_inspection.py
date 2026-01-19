@@ -60,7 +60,7 @@ class InspectionItem(db.Model):
     item_name = db.Column(db.String(200), nullable=False, comment="检查项名称（细项，如：部件1、角度1等）")
     item_type = db.Column(db.String(20), default='sub', comment="类型: parent(大项), sub(细项)")
     inspection_result = db.Column(db.String(20), default='pending', comment="检查结果: pending(待检查), normal(正常), defect(缺陷), not_applicable(无此项)")
-    photo_path = db.Column(db.String(500), comment="照片路径")
+    photo_path = db.Column(db.String(500), comment="照片路径，多张图片路径以逗号分隔")
     description = db.Column(db.Text, comment="缺陷描述")
     sort_order = db.Column(db.Integer, default=0, comment="排序")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")

@@ -36,14 +36,11 @@
           </el-table-column>
           <el-table-column label="检查完成进度" width="150">
             <template #default="scope">
-              <div style="cursor: pointer;" @click.stop="showOrderDetails(scope.row)">
-                <el-progress
-                  :percentage="getOrderInspectionProgress(scope.row.id)"
-                  :status="getOrderInspectionStatus(scope.row.id)"
-                  :show-text="false"
-                  height="20px"
-                />
-                <div class="progress-text">
+              <div style="cursor: pointer; display: flex; flex-direction: column; align-items: center;" @click.stop="showOrderDetails(scope.row)">
+                <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                  <div :style="{width: `${getOrderInspectionProgress(scope.row.id)}%`, height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
+                </div>
+                <div class="progress-text" style="margin-top: 2px;">
                   {{ getOrderInspectionFraction(scope.row.id) }}
                 </div>
               </div>
@@ -54,9 +51,9 @@
               <el-button
                 type="primary"
                 size="small"
-                @click.stop="startInspection(scope.row)"
+              @click="generateReport(scope.row)"
               >
-                开始验收
+                <el-icon style="margin-right: 5px;"><List /></el-icon> 查看报告
               </el-button>
             </template>
           </el-table-column>
@@ -106,18 +103,24 @@
         <el-card class="inspection-items-card" style="margin-top: 20px;">
           <template #header>
             <div class="card-header">
-              <span>检查项</span>
+              <span style="font-size: 30px;">检查项</span>
               <div>
-
-                              <el-button
-                                v-if="isUserAdmin"
-                                type="success"
-                                size="small"
-                                @click="showAddItemDialog('parent')"
-                              >
-                                添加项目
-                              </el-button>
-
+                <el-button
+                  v-if="isUserAdmin"
+                  type="danger"
+                  style="font-size: 20px; padding: 15px; margin-right: 10px;"
+                  @click="clearAllItems"
+                >
+                  清空检查项
+                </el-button>
+                <el-button
+                  v-if="isUserAdmin"
+                  type="success"
+                  style="font-size: 20px; padding: 15px;"
+                  @click="showAddItemDialog('parent')"
+                >
+                  添加项目
+                </el-button>
               </div>
             </div>
           </template>
@@ -130,43 +133,32 @@
                   <span
                     v-if="!parentItem.isEditing"
                     class="parent-title"
-                    @dblclick="startEditing(parentItem, 'parent')"
+                    @click="startEditing(parentItem, 'parent')"
+                    style="cursor: pointer;"
                   >
                     {{ parentItem.item_category }}
                   </span>
-                  <el-input
-                    v-else
-                    :ref="el => setParentInputRef(el, parentItem.id)"
-                    v-model="parentItem.editingValue"
-                    @blur="finishEditing(parentItem, 'parent')"
-                    @keyup.enter="finishEditing(parentItem, 'parent')"
-                    :data-item-id="parentItem.id"
-                  />
                   <div class="parent-progress">
-                    <el-progress
-                      :percentage="parentItem.progress"
-                      :status="parentItem.progress === 100 ? 'success' : 'warning'"
-                      :show-text="false"
-                      height="10px"
-                      style="margin-left: 15px;"
-                    />
+                    <div style="margin-left: 10px; width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                      <div :style="{width: `${parentItem.progress}%`, height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
+                    </div>
                     <span class="progress-text">{{ getParentItemFraction(parentItem) }}</span>
                   </div>
                 </div>
+                <!-- 大项的标题后的删除及添加按钮 -->
                 <el-icon
                   v-if="isUserAdmin"
                   type="danger"
                   size="small"
                   @click="deleteItem(parentItem)"
-                  style="margin-left: 25px;cursor:pointer;font-size: 20px;"
+                  style="margin-right: 10px;cursor:pointer;font-size: 25px;"
                 ><Delete /></el-icon>
                 <el-icon
                   v-if="isUserAdmin"
                   type="primary"
                   size="small"
                   @click="addSubItemToParent(parentItem.id, parentItem.item_category)"
-                  circle
-                  style="margin-left: 25px;cursor:pointer;font-size: 20px;"
+                  style="margin-right: 10px;cursor:pointer;font-size: 20px;"
                 ><Plus /></el-icon>
               </div>
               <div class="sub-items">
@@ -180,18 +172,11 @@
                       <span
                         v-if="!subItem.isEditing"
                         class="sub-item-name"
-                        @dblclick="startEditing(subItem, 'sub')"
+                        @click="startEditing(subItem, 'sub')"
+                        style="cursor: pointer;"
                       >
                         {{ subItem.item_name }}
                       </span>
-                      <el-input
-                        v-else
-                        :ref="el => setSubItemInputRef(el, subItem.id)"
-                        v-model="subItem.editingValue"
-                        @blur="finishEditing(subItem, 'sub')"
-                        @keyup.enter="finishEditing(subItem, 'sub')"
-                        :data-item-id="subItem.id"
-                      />
                     </div>
                     <div class="sub-item-actions">
                       <el-radio-group
@@ -203,6 +188,7 @@
                         <el-radio value="defect">不正常</el-radio>
                         <el-radio value="not_applicable">没此项</el-radio>
                       </el-radio-group>
+                      <!-- 小项的标题后的删除及添加按钮 -->
                       <el-icon
                         v-if="isUserAdmin"
                         type="danger"
@@ -213,7 +199,25 @@
                     </div>
                   </div>
                   <div class="sub-item-content">
-                    <div v-if="subItem.inspection_result === 'normal'" class="upload-section normal-upload">
+                    <div v-if="subItem.inspection_result === 'normal'" class="upload-section">
+                      <!-- 展示多张图片 -->
+                      <div class="photo-grid">
+                        <div
+                          v-for="(photo, index) in getPhotoPaths(subItem.photo_path)"
+                          :key="index"
+                          class="photo-preview"
+                          @click="showImagePreview(getPhotoUrl(photo))"
+                        >
+                          <img :src="getPhotoUrl(photo)" :alt="`正常照片${index + 1}`" style="max-width: 100px; max-height: 100px; cursor: pointer;">
+                          <el-icon
+                            class="delete-photo-icon"
+                            @click.stop="removePhoto(subItem, photo)"
+                            style="position: absolute; top: -8px; right: -8px; background: red; border-radius: 50%; color: white; cursor: pointer;"
+                          >
+                            <Close />
+                          </el-icon>
+                        </div>
+                      </div>
                       <el-upload
                         class="upload-demo"
                         :auto-upload="true"
@@ -221,47 +225,55 @@
                         list-type="picture"
                         :http-request="(options) => handlePhotoUpload(options, subItem, 'normal')"
                       >
-                        <el-button size="small" type="primary">上传照片</el-button>
-                        <div v-if="subItem.photo_path" class="photo-preview">
-                          <img :src="subItem.photo_path" alt="正常照片" style="max-width: 100px; max-height: 100px;">
-                        </div>
-                      </el-upload>
-                    </div>
+                      <el-icon style="cursor: pointer;border: 1px ;margin-left: 2cqw;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
+                        <Plus />
+                      </el-icon>
 
-                    <div v-if="subItem.inspection_result === 'defect'" class="defect-section">
-                      <el-upload
-                        class="upload-demo"
-                        :auto-upload="true"
-                        :show-file-list="false"
-                        list-type="picture"
-                        :http-request="(options) => handlePhotoUpload(options, subItem, 'defect')"
-                      >
-                        <el-button size="small" type="danger">上传缺陷照片</el-button>
-                        <div v-if="subItem.photo_path" class="photo-preview">
-                          <img :src="subItem.photo_path" alt="缺陷照片" style="max-width: 100px; max-height: 100px;">
-                        </div>
                       </el-upload>
-                      <el-input
-                        v-model="subItem.description"
-                        type="textarea"
-                        :rows="3"
-                        placeholder="请输入缺陷描述"
-                        @blur="updateInspectionItem(subItem)"
-                      />
+                  </div>
+                <div v-if="subItem.inspection_result === 'defect'" class="defect-section">
+                  <!-- 展示多张图片 -->
+                  <div class="photo-grid">
+                    <div
+                      v-for="(photo, index) in getPhotoPaths(subItem.photo_path)"
+                      :key="index"
+                      class="photo-preview"
+                      @click="showImagePreview(getPhotoUrl(photo))"
+                    >
+                      <img :src="getPhotoUrl(photo)" :alt="`缺陷照片${index + 1}`" style="max-width: 100px; max-height: 100px; cursor: pointer;">
+                      <el-icon
+                        class="delete-photo-icon"
+                        @click.stop="removePhoto(subItem, photo)"
+                        style="position: absolute; top: -8px; right: -8px; background: red; border-radius: 50%; color: white; cursor: pointer;"
+                      >
+                        <Close />
+                      </el-icon>
                     </div>
                   </div>
-                </div>
 
-                <!-- 在大项下添加细项按钮 -->
-                <div class="add-sub-item" v-if="isUserAdmin && isEditingMode" style="text-align: right;">
-                  <el-button
-                    type="info"
-                    size="small"
-                    @click="addSubItemToParent(parentItem.id, parentItem.item_category)"
-                    style="padding:15px"
+                  <el-input
+                    v-model="subItem.description"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="请输入缺陷描述"
+                    @blur="updateInspectionItem(subItem)"
+                  />
+
+                  <el-upload
+                    class="upload-demo"
+                    :auto-upload="true"
+                    :show-file-list="false"
+                    list-type="picture"
+                    style="display: inline-flex; margin-left: 15px;"
+                    :http-request="(options) => handlePhotoUpload(options, subItem, 'defect')"
                   >
-                    + 添加细项
-                  </el-button>
+                    <el-icon style=" cursor: pointer;border: 1px ;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
+                      <Plus />
+                    </el-icon>
+
+                  </el-upload>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -273,7 +285,8 @@
                 <span
                   v-if="!item.isEditing"
                   class="sub-item-name"
-                  @dblclick="startEditing(item, 'sub')"
+                  @click="startEditing(item, 'sub')"
+                  style="cursor: pointer;"
                 >
                   {{ item.item_name }}
                 </span>
@@ -294,7 +307,7 @@
                   <el-radio value="defect">不正常</el-radio>
                   <el-radio value="not_applicable">没此项</el-radio>
                 </el-radio-group>
-                <el-button
+                <!-- <el-button
                   v-if="isUserAdmin"
                   type="danger"
                   size="small"
@@ -302,12 +315,12 @@
                   @click="deleteItem(item)"
                   circle
                   style="margin-left: 10px;"
-                />
+                /> -->
               </div>
             </div>
 
             <div class="sub-item-content" v-if="item.inspection_result !== 'not_applicable' && item.inspection_result !== 'pending'">
-              <div v-if="item.inspection_result === 'normal'" class="upload-section normal-upload">
+              <div v-if="item.inspection_result === 'normal'" class="upload-section">
                 <el-upload
                   class="upload-demo"
                   :auto-upload="true"
@@ -315,30 +328,61 @@
                   list-type="picture"
                   :http-request="(options) => handlePhotoUpload(options, item, 'normal')"
                 >
-                  <el-button size="small" type="primary">上传照片</el-button>
-                  <div v-if="item.photo_path" class="photo-preview">
-                    <img :src="getPhotoUrl(item.photo_path)" alt="正常照片" style="max-width: 100px; max-height: 100px;">
-                  </div>
+                  <!-- <el-button type="primary" style="font-size: 15px;padding:5px;margin-bottom: 10px;">上传照片</el-button> -->
                 </el-upload>
+                <!-- 展示多张图片 -->
+                <div class="photo-grid">
+                  <div
+                    v-for="(photo, index) in getPhotoPaths(item.photo_path)"
+                    :key="index"
+                    class="photo-preview"
+                    @click="showImagePreview(getPhotoUrl(photo))"
+                  >
+                    <img :src="getPhotoUrl(photo)" :alt="`正常照片${index + 1}`" style="max-width: 100px; max-height: 100px; cursor: pointer;">
+                    <el-icon
+                      class="delete-photo-icon"
+                      @click.stop="removePhoto(item, photo)"
+                      style="position: absolute; top: -8px; right: -8px; background: red; border-radius: 50%; color: white; cursor: pointer;"
+                    >
+                      <Close />
+                    </el-icon>
+                  </div>
+                </div>
               </div>
 
               <div v-if="item.inspection_result === 'defect'" class="defect-section">
-                <el-upload
+                <!-- <el-upload
                   class="upload-demo"
                   :auto-upload="true"
                   :show-file-list="false"
                   list-type="picture"
                   :http-request="(options) => handlePhotoUpload(options, item, 'defect')"
                 >
-                  <el-button size="small" type="danger">上传缺陷照片</el-button>
-                  <div v-if="item.photo_path" class="photo-preview">
-                    <img :src="getPhotoUrl(item.photo_path)" alt="缺陷照片" style="max-width: 100px; max-height: 100px;">
+                  <el-button style="font-size: 15px; margin-bottom: 10px;" type="danger">上传缺陷照片</el-button>
+                </el-upload> -->
+                <!-- 展示多张图片 -->
+                <div class="photo-grid">
+                  <div
+                    v-for="(photo, index) in getPhotoPaths(item.photo_path)"
+                    :key="index"
+                    class="photo-preview"
+                    @click="showImagePreview(getPhotoUrl(photo))"
+                  >
+                    <img :src="getPhotoUrl(photo)" :alt="`缺陷照片${index + 1}`" style="max-width: 100px; max-height: 100px; cursor: pointer;">
+                    <el-icon
+                      class="delete-photo-icon"
+                      @click.stop="removePhoto(item, photo)"
+                      style="position: absolute; top: -8px; right: -8px; background: red; border-radius: 50%; color: white; cursor: pointer;"
+                    >
+                      <Close />
+                    </el-icon>
                   </div>
-                </el-upload>
+                </div>
                 <el-input
                   v-model="item.description"
                   type="textarea"
                   :rows="3"
+                  style="margin-top:10px;"
                   placeholder="请输入缺陷描述"
                   @blur="updateInspectionItem(item)"
                 />
@@ -348,21 +392,31 @@
 
           <!-- 在所有大项最后添加+按钮 -->
           <div class="add-new-parent-section" v-if="isUserAdmin">
-            <el-button
+            <el-icon
               size="default"
               @click="addNewParentItem"
-              style="width: 100%; margin-top: 10px; font-size: 8vh; background-color: aliceblue;"
+              style="cursor:pointer;
+              width: 98%;
+              border-radius: 5px;
+              border:1px solid #d3dce6;
+              padding:10px; margin-top: 5px;font-size: 25px;  background-color:#ffffff;"
             >
-              +
-            </el-button>
+              <Plus />
+            </el-icon>
           </div>
         </el-card>
         <!-- 底部操作区域 -->
         <div class="bottom-actions">
           <div class="progress-summary">
-            <p>检查项进度：{{ selectedInspection?.completed_items || 0 }} / {{ selectedInspection?.total_items || 0 }}</p>
+            <p>检查项进度：{{ realTimeProgress.completed_items }} / {{ realTimeProgress.total_items }}</p>
           </div>
           <div class="action-buttons">
+            <el-button
+              type="success"
+              @click="generateReport"
+            >
+              <el-icon style="margin-right: 5px;"><List /></el-icon>生成报告
+            </el-button>
             <el-button @click="cacheData">缓存</el-button>
             <el-button @click="closeDialog">关闭</el-button>
             <el-button
@@ -428,6 +482,42 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 修改检查项标题对话框 -->
+    <el-dialog
+      v-model="editItemTitleDialogVisible"
+      :title="titleEditingType === 'parent' ? '修改大项标题' : '修改细项标题'"
+      width="500px"
+      :before-close="closeEditItemTitleDialog"
+    >
+      <el-input
+        v-model="titleEditingValue"
+        :placeholder="titleEditingType === 'parent' ? '请输入大项标题' : '请输入细项标题'"
+        maxlength="200"
+        show-word-limit
+      />
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeEditItemTitleDialog">取消</el-button>
+          <el-button type="primary" @click="confirmEditItemTitle">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 图片预览对话框 -->
+    <el-dialog
+      v-model="imagePreviewVisible"
+      :show-close="true"
+      :close-on-click-modal="true"
+      :close-on-press-escape="true"
+      width="auto"
+      top="5vh"
+      class="image-preview-dialog"
+    >
+      <div style="text-align: center;">
+        <img :src="previewImageUrl" style="max-width: 90vw; max-height: 80vh; object-fit: contain;" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -436,7 +526,7 @@ import { ref, onMounted, computed, nextTick } from 'vue';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
-import { Delete, Plus } from '@element-plus/icons-vue';
+import { Delete, Plus, Close, List } from '@element-plus/icons-vue';
 import { uploadFile, moveFile, deleteFile, sanitizeFilename } from '@/utils/upload';
 
 // 响应式数据
@@ -449,12 +539,19 @@ const detailDialogVisible = ref(false);
 const orderDetailDialogVisible = ref(false);
 const addItemDialogVisible = ref(false);
 const addSubItemDialogVisible = ref(false);
+const editItemTitleDialogVisible = ref(false); // 新增：修改标题对话框
 const selectedOrder = ref<any>({});
 const selectedOrderDetail = ref<any>(null);
 const selectedInspection = ref<any>(null);
 const items = ref<any[]>([]);
 const token = ref(localStorage.getItem('oa_token') || '');
 const isEditingMode = ref(false);
+const hasUnsavedChangesFlag = ref(false); // 跟踪是否有未保存的更改
+
+// 标题编辑相关变量
+const titleEditingItem = ref<any>(null); // 当前正在编辑的项目
+const titleEditingValue = ref(''); // 编辑框的值
+const titleEditingType = ref<'parent' | 'sub'>('sub'); // 编辑类型
 
 // 新检查项表单
 const newItemForm = ref({
@@ -473,6 +570,10 @@ const itemRules = {
   ]
 };
 
+// 图片预览相关变量
+const imagePreviewVisible = ref(false);
+const previewImageUrl = ref('');
+
 
 
 // 计算属性
@@ -484,14 +585,34 @@ const groupedItems = computed(() => {
       return {
         ...parent,
         children: children,
-        completed_children: children.filter((child: any) =>
-          child.inspection_result === 'normal' || child.inspection_result === 'not_applicable'
-        ).length,
+        completed_children: children.filter((child: any) => {
+          if (child.inspection_result === 'normal' && child.photo_path) {
+            // 正常状态需要有照片
+            return true;
+          } else if (child.inspection_result === 'not_applicable') {
+            // 无此项直接算完成
+            return true;
+          } else if (child.inspection_result === 'defect' && child.photo_path && child.description) {
+            // 不正常状态需要有照片和描述
+            return true;
+          }
+          return false;
+        }).length,
         total_children: children.length,
         progress: children.length > 0
-          ? Math.round((children.filter((child: any) =>
-              child.inspection_result === 'normal' || child.inspection_result === 'not_applicable'
-            ).length / children.length) * 100)
+          ? Math.round((children.filter((child: any) => {
+              if (child.inspection_result === 'normal' && child.photo_path) {
+                // 正常状态需要有照片
+                return true;
+              } else if (child.inspection_result === 'not_applicable') {
+                // 无此项直接算完成
+                return true;
+              } else if (child.inspection_result === 'defect' && child.photo_path && child.description) {
+                // 不正常状态需要有照片和描述
+                return true;
+              }
+              return false;
+            }).length / children.length) * 100)
           : 0
       };
     });
@@ -510,16 +631,14 @@ const canSubmit = computed(() => {
   if (!selectedInspection.value) return false;
 
   // 所有细项都必须完成（正常项有照片，缺陷项有照片加描述，无此项直接完成）
-  const allSubItems = items.value.filter((item: any) => item.item_type === 'sub');
+  // 但允许有pending状态的检查项（提交时会提示）
+  const allSubItems = items.value.filter((item: any) => item.item_type === 'sub' && !item._toBeDeleted);
 
   if (allSubItems.length === 0) {
     return false; // 如果没有检查项，不能提交
   }
 
   for (const item of allSubItems) {
-    if (item.inspection_result === 'pending') {
-      return false;
-    }
     if (item.inspection_result === 'normal' && !item.photo_path) {
       return false;
     }
@@ -535,6 +654,37 @@ const canSubmit = computed(() => {
 const userRole = ref('');
 const isUserAdmin = computed(() => userRole.value === 'admin');
 const isUserGeneral = computed(() => userRole.value !== 'admin');
+
+// 实时计算验收进度
+const realTimeProgress = computed(() => {
+  // 统计所有细项（sub items）
+  const allSubItems = items.value.filter((item: any) => item.item_type === 'sub' && !item._toBeDeleted);
+  const totalItems = allSubItems.length;
+
+  // 统计已完成的细项
+  const completedItems = allSubItems.filter((item: any) => {
+    if (item.inspection_result === 'normal' && item.photo_path) {
+      // 正常状态需要有照片
+      return true;
+    } else if (item.inspection_result === 'not_applicable') {
+      // 无此项直接算完成
+      return true;
+    } else if (item.inspection_result === 'defect' && item.photo_path && item.description) {
+      // 不正常状态需要有照片和描述
+      return true;
+    }
+    return false;
+  }).length;
+
+  // 计算进度百分比
+  const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+  return {
+    total_items: totalItems,
+    completed_items: completedItems,
+    progress: progress
+  };
+});
 
 // 上传配置
 const uploadUrl = computed(() => {
@@ -721,23 +871,71 @@ const refreshInspectionData = async () => {
     ElMessage.error('获取验收详情失败');
   }
 };
-// 开始编辑
+// 开始编辑标题 - 弹出对话框
 const startEditing = (item: any, type: 'parent' | 'sub') => {
   if (!isUserAdmin.value) return;
-  // 确保属性存在且是响应式的
-  if (!('isEditing' in item)) {
-    item.isEditing = true;
-  } else {
-    item.isEditing = true;
-  }
-  if (!('editingValue' in item)) {
-    item.editingValue = type === 'parent' ? item.item_category : item.item_name;
-  } else {
-    item.editingValue = type === 'parent' ? item.item_category : item.item_name;
-  }
+
+  // 设置编辑项目和类型
+  titleEditingItem.value = item;
+  titleEditingValue.value = type === 'parent' ? item.item_category : item.item_name;
+  titleEditingType.value = type;
+
+  // 显示对话框
+  editItemTitleDialogVisible.value = true;
 };
 
-// 完成编辑
+// 关闭编辑标题对话框
+const closeEditItemTitleDialog = () => {
+  editItemTitleDialogVisible.value = false;
+  titleEditingItem.value = null;
+  titleEditingValue.value = '';
+  titleEditingType.value = 'sub';
+};
+
+// 确认编辑标题
+const confirmEditItemTitle = async () => {
+  if (!titleEditingItem.value) {
+    ElMessage.error('没有选中要编辑的项目');
+    return;
+  }
+
+  const updatedValue = titleEditingValue.value.trim();
+  if (!updatedValue) {
+    ElMessage.error('标题不能为空');
+    return;
+  }
+
+  const originalValue = titleEditingType.value === 'parent'
+    ? titleEditingItem.value.item_category
+    : titleEditingItem.value.item_name;
+
+  if (updatedValue === originalValue) {
+    // 如果值没有改变，直接关闭对话框
+    closeEditItemTitleDialog();
+    return;
+  }
+
+  // 从原始items数组中找到相同的项目进行修改
+  const originalItem = items.value.find((item: any) => item.id === titleEditingItem.value.id);
+  if (originalItem) {
+    // 本地更新原始项目数据
+    if (titleEditingType.value === 'parent') {
+      originalItem.item_category = updatedValue;
+      // 如果是大项，同时更新名称字段
+      originalItem.item_name = updatedValue;
+    } else {
+      originalItem.item_name = updatedValue;
+    }
+
+    // 标记项目为已修改，以便在缓存时发送到服务器
+    originalItem._modified = true;
+  }
+
+  ElMessage.success('标题已更新到本地，点击"缓存"或"保存"按钮后会同步到服务器');
+  closeEditItemTitleDialog();
+};
+
+// 完成编辑（保留原函数，用于其他编辑场景）
 const finishEditing = async (item: any, type: 'parent' | 'sub') => {
   if (!item.isEditing) return;
 
@@ -753,12 +951,62 @@ const finishEditing = async (item: any, type: 'parent' | 'sub') => {
 
     // 标记项目为已修改，但不立即发送到服务器
     item._modified = true;
+    
+    // 标记有未保存的更改
+    hasUnsavedChangesFlag.value = true;
+    
     ElMessage.success('项目已更新到本地');
   }
 
   item.isEditing = false;
   item.editingValue = '';
 };
+
+// 清空所有检查项
+const clearAllItems = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空当前订单的全部检查项数据吗？此操作将删除所有大小项数据及对应图片等。',
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 调用后端API清空检查项
+    if (selectedInspection.value) {
+      const response: any = await request.post(`/api/inspections/${selectedInspection.value.id}/clear`);
+
+      if (response && response.total_deleted !== undefined) {
+        // 清空本地数据
+        items.value = [];
+        // 更新进度信息
+        if (selectedInspection.value) {
+          selectedInspection.value.total_items = 0;
+          selectedInspection.value.completed_items = 0;
+          selectedInspection.value.inspection_progress = 0;
+        }
+
+        // 标记有未保存的更改
+        hasUnsavedChangesFlag.value = true;
+
+        ElMessage.success(`成功清空检查项数据，共删除 ${response.total_deleted} 个项目`);
+      } else {
+        ElMessage.error('清空检查项失败');
+      }
+    } else {
+      ElMessage.error('当前没有验收记录');
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空检查项失败:', error);
+      ElMessage.error('清空检查项失败');
+    }
+  }
+};
+
 // 删除检查项
 const deleteItem = async (item: any) => {
   try {
@@ -787,19 +1035,15 @@ const deleteItem = async (item: any) => {
       }
     }
 
-    // 如果项目有照片，尝试删除照片文件
-    if (originalItem.photo_path) {
-      try {
-        await deleteFile(originalItem.photo_path);
-        console.log(`照片文件 ${originalItem.photo_path} 已删除`);
-      } catch (photoError) {
-        console.error(`删除照片文件失败 ${originalItem.photo_path}:`, photoError);
-        // 即使照片删除失败，也要继续删除项目
-      }
-    }
+    // 不再直接删除照片文件，而是在保存时由后端统一处理
+    // 标记照片也需要删除，由后端处理
+    originalItem._photo_needs_delete = true;
 
     // 标记原始项目为待删除，而不是立即从数组中移除
     originalItem._toBeDeleted = true; // 添加标记表示待删除
+
+    // 标记有未保存的更改
+    hasUnsavedChangesFlag.value = true;
 
     ElMessage.success('检查项已标记为删除，将在保存时提交到服务器');
   } catch (error) {
@@ -818,13 +1062,12 @@ const cacheData = async () => {
       if (item.item_type === 'sub' && !item._toBeDeleted) { // 只对未被删除的细项进行验证
         if (item.inspection_result === 'normal' && !item.photo_path) {
           validationErrors.push(`细项 "${item.item_name}" 选择正常，但未上传照片`);
-        }
-
-        if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
-          if (!item.photo_path) {
+        } else if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
+          if (!item.photo_path && !item.description) {
+            validationErrors.push(`细项 "${item.item_name}" 选择不正常，但未上传照片且未填写描述`);
+          } else if (!item.photo_path) {
             validationErrors.push(`细项 "${item.item_name}" 选择不正常，但未上传照片`);
-          }
-          if (!item.description) {
+          } else {
             validationErrors.push(`细项 "${item.item_name}" 选择不正常，但未填写描述`);
           }
         }
@@ -833,7 +1076,7 @@ const cacheData = async () => {
 
     if (validationErrors.length > 0) {
       ElMessage.error(`验证失败：\n${validationErrors.join('\n')}`);
-      return;
+      return false;
     }
 
     if (!selectedInspection.value) {
@@ -851,27 +1094,35 @@ const cacheData = async () => {
       if (selectedOrder.value) selectedOrder.value.inspection_id = inspectionId;
     }
 
-    // 准备要批量发送的数据
-    const itemsToProcess = items.value.map((item: any) => {
-      // 确保即使未定义也要包含 _toBeDeleted 属性
-      const itemToSend: any = {
-        id: item.id,
-        parent_id: item.parent_id,
-        item_category: item.item_category,
-        item_name: item.item_name,
-        item_type: item.item_type,
-        inspection_result: item.inspection_result,
-        photo_path: item.photo_path,
-        description: item.description,
-        sort_order: item.sort_order,
-        is_local_new: item.is_local_new
-      };
+    // 在构建发送数据之前，准备图片移动标记
+    // 不再调用handlePhotoFiles，因为图片移动将由后端处理
+    // 但我们需要确保需要移动的标记被发送到后端
+    const itemsToProcess = items.value
+      .filter((item: any) => !(item.is_local_new && item._toBeDeleted))  // 过滤掉本地新建且被删除的项目
+      .map((item: any) => {
+        // 确保即使未定义也要包含 _toBeDeleted 属性
+        const itemToSend: any = {
+          id: item.id,
+          parent_id: item.parent_id,
+          item_category: item.item_category,
+          item_name: item.item_name,
+          item_type: item.item_type,
+          inspection_result: item.inspection_result,
+          photo_path: item.photo_path,  // 发送原始路径
+          description: item.description,
+          sort_order: item.sort_order,
+          is_local_new: item.is_local_new,
+          // 添加图片移动标记，让后端知道需要移动图片
+          _photo_needs_move: item._photo_needs_move || false,
+          // 添加需要删除的照片路径
+          photos_to_delete: item.photos_to_delete || []
+        };
 
-      // 显式添加 _toBeDeleted 属性，确保它被发送到服务器
-      itemToSend._toBeDeleted = item._toBeDeleted || false;
+        // 显式添加 _toBeDeleted 属性，确保它被发送到服务器
+        itemToSend._toBeDeleted = item._toBeDeleted || false;
 
-      return itemToSend;
-    });
+        return itemToSend;
+      });
 
     // 使用批量API处理所有项目
     const batchResult: any = await request.post(`/api/inspections/${selectedInspection.value.id}/items/batch`, {
@@ -881,17 +1132,33 @@ const cacheData = async () => {
     // 更新本地数据，将服务器返回的ID和状态同步
     if (batchResult.created_items) {
       batchResult.created_items.forEach((serverItem: any) => {
+        // 根据服务器返回的原始信息更新本地项目
+        // 查找对应的本地项目
         const localItemIndex = items.value.findIndex((item: any) =>
-          item.is_local_new && item.item_name === serverItem.item_name &&
-          item.item_category === serverItem.item_category
+          item.is_local_new &&
+          item.item_name === serverItem.item_name &&
+          item.item_category === serverItem.item_category &&
+          item.item_type === serverItem.item_type
         );
+
         if (localItemIndex !== -1) {
           const localItem = items.value[localItemIndex];
+          const oldId = localItem.id; // 保存旧ID用于更新子项的parent_id
+
           localItem.id = serverItem.id;
           localItem.is_local_new = false;
           localItem.original_inspection_result = localItem.inspection_result;
           localItem.original_description = localItem.description;
           localItem.original_photo_path = localItem.photo_path;
+
+          // 如果这是一个父项目，更新所有引用它的子项的parent_id
+          if (localItem.item_type === 'parent') {
+            items.value.forEach(item => {
+              if (item.parent_id === oldId) {
+                item.parent_id = serverItem.id; // 更新子项的parent_id为新的服务器ID
+              }
+            });
+          }
         }
       });
     }
@@ -906,129 +1173,75 @@ const cacheData = async () => {
       }
     }
 
-    // 处理照片文件移动
-    await handlePhotoFiles();
+    // 更新验收记录的进度信息（使用批量API返回的进度）
+    if (selectedInspection.value && batchResult.progress !== undefined) {
+      selectedInspection.value.inspection_progress = batchResult.progress;
+      selectedInspection.value.completed_items = batchResult.completed_items;
+      selectedInspection.value.total_items = batchResult.total_items;
 
-    // 检查是否有项目照片路径被更新，如果有，则发送更新请求
-    const updatedItems = items.value.filter((item: any) =>
-      item._photo_needs_move === false && item.photo_path && item.photo_path.includes('assets/OrderInspection') && !item._toBeDeleted
-    );
-
-    if (updatedItems.length > 0) {
-      // 创建一个包含更新后路径的批量更新请求
-      const itemsForUpdate = items.value.map((item: any) => ({
-        id: item.id,
-        parent_id: item.parent_id,
-        item_category: item.item_category,
-        item_name: item.item_name,
-        item_type: item.item_type,
-        inspection_result: item.inspection_result,
-        photo_path: item.photo_path,  // 使用可能已更新的路径
-        description: item.description,
-        sort_order: item.sort_order,
-        is_local_new: item.is_local_new
-      }));
-
-      // 再次调用批量API确保更新后的路径被保存
-      await request.post(`/api/inspections/${selectedInspection.value.id}/items/batch`, {
-        items: itemsForUpdate
-      });
+      // 更新订单列表中的进度信息
+      if (selectedOrderDetail.value) {
+        selectedOrderDetail.value.inspection_progress = batchResult.progress;
+        selectedOrderDetail.value.completed_items = batchResult.completed_items;
+        selectedOrderDetail.value.total_items = batchResult.total_items;
+      }
+      if (selectedOrder.value) {
+        selectedOrder.value.inspection_progress = batchResult.progress;
+        selectedOrder.value.completed_items = batchResult.completed_items;
+        selectedOrder.value.total_items = batchResult.total_items;
+      }
     }
 
-    // 更新验收记录
-    if (selectedInspection.value) {
-      await request.put(`/api/inspections/${selectedInspection.value.id}`, {
-        remarks: selectedInspection.value.remarks || '验收记录'
-      });
+    // 注意：由于批量API已经重新计算并保存了进度信息，无需再单独PUT请求更新
+    // 以避免覆盖数据库中正确的进度值
+
+    // 缓存成功后，重新获取数据以确保页面显示最新状态
+    await refreshInspectionData();
+
+    // 同时更新订单列表中的进度信息，确保列表视图也能显示最新进度
+    if (selectedOrderDetail.value || selectedOrder.value) {
+      const currentOrder = selectedOrderDetail.value || selectedOrder.value;
+      const orderInList = orders.value.find((order: any) => order.id === currentOrder.id);
+      if (orderInList && selectedInspection.value) {
+        orderInList.inspection_progress = batchResult.progress || 0;
+        orderInList.completed_items = batchResult.completed_items || 0;
+        orderInList.total_items = batchResult.total_items || 0;
+      }
     }
 
+    hasUnsavedChangesFlag.value = false; // 缓存成功后重置未保存更改标志
     ElMessage.success('数据已缓存');
+    return true;
   } catch (error) {
     console.error('缓存数据失败:', error);
     ElMessage.error('缓存数据失败');
+    return false;
   }
 };
 
-// 处理照片文件：移动需要保留的文件到目标位置，删除不需要的文件
+// 处理照片文件：仅标记需要移动的文件，实际移动由后端批量API处理
 const handlePhotoFiles = async () => {
-  try {
-    // 生成订单的合同编号（安全化处理）
-    const contractNo = sanitizeFilename(selectedOrderDetail.value?.contract_no || selectedOrder.value?.contract_no || 'unknown');
-
-    // 分别处理需要移动的文件和需要删除的文件
-    const filesToMove = [];
-    const filesToDelete = [];
-
-    // 遍历所有项目，确定哪些照片需要移动，哪些需要删除
-    for (const item of items.value) {
-      if (item.item_type === 'sub' && item.photo_path && !item._toBeDeleted) { // 只处理未被删除的细项的照片
-        if (item.inspection_result === 'normal' || item.inspection_result === 'defect') {
-          // 如果检查结果是正常或缺陷，需要保留照片，准备移动到目标位置
-          if (item._photo_needs_move) {
-            // 找到对应的父项以获取真实的大项名称
-            const parentItem = items.value.find((parent: any) => parent.id === item.parent_id);
-            const itemCategory = sanitizeFilename(parentItem?.item_category || parentItem?.item_name || item.item_category || 'default_category');
-            const itemName = sanitizeFilename(item.item_name || 'default_item');
-            const timestamp = new Date().getTime();
-            const fileExtension = item.photo_path.split('.').pop() || 'jpg';
-
-            const targetFilename = `${contractNo}_${itemCategory}_${itemName}_${timestamp}.${fileExtension}`;
-            const targetPath = `assets/OrderInspection/${contractNo}/${targetFilename}`;
-
-            filesToMove.push({
-              sourcePath: item.photo_path,
-              targetPath: targetPath,
-              item: item
-            });
-          }
-        } else {
-          // 如果检查结果不是正常或缺陷（例如"没此项"或"未检查"），需要删除临时照片
-          if (item._photo_needs_move) {
-            filesToDelete.push({
-              path: item.photo_path,
-              item: item
-            });
-          }
-        }
-      }
-    }
-
-    // 执行文件移动操作
-    for (const fileOperation of filesToMove) {
-      try {
-        const result: any = await moveFile(fileOperation.sourcePath, fileOperation.targetPath);
-        // 更新项目中的照片路径为新路径（使用移动后的真实路径）
-        fileOperation.item.photo_path = result.target_path;
-        fileOperation.item._photo_needs_move = false;
-      } catch (error) {
-        console.error(`移动文件失败 ${fileOperation.sourcePath} -> ${fileOperation.targetPath}:`, error);
-        // 移动失败时，保留原路径
-      }
-    }
-
-    // 执行文件删除操作
-    for (const fileOperation of filesToDelete) {
-      try {
-        const result: any = await deleteFile(fileOperation.path);
-        // 清空项目中的照片路径
-        fileOperation.item.photo_path = null;
-        fileOperation.item._photo_needs_move = false;
-      } catch (error) {
-        console.error(`删除文件失败 ${fileOperation.path}:`, error);
-      }
-    }
-
-  } catch (error) {
-    console.error('处理照片文件失败:', error);
-    throw error;
-  }
+  // 前端不再处理文件移动，而是将需要移动的标记发送到后端
+  // 后端的批量API将在服务器内部处理文件移动
+  console.log('图片移动将由后端批量API处理');
 };
 
 // 保存并关闭
 const saveAndClose = async () => {
   try {
-    await cacheData();
-    orderDetailDialogVisible.value = false;
+    // 检查是否有未保存的更改，如果没有则直接关闭
+    if (!hasUnsavedChangesFlag.value) {
+      orderDetailDialogVisible.value = false;
+      ElMessage.info('没有未保存的更改');
+      return;
+    }
+
+    // 首先执行验证和保存
+    const result = await cacheData();
+    // 只有在保存成功后才关闭对话框
+    if (result === true) {
+      orderDetailDialogVisible.value = false;
+    }
   } catch (error) {
     console.error('保存数据失败:', error);
     ElMessage.error('保存数据失败');
@@ -1085,66 +1298,89 @@ const createNewItem = (itemType: 'parent' | 'sub', itemName: string, itemCategor
   // 添加到本地items数组
   items.value.push(newLocalItem);
 
+  // 标记有未保存的更改
+  hasUnsavedChangesFlag.value = true;
+
   return newLocalItem;
 };
 
 // 添加新的大项
-const addNewParentItem = () => {
-  const newLocalItem = createNewItem('parent', '新检查项目', '新检查项目', null, null);
+const addNewParentItem = async () => {
+  try {
+    const result = await ElMessageBox.prompt('请输入大项名称', '添加大项', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '大项名称不能为空',
+      inputPlaceholder: '请输入大项名称，如：配件、外观等'
+    });
 
-  if (!newLocalItem) return;
+    const itemName = result.value.trim();
+    if (!itemName) {
+      ElMessage.warning('大项名称不能为空');
+      return;
+    }
 
+    const newLocalItem = createNewItem('parent', itemName, itemName, null, null);
+
+    if (!newLocalItem) return;
+
+    ElMessage.success('大项已添加');
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel' && error.type !== 'cancel') {
+      console.error('添加大项失败:', error);
+    }
+  }
 };
 
 
 // 直接添加细项到指定父项
-const addSubItemToParent = (parentId: number | null, parentCategory?: string) => {
-  const newLocalItem: any = {
-    id: Date.now() + Math.random(), // 使用时间戳+随机数确保唯一性
-    inspection_id: selectedInspection.value?.id || null,
-    parent_id: parentId,
-    item_category: parentCategory || '未分类',
-    item_name: '新检查细项', // 默认名称
-    item_type: 'sub',
-    inspection_result: 'pending',
-    photo_path: null,
-    description: null,
-    sort_order: 0,
-    create_time: new Date().toISOString(),
-    update_time: new Date().toISOString(),
-    is_local_new: true,
-    // isEditing: true, // 直接进入编辑模式
-    editingValue: '新检查细项' // 编辑框的初始值
-  };
+const addSubItemToParent = async (parentId: number | null, parentCategory?: string) => {
+  try {
+    const result = await ElMessageBox.prompt('请输入细项名称', '添加细项', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '细项名称不能为空',
+      inputPlaceholder: '请输入细项名称，如：部件1、角度1等'
+    });
 
-  // 添加到本地items数组
-  items.value.push(newLocalItem);
+    const itemName = result.value.trim();
+    if (!itemName) {
+      ElMessage.warning('细项名称不能为空');
+      return;
+    }
 
-  // 稍后聚焦到输入框
-  nextTick(() => {
-    // 由于nextTick可能执行太快，稍作延迟以确保DOM更新
-    setTimeout(() => {
-      const inputRef = subItemInputRefs.value[newLocalItem.id];
-      if (inputRef) {
-        // 确保inputRef是正确的输入框元素
-        if (inputRef.$el && inputRef.$el.querySelector) {
-          const inputElement = inputRef.$el.querySelector('input');
-          if (inputElement) {
-            inputElement.focus();
-            // 选中所有文本以便编辑
-            inputElement.select();
-          }
-        } else if (inputRef.focus) {
-          inputRef.focus();
-          if (inputRef.select) {
-            inputRef.select();
-          }
-        }
-      }
-    }, 100); // 延迟100毫秒确保DOM完全更新
-  });
+    const newLocalItem: any = {
+      id: Date.now(), // 使用时间戳作为唯一ID
+      inspection_id: selectedInspection.value?.id || null,
+      parent_id: parentId,
+      item_category: parentCategory || '未分类',
+      item_name: itemName, // 使用用户输入的名称
+      item_type: 'sub',
+      inspection_result: 'pending',
+      photo_path: null,
+      description: null,
+      sort_order: 0,
+      create_time: new Date().toISOString(),
+      update_time: new Date().toISOString(),
+      is_local_new: true
+    };
 
-  ElMessage.success('已添加新检查细项，可直接编辑名称');
+    // 添加到本地items数组
+    items.value.push(newLocalItem);
+
+    // 标记有未保存的更改
+    hasUnsavedChangesFlag.value = true;
+    
+    ElMessage.success('已添加新检查细项');
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel' && error.type !== 'cancel') {
+      console.error('添加细项失败:', error);
+    }
+  }
 };
 // 设置父项输入框ref
 const parentInputRefs = ref({});
@@ -1201,7 +1437,8 @@ const closeDialog = async () => {
 const fetchOrders = async () => {
   loading.value = true;
   try {
-    const response: any = await request.get('/api/orders', {
+    // 使用新的专门用于验收的API
+    const response: any = await request.get('/api/inspection-orders', {
       params: {
         page: currentPage.value,
         size: pageSize.value
@@ -1210,46 +1447,6 @@ const fetchOrders = async () => {
 
     orders.value = response.list || [];
     total.value = response.total || 0;
-
-    // 获取每个订单的验收进度
-    for (const order of orders.value) {
-      try {
-        // 先检查订单号是否存在，避免空参数调用API
-        if (order.order_no && order.order_no.trim() !== '') {
-          const inspectionRes: any = await request.get('/api/inspections', {
-            params: {
-              order_no: order.order_no
-            }
-          });
-
-          if (inspectionRes.list && inspectionRes.list.length > 0) {
-            const inspection = inspectionRes.list[0];
-            order.inspection_progress = inspection.inspection_progress || 0;
-            order.inspection_id = inspection.id;
-            // 添加详细进度信息
-            order.completed_items = inspection.completed_items || 0;
-            order.total_items = inspection.total_items || 0;
-          } else {
-            // 如果没有验收记录，不自动创建，只设置默认值
-            order.inspection_progress = 0;
-            order.inspection_id = null;
-            order.completed_items = 0;
-            order.total_items = 0;
-          }
-        } else {
-          // 如果订单号为空，也不自动创建验收记录
-          order.inspection_progress = 0;
-          order.inspection_id = null;
-          order.completed_items = 0;
-          order.total_items = 0;
-        }
-      } catch (error) {
-        console.error(`获取订单 ${order.order_no} 验收进度失败:`, error);
-        // 设置默认值
-        order.inspection_progress = 0;
-        order.inspection_id = null;
-      }
-    }
   } catch (error) {
     console.error('获取订单列表失败:', error);
     ElMessage.error('获取订单列表失败');
@@ -1332,11 +1529,75 @@ const handleCloseDetailDialog = () => {
 
 // 更新检查项
 const updateInspectionItem = async (item: any) => {
+  // 根据新的检查结果，处理描述内容
+  if (item.inspection_result === 'normal') {
+    // 如果切换到"正常"状态，清除描述内容
+    item.description = null;
+  } else if (item.inspection_result === 'not_applicable') {
+    // 如果切换到"没此项"状态，也清除描述内容
+    item.description = null;
+  }
+  // 如果切换到"不正常"或"未检查"状态，保持现有的描述内容或允许用户输入
+
   // 在本地更新项目，不立即验证，验证将在保存时进行
   item._modified = true;
+  hasUnsavedChangesFlag.value = true; // 标记有未保存的更改
   ElMessage.success('检查项已更新到本地');
 };
-// 上传照片成功回调
+// 获取图片路径数组
+const getPhotoPaths = (photoPath: string | null) => {
+  if (!photoPath) return [];
+  return photoPath.split(',').map(path => path.trim()).filter(path => path);
+};
+
+// 删除单张图片
+const removePhoto = async (item: any, photoToRemove: string) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这张照片吗？',
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 从路径字符串中移除指定图片路径
+    const currentPaths = getPhotoPaths(item.photo_path);
+    const updatedPaths = currentPaths.filter(path => path !== photoToRemove);
+
+    // 更新项目照片路径
+    item.photo_path = updatedPaths.join(',');
+
+    // 只有当图片不是新上传的图片时，才标记为需要删除
+    // 新上传的图片如果被删除，不需要向服务器发送删除请求
+    const isNewUploadedPhoto = item.new_uploaded_photos && item.new_uploaded_photos.includes(photoToRemove);
+
+    if (!isNewUploadedPhoto) {
+      // 标记图片需要删除，由后端在保存时统一处理
+      if (!item.photos_to_delete) {
+        item.photos_to_delete = [];
+      }
+      item.photos_to_delete.push(photoToRemove);
+    } else {
+      // 如果是新上传的图片，从new_uploaded_photos数组中移除
+      if (item.new_uploaded_photos) {
+        item.new_uploaded_photos = item.new_uploaded_photos.filter(path => path !== photoToRemove);
+      }
+    }
+
+    // 更新检查项
+    updateInspectionItem(item);
+
+    ElMessage.success('照片已标记为删除，将在保存时提交到服务器');
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除照片失败:', error);
+      ElMessage.error('删除照片失败');
+    }
+  }
+};// 上传照片成功回调
 const handlePhotoUploadSuccess = (response: any, item: any, type: string) => {
   // 根据后端实际返回的数据结构调整
   if (response && typeof response === 'object') {
@@ -1386,9 +1647,22 @@ const handlePhotoUpload = async (options: any, item: any, type: string) => {
     // 调用成功回调
     onSuccess(result);
 
-    // 更新项目照片路径
+    // 更新项目照片路径 - 支持多张图片
     if (result && result.path) {
-      item.photo_path = result.path;
+      if (item.photo_path) {
+        // 如果已有照片路径，添加新路径（逗号分隔）
+        item.photo_path = `${item.photo_path},${result.path}`;
+      } else {
+        // 如果没有照片路径，直接设置
+        item.photo_path = result.path;
+      }
+
+      // 记录新上传的图片路径，用于后续删除时判断是否需要真正删除
+      if (!item.new_uploaded_photos) {
+        item.new_uploaded_photos = [];
+      }
+      item.new_uploaded_photos.push(result.path);
+
       item._photo_needs_move = true; // 标记需要移动文件
       ElMessage.success(`${type === 'normal' ? '正常' : '缺陷'}照片上传成功`);
 
@@ -1417,10 +1691,16 @@ const getPhotoUrl = (path: string) => {
   // 否则添加基础URL
   if (import.meta.env.MODE === 'development') {
     // 开发环境下，假设文件服务在后端服务器上
-    return `http://localhost:5000/${normalizedPath}`;
+    return `http://192.168.30.70:5000/${normalizedPath}`;
   } else {
     return `${window.location.protocol}//${window.location.hostname}:5000/${normalizedPath}`;
   }
+};
+
+// 显示图片预览
+const showImagePreview = (imageUrl: string) => {
+  previewImageUrl.value = imageUrl;
+  imagePreviewVisible.value = true;
 };
 
 // 重置表单
@@ -1460,31 +1740,30 @@ const resetForm = () => {
 
 // 提交验收
 const submitInspection = async () => {
-  if (!canSubmit.value) {
-    ElMessage.warning('请完成所有检查项后再提交');
-    return;
-  }
-
   try {
     // 检查是否所有必填项都已完成
     const allSubItems = items.value.filter((item: any) => item.item_type === 'sub');
+    const validationErrors: string[] = [];
+
     for (const item of allSubItems) {
       if (item.inspection_result === 'pending') {
-        ElMessage.warning(`检查项 "${item.item_name}" 还未检查`);
-        return;
-      }
-      if (item.inspection_result === 'normal' && !item.photo_path) {
-        ElMessage.warning(`检查项 "${item.item_name}" 需要上传照片`);
-        return;
-      }
-      if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
-        if (!item.photo_path) {
-          ElMessage.warning(`检查项 "${item.item_name}" 需要上传缺陷照片`);
+        validationErrors.push(`检查项 "${item.item_name}" 还未检查`);
+      } else if (item.inspection_result === 'normal' && !item.photo_path) {
+        validationErrors.push(`检查项 "${item.item_name}" 选择正常，但未上传照片`);
+      } else if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
+        if (!item.photo_path && !item.description) {
+          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未上传照片且未填写描述`);
+        } else if (!item.photo_path) {
+          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未上传照片`);
         } else {
-          ElMessage.warning(`检查项 "${item.item_name}" 需要填写缺陷描述`);
+          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未填写描述`);
         }
-        return;
       }
+    }
+
+    if (validationErrors.length > 0) {
+      ElMessage.error(`验证失败：\n${validationErrors.join('\n')}`);
+      return;
     }
 
     // 如果所有检查项都完成，更新验收状态
@@ -1553,6 +1832,32 @@ onMounted(async () => {
   fetchOrders();
 });
 
+// 生成报告
+const generateReport = async () => {
+  if (!selectedInspection.value || !selectedInspection.value.id) {
+    ElMessage.warning('请先保存验收记录');
+    return;
+  }
+
+  // 检查是否有未保存的更改，如果有则先缓存
+  if (hasUnsavedChangesFlag.value) {
+    // 在生成报告前先调用缓存以确保更新最新时间
+    try {
+      await cacheData();
+      // 短暂延迟以确保后端处理完成
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('缓存数据失败:', error);
+      ElMessage.error('生成报告前缓存数据失败，仍将尝试生成报告');
+    }
+  } else {
+    ElMessage.info('数据已是最新，无需重复保存');
+  }
+
+  // 在新窗口中打开报告页面
+  window.open(`/inspection-report/${selectedInspection.value.id}`, '_blank');
+};
+
 // 返回上一页
 const goBack = () => {
   router.go(-1);
@@ -1608,9 +1913,10 @@ const router = useRouter();
 }
 
 .parent-title:hover, .sub-item-name:hover {
-  background-color: #f0f9ff;
-  padding: 2px 4px;
-  border-radius: 3px;
+  background-color: #777777;
+  color: white;
+  /* padding: 2px 4px;
+  border-radius: 3px; */
 }
 
 .add-sub-item {
@@ -1669,15 +1975,63 @@ const router = useRouter();
   font-size: 16px;
 }
 
+.parent-item {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 10px;
+  background-color: white;
+}
+
+.parent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.parent-title {
+  font-weight: bold;
+  font-size: 16px;
+}
+
 .parent-progress {
   display: flex;
   align-items: center;
+  min-width: 250px; /* 确保进度条有足够的显示空间 */
 }
 
 .progress-text {
   margin-left: 10px;
   font-size: 12px;
   color: #606266;
+}
+
+/* 专门针对进度条的样式，使用更高的优先级 */
+:deep(.el-progress-bar__outer) {
+  height: 20px !important;
+  border-radius: 10px !important;
+  background-color: #ebeef5 !important;
+}
+
+:deep(.el-progress-bar__inner) {
+  height: 20px !important;
+  border-radius: 10px !important;
+  line-height: 20px !important;
+}
+
+/* 确保整个进度条容器的样式 */
+:deep(.el-progress) {
+  display: flex !important;
+  align-items: center !important;
+  min-width: 200px;
+}
+
+/* 针对特定组件的样式 */
+.parent-progress :deep(.el-progress) {
+  width: 200px !important;
+  min-width: 200px !important;
 }
 
 .sub-items {
@@ -1712,10 +2066,63 @@ const router = useRouter();
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed #dcdfe6;
+  display: flex;
+  gap: 20px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  align-items: center;
+}
+.sub-item-content > div {
+  flex-shrink: 0;
 }
 
 .upload-section {
   margin-bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.photo-preview {
+  position: relative;
+  display: inline-block;
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: visible; /* 改为visible以显示超出部分的删除图标 */
+}
+
+.delete-photo-icon {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: red;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 10; /* 增加z-index确保在顶层 */
+}
+
+.photo-preview img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dcdfe6;
+  z-index: 1;
+  position: relative;
 }
 
 .defect-section {
@@ -1726,10 +2133,7 @@ const router = useRouter();
   margin-top: 10px;
 }
 
-.photo-preview img {
-  border-radius: 4px;
-  border: 1px solid #dcdfe6;
-}
+
 
 .bottom-actions {
   display: flex;
@@ -1755,5 +2159,19 @@ const router = useRouter();
 
 .progress-cell {
   cursor: pointer;
+}
+
+/* 图片预览对话框样式 */
+.image-preview-dialog .el-dialog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview-dialog .el-dialog__body {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

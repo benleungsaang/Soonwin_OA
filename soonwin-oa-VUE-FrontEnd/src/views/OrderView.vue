@@ -64,7 +64,7 @@
             ¥{{ formatCurrency(scope.row.gross_profit) }}
           </template>
         </el-table-column>
-        <el-table-column prop="proportionate_cost" label="摊分费用" width="100">
+        <el-table-column prop="proportionate_cost" label="运营摊分费用" width="120">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.proportionate_cost) }}
           </template>
@@ -176,9 +176,9 @@
         <div v-if="expenseSummary" style="margin-top: 20px; height: 400px;">
           <div id="expense-pie-chart" style="width: 100%; height: 100%;"></div>
         </div>
-        <!-- <div style="margin-top: 10px; text-align: right;">
+        <div style="margin-top: 10px; text-align: right;">
           <el-button type="primary" @click="updateOrderProportionateCost">更新订单摊分费用到每个订单</el-button>
-        </div> -->
+        </div>
       </div>
       <div v-else class="no-summary-data">
         暂无费用汇总数据，请点击"刷新"按钮进行加载

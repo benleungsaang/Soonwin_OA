@@ -87,6 +87,7 @@
             <Item>*\__pycache__\</Item>
             <Item>*\migrations\</Item>
             <Item>*\venv\</Item>
+            <Item>\soonwin-os-Python-Server\assets\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>

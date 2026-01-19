@@ -12,34 +12,22 @@
 后端模型：order_inspection.py
 前端页面：OrderInspectionView.vue
 
-继续完善逻辑
-1、当前上传照片逻辑未能正确使用，请重新设置逻辑：
-	创建专门的上传模块，供其它全部页面使用
-	上传文件的逻辑如下：
-	提交时需要提交文件及目标位置，如果没有目标位置的上传存到指定临时位置并返回文件路径；
-	选择后文件以二进制分块上传
 
-	另外创建一个另外在上传模块中提供另外一个功能；
-	移动文件位置的功能，可以输入原文件位置及目标文件位置，成功后返回移动前及移动后的位置；
+订单验收详情下的进度条，直接无显示
+<div data-v-c509789e="" class="el-progress el-progress--line is-success el-progress--without-text" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" height="20px" style="margin-left: 15px;"><div class="el-progress-bar"><div class="el-progress-bar__outer" style="height: 6px;"><div class="el-progress-bar__inner" style="width: 100%; animation-duration: 3s;"><!--v-if--></div></div></div><!--v-if--></div>
+这是一个当前进度1/1，即100%的进度条的静态HTML代码，请分析没显示的原因，我在页面上看到这个元素的长度只有一点点，可能是被缩小“隐藏”了
 
-	另外创建一个另外在上传模块中提供另外一个删除功能；
-	删除指定路径文件
-	
-2、当前验收订单中使用以上新模块的两个逻辑；
-	1、先不提供位置让照片文件上传到临时位置，把返回的临时路径记录在本地；
-	2、保存验收结果时确认当前保存内容中是否还需要保留该文件，需要保留的把文件移动到新的位置，不需要保留的向服务器发出删除申请；
-
-3、当前订单验收图片存入位置为根目录下的asset/OrderInspection/合同编号/图片文件名
-图片文件名以“合同编号+检查大项名字+检查细项名字+时间缀”命名
-合同编号及图片文件名注意检查在windows中存储时的字符合法性
-
-上传文件的临时位置为根目录下的asset/TempFiles
-	
-	
 
 提醒：
 1、注意前端调用数据时，request.ts会自动解包data；
 2、执行过后端数据库模型、字段变更后，记得做好数据迁移；
+
+
+
+
+
+
+3、修改过的前端代码要经过Validate with frontend-tester验收才能确认返回；
 
 
 

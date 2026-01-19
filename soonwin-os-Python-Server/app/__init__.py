@@ -5,7 +5,7 @@ import config
 from extensions import db, migrate
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../assets', static_url_path='/assets')
     # 加载配置
     app.config.from_object(config)
 
