@@ -33,6 +33,9 @@ dist/
 build/
 out/
 
+# 静态资源文件夹
+asset/
+
 # 日志文件
 npm-debug.log*
 yarn-debug.log*
