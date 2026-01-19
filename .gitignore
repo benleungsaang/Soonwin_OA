@@ -33,8 +33,6 @@ dist/
 build/
 out/
 
-# 静态资源文件夹
-asset/
 
 # 日志文件
 npm-debug.log*
@@ -90,3 +88,8 @@ migrations/versions/
 # 本地配置文件
 .local
 *.local.conf
+
+
+
+# python 服务器静态文件
+assets/

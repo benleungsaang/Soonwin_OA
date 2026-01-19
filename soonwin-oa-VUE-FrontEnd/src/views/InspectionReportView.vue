@@ -14,7 +14,7 @@
 
         <div class="order-info">
           <h3>订单基础信息</h3>
-          <el-descriptions :column="2" border>
+          <el-descriptions :column="isMobile ? 1 : 2" border>
             <el-descriptions-item label="合同编号">{{ reportData.inspection.contract_no }}</el-descriptions-item>
             <el-descriptions-item label="订单编号">{{ reportData.inspection.order_no }}</el-descriptions-item>
             <el-descriptions-item label="包装机单号">{{ reportData.inspection.machine_no }}</el-descriptions-item>
@@ -44,11 +44,12 @@
             <div class="parent-item">
               <div class="parent-title-container">
                 <h3 class="parent-title">{{ parentItem.item_category }}</h3>
-                    <div style="margin-bottom: 10px; margin-left: 20px; width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
-                      <div :style="{width: `${parentItem.progress}%`, height: '100%'}" style="background: #67c23a; border-radius: 4px;">
-                      </div>
-                    </div>
-                    <span style="margin:0 0px 10px 10px; ">{{ parentItem.completed_children }}/{{ parentItem.total_children }}</span>
+                <div class="parent-progress-container">
+                  <div class="parent-progress-bar">
+                    <div :style="{width: `${parentItem.progress}%`}" class="parent-progress-fill"></div>
+                  </div>
+                  <span class="parent-progress-text">{{ parentItem.completed_children }}/{{ parentItem.total_children }}</span>
+                </div>
               </div>
               <div class="sub-items">
                 <div
@@ -63,7 +64,7 @@
                     <div class="sub-item-result">
                       <el-tag
                         :type="getResultType(subItem.inspection_result)"
-                        size="large"
+                        :size="isMobile ? 'default' : 'large'"
                       >
                         {{ getResultText(subItem.inspection_result) }}
                       </el-tag>
@@ -84,10 +85,10 @@
                           :key="index"
                           :src="getPhotoUrl(photo)"
                           :alt="`照片${index + 1}`"
-                          class="photo-preview-static">
+                          class="photo-preview-static"
+                          @click="showImagePreview(getPhotoUrl(photo))">
                       </div>
                     </div>
-
                   </div>
                 </div>
               </div>
@@ -104,7 +105,7 @@
                 <div class="sub-item-result">
                   <el-tag
                     :type="getResultType(standaloneItem.inspection_result)"
-                    size="large"
+                    :size="isMobile ? 'default' : 'large'"
                   >
                     {{ getResultText(standaloneItem.inspection_result) }}
                   </el-tag>
@@ -120,7 +121,8 @@
                       :key="index"
                       :src="getPhotoUrl(photo)"
                       :alt="`照片${index + 1}`"
-                      class="photo-preview-static">
+                      class="photo-preview-static"
+                      @click="showImagePreview(getPhotoUrl(photo))">
                   </div>
                 </div>
 
@@ -145,11 +147,26 @@
 
         <div class="summary-info">
           <h3>验收总结</h3>
-          <p><strong>验收状态：</strong>{{ formatStatus(reportData.summary.status) }}</p>
-          <p><strong>总检查项数：</strong>{{ reportData.summary.total_items }}</p>
-          <p><strong>已完成检查项数：</strong>{{ reportData.summary.completed_items }}</p>
-          <p><strong>验收进度：</strong>{{ reportData.summary.progress }}%</p>
-          <p><strong>报告生成时间：</strong>{{ formatDate(reportData.inspection.update_time) }}</p>
+          <div class="summary-item">
+            <span class="summary-label">验收状态：</span>
+            <span class="summary-value">{{ formatStatus(reportData.summary.status) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">总检查项数：</span>
+            <span class="summary-value">{{ reportData.summary.total_items }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">已完成检查项数：</span>
+            <span class="summary-value">{{ reportData.summary.completed_items }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">验收进度：</span>
+            <span class="summary-value">{{ reportData.summary.progress }}%</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">报告生成时间：</span>
+            <span class="summary-value">{{ formatDate(reportData.inspection.update_time) }}</span>
+          </div>
         </div>
       </el-card>
     </div>
@@ -160,19 +177,19 @@
       :show-close="true"
       :close-on-click-modal="true"
       :close-on-press-escape="true"
-      width="auto"
+      :width="isMobile ? '90%' : '90%'"
       top="5vh"
       class="image-preview-dialog"
     >
       <div style="text-align: center;">
-        <img :src="previewImageUrl" style="max-width: 90vw; max-height: 80vh; object-fit: contain;" />
+        <img :src="previewImageUrl" style="max-width: 100%; max-height: 80vh; object-fit: contain;" />
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import request from '@/utils/request';
 import { ElMessage } from 'element-plus';
@@ -182,10 +199,16 @@ const reportData = ref<any>(null);
 const loading = ref(true);
 const imagePreviewVisible = ref(false);
 const previewImageUrl = ref('');
+const windowWidth = ref(window.innerWidth);
 
 // 路由
 const route = useRoute();
 const inspectionId = ref<number | null>(null);
+
+// 计算属性：判断是否为移动端
+const isMobile = computed(() => {
+  return windowWidth.value < 768;
+});
 
 // 计算属性：获取没有父项的子项
 const standaloneItems = computed(() => {
@@ -193,8 +216,16 @@ const standaloneItems = computed(() => {
   return reportData.value.items.filter((item: any) => item.item_type === 'sub' && item.parent_id === null);
 });
 
+// 监听窗口大小变化
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
+
 // 获取URL参数中的验收ID
 onMounted(async () => {
+  // 监听窗口大小变化
+  window.addEventListener('resize', handleResize);
+  
   inspectionId.value = Number(route.params.inspectionId) || Number(route.query.inspectionId) || Number(route.query.id);
   if (!inspectionId.value) {
     ElMessage.error('未提供验收ID');
@@ -203,6 +234,11 @@ onMounted(async () => {
   }
 
   await fetchReportData();
+});
+
+// 组件卸载前移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // 获取报告数据
@@ -311,44 +347,95 @@ const getCurrentDateTime = () => {
 </script>
 
 <style scoped>
-
 /* 可编辑标题样式 */
 .parent-title-container {
-  display: inline-flex;
-  align-items: center;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
+.parent-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.parent-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 100px;
+}
+
+.parent-progress-fill {
+  height: 100%;
+  background: #67c23a;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.parent-progress-text {
+  font-size: 12px;
+  color: #606266;
+  white-space: nowrap;
+}
 
 .inspection-report-container {
-  padding: 20px;
+  padding: 10px;
   background-color: #f5f5f5;
   min-height: 100vh;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .inspection-report-container {
+    padding: 20px;
+  }
+}
+
 .report-card {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .card-header {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .card-header {
+    font-size: 18px;
+  }
+}
+
 .order-info {
-  padding: 20px 0;
+  padding: 15px 0;
 }
 
 .inspection-items {
-  padding: 20px 0;
+  padding: 15px 0;
 }
 
 .inspection-group {
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   border: 1px solid #dcdfe6;
   border-radius: 8px;
-  padding: 20px;
+  padding: 15px;
   background-color: white;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .inspection-group {
+    margin-bottom: 30px;
+    padding: 20px;
+  }
 }
 
 .parent-item {
@@ -356,40 +443,78 @@ const getCurrentDateTime = () => {
 }
 
 .parent-title {
-  margin: 0 0 15px 0;
+  margin: 0 0 10px 0;
   color: #303133;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
+  word-break: break-word;
 }
 
-.parent-progress {
-  margin-bottom: 20px;
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-title {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+  }
 }
 
 .sub-items {
-  padding-left: 20px;
+  padding-left: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-items {
+    padding-left: 20px;
+  }
 }
 
 .sub-item {
-  margin-bottom: 20px;
-  padding: 15px;
+  margin-bottom: 15px;
+  padding: 12px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
   background-color: #fafafa;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item {
+    margin-bottom: 20px;
+    padding: 15px;
+  }
+}
+
 .sub-item-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin-bottom: 10px;
   padding-bottom: 10px;
   border-bottom: 1px solid #ebeef5;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
 .sub-item-name {
   font-weight: 500;
-  font-size: 16px;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-name {
+    font-size: 16px;
+  }
 }
 
 .sub-item-content {
@@ -397,80 +522,135 @@ const getCurrentDateTime = () => {
 }
 
 .photo-section {
-  margin: 15px 0;
+  margin: 10px 0;
 }
 
 .photo-grid {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
   margin-top: 10px;
 }
 
-.photo-item {
-  cursor: pointer;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  overflow: hidden;
-  transition: all 0.3s;
-}
-
-.photo-item:hover {
-  transform: scale(1.02);
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-.photo-preview {
-  width: 100%;
-  max-height: 300px;
-  object-fit: contain;
-  display: block;
-}
-
 .photo-preview-static {
-  max-width: 1000px;
+  max-width: min(100%, 1000px);
   height: auto;
   display: block;
-  margin: 0 auto; /* 水平居中 */
+  margin: 0 auto;
   border-radius: 5px;
   border: 2px solid #dcdfe6;
-  box-shadow: rgba(48, 49, 51, 0.1) 5px 5px 2px 0;
+  box-shadow: rgba(48, 49, 51, 0.1) 2px 2px 4px 0;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.photo-preview-static:hover {
+  transform: scale(1.02);
 }
 
 .description-section {
   margin-top: 10px;
-  padding: 10px;
+  padding: 8px;
   background-color: #f4f4f5;
   border-radius: 4px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .description-section {
+    padding: 10px;
+  }
 }
 
 .description-section h4 {
   margin: 0 0 5px 0;
   color: #606266;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .description-section h4 {
+    font-size: 14px;
+  }
 }
 
 .description-section p {
   margin: 0;
   color: #303133;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .description-section p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
 }
 
 .standalone-item {
-  margin: 20px 0;
+  margin: 15px 0;
 }
 
 .summary-info {
-  padding: 20px 0;
+  padding: 15px 0;
 }
 
-.summary-info p {
-  margin: 10px 0;
-  line-height: 1.6;
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  padding: 8px 0;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .summary-item {
+    flex-direction: row;
+    padding: 10px 0;
+  }
+}
+
+.summary-label {
+  font-weight: bold;
+  color: #606266;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .summary-label {
+    margin-bottom: 0;
+    margin-right: 10px;
+  }
+}
+
+.summary-value {
+  color: #303133;
+  font-size: 14px;
+  word-break: break-word;
 }
 
 .loading {
   padding: 40px;
   text-align: center;
+}
+
+/* 针对移动端的特殊样式 */
+@media (max-width: 767px) {
+  .el-descriptions__label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+  
+  .el-descriptions__content {
+    display: block;
+    margin-top: 2px;
+  }
 }
 </style>

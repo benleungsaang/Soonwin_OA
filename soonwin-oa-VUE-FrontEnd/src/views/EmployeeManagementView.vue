@@ -75,7 +75,7 @@
             <span v-else>{{ scope.row.remarks || '无备注' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="380">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="scope">
             <el-button
               size="small"
@@ -110,8 +110,8 @@
               >
                 删除
               </el-button>
-                          <el-button 
-                            size="small" 
+                          <el-button
+                            size="small"
                             type="primary"
                             v-if="scope.row.status === 'pending_approval'"
                             @click="activateEmployee(scope.row)"

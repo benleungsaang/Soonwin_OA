@@ -152,6 +152,11 @@
               </span>
             </template>
           </el-table-column>
+          <el-table-column label="最近后创建费用时间" width="180">
+            <template #default="scope">
+              {{ scope.row.latest_expense_create_time }}
+            </template>
+          </el-table-column>
           <el-table-column label="最近计算时间" width="180">
             <template #default="scope">
               {{ scope.row.latest_calculation ? scope.row.latest_calculation.calculation_time : '未计算' }}

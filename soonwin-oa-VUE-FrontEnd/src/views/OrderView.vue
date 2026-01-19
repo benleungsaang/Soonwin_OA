@@ -176,8 +176,21 @@
         <div v-if="expenseSummary" style="margin-top: 20px; height: 400px;">
           <div id="expense-pie-chart" style="width: 100%; height: 100%;"></div>
         </div>
-        <div style="margin-top: 10px; text-align: right;">
-          <el-button type="primary" @click="updateOrderProportionateCost">更新订单摊分费用到每个订单</el-button>
+        <!-- 显示时间节点 -->
+        <div style="margin-top: 15px; padding: 10px; background-color: #f5f7fa; border-radius: 4px; border-left: 4px solid #409eff;">
+          <div style="display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; gap: 8px; font-size: 0.95em;">
+            <div style="color: #606266;">
+              <strong>最后费用创建时间:</strong>
+              <span>{{ expenseSummary.latest_expense_create_time ? expenseSummary.latest_expense_create_time : '暂无费用记录' }}</span>
+            </div>
+            <div style="color: #606266;">
+              <strong>最后分摊计算时间:</strong>
+              <span>{{ expenseSummary.latest_calculation ? expenseSummary.latest_calculation.calculation_time : '暂未计算' }}</span>
+            </div>
+            <div style="margin-top: 4px;">
+              <el-button type="primary" @click="updateOrderProportionateCost">更新订单摊分费用到每个订单</el-button>
+            </div>
+          </div>
         </div>
       </div>
       <div v-else class="no-summary-data">

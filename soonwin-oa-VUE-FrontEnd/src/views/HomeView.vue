@@ -10,7 +10,7 @@
           <el-page-header content="SoonWin OA系统" />
           <el-divider></el-divider>
           <el-menu :default-active="activeMenu" class="menu">
-            <el-menu-item index="1" @click="goToOrder" v-if="hasToken">
+            <el-menu-item index="1" @click="goToOrder" v-if="hasToken && isCurrentUserAdmin">
               <el-icon><Document /></el-icon>
               <span>订单管理</span>
             </el-menu-item>

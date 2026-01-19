@@ -76,7 +76,7 @@
     <el-dialog
       v-model="orderDetailDialogVisible"
       :title="`订单验收详情 - ${selectedOrderDetail?.contract_no || selectedOrder?.contract_no || ''}`"
-      width="80%"
+      :width="isMobile ? '95%' : '80%'"
       :before-close="handleCloseOrderDetailDialog"
     >
       <div v-if="selectedOrderDetail || selectedOrder">
@@ -87,7 +87,7 @@
               <span>订单基础数据</span>
             </div>
           </template>
-          <el-descriptions :column="2" border>
+          <el-descriptions :column="isMobile ? 1 : 2" border>
             <el-descriptions-item label="合同编号">{{ (selectedOrderDetail || selectedOrder).contract_no }}</el-descriptions-item>
             <el-descriptions-item label="订单编号">{{ (selectedOrderDetail || selectedOrder).order_no }}</el-descriptions-item>
             <el-descriptions-item label="包装机单号">{{ (selectedOrderDetail || selectedOrder).machine_no }}</el-descriptions-item>
@@ -434,7 +434,7 @@
     <el-dialog
       v-model="addItemDialogVisible"
       title="添加检查项"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       :before-close="closeAddItemDialog"
     >
       <el-form :model="newItemForm" :rules="itemRules" ref="itemFormRef" label-width="100px">
@@ -487,7 +487,7 @@
     <el-dialog
       v-model="editItemTitleDialogVisible"
       :title="titleEditingType === 'parent' ? '修改大项标题' : '修改细项标题'"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       :before-close="closeEditItemTitleDialog"
     >
       <el-input
@@ -510,19 +510,20 @@
       :show-close="true"
       :close-on-click-modal="true"
       :close-on-press-escape="true"
-      width="auto"
+      :width="isMobile ? '90%' : 'auto'"
       top="5vh"
       class="image-preview-dialog"
+      :fullscreen="isMobile"
     >
       <div style="text-align: center;">
-        <img :src="previewImageUrl" style="max-width: 90vw; max-height: 80vh; object-fit: contain;" />
+        <img :src="previewImageUrl" style="max-width: 100%; max-height: 80vh; object-fit: contain;" />
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, onUnmounted } from 'vue';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
@@ -547,6 +548,7 @@ const items = ref<any[]>([]);
 const token = ref(localStorage.getItem('oa_token') || '');
 const isEditingMode = ref(false);
 const hasUnsavedChangesFlag = ref(false); // 跟踪是否有未保存的更改
+const windowWidth = ref(window.innerWidth);
 
 // 标题编辑相关变量
 const titleEditingItem = ref<any>(null); // 当前正在编辑的项目
@@ -560,6 +562,16 @@ const newItemForm = ref({
   itemName: '',
   itemCategory: '' // 用于父项的类别
 });
+
+// 计算属性：判断是否为移动端
+const isMobile = computed(() => {
+  return windowWidth.value < 768;
+});
+
+// 监听窗口大小变化
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+};
 
 const itemRules = {
   itemType: [
@@ -1828,8 +1840,16 @@ const fetchUserInfo = async () => {
 
 // 组件挂载时获取数据
 onMounted(async () => {
+  // 监听窗口大小变化
+  window.addEventListener('resize', handleResize);
+  
   await fetchUserInfo();
   fetchOrders();
+});
+
+// 组件卸载前移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // 生成报告
@@ -1869,27 +1889,68 @@ const router = useRouter();
 
 <style scoped>
 .order-inspection-container {
-  padding: 20px;
+  padding: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .order-inspection-container {
+    padding: 20px;
+  }
 }
 
 .header {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .header {
+    margin-bottom: 20px;
+  }
 }
 
 .header-content {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .card-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .order-list-section {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .order-list-section {
+    margin-bottom: 20px;
+  }
 }
 
 /* 为表格行添加鼠标指针样式 */
@@ -1906,10 +1967,12 @@ const router = useRouter();
   display: inline-flex;
   align-items: center;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .parent-title, .sub-item-name {
   cursor: pointer;
+  word-break: break-word;
 }
 
 .parent-title:hover, .sub-item-name:hover {
@@ -1920,92 +1983,217 @@ const router = useRouter();
 }
 
 .add-sub-item {
-  padding: 10px 0 0 20px;
+  padding: 10px 0 0 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .add-sub-item {
+    padding: 10px 0 0 20px;
+  }
 }
 
 .parent-title-container, .sub-item-name-container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-title-container, .sub-item-name-container {
+    flex-direction: row;
+    align-items: center;
+  }
 }
 
 .parent-title-container .el-input, .sub-item-name-container .el-input {
-  width: 200px;
+  width: 100%;
   margin-right: 10px;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-title-container .el-input, .sub-item-name-container .el-input {
+    width: 200px;
+  }
+}
+
 .pagination {
-  margin-top: 20px;
+  margin-top: 15px;
   text-align: center;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .pagination {
+    margin-top: 20px;
+  }
+}
+
 .order-info-card {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .order-info-card {
+    margin-bottom: 20px;
+  }
 }
 
 .inspection-items-card {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .inspection-items-card {
+    margin-bottom: 20px;
+  }
 }
 
 .inspection-group {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
-  padding: 15px;
+  padding: 10px;
   background-color: rgb(235, 235, 235);
 }
 
-.parent-item {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 10px;
-  background-color: white;
-}
-
-.parent-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ebeef5;
-}
-
-.parent-title {
-  font-weight: bold;
-  font-size: 16px;
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .inspection-group {
+    margin-bottom: 20px;
+    padding: 15px;
+  }
 }
 
 .parent-item {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px;
   background-color: white;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-item {
+    padding: 10px;
+  }
 }
 
 .parent-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 10px;
   padding-bottom: 10px;
   border-bottom: 1px solid #ebeef5;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
 .parent-title {
   font-weight: bold;
-  font-size: 16px;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-title {
+    font-size: 16px;
+  }
+}
+
+.parent-item {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 8px;
+  background-color: white;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-item {
+    padding: 10px;
+  }
+}
+
+.parent-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.parent-title {
+  font-weight: bold;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-title {
+    font-size: 16px;
+  }
 }
 
 .parent-progress {
   display: flex;
-  align-items: center;
-  min-width: 250px; /* 确保进度条有足够的显示空间 */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: auto;
+  width: 100%;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-progress {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    min-width: 250px; /* 确保进度条有足够的显示空间 */
+  }
 }
 
 .progress-text {
-  margin-left: 10px;
   font-size: 12px;
   color: #606266;
+  text-align: left;
+  width: 100%;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .progress-text {
+    text-align: left;
+    width: auto;
+  }
 }
 
 /* 专门针对进度条的样式，使用更高的优先级 */
@@ -2025,41 +2213,87 @@ const router = useRouter();
 :deep(.el-progress) {
   display: flex !important;
   align-items: center !important;
-  min-width: 200px;
+  width: 100% !important;
 }
 
 /* 针对特定组件的样式 */
 .parent-progress :deep(.el-progress) {
-  width: 200px !important;
-  min-width: 200px !important;
+  width: 100% !important;
+  min-width: auto !important;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .parent-progress :deep(.el-progress) {
+    width: 200px !important;
+    min-width: 200px !important;
+  }
 }
 
 .sub-items {
-  padding-left: 20px;
+  padding-left: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-items {
+    padding-left: 20px;
+  }
 }
 
 .sub-item {
-  margin-bottom: 15px;
-  padding: 10px;
+  margin-bottom: 10px;
+  padding: 8px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
   background-color: #fafafa;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item {
+    margin-bottom: 15px;
+    padding: 10px;
+  }
+}
+
 .sub-item-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
 .sub-item-name {
   font-weight: 500;
+  word-break: break-word;
 }
 
 .sub-item-actions {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  width: 100%;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-actions {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
 }
 
 .sub-item-content {
@@ -2067,35 +2301,65 @@ const router = useRouter();
   padding-top: 10px;
   border-top: 1px dashed #dcdfe6;
   display: flex;
-  gap: 20px;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
 }
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-content {
+    flex-direction: row;
+    gap: 20px;
+    align-items: center;
+  }
+}
+
 .sub-item-content > div {
   flex-shrink: 0;
+  width: 100%;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .sub-item-content > div {
+    width: auto;
+  }
 }
 
 .upload-section {
   margin-bottom: 10px;
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
 }
 
 .photo-grid {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 10px;
+  width: 100%;
 }
 
 .photo-preview {
   position: relative;
   display: inline-block;
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 8px;
   overflow: visible; /* 改为visible以显示超出部分的删除图标 */
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .photo-preview {
+    width: 100px;
+    height: 100px;
+  }
 }
 
 .delete-photo-icon {
@@ -2116,8 +2380,8 @@ const router = useRouter();
 }
 
 .photo-preview img {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid #dcdfe6;
@@ -2125,36 +2389,73 @@ const router = useRouter();
   position: relative;
 }
 
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .photo-preview img {
+    width: 100px;
+    height: 100px;
+  }
+}
+
 .defect-section {
   margin-top: 10px;
+  width: 100%;
 }
 
 .photo-preview {
   margin-top: 10px;
 }
 
-
-
 .bottom-actions {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-top: 20px;
-  padding-top: 20px;
+  gap: 15px;
+  margin-top: 15px;
+  padding-top: 15px;
   border-top: 1px solid #ebeef5;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .bottom-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 20px;
+  }
 }
 
 .action-buttons {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .action-buttons {
+    gap: 10px;
+    justify-content: flex-start;
+  }
 }
 
 .standalone-item {
-  margin-bottom: 15px;
-  padding: 10px;
+  margin-bottom: 10px;
+  padding: 8px;
   border: 1px solid #ebeef5;
   border-radius: 4px;
   background-color: #f5f7fa;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .standalone-item {
+    margin-bottom: 15px;
+    padding: 10px;
+  }
 }
 
 .progress-cell {
@@ -2173,5 +2474,48 @@ const router = useRouter();
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 针对移动端的特殊样式 */
+@media (max-width: 767px) {
+  .el-descriptions__label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+  
+  .el-descriptions__content {
+    display: block;
+    margin-top: 2px;
+  }
+  
+  .el-table {
+    font-size: 12px;
+  }
+  
+  .el-table th {
+    padding: 4px 0;
+  }
+  
+  .el-table td {
+    padding: 4px 0;
+  }
+  
+  .el-button {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  
+  .el-radio {
+    font-size: 12px;
+  }
+  
+  .el-textarea__inner {
+    font-size: 12px;
+  }
+  
+  .el-input__inner {
+    font-size: 12px;
+  }
 }
 </style>
