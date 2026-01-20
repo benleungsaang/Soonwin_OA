@@ -19,6 +19,7 @@ def create_app():
     # 关键：在 create_app 内部导入模型（延迟导入，打破循环）
     with app.app_context():
         from .models.employee import Employee
+        from .models.employee_device import EmployeeDevice
         from .models.punch_record import PunchRecord
         from .models.order import Order
         from .models.cost_allocation import CostAllocation

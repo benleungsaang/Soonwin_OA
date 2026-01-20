@@ -95,8 +95,9 @@ def create_employee():
                 "data": None
             }), 400
 
-        # 检查员工ID是否已存在
-        existing_employee = Employee.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查员工ID是否已存在（使用大小写不敏感的查询）
+        emp_id_lower = data['emp_id'].lower()
+        existing_employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if existing_employee:
             return jsonify({
                 "code": 400,
@@ -213,8 +214,9 @@ def update_employee(emp_id):
                 "data": None
             }), 400
 
-        # 查询员工记录
-        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        # 查询员工记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if not employee:
             return jsonify({
                 "code": 404,
@@ -222,10 +224,11 @@ def update_employee(emp_id):
                 "data": None
             }), 404
 
-        # 检查新员工ID是否已被其他员工使用
+        # 检查新员工ID是否已被其他员工使用（使用大小写不敏感的查询）
         new_emp_id = data.get('emp_id')
-        if new_emp_id and new_emp_id != emp_id:
-            existing_employee = Employee.query.filter_by(emp_id=new_emp_id).first()
+        if new_emp_id and new_emp_id.lower() != emp_id_lower:
+            new_emp_id_lower = new_emp_id.lower()
+            existing_employee = Employee.query.filter(db.func.lower(Employee.emp_id) == new_emp_id_lower).first()
             if existing_employee:
                 return jsonify({
                     "code": 400,
@@ -297,8 +300,9 @@ def update_employee(emp_id):
 def delete_employee(emp_id):
     """删除员工"""
     try:
-        # 查询员工记录
-        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        # 查询员工记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if not employee:
             return jsonify({
                 "code": 404,
@@ -309,8 +313,9 @@ def delete_employee(emp_id):
         # 删除员工记录
         db.session.delete(employee)
 
-        # 同时删除相关的TOTP用户记录
-        totp_user = TotpUser.query.filter_by(emp_id=emp_id).first()
+        # 同时删除相关的TOTP用户记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        totp_user = TotpUser.query.filter(db.func.lower(TotpUser.emp_id) == emp_id_lower).first()
         if totp_user:
             db.session.delete(totp_user)
 
@@ -347,8 +352,9 @@ def generate_totp_qr():
                 "data": None
             }), 400
 
-        # 检查员工是否存在
-        employee = Employee.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查员工是否存在（使用大小写不敏感的查询）
+        emp_id_lower = data['emp_id'].lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if not employee:
             return jsonify({
                 "code": 404,
@@ -356,8 +362,8 @@ def generate_totp_qr():
                 "data": None
             }), 404
 
-        # 检查TOTP用户是否存在
-        totp_user = TotpUser.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查TOTP用户是否存在（使用大小写不敏感的查询）
+        totp_user = TotpUser.query.filter(db.func.lower(TotpUser.emp_id) == emp_id_lower).first()
         if not totp_user:
             # 如果TOTP配置不存在，但员工处于待绑定状态，则创建一个新的TOTP配置
             if employee.status == 'pending_binding':
@@ -422,8 +428,9 @@ def totp_login():
                     "data": None
                 }), 400
 
-        # 检查员工是否存在
-        employee = Employee.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查员工是否存在（使用大小写不敏感的查询）
+        emp_id_lower = data['emp_id'].lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if not employee:
             return jsonify({
                 "code": 404,
@@ -440,8 +447,8 @@ def totp_login():
                     "data": None
                 }), 403
 
-        # 检查TOTP用户是否存在
-        totp_user = TotpUser.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查TOTP用户是否存在（同样使用大小写不敏感的查询）
+        totp_user = TotpUser.query.filter(db.func.lower(TotpUser.emp_id) == emp_id_lower).first()
         if not totp_user:
             return jsonify({
                 "code": 404,
@@ -514,8 +521,9 @@ def verify_totp():
                     "data": None
                 }), 400
 
-        # 检查员工是否存在
-        employee = Employee.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查员工是否存在（使用大小写不敏感的查询）
+        emp_id_lower = data['emp_id'].lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         if not employee:
             return jsonify({
                 "code": 404,
@@ -531,8 +539,8 @@ def verify_totp():
                 "data": None
             }), 400
 
-        # 检查TOTP用户是否存在
-        totp_user = TotpUser.query.filter_by(emp_id=data['emp_id']).first()
+        # 检查TOTP用户是否存在（使用大小写不敏感的查询）
+        totp_user = TotpUser.query.filter(db.func.lower(TotpUser.emp_id) == emp_id_lower).first()
         if not totp_user:
             return jsonify({
                 "code": 404,

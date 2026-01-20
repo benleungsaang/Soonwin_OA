@@ -144,19 +144,12 @@ const bindRules = reactive<FormRules>({
 
 // 跳转到验证码输入框
 const focusTotpCode = () => {
-  // 校验工号输入
-  if (!loginFormRef.value) return;
-
-  loginFormRef.value.validateField('empId', (errorMessage) => {
-    if (!errorMessage) {
-      // 工号验证通过，将焦点切换到验证码输入框
-      setTimeout(() => {
-        if (totpCodeInputRef.value) {
-          totpCodeInputRef.value.focus();
-        }
-      }, 100); // 添加短暂延迟确保DOM更新
+  // 直接将焦点切换到验证码输入框，不进行工号验证以避免撞库
+  setTimeout(() => {
+    if (totpCodeInputRef.value) {
+      totpCodeInputRef.value.focus();
     }
-  });
+  }, 0); // 使用0延迟以确保在下一个事件循环中执行
 };
 
 // 处理登录逻辑
@@ -167,9 +160,9 @@ const handleLogin = async () => {
     await loginFormRef.value.validate();
     isLoading.value = true;
 
-    // 调用登录接口
+    // 调用登录接口（将工号转换为小写以实现不区分大小写）
     const res: any = await request.post<LoginResponse>('/api/totp/login', {
-      emp_id: loginForm.empId,
+      emp_id: loginForm.empId.toLowerCase(),
       totp_code: loginForm.totpCode,
     });
 
@@ -213,8 +206,8 @@ const checkEmployeeStatus = async () => {
   }
 
   try {
-    // 首先获取员工信息以检查当前状态
-    const empInfoRes: any = await request.get(`/api/employee-info/${bindForm.empId}`);
+    // 首先获取员工信息以检查当前状态（使用不需要认证的接口）
+    const empInfoRes: any = await request.get(`/api/employee-basic-info/${bindForm.empId}`);
     const empStatus = empInfoRes?.status;
     const empName = empInfoRes?.name;
 

@@ -43,9 +43,9 @@ def refresh_token():
                 leeway=timedelta(minutes=5)  # 允许5分钟的宽限时间
             )
             
-            # 检查员工是否仍然存在且有效
-            emp_id = payload['emp_id']
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            # 检查员工是否仍然存在且有效（使用大小写不敏感的查询）
+            emp_id_lower = payload['emp_id'].lower()
+            employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
             if not employee:
                 return jsonify({
                     "code": 401,

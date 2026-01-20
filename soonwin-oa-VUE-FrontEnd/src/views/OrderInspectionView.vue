@@ -46,14 +46,14 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="150" v-if="isUserAdmin">
+          <el-table-column label="操作" width="80" fixed="right">
             <template #default="scope">
               <el-button
                 type="primary"
                 size="small"
               @click="generateReport(scope.row)"
               >
-                <el-icon style="margin-right: 5px;"><List /></el-icon> 查看报告
+                <el-icon style="margin-right: 5px;"><List /></el-icon> 报告
               </el-button>
             </template>
           </el-table-column>
@@ -106,7 +106,6 @@
               <span style="font-size: 30px;">检查项</span>
               <div>
                 <el-button
-                  v-if="isUserAdmin"
                   type="danger"
                   style="font-size: 20px; padding: 15px; margin-right: 10px;"
                   @click="clearAllItems"
@@ -114,7 +113,6 @@
                   清空检查项
                 </el-button>
                 <el-button
-                  v-if="isUserAdmin"
                   type="success"
                   style="font-size: 20px; padding: 15px;"
                   @click="showAddItemDialog('parent')"
@@ -128,16 +126,21 @@
           <!-- 检查项列表 -->
           <div v-for="parentItem in groupedItems" :key="parentItem.id" class="inspection-group">
             <div class="parent-item">
-              <div class="parent-header">
+              <div class="parent-header" @click="toggleExpand(parentItem.id)" style="cursor: pointer;">
                 <div class="parent-title-container">
-                  <span
-                    v-if="!parentItem.isEditing"
-                    class="parent-title"
-                    @click="startEditing(parentItem, 'parent')"
-                    style="cursor: pointer;"
-                  >
-                    {{ parentItem.item_category }}
-                  </span>
+                  <div style="display: flex; align-items: center;">
+                    <el-icon :class="{'is-expanded': isItemExpanded(parentItem.id)}" style="margin-right: 8px; transition: transform 0.2s;">
+                      <ArrowRight />
+                    </el-icon>
+                    <span
+                      v-if="!parentItem.isEditing"
+                      class="parent-title"
+                      @click.stop="startEditing(parentItem, 'parent')"
+                      style="cursor: pointer;"
+                    >
+                      {{ parentItem.item_category }}
+                    </span>
+                  </div>
                   <div class="parent-progress">
                     <div style="margin-left: 10px; width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
                       <div :style="{width: `${parentItem.progress}%`, height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
@@ -147,21 +150,20 @@
                 </div>
                 <!-- 大项的标题后的删除及添加按钮 -->
                 <el-icon
-                  v-if="isUserAdmin"
                   type="danger"
                   size="small"
-                  @click="deleteItem(parentItem)"
+                  @click.stop="deleteItem(parentItem)"
                   style="margin-right: 10px;cursor:pointer;font-size: 25px;"
                 ><Delete /></el-icon>
                 <el-icon
-                  v-if="isUserAdmin"
                   type="primary"
                   size="small"
-                  @click="addSubItemToParent(parentItem.id, parentItem.item_category)"
+                  @click.stop="addSubItemToParent(parentItem.id, parentItem.item_category)"
                   style="margin-right: 10px;cursor:pointer;font-size: 20px;"
                 ><Plus /></el-icon>
               </div>
-              <div class="sub-items">
+              <!-- 子项内容，只有在展开时才显示 -->
+              <div v-show="isItemExpanded(parentItem.id)" class="sub-items">
                 <div
                   v-for="subItem in parentItem.children"
                   :key="subItem.id"
@@ -179,18 +181,15 @@
                       </span>
                     </div>
                     <div class="sub-item-actions">
-                      <el-radio-group
-                        v-model="subItem.inspection_result"
-                        @change="updateInspectionItem(subItem)"
-                      >
-                        <el-radio value="pending">未检查</el-radio>
-                        <el-radio value="normal">正常</el-radio>
-                        <el-radio value="defect">不正常</el-radio>
-                        <el-radio value="not_applicable">没此项</el-radio>
-                      </el-radio-group>
+
+      <el-radio-group size="small" v-model="subItem.inspection_result" @change="updateInspectionItem(subItem)">
+        <!-- <el-radio-button label="未检查" value="pending"/> -->
+        <el-radio-button label="正常" value="normal"/>
+        <el-radio-button label="不正常" value="defect"/>
+        <el-radio-button label="没此项" value="not_applicable"/>
+      </el-radio-group>
                       <!-- 小项的标题后的删除及添加按钮 -->
                       <el-icon
-                        v-if="isUserAdmin"
                         type="danger"
                         size="small"
                         @click="deleteItem(subItem)"
@@ -226,7 +225,7 @@
                         :http-request="(options) => handlePhotoUpload(options, subItem, 'normal')"
                       >
                       <el-icon style="cursor: pointer;border: 1px ;margin-left: 2cqw;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
-                        <Plus />
+                        <Camera />
                       </el-icon>
 
                       </el-upload>
@@ -268,7 +267,7 @@
                     :http-request="(options) => handlePhotoUpload(options, subItem, 'defect')"
                   >
                     <el-icon style=" cursor: pointer;border: 1px ;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
-                      <Plus />
+                      <Camera />
                     </el-icon>
 
                   </el-upload>
@@ -307,29 +306,33 @@
                   <el-radio value="defect">不正常</el-radio>
                   <el-radio value="not_applicable">没此项</el-radio>
                 </el-radio-group>
-                <!-- <el-button
-                  v-if="isUserAdmin"
-                  type="danger"
-                  size="small"
-                  icon="Delete"
-                  @click="deleteItem(item)"
-                  circle
-                  style="margin-left: 10px;"
-                /> -->
               </div>
             </div>
 
             <div class="sub-item-content" v-if="item.inspection_result !== 'not_applicable' && item.inspection_result !== 'pending'">
               <div v-if="item.inspection_result === 'normal'" class="upload-section">
-                <el-upload
-                  class="upload-demo"
-                  :auto-upload="true"
-                  :show-file-list="false"
-                  list-type="picture"
-                  :http-request="(options) => handlePhotoUpload(options, item, 'normal')"
-                >
-                  <!-- <el-button type="primary" style="font-size: 15px;padding:5px;margin-bottom: 10px;">上传照片</el-button> -->
-                </el-upload>
+                <div class="upload-options">
+                  <!-- 文件上传 -->
+                  <el-upload
+                    class="upload-demo"
+                    :auto-upload="true"
+                    :show-file-list="false"
+                    list-type="picture"
+                    :http-request="(options) => handlePhotoUpload(options, item, 'normal')"
+                  >
+                    <el-icon style="cursor: pointer;border: 1px ;margin-left: 2cqw;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
+                      <Camera />
+                    </el-icon>
+                  </el-upload>
+
+                  <!-- 拍照上传 -->
+                  <!-- <el-icon
+                    style="cursor: pointer;border: 1px ;margin-left: 10px;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;"
+                    @click="openCameraForItem(item, 'normal')"
+                  >
+                    <Camera />
+                  </el-icon> -->
+                </div>
                 <!-- 展示多张图片 -->
                 <div class="photo-grid">
                   <div
@@ -351,15 +354,20 @@
               </div>
 
               <div v-if="item.inspection_result === 'defect'" class="defect-section">
-                <!-- <el-upload
-                  class="upload-demo"
-                  :auto-upload="true"
-                  :show-file-list="false"
-                  list-type="picture"
-                  :http-request="(options) => handlePhotoUpload(options, item, 'defect')"
-                >
-                  <el-button style="font-size: 15px; margin-bottom: 10px;" type="danger">上传缺陷照片</el-button>
-                </el-upload> -->
+                <div class="upload-options">
+                  <!-- 文件上传 -->
+                  <el-upload
+                    class="upload-demo"
+                    :auto-upload="true"
+                    :show-file-list="false"
+                    list-type="picture"
+                    :http-request="(options) => handlePhotoUpload(options, item, 'defect')"
+                  >
+                    <el-icon style="cursor: pointer;border: 1px ;font-size: 25px;background-color: #ddd;padding: 8px;border-radius: 5px;">
+                      <Camera />
+                    </el-icon>
+                  </el-upload>
+                </div>
                 <!-- 展示多张图片 -->
                 <div class="photo-grid">
                   <div
@@ -391,7 +399,7 @@
           </div>
 
           <!-- 在所有大项最后添加+按钮 -->
-          <div class="add-new-parent-section" v-if="isUserAdmin">
+          <div class="add-new-parent-section">
             <el-icon
               size="default"
               @click="addNewParentItem"
@@ -417,8 +425,8 @@
             >
               <el-icon style="margin-right: 5px;"><List /></el-icon>生成报告
             </el-button>
-            <el-button @click="cacheData">缓存</el-button>
-            <el-button @click="closeDialog">关闭</el-button>
+            <!-- <el-button @click="cacheData">缓存</el-button>
+            <el-button @click="closeDialog">关闭</el-button> -->
             <el-button
               type="primary"
               @click="saveAndClose"
@@ -437,7 +445,7 @@
       :width="isMobile ? '90%' : '500px'"
       :before-close="closeAddItemDialog"
     >
-      <el-form :model="newItemForm" :rules="itemRules" ref="itemFormRef" label-width="100px">
+      <el-form :model="newItemForm" :rules="itemRules" ref="itemFormRef" label-width="100px" @keyup.enter="confirmAddItem">
         <el-form-item label="类型" prop="itemType">
                       <el-radio-group v-model="newItemForm.itemType">
                         <el-radio value="parent">大项</el-radio>
@@ -453,6 +461,7 @@
             v-model="newItemForm.parentItem"
             placeholder="请选择大项"
             style="width: 100%"
+            @keyup.enter="confirmAddItem"
           >
             <el-option
               v-for="item in parentItems"
@@ -471,6 +480,7 @@
             v-model="newItemForm.itemName"
             :placeholder="newItemForm.itemType === 'parent' ? '请输入大项名称，如：配件、外观等' : '请输入细项名称，如：部件1、角度1等'"
             required
+            @keyup.enter="confirmAddItem"
             />
         </el-form-item>
       </el-form>
@@ -495,6 +505,7 @@
         :placeholder="titleEditingType === 'parent' ? '请输入大项标题' : '请输入细项标题'"
         maxlength="200"
         show-word-limit
+        @keyup.enter="confirmEditItemTitle"
       />
       <template #footer>
         <span class="dialog-footer">
@@ -519,6 +530,15 @@
         <img :src="previewImageUrl" style="max-width: 100%; max-height: 80vh; object-fit: contain;" />
       </div>
     </el-dialog>
+
+  </div>
+
+  <!-- 全屏加载提示 -->
+  <div v-if="fullScreenLoading" class="fullscreen-loading-overlay">
+    <div class="loading-content">
+      <el-icon class="loading-icon"><Loading /></el-icon>
+      <p>正在上传数据，请稍候...</p>
+    </div>
   </div>
 </template>
 
@@ -527,8 +547,8 @@ import { ref, onMounted, computed, nextTick, onUnmounted } from 'vue';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
-import { Delete, Plus, Close, List } from '@element-plus/icons-vue';
-import { uploadFile, moveFile, deleteFile, sanitizeFilename } from '@/utils/upload';
+import { Delete, Plus, Close, List, ArrowRight, Loading, Camera } from '@element-plus/icons-vue';
+import { uploadFile } from '@/utils/upload';
 
 // 响应式数据
 const orders = ref<any[]>([]);
@@ -539,7 +559,6 @@ const total = ref(0);
 const detailDialogVisible = ref(false);
 const orderDetailDialogVisible = ref(false);
 const addItemDialogVisible = ref(false);
-const addSubItemDialogVisible = ref(false);
 const editItemTitleDialogVisible = ref(false); // 新增：修改标题对话框
 const selectedOrder = ref<any>({});
 const selectedOrderDetail = ref<any>(null);
@@ -549,6 +568,8 @@ const token = ref(localStorage.getItem('oa_token') || '');
 const isEditingMode = ref(false);
 const hasUnsavedChangesFlag = ref(false); // 跟踪是否有未保存的更改
 const windowWidth = ref(window.innerWidth);
+const expandedItems = ref<Set<number>>(new Set()); // 跟踪展开的大项
+const fullScreenLoading = ref(false); // 全屏加载状态
 
 // 标题编辑相关变量
 const titleEditingItem = ref<any>(null); // 当前正在编辑的项目
@@ -585,7 +606,6 @@ const itemRules = {
 // 图片预览相关变量
 const imagePreviewVisible = ref(false);
 const previewImageUrl = ref('');
-
 
 
 // 计算属性
@@ -698,20 +718,7 @@ const realTimeProgress = computed(() => {
   };
 });
 
-// 上传配置
-const uploadUrl = computed(() => {
-  // 开发环境下使用代理，生产环境下使用完整URL
-  if (import.meta.env.MODE === 'development') {
-    return '/api/upload';
-  }
-  return `${window.location.protocol}//${window.location.hostname}:5000/api/upload`;
-});
 
-const uploadHeaders = computed(() => {
-  return {
-    'Authorization': `Bearer ${token.value}`
-  };
-});
 
 // 格式化日期
 const formatDate = (dateString: string) => {
@@ -795,108 +802,237 @@ const confirmAddItem = () => {
 };
 
 // 获取验收数据
+
 const refreshInspectionData = async () => {
+
   const orderId = selectedOrderDetail.value ? selectedOrderDetail.value.id : selectedOrder.value.id;
 
+
+
   try {
+
     // 检查是否已有验收记录
+
     let inspectionId = (selectedOrderDetail.value || selectedOrder.value).inspection_id;
+
     if (!inspectionId) {
+
       const inspectionRes: any = await request.get('/api/inspections', {
+
         params: {
+
           order_no: (selectedOrderDetail.value || selectedOrder.value).order_no
+
         }
+
       });
+
       if (inspectionRes.list && inspectionRes.list.length > 0) {
+
         inspectionId = inspectionRes.list[0].id;
+
         // 更新订单列表中的ID
+
         if (selectedOrderDetail.value) selectedOrderDetail.value.inspection_id = inspectionId;
+
         if (selectedOrder.value) selectedOrder.value.inspection_id = inspectionId;
+
       }
+
     }
+
+
 
     if (inspectionId) {
+
       const response: any = await request.get(`/api/inspections/${inspectionId}`);
+
       selectedInspection.value = response;
+
+
+
       // 初始化items并保存原始状态，保留本地新建的项目和删除标记
+
       // 注意：后端返回的数据中，items包含父项和嵌套的子项，需要扁平化处理
+
       const serverItems = [];
 
+
+
       // 遍历后端返回的items，包括parent和其children
+
       (response.items || []).forEach((item: any) => {
+
         // 添加父项
+
         serverItems.push({
+
           ...item,
+
           original_inspection_result: item.inspection_result,
+
           original_description: item.description,
+
           original_photo_path: item.photo_path,
+
           is_local_new: false // 标记为非本地新建
+
         });
 
+
+
         // 添加子项（如果存在）
+
         if (item.children && Array.isArray(item.children)) {
+
           item.children.forEach((child: any) => {
+
             serverItems.push({
+
               ...child,
+
               original_inspection_result: child.inspection_result,
+
               original_description: child.description,
+
               original_photo_path: child.photo_path,
+
               is_local_new: false // 标记为非本地新建
+
             });
+
           });
+
         }
+
       });
 
+
+
       // 保留本地状态：删除标记、本地新建项目等
+
       const preservedItems = [];
 
+
+
       // 处理现有的服务器项目，保留本地状态
+
       for (const serverItem of serverItems) {
+
         const existingItem = items.value.find((item: any) => item.id === serverItem.id);
+
         if (existingItem) {
+
           // 保留本地的删除标记和其他状态
+
           preservedItems.push({
+
             ...serverItem,
+
             _toBeDeleted: existingItem._toBeDeleted, // 保留删除标记
+
             _photo_needs_move: existingItem._photo_needs_move, // 保留照片移动标记
+
             _modified: existingItem._modified, // 保留修改标记
+
             photo_path: existingItem._toBeDeleted ? existingItem.photo_path : serverItem.photo_path // 如果要删除，保留原路径
+
           });
+
         } else {
+
           preservedItems.push(serverItem);
+
         }
+
       }
 
+
+
       // 保留本地新建的项目
+
       const localNewItems = items.value.filter((item: any) => item.is_local_new);
 
+
+
       // 保留仍标记为删除但不在服务器数据中的项目（可能已被服务器删除）
+
       const locallyDeletedItems = items.value.filter((item: any) =>
+
         item._toBeDeleted === true && !serverItems.find((serverItem: any) => serverItem.id === item.id)
+
       );
 
+
+
       // 合并所有项目
+
       items.value = [...preservedItems, ...localNewItems, ...locallyDeletedItems];
+
+
+
+      // 默认将所有大项设置为折叠状态
+
+      expandedItems.value.clear();
+
     }
+
   } catch (error) {
+
     console.error('获取验收详情失败:', error);
+
     ElMessage.error('获取验收详情失败');
+
   }
+
 };
 // 开始编辑标题 - 弹出对话框
-const startEditing = (item: any, type: 'parent' | 'sub') => {
-  if (!isUserAdmin.value) return;
+const startEditing = async (item: any, type: 'parent' | 'sub') => {
+  try {
+    // 使用ElMessageBox.prompt弹出输入框，类似addNewParentItem的方式
+    const result = await ElMessageBox.prompt(
+      `请输入${type === 'parent' ? '大项' : '细项'}名称`,
+      `修改${type === 'parent' ? '大项' : '细项'}标题`,
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputValue: type === 'parent' ? item.item_category : item.item_name,
+        inputPattern: /\S+/,
+        inputErrorMessage: `${type === 'parent' ? '大项' : '细项'}名称不能为空`,
+        inputPlaceholder: `请输入${type === 'parent' ? '大项' : '细项'}名称`
+      }
+    );
 
-  // 设置编辑项目和类型
-  titleEditingItem.value = item;
-  titleEditingValue.value = type === 'parent' ? item.item_category : item.item_name;
-  titleEditingType.value = type;
+    const newName = result.value.trim();
+    if (!newName) {
+      ElMessage.warning(`${type === 'parent' ? '大项' : '细项'}名称不能为空`);
+      return;
+    }
 
-  // 显示对话框
-  editItemTitleDialogVisible.value = true;
+    // 直接更新项目名称
+    if (type === 'parent') {
+      item.item_category = newName;
+      item.item_name = newName; // 同时更新名称字段，保持一致性
+    } else {
+      item.item_name = newName;
+    }
+
+    // 标记项目为已修改，以便在缓存时发送到服务器
+    item._modified = true;
+
+    // 标记有未保存的更改
+    hasUnsavedChangesFlag.value = true;
+
+    ElMessage.success(`${type === 'parent' ? '大项' : '细项'}已更新到本地，点击"缓存"或"保存"按钮后会同步到服务器`);
+  } catch (error) {
+    // 用户取消操作
+    if (error !== 'cancel' && error.type !== 'cancel') {
+      console.error('编辑标题失败:', error);
+    }
+  }
 };
 
-// 关闭编辑标题对话框
+// 关闭编辑标题对话框（保持兼容性，虽然不再使用）
 const closeEditItemTitleDialog = () => {
   editItemTitleDialogVisible.value = false;
   titleEditingItem.value = null;
@@ -904,7 +1040,7 @@ const closeEditItemTitleDialog = () => {
   titleEditingType.value = 'sub';
 };
 
-// 确认编辑标题
+// 确认编辑标题（保持兼容性，虽然不再使用）
 const confirmEditItemTitle = async () => {
   if (!titleEditingItem.value) {
     ElMessage.error('没有选中要编辑的项目');
@@ -963,10 +1099,10 @@ const finishEditing = async (item: any, type: 'parent' | 'sub') => {
 
     // 标记项目为已修改，但不立即发送到服务器
     item._modified = true;
-    
+
     // 标记有未保存的更改
     hasUnsavedChangesFlag.value = true;
-    
+
     ElMessage.success('项目已更新到本地');
   }
 
@@ -1064,9 +1200,14 @@ const deleteItem = async (item: any) => {
       ElMessage.error('删除检查项失败');
     }
   }
-};// 缓存数据
+};
+
+// 缓存数据
 const cacheData = async () => {
   try {
+    // 显示全屏加载提示
+    fullScreenLoading.value = true;
+
     // 验证检查结果是否符合要求
     const validationErrors: string[] = [];
 
@@ -1228,15 +1369,13 @@ const cacheData = async () => {
     console.error('缓存数据失败:', error);
     ElMessage.error('缓存数据失败');
     return false;
+  } finally {
+    // 确保无论成功或失败都关闭全屏加载提示
+    fullScreenLoading.value = false;
   }
 };
 
-// 处理照片文件：仅标记需要移动的文件，实际移动由后端批量API处理
-const handlePhotoFiles = async () => {
-  // 前端不再处理文件移动，而是将需要移动的标记发送到后端
-  // 后端的批量API将在服务器内部处理文件移动
-  console.log('图片移动将由后端批量API处理');
-};
+
 
 // 保存并关闭
 const saveAndClose = async () => {
@@ -1248,6 +1387,9 @@ const saveAndClose = async () => {
       return;
     }
 
+    // 显示全屏加载提示
+    fullScreenLoading.value = true;
+
     // 首先执行验证和保存
     const result = await cacheData();
     // 只有在保存成功后才关闭对话框
@@ -1257,6 +1399,9 @@ const saveAndClose = async () => {
   } catch (error) {
     console.error('保存数据失败:', error);
     ElMessage.error('保存数据失败');
+  } finally {
+    // 确保无论成功或失败都关闭全屏加载提示
+    fullScreenLoading.value = false;
   }
 };
 
@@ -1385,7 +1530,7 @@ const addSubItemToParent = async (parentId: number | null, parentCategory?: stri
 
     // 标记有未保存的更改
     hasUnsavedChangesFlag.value = true;
-    
+
     ElMessage.success('已添加新检查细项');
   } catch (error) {
     // 用户取消操作
@@ -1556,10 +1701,46 @@ const updateInspectionItem = async (item: any) => {
   hasUnsavedChangesFlag.value = true; // 标记有未保存的更改
   ElMessage.success('检查项已更新到本地');
 };
+
+// 切换大项的展开/折叠状态
+const toggleExpand = (itemId: number) => {
+  if (expandedItems.value.has(itemId)) {
+    expandedItems.value.delete(itemId);
+  } else {
+    expandedItems.value.add(itemId);
+  }
+};
+
+// 检查大项是否展开
+const isItemExpanded = (itemId: number): boolean => {
+  return expandedItems.value.has(itemId);
+};
+
 // 获取图片路径数组
 const getPhotoPaths = (photoPath: string | null) => {
   if (!photoPath) return [];
   return photoPath.split(',').map(path => path.trim()).filter(path => path);
+};
+
+// 获取照片URL，支持临时照片
+const getPhotoUrl = (path: string) => {
+  if (!path) return '';
+
+  // 标准化路径分隔符
+  const normalizedPath = path.replace(/\\/g, '/');
+
+  // 如果路径已经是完整URL，则直接返回
+  if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+    return normalizedPath;
+  }
+
+  // 否则添加基础URL
+  if (import.meta.env.MODE === 'development') {
+    // 开发环境下，假设文件服务在后端服务器上
+    return `http://192.168.30.70:5000/${normalizedPath}`;
+  } else {
+    return `${window.location.protocol}//${window.location.hostname}:5000/${normalizedPath}`;
+  }
 };
 
 // 删除单张图片
@@ -1574,6 +1755,19 @@ const removePhoto = async (item: any, photoToRemove: string) => {
         type: 'warning'
       }
     );
+
+    // 检查是否是临时照片
+    if (photoToRemove.startsWith('temp_') && item.temp_photos) {
+      // 找到并移除临时照片
+      const tempPhotoIndex = item.temp_photos.findIndex((tp: any) => tp.fileName === photoToRemove);
+      if (tempPhotoIndex !== -1) {
+        const tempPhoto = item.temp_photos[tempPhotoIndex];
+        // 释放临时URL
+        URL.revokeObjectURL(tempPhoto.url);
+        // 从数组中移除
+        item.temp_photos.splice(tempPhotoIndex, 1);
+      }
+    }
 
     // 从路径字符串中移除指定图片路径
     const currentPaths = getPhotoPaths(item.photo_path);
@@ -1688,118 +1882,15 @@ const handlePhotoUpload = async (options: any, item: any, type: string) => {
   }
 };
 
-// 获取照片URL（处理相对路径）
-const getPhotoUrl = (path: string) => {
-  if (!path) return '';
-
-  // 标准化路径分隔符
-  const normalizedPath = path.replace(/\\/g, '/');
-
-  // 如果路径已经是完整URL，则直接返回
-  if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
-    return normalizedPath;
-  }
-
-  // 否则添加基础URL
-  if (import.meta.env.MODE === 'development') {
-    // 开发环境下，假设文件服务在后端服务器上
-    return `http://192.168.30.70:5000/${normalizedPath}`;
-  } else {
-    return `${window.location.protocol}//${window.location.hostname}:5000/${normalizedPath}`;
-  }
-};
-
 // 显示图片预览
 const showImagePreview = (imageUrl: string) => {
   previewImageUrl.value = imageUrl;
   imagePreviewVisible.value = true;
 };
 
-// 重置表单
-const resetForm = () => {
-  ElMessageBox.confirm('确定要重置当前表单吗？所有检查项将被设为待检查状态', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      // 重置所有检查项为待检查状态
-      for (const item of items.value) {
-        if (item.item_type === 'sub') {
-          item.inspection_result = 'pending';
-          item.photo_path = null;
-          item.description = '';
 
-          await request.put(`/api/inspections/${item.inspection_id}/items/${item.id}`, {
-            inspection_result: 'pending',
-            photo_path: null,
-            description: ''
-          });
-        }
-      }
-      ElMessage.success('表单重置成功');
 
-      // 重新获取详情
-      await handleRowClick(selectedOrder.value);
-    } catch (error) {
-      console.error('重置表单失败:', error);
-      ElMessage.error('重置表单失败');
-    }
-  }).catch(() => {
-    // 用户取消操作
-  });
-};
 
-// 提交验收
-const submitInspection = async () => {
-  try {
-    // 检查是否所有必填项都已完成
-    const allSubItems = items.value.filter((item: any) => item.item_type === 'sub');
-    const validationErrors: string[] = [];
-
-    for (const item of allSubItems) {
-      if (item.inspection_result === 'pending') {
-        validationErrors.push(`检查项 "${item.item_name}" 还未检查`);
-      } else if (item.inspection_result === 'normal' && !item.photo_path) {
-        validationErrors.push(`检查项 "${item.item_name}" 选择正常，但未上传照片`);
-      } else if (item.inspection_result === 'defect' && (!item.photo_path || !item.description)) {
-        if (!item.photo_path && !item.description) {
-          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未上传照片且未填写描述`);
-        } else if (!item.photo_path) {
-          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未上传照片`);
-        } else {
-          validationErrors.push(`检查项 "${item.item_name}" 选择不正常，但未填写描述`);
-        }
-      }
-    }
-
-    if (validationErrors.length > 0) {
-      ElMessage.error(`验证失败：\n${validationErrors.join('\n')}`);
-      return;
-    }
-
-    // 如果所有检查项都完成，更新验收状态
-    if (selectedInspection.value) {
-      await request.put(`/api/inspections/${selectedInspection.value.id}`, {
-        remarks: selectedInspection.value.remarks || '验收完成'
-      });
-
-      // 再次获取验收详情以更新进度
-      const response: any = await request.get(`/api/inspections/${selectedInspection.value.id}`);
-      selectedInspection.value = response;
-
-      ElMessage.success('验收提交成功');
-      orderDetailDialogVisible.value = false;
-    }
-  } catch (error: any) {
-    console.error('提交验收失败:', error);
-    if (error.message) {
-      ElMessage.error(`提交验收失败: ${error.message}`);
-    } else {
-      ElMessage.error('提交验收失败');
-    }
-  }
-};
 
 // 分页相关方法
 const handleSizeChange = (size: number) => {
@@ -1842,7 +1933,7 @@ const fetchUserInfo = async () => {
 onMounted(async () => {
   // 监听窗口大小变化
   window.addEventListener('resize', handleResize);
-  
+
   await fetchUserInfo();
   fetchOrders();
 });
@@ -1853,14 +1944,44 @@ onUnmounted(() => {
 });
 
 // 生成报告
-const generateReport = async () => {
-  if (!selectedInspection.value || !selectedInspection.value.id) {
-    ElMessage.warning('请先保存验收记录');
-    return;
+const generateReport = async (order?: any) => {
+  let inspectionId;
+
+  // 如果传入了订单参数，则使用该订单的验收记录
+  if (order) {
+    // 尝试获取或创建订单的验收记录
+    try {
+      let currentInspectionId = order.inspection_id;
+
+      // 如果订单没有验收记录，先创建一个
+      if (!currentInspectionId) {
+        const newInspection: any = await request.post('/api/inspections', {
+          order_id: order.id,
+          remarks: '验收报告'
+        });
+        currentInspectionId = newInspection.id;
+
+        // 更新订单列表中的ID
+        order.inspection_id = currentInspectionId;
+      }
+
+      inspectionId = currentInspectionId;
+    } catch (error) {
+      console.error('获取或创建验收记录失败:', error);
+      ElMessage.error('获取或创建验收记录失败');
+      return;
+    }
+  } else {
+    // 否则使用当前选中的验收记录
+    if (!selectedInspection.value || !selectedInspection.value.id) {
+      ElMessage.warning('请先保存验收记录');
+      return;
+    }
+    inspectionId = selectedInspection.value.id;
   }
 
   // 检查是否有未保存的更改，如果有则先缓存
-  if (hasUnsavedChangesFlag.value) {
+  if (order && hasUnsavedChangesFlag.value) {
     // 在生成报告前先调用缓存以确保更新最新时间
     try {
       await cacheData();
@@ -1875,7 +1996,7 @@ const generateReport = async () => {
   }
 
   // 在新窗口中打开报告页面
-  window.open(`/inspection-report/${selectedInspection.value.id}`, '_blank');
+  window.open(`/inspection-report/${inspectionId}`, '_blank');
 };
 
 // 返回上一页
@@ -2057,22 +2178,22 @@ const router = useRouter();
 .inspection-group {
   margin-bottom: 15px;
   border: 1px solid #ebeef5;
-  border-radius: 4px;
+  border-radius: 15px;
   padding: 10px;
-  background-color: rgb(235, 235, 235);
+  background-color: rgb(112, 85, 85,0.1);
 }
 
 /* 移动端适配 */
 @media (min-width: 768px) {
   .inspection-group {
-    margin-bottom: 20px;
-    padding: 15px;
+    margin-bottom: 10px;
+    padding: 3px;
   }
 }
 
 .parent-item {
   border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border-radius: 15px;
   padding: 8px;
   background-color: white;
 }
@@ -2080,6 +2201,7 @@ const router = useRouter();
 /* 移动端适配 */
 @media (min-width: 768px) {
   .parent-item {
+    border-radius: 15px !important;
     padding: 10px;
   }
 }
@@ -2094,7 +2216,15 @@ const router = useRouter();
   border-bottom: 1px solid #ebeef5;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .parent-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
 @media (min-width: 768px) {
   .parent-header {
     flex-direction: row;
@@ -2140,7 +2270,15 @@ const router = useRouter();
   border-bottom: 1px solid #ebeef5;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .parent-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
 @media (min-width: 768px) {
   .parent-header {
     flex-direction: row;
@@ -2171,13 +2309,22 @@ const router = useRouter();
   width: 100%;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .parent-progress {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    min-width: 150px; /* 确保进度条有足够的显示空间 */
+  }
+}
+
 @media (min-width: 768px) {
   .parent-progress {
     flex-direction: row;
     align-items: center;
     width: auto;
-    min-width: 250px; /* 确保进度条有足够的显示空间 */
+    min-width: 150px; /* 确保进度条有足够的显示空间 */
   }
 }
 
@@ -2265,7 +2412,7 @@ const router = useRouter();
   margin-bottom: 10px;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
 @media (min-width: 768px) {
   .sub-item-header {
     flex-direction: row;
@@ -2287,7 +2434,15 @@ const router = useRouter();
   width: 100%;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .sub-item-actions {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+  }
+}
+
 @media (min-width: 768px) {
   .sub-item-actions {
     flex-direction: row;
@@ -2306,7 +2461,15 @@ const router = useRouter();
   align-items: flex-start;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .sub-item-content {
+    flex-direction: row;
+    gap: 20px;
+    align-items: center;
+  }
+}
+
 @media (min-width: 768px) {
   .sub-item-content {
     flex-direction: row;
@@ -2416,7 +2579,16 @@ const router = useRouter();
   border-top: 1px solid #ebeef5;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也使用横向布局，因为有足够空间 */
+@media (max-width: 767px) {
+  .bottom-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
 @media (min-width: 768px) {
   .bottom-actions {
     flex-direction: row;
@@ -2434,7 +2606,16 @@ const router = useRouter();
   justify-content: center;
 }
 
-/* 移动端适配 */
+/* 移动端适配 - 在移动端也进行优化显示 */
+@media (max-width: 767px) {
+  .action-buttons {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+}
+
 @media (min-width: 768px) {
   .action-buttons {
     gap: 10px;
@@ -2476,6 +2657,44 @@ const router = useRouter();
   justify-content: center;
 }
 
+/* 全屏加载遮罩 */
+.fullscreen-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-content {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.loading-icon {
+  font-size: 24px;
+  animation: rotating 2s linear infinite;
+  margin-bottom: 10px;
+  display: block;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* 针对移动端的特殊样式 */
 @media (max-width: 767px) {
   .el-descriptions__label {
@@ -2483,37 +2702,37 @@ const router = useRouter();
     font-weight: bold;
     margin-bottom: 2px;
   }
-  
+
   .el-descriptions__content {
     display: block;
     margin-top: 2px;
   }
-  
+
   .el-table {
     font-size: 12px;
   }
-  
+
   .el-table th {
     padding: 4px 0;
   }
-  
+
   .el-table td {
     padding: 4px 0;
   }
-  
+
   .el-button {
     font-size: 12px;
     padding: 6px 12px;
   }
-  
+
   .el-radio {
     font-size: 12px;
   }
-  
+
   .el-textarea__inner {
     font-size: 12px;
   }
-  
+
   .el-input__inner {
     font-size: 12px;
   }

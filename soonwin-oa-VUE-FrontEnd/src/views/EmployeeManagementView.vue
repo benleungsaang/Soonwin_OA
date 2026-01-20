@@ -23,83 +23,62 @@
         style="width: 100%"
         stripe
         border
+        :header-cell-style="{ 'text-align': 'center' }"
+        :cell-style="{ 'text-align': 'center', 'vertical-align': 'middle' }"
       >
-        <el-table-column prop="emp_id" label="员工ID" width="120" />
-        <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column prop="dept" label="部门" width="120" />
-        <el-table-column prop="is_temp" label="类型" width="80">
-          <template #default="scope">
-            <el-tag v-if="isTempEmployee(scope.row.emp_id)" type="warning">临时</el-tag>
-            <el-tag v-else type="success">正式</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="user_role" label="角色" width="100">
+        <el-table-column prop="emp_id" label="员工ID" width="120" align="center" header-align="center" />
+        <el-table-column prop="name" label="姓名" width="120" align="center" header-align="center" />
+        <el-table-column prop="user_role" label="角色" width="100" align="center" header-align="center">
           <template #default="scope">
             <el-tag :type="getRoleType(scope.row.user_role)">
               {{ getRoleText(scope.row.user_role) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="scope">
-            <el-tag
-              :type="getStatusType(scope.row.status)"
-            >
-              {{ getStatusText(scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="最后登录时间" width="180">
+        <el-table-column label="最后登录时间" width="180" align="center" header-align="center">
           <template #default="scope">
             {{ scope.row.last_login_time ? formatDateTime(scope.row.last_login_time) : '无记录' }}
           </template>
         </el-table-column>
-        <el-table-column prop="login_device" label="登录设备" width="180" />
-        <el-table-column prop="create_time" label="创建时间" width="160" />
-        <el-table-column prop="remarks" label="备注信息" width="200">
+        <el-table-column label="设备" width="180" align="center" header-align="center">
           <template #default="scope">
-            <span v-if="scope.row.remarks && scope.row.remarks.length > 50">
-              {{ scope.row.remarks.substring(0, 50) }}...
-              <el-popover
-                effect="light"
-                trigger="hover"
-                placement="top"
-                :width="300"
-              >
-                <template #reference>
-                  <el-link type="primary" :underline="false">查看</el-link>
-                </template>
-                <div>{{ scope.row.remarks }}</div>
-              </el-popover>
-            </span>
-            <span v-else>{{ scope.row.remarks || '无备注' }}</span>
+            <el-tooltip :content="scope.row.login_device" placement="top" :disabled="!scope.row.login_device || scope.row.login_device.length <= 20">
+              <span class="device-text">{{ scope.row.login_device && scope.row.login_device.length > 20 ? scope.row.login_device.substring(0, 20) + '...' : scope.row.login_device || '无设备' }}</span>
+            </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right" align="center" header-align="center">
           <template #default="scope">
+            <el-button
+              size="small"
+              type="primary"
+              @click="showDetails(scope.row)"
+              :icon="View"
+              circle
+            />
             <el-button
               size="small"
               type="info"
               @click="showEditDialog(scope.row)"
-            >
-              编辑
-            </el-button>
+              :icon="Edit"
+              circle
+            />
             <template v-if="isTempEmployee(scope.row.emp_id)">
               <!-- 临时员工的操作：替换设备或删除 -->
               <el-button
                 size="small"
                 type="warning"
                 @click="showReplaceDeviceDialogFunc(scope.row)"
-              >
-                替换到已有设备
-              </el-button>
+                :icon="Position"
+                circle
+              />
               <el-button
                 size="small"
                 type="danger"
                 @click="deleteEmployee(scope.row)"
-              >
-                删除
-              </el-button>
+                :icon="Delete"
+                circle
+              />
             </template>
             <template v-else>
               <!-- 正式员工的操作：删除 -->
@@ -107,20 +86,62 @@
                 size="small"
                 type="danger"
                 @click="deleteEmployee(scope.row)"
-              >
-                删除
-              </el-button>
-                          <el-button
-                            size="small"
-                            type="primary"
-                            v-if="scope.row.status === 'pending_approval'"
-                            @click="activateEmployee(scope.row)"
-                          >
-                            激活账号
-                          </el-button>            </template>
+                :icon="Delete"
+                circle
+              />
+              <el-button
+                size="small"
+                type="primary"
+                v-if="scope.row.status === 'pending_approval'"
+                @click="activateEmployee(scope.row)"
+                :icon="CircleCheck"
+                circle
+              />
+            </template>
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 详情弹窗 -->
+      <el-dialog
+        v-model="detailDialogVisible"
+        title="员工详情"
+        width="600px"
+        :before-close="closeDetailDialog"
+      >
+        <el-descriptions v-if="selectedEmployee" :column="1" border>
+          <el-descriptions-item label="员工ID">{{ selectedEmployee.emp_id }}</el-descriptions-item>
+          <el-descriptions-item label="姓名">{{ selectedEmployee.name }}</el-descriptions-item>
+          <el-descriptions-item label="部门">{{ selectedEmployee.dept || '无部门' }}</el-descriptions-item>
+          <el-descriptions-item label="角色">
+            <el-tag :type="getRoleType(selectedEmployee.user_role)">
+              {{ getRoleText(selectedEmployee.user_role) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusType(selectedEmployee.status)">
+              {{ getStatusText(selectedEmployee.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="类型">
+            <el-tag v-if="isTempEmployee(selectedEmployee.emp_id)" type="warning">临时</el-tag>
+            <el-tag v-else type="success">正式</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="最后登录时间">{{ selectedEmployee.last_login_time ? formatDateTime(selectedEmployee.last_login_time) : '无记录' }}</el-descriptions-item>
+          <el-descriptions-item label="登录设备">
+            <el-tooltip :content="selectedEmployee.login_device" placement="top" :disabled="!selectedEmployee.login_device || selectedEmployee.login_device.length <= 50">
+              <span>{{ selectedEmployee.login_device && selectedEmployee.login_device.length > 50 ? selectedEmployee.login_device.substring(0, 50) + '...' : selectedEmployee.login_device || '无设备' }}</span>
+            </el-tooltip>
+          </el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ selectedEmployee.create_time ? formatDateTime(selectedEmployee.create_time) : '无记录' }}</el-descriptions-item>
+          <el-descriptions-item label="备注信息">{{ selectedEmployee.remarks || '无备注' }}</el-descriptions-item>
+        </el-descriptions>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="closeDetailDialog">关闭</el-button>
+          </span>
+        </template>
+      </el-dialog>
 
       <!-- 新增员工对话框 -->
       <el-dialog v-model="showCreateDialog" title="新增员工" width="500px">
@@ -248,7 +269,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Warning } from '@element-plus/icons-vue';
+import { Warning, View, Edit, Delete, Position, CircleCheck } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { Employee } from '@/types';
 
@@ -265,9 +286,11 @@ const showCreateDialog = ref(false);
 const showEditDialogVisible = ref(false);
 const showDeviceDialog = ref(false);
 const showReplaceDeviceDialog = ref(false); // 设备替换对话框
+const detailDialogVisible = ref(false); // 详情对话框
 const devices = ref<any[]>([]);
 const currentEmployee = ref<Employee | null>(null);
 const targetEmployeeId = ref(''); // 目标员工ID
+const selectedEmployee = ref<Employee | null>(null); // 选中的员工（用于详情）
 const newEmployee = ref({
   name: '',
   emp_id: '',
@@ -576,6 +599,18 @@ const getRoleType = (role: string) => {
   }
 };
 
+// 显示详情
+const showDetails = (employee: Employee) => {
+  selectedEmployee.value = employee;
+  detailDialogVisible.value = true;
+};
+
+// 关闭详情弹窗
+const closeDetailDialog = () => {
+  detailDialogVisible.value = false;
+  selectedEmployee.value = null;
+};
+
 // 退出登录
 const logout = async () => {
   try {
@@ -625,5 +660,14 @@ const logout = async () => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.device-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 </style>

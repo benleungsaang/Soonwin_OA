@@ -46,27 +46,36 @@
         style="width: 100%"
         stripe
         border
-        :header-cell-style="{background: '#f5f7fa', color: '#606266'}"
+        :header-cell-style="{background: '#f5f7fa', color: '#606266', 'text-align': 'center'}"
+        :cell-style="{'text-align': 'center', 'vertical-align': 'middle'}"
       >
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="emp_id" label="员工工号" width="120" />
-        <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column prop="punch_type" label="打卡类型" width="120">
+        <el-table-column prop="emp_id" label="工号" width="120" align="center" header-align="center" />
+        <el-table-column prop="name" label="姓名" width="120" align="center" header-align="center" />
+        <el-table-column prop="punch_type" label="打卡类型" width="120" align="center" header-align="center">
           <template #default="scope">
             <el-tag :type="scope.row.punch_type === '上班打卡' ? 'success' : 'warning'">
               {{ scope.row.punch_type }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="punch_time" label="打卡时间" width="180" />
-        <el-table-column prop="inner_ip" label="打卡IP" width="150" />
-        <el-table-column prop="phone_mac" label="设备MAC" width="180" />
-        <el-table-column prop="last_login_time" label="最后登录时间" width="180">
+        <el-table-column label="打卡时间" width="150" align="center" header-align="center">
           <template #default="scope">
-            {{ scope.row.last_login_time ? new Date(scope.row.last_login_time).toLocaleString('zh-CN') : '无记录' }}
+            <div>{{ scope.row.punch_time ? formatDateToYMD(new Date(scope.row.punch_time)) : '' }}</div>
+            <div>{{ scope.row.punch_time ? new Date(scope.row.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '' }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="login_device" label="登录设备" width="180" />
+        <el-table-column label="最后登录时间" width="180" align="center" header-align="center">
+          <template #default="scope">
+            <div>{{ scope.row.last_login_time ? formatDateToYMD(new Date(scope.row.last_login_time)) : '无记录' }}</div>
+            <div>{{ scope.row.last_login_time ? new Date(scope.row.last_login_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '' }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="login_device" label="设备" width="150" align="center" header-align="center" />
+        <el-table-column label="操作" width="100" fixed="right" align="center" header-align="center">
+          <template #default="scope">
+            <el-button type="primary" size="small" @click="showDetails(scope.row)">详情</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页组件 -->
@@ -81,6 +90,47 @@
         class="pagination"
       />
     </el-card>
+    
+    <!-- 详情弹窗 -->
+    <el-dialog
+      v-model="detailDialogVisible"
+      title="打卡记录详情"
+      width="600px"
+      :before-close="closeDetailDialog"
+    >
+      <el-descriptions v-if="selectedRecord" :column="1" border>
+        <el-descriptions-item label="ID">{{ selectedRecord.id }}</el-descriptions-item>
+        <el-descriptions-item label="工号">{{ selectedRecord.emp_id }}</el-descriptions-item>
+        <el-descriptions-item label="姓名">{{ selectedRecord.name }}</el-descriptions-item>
+        <el-descriptions-item label="打卡类型">
+          <el-tag :type="selectedRecord.punch_type === '上班打卡' ? 'success' : 'warning'">
+            {{ selectedRecord.punch_type }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="打卡时间">
+          <div v-if="selectedRecord.punch_time">
+            <div>{{ formatDateToYMD(new Date(selectedRecord.punch_time)) }}</div>
+            <div>{{ new Date(selectedRecord.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</div>
+          </div>
+          <div v-else>无记录</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="打卡IP">{{ selectedRecord.inner_ip }}</el-descriptions-item>
+        <el-descriptions-item label="设备MAC">{{ selectedRecord.phone_mac }}</el-descriptions-item>
+        <el-descriptions-item label="最后登录时间">
+          <div v-if="selectedRecord.last_login_time">
+            <div>{{ formatDateToYMD(new Date(selectedRecord.last_login_time)) }}</div>
+            <div>{{ new Date(selectedRecord.last_login_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</div>
+          </div>
+          <div v-else>无记录</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="登录设备">{{ selectedRecord.login_device }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeDetailDialog">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -112,6 +162,10 @@ const searchForm = ref({
 // 打卡记录数据
 const punchRecords = ref<PunchRecord[]>([]);
 const loading = ref(false);
+
+// 详情弹窗相关
+const detailDialogVisible = ref(false);
+const selectedRecord = ref<PunchRecord | null>(null);
 
 // 获取打卡记录
 const fetchPunchRecords = async () => {
@@ -159,6 +213,23 @@ const refreshData = () => {
   fetchPunchRecords();
 };
 
+// 日期格式化函数，格式为 YYYYMMDD
+const formatDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+};
+
+// 日期格式化函数，格式为 YYYY-MM-DD
+const formatDateToYMD = (date: Date): string => {
+  if (!date || isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // 处理分页大小改变
 const handleSizeChange = (newSize: number) => {
   pagination.value.size = newSize;
@@ -182,6 +253,18 @@ onMounted(() => {
 // 返回上一页
 const goBack = () => {
   router.go(-1);
+};
+
+// 显示详情
+const showDetails = (record: PunchRecord) => {
+  selectedRecord.value = record;
+  detailDialogVisible.value = true;
+};
+
+// 关闭详情弹窗
+const closeDetailDialog = () => {
+  detailDialogVisible.value = false;
+  selectedRecord.value = null;
 };
 
 // 退出登录
@@ -229,6 +312,10 @@ const logout = async () => {
 
 .pagination {
   margin-top: 20px;
+  text-align: right;
+}
+
+.dialog-footer {
   text-align: right;
 }
 </style>

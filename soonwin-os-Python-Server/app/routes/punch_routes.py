@@ -7,6 +7,7 @@ import config
 from flask import Blueprint, request, jsonify, redirect, Response
 from extensions import db
 from app.models.employee import Employee
+from app.models.employee_device import EmployeeDevice
 from app.models.punch_record import PunchRecord
 from app.utils.auth_utils import require_admin, require_auth
 from datetime import datetime, timedelta
@@ -46,8 +47,21 @@ def generate_device_fingerprint(ip, user_agent=""):
     """
     import hashlib
     
-    # 组合IP地址和User-Agent信息生成哈希
-    fingerprint_input = f"{ip}_{user_agent}".encode('utf-8')
+    # 提取User-Agent中的关键设备信息：操作系统、设备类型、浏览器信息
+    # 避免使用可能变化的版本号，而是关注设备的固有特征
+    import re
+    
+    # 提取关键特征：操作系统 + 设备类型 + 浏览器类型
+    os_match = re.search(r'(android|iphone|ipad|windows|macintosh|linux)', user_agent, re.IGNORECASE)
+    device_match = re.search(r'(mobile|tablet|phone|android|iphone|ipad)', user_agent, re.IGNORECASE)
+    browser_match = re.search(r'(chrome|firefox|safari|edge|opera)', user_agent, re.IGNORECASE)
+    
+    os_info = os_match.group(1).lower() if os_match else "unknown"
+    device_info = device_match.group(1).lower() if device_match else "unknown"
+    browser_info = browser_match.group(1).lower() if browser_match else "unknown"
+    
+    # 组合IP地址和设备关键特征生成哈希，但不包含可能变化的版本号
+    fingerprint_input = f"{os_info}_{device_info}_{browser_info}_{ip}".encode('utf-8')
     # 使用SHA256生成更安全的哈希值
     hash_obj = hashlib.sha256(fingerprint_input)
     # 取前12个字符（对应MAC地址的长度）
@@ -84,42 +98,139 @@ def get_mac_by_ip(ip, user_agent=""):
         # 出错时也生成设备指纹
         return generate_device_fingerprint(ip, user_agent)
 
+
+def get_client_device_identifier():
+    """获取客户端设备的唯一标识符，优先级：真实MAC地址 > 设备指纹 > 固定标识符"""
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        user_ip = forwarded.split(',')[0].strip()
+    else:
+        user_ip = request.remote_addr
+
+    user_agent = request.headers.get('User-Agent', '')
+    
+    # 优先尝试获取真实MAC地址
+    mac_addr = get_mac_by_ip(user_ip, user_agent)
+    
+    # 如果MAC地址是生成的设备指纹，尝试使用更稳定的设备标识符
+    # 检查是否是设备指纹格式（12字符长度的十六进制，格式化为MAC）
+    import re
+    mac_clean = mac_addr.replace(':', '').replace('-', '')
+    if len(mac_clean) == 12 and re.match(r'^[0-9a-f]+$', mac_clean):
+        # 如果是真实的MAC地址（通常以标准厂商前缀开头），则使用它
+        # 这里简单检查是否是标准的MAC地址格式
+        # 如果获取失败，返回的可能是生成的指纹
+        pass  # 保留当前获取到的MAC地址
+    
+    return mac_addr, user_ip, user_agent
+
 def detect_device_info():
-    """检测设备信息"""
-    user_agent = request.headers.get('User-Agent', '').lower()
+    """检测设备信息，返回格式: 设备类型/操作系统/浏览器"""
+    user_agent = request.headers.get('User-Agent', '')
     
     # 检测操作系统
     os_info = "未知系统"
-    if 'windows' in user_agent:
-        os_info = "Windows"
-    elif 'macintosh' in user_agent or 'mac os x' in user_agent:
-        os_info = "macOS"
-    elif 'linux' in user_agent:
+    if 'windows nt 10.0' in user_agent.lower():
+        os_info = "Windows 10"
+    elif 'windows nt 11.0' in user_agent.lower():
+        os_info = "Windows 11"
+    elif 'windows nt' in user_agent.lower():
+        # 提取Windows版本
+        import re
+        win_match = re.search(r'windows nt (\d+\.\d+)', user_agent, re.IGNORECASE)
+        if win_match:
+            os_info = f"Windows {win_match.group(1)}"
+        else:
+            os_info = "Windows"
+    elif 'mac os x' in user_agent.lower():
+        # 提取macOS版本
+        import re
+        mac_match = re.search(r'mac os x (\d+[._]\d+)', user_agent, re.IGNORECASE)
+        if mac_match:
+            version = mac_match.group(1).replace('_', '.')
+            os_info = f"macOS {version}"
+        else:
+            os_info = "macOS"
+    elif 'android' in user_agent.lower():
+        # 提取Android版本
+        import re
+        android_match = re.search(r'android[ /](\d+)', user_agent, re.IGNORECASE)
+        if android_match:
+            os_info = f"Android {android_match.group(1)}"
+        else:
+            os_info = "Android"
+    elif 'iphone' in user_agent.lower() or 'ipad' in user_agent.lower():
+        # 检查是否iPad
+        if 'ipad' in user_agent.lower():
+            os_info = "iPad"
+        else:
+            os_info = "iPhone"
+    elif 'linux' in user_agent.lower():
         os_info = "Linux"
-    elif 'android' in user_agent:
-        os_info = "Android"
-    elif 'iphone' in user_agent or 'ipad' in user_agent:
-        os_info = "iOS"
     
     # 检测设备类型
-    device_type = "桌面设备"
-    if any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad']):
+    device_type = "PC"
+    if any(mobile in user_agent.lower() for mobile in ['mobile', 'android', 'iphone', 'ipad']):
         device_type = "移动设备"
+    elif 'tablet' in user_agent.lower():
+        device_type = "平板设备"
     
-    # 检测浏览器
+    # 检测浏览器 - 按优先级顺序检测
     browser = "未知浏览器"
-    if 'chrome' in user_agent and 'edg' not in user_agent:
-        browser = "Chrome"
-    elif 'edg' in user_agent:
-        browser = "Edge"
-    elif 'firefox' in user_agent:
-        browser = "Firefox"
-    elif 'safari' in user_agent and 'chrome' not in user_agent:
-        browser = "Safari"
-    elif 'opera' in user_agent or 'opr' in user_agent:
-        browser = "Opera"
     
-    return f"{os_info}/{device_type}/{browser}"
+    # 特殊检测：HeadlessChrome
+    if 'headlesschrome' in user_agent.lower():
+        import re
+        chrome_match = re.search(r'chrome/(\d+)', user_agent, re.IGNORECASE)
+        if chrome_match:
+            browser = f"HeadlessChrome {chrome_match.group(1)}"
+        else:
+            browser = "HeadlessChrome"
+    # Edge浏览器检测
+    elif 'edg' in user_agent.lower():
+        import re
+        edge_match = re.search(r'edg[ /](\d+)', user_agent, re.IGNORECASE)
+        if edge_match:
+            browser = f"Edge {edge_match.group(1)}"
+        else:
+            browser = "Edge"
+    # Chrome浏览器检测（必须在Safari检测之前，且排除Edge和Opera）
+    elif 'chrome' in user_agent.lower() and 'edg' not in user_agent.lower() and 'opr' not in user_agent.lower() and 'whale' not in user_agent.lower():
+        import re
+        chrome_match = re.search(r'chrome/(\d+)', user_agent, re.IGNORECASE)
+        if chrome_match:
+            browser = f"Chrome {chrome_match.group(1)}"
+        else:
+            browser = "Chrome"
+    # Firefox浏览器检测
+    elif 'firefox' in user_agent.lower():
+        import re
+        firefox_match = re.search(r'firefox/(\d+)', user_agent, re.IGNORECASE)
+        if firefox_match:
+            browser = f"Firefox {firefox_match.group(1)}"
+        else:
+            browser = "Firefox"
+    # Safari浏览器检测（Safari的User-Agent中通常包含Safari但不包含Chrome）
+    elif 'safari' in user_agent.lower() and 'chrome' not in user_agent.lower() and 'android' not in user_agent.lower():
+        import re
+        safari_match = re.search(r'version/(\d+)', user_agent, re.IGNORECASE)
+        if safari_match:
+            browser = f"Safari {safari_match.group(1)}"
+        else:
+            browser = "Safari"
+    # Opera浏览器检测
+    elif 'opera' in user_agent.lower() or 'opr' in user_agent.lower():
+        import re
+        opera_match = re.search(r'(?:opera|opr)[ /](\d+)', user_agent, re.IGNORECASE)
+        if opera_match:
+            browser = f"Opera {opera_match.group(1)}"
+        else:
+            browser = "Opera"
+    # Internet Explorer检测
+    elif 'msie' in user_agent.lower() or 'trident' in user_agent.lower():
+        browser = "Internet Explorer"
+    
+    return f"{device_type}/{os_info}/{browser}"
 
 def migrate_old_device_info(employee):
     """将旧的设备信息迁移到新表"""
@@ -177,22 +288,13 @@ def register_device(emp_id, device_mac, device_ip, device_info):
 def punch():
     print(request.headers)
     """打卡接口"""
-    # 获取真实IP - 先检查X-Forwarded-For头部
-    forwarded = request.headers.get('X-Forwarded-For')
-    if forwarded:
-        # X-Forwarded-For可能包含多个IP，取第一个
-        user_ip = forwarded.split(',')[0].strip()
-    else:
-        user_ip = request.remote_addr
+    # 获取设备标识符
+    user_mac, user_ip, user_agent = get_client_device_identifier()
 
     # 1. 内网校验
     if not is_inner_net(user_ip):
         # 外网访问异常处理
         return jsonify({"code": 403, "msg": "非公司内网设备，禁止打卡！"}), 403
-
-    # 2. 获取MAC地址
-    user_agent = request.headers.get('User-Agent', '')
-    user_mac = get_mac_by_ip(user_ip, user_agent)
 
     # 获取设备信息
     device_info = detect_device_info()
@@ -308,8 +410,9 @@ def get_employee_info(emp_id):
                 "data": None
             }), 401
 
-        # 查找员工记录
-        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        # 查找员工记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         
         if not employee:
             return jsonify({
@@ -329,6 +432,41 @@ def get_employee_info(emp_id):
         }), 500
 
 
+@punch_bp.route('/api/employee-basic-info/<emp_id>', methods=['GET'])
+def get_employee_basic_info(emp_id):
+    """获取员工基本信息接口（用于绑定验证器等无需认证的场景）"""
+    try:
+        # 查找员工记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
+        
+        if not employee:
+            return jsonify({
+                "code": 404,
+                "msg": f"未找到员工ID为 {emp_id} 的员工"
+            }), 404
+            
+        # 只返回基本信息，不包含敏感信息
+        basic_info = {
+            "emp_id": employee.emp_id,
+            "name": employee.name,
+            "dept": employee.dept,
+            "status": employee.status,
+            "create_time": employee.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return jsonify({
+            "code": 200,
+            "msg": "获取员工基本信息成功",
+            "data": basic_info
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取员工基本信息失败: {str(e)}"
+        }), 500
+
+
 @punch_bp.route('/api/replace-device-mac', methods=['POST'])
 @require_admin  # 只有管理员可以替换设备MAC
 def replace_device_mac():
@@ -344,16 +482,18 @@ def replace_device_mac():
                 "msg": "临时员工ID和目标员工ID不能为空"
             }), 400
             
-        # 查找临时员工
-        temp_employee = Employee.query.filter_by(emp_id=temp_emp_id).first()
+        # 查找临时员工（使用大小写不敏感的查询）
+        temp_emp_id_lower = temp_emp_id.lower()
+        temp_employee = Employee.query.filter(db.func.lower(Employee.emp_id) == temp_emp_id_lower).first()
         if not temp_employee or not temp_emp_id.startswith('TEMP_'):
             return jsonify({
                 "code": 404,
                 "msg": f"未找到临时员工ID为 {temp_emp_id} 的员工或该员工不是临时员工"
             }), 404
             
-        # 查找目标员工
-        target_employee = Employee.query.filter_by(emp_id=target_emp_id).first()
+        # 查找目标员工（使用大小写不敏感的查询）
+        target_emp_id_lower = target_emp_id.lower()
+        target_employee = Employee.query.filter(db.func.lower(Employee.emp_id) == target_emp_id_lower).first()
         if not target_employee:
             return jsonify({
                 "code": 404,
@@ -381,6 +521,11 @@ def replace_device_mac():
         
         # 删除临时员工
         db.session.delete(temp_employee)
+        
+        # 更新相关的设备记录，将临时员工的设备记录转移到目标员工
+        temp_devices = EmployeeDevice.query.filter_by(emp_id=temp_emp_id).all()
+        for device in temp_devices:
+            device.emp_id = target_emp_id
         
         # 提交更改
         db.session.commit()
@@ -417,8 +562,9 @@ def update_employee_remarks():
                 "msg": "员工ID和备注信息不能为空"
             }), 400
             
-        # 查找员工记录
-        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        # 查找员工记录（使用大小写不敏感的查询）
+        emp_id_lower = emp_id.lower()
+        employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
         
         if not employee:
             return jsonify({
@@ -438,6 +584,81 @@ def update_employee_remarks():
         return jsonify({
             "code": 500,
             "msg": f"更新备注信息失败: {str(e)}"
+        }), 500
+
+
+@punch_bp.route('/api/device-management/devices', methods=['GET'])
+@require_admin  # 只有管理员可以查看设备管理信息
+def get_devices():
+    """获取所有设备信息，用于设备管理"""
+    try:
+        # 获取所有员工及其设备信息
+        employees = Employee.query.all()
+        
+        devices_list = []
+        for emp in employees:
+            devices_list.append({
+                'emp_id': emp.emp_id,
+                'name': emp.name,
+                'phone_mac': emp.phone_mac,
+                'inner_ip': emp.inner_ip,
+                'last_login_time': emp.last_login_time.strftime('%Y-%m-%d %H:%M:%S') if emp.last_login_time else None,
+                'login_device': emp.login_device,
+                'remarks': emp.remarks,
+                'is_temp': emp.emp_id.startswith('TEMP_')
+            })
+        
+        return jsonify({
+            "code": 200,
+            "msg": "获取设备信息成功",
+            "data": {
+                "devices": devices_list
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取设备信息失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@punch_bp.route('/api/device-management/unbind-temp-device', methods=['POST'])
+@require_admin  # 只有管理员可以解绑临时设备
+def unbind_temp_device():
+    """解绑临时设备，删除临时员工记录"""
+    try:
+        data = request.get_json()
+        temp_emp_id = data.get('temp_emp_id')
+        
+        if not temp_emp_id or not temp_emp_id.startswith('TEMP_'):
+            return jsonify({
+                "code": 400,
+                "msg": "临时员工ID不能为空或不是临时员工"
+            }), 400
+            
+        # 查找临时员工（使用大小写不敏感的查询）
+        temp_emp_id_lower = temp_emp_id.lower()
+        temp_employee = Employee.query.filter(db.func.lower(Employee.emp_id) == temp_emp_id_lower).first()
+        if not temp_employee:
+            return jsonify({
+                "code": 404,
+                "msg": f"未找到临时员工ID为 {temp_emp_id} 的员工"
+            }), 404
+            
+        # 删除临时员工
+        db.session.delete(temp_employee)
+        db.session.commit()
+        
+        return jsonify({
+            "code": 200,
+            "msg": f"临时员工 {temp_emp_id} 已成功删除"
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"删除临时员工失败: {str(e)}"
         }), 500
 
 

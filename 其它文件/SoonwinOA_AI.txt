@@ -6,15 +6,8 @@
 路由文件夹 ./app/routes
 数据库文件是 ./soonwin_oa.db
 
-
-订单验收相关：
-后端路由：inspection_routes.py
-后端模型：order_inspection.py
-订单验收主页：OrderInspectionView.vue
-验收报告页：InspectionReportView.vue
-
-
-优化验收报告页，适配电脑端与移动端浏览
+优化PunchRecordsView页的数据展示
+打卡时间，最后登录时间都是两行展示，上日期下时间，日期都是yyyy-mm-dd
 
 
 提醒：
@@ -24,6 +17,13 @@
 
 
 
+
+
+订单验收相关：
+后端路由：inspection_routes.py
+后端模型：order_inspection.py
+订单验收主页：OrderInspectionView.vue
+验收报告页：InspectionReportView.vue
 
 
 3、修改过的前端代码要经过Validate with frontend-tester验收才能确认返回；
