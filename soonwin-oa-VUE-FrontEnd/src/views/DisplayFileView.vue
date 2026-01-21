@@ -280,8 +280,10 @@ const loadPdfFile = async (file: any) => {
 // 渲染PDF
 const renderPdf = async (pdfPath: string) => {
   try {
-    // 构建PDF URL
-    const pdfUrl = `/api/${pdfPath}`;
+    // 构建PDF URL - 直接使用文件路径，因为后端路由会处理
+    // 根据后端display_file_routes.py中的serve_display_file路由，文件访问路径应该是 /api/display-file/file/{filename}
+    const fileName = pdfPath.split('/').pop(); // 从完整路径中提取文件名
+    const pdfUrl = `/api/display-file/file/${fileName}`;
 
     // 获取PDF文档
     const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
