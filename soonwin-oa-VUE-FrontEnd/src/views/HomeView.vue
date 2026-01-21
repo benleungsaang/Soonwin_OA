@@ -14,27 +14,39 @@
               <el-icon><Document /></el-icon>
               <span>订单管理</span>
             </el-menu-item>
+            <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken">
+              <el-icon><Monitor /></el-icon>
+              <span>打卡</span>
+            </el-menu-item>
+            <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><Clock /></el-icon>
+              <span>打卡记录</span>
+            </el-menu-item>
+            <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><User /></el-icon>
+              <span>员工管理</span>
+            </el-menu-item>
+            <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><Money /></el-icon>
+              <span>运营费用</span>
+            </el-menu-item>
             <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
               <el-icon><Finished /></el-icon>
               <span>订单验收</span>
             </el-menu-item>
-            <el-menu-item index="4" @click="goToExpenseManagement" v-if="hasToken && isCurrentUserAdmin">
-              <el-icon><Money /></el-icon>
-              <span>运营费用</span>
-            </el-menu-item>
-            <el-menu-item index="2" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
-              <el-icon><Clock /></el-icon>
-              <span>打卡记录</span>
-            </el-menu-item>
-            <el-menu-item index="3" @click="goToEmployeeManagement" v-if="hasToken && isCurrentUserAdmin">
-              <el-icon><User /></el-icon>
-              <span>员工管理</span>
-            </el-menu-item>
-            <el-menu-item index="5" @click="goToLogin" v-if="!hasToken">
+            <el-menu-item index="7" @click="goToLogin" v-if="!hasToken">
               <el-icon><User /></el-icon>
               <span>登录</span>
             </el-menu-item>
-            <el-menu-item index="6" @click="logout" v-if="hasToken">
+            <el-menu-item index="8" @click="goToDisplayFileUpload" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><Upload /></el-icon>
+              <span>上传展示文件</span>
+            </el-menu-item>
+            <el-menu-item index="9" @click="goToDisplayFiles" v-if="hasToken">
+              <el-icon><Files /></el-icon>
+              <span>展示文件</span>
+            </el-menu-item>
+            <el-menu-item index="10" @click="logout" v-if="hasToken">
               <el-icon><SwitchButton /></el-icon>
               <span>退出登录</span>
             </el-menu-item>
@@ -48,7 +60,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { CreditCard, Document, User, Clock, SwitchButton, Money, Finished } from '@element-plus/icons-vue';
+import { Document, User, Clock, SwitchButton, Money, Finished, Monitor, Upload, Files } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 // 路由实例
@@ -95,6 +107,11 @@ const goToOrder = () => {
   router.push('/order');
 };
 
+// 跳转打卡页面（需登录）
+const goToPunchIn = () => {
+  router.push('/punch');
+};
+
 // 跳转打卡记录页面（需登录）
 const goToPunchRecords = () => {
   router.push('/punch-records');
@@ -128,9 +145,23 @@ const goToLogin = () => {
   router.push('/login');
 };
 
-// 跳转登录页
+// 跳转订单验收页面（需登录）
 const goToOrderInspection = () => {
   router.push('/order-inspection');
+};
+
+// 跳转上传展示文件页面（仅管理员可见）
+const goToDisplayFileUpload = () => {
+  if (!isCurrentUserAdmin.value) {
+    ElMessage.error('您没有权限访问上传展示文件页面！');
+    return;
+  }
+  router.push('/display-file-upload');
+};
+
+// 跳转展示文件页面（需登录）
+const goToDisplayFiles = () => {
+  router.push('/display-files');
 };
 
 // 退出登录

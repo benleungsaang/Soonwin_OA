@@ -14,6 +14,7 @@
     "axios": "^1.13.2",
     "echarts": "^6.0.0",
     "element-plus": "^2.13.1",
+    "pdfjs-dist": "^5.4.530",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
     "vue": "^3.5.24",

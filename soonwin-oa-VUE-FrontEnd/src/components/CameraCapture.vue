@@ -21,7 +21,7 @@
         
         <!-- 拍照后预览 -->
         <div v-else class="preview-container">
-          <img :src="capturedImage" alt="Captured Preview" style="width: 100%; height: auto; max-height: 70vh;" />
+          <img :src="capturedImage || ''" alt="Captured Preview" style="width: 100%; height: auto; max-height: 70vh;" />
         </div>
       </div>
       

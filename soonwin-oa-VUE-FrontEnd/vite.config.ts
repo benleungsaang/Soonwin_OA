@@ -7,12 +7,14 @@ function getNetworkIP() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     const netInterface = interfaces[name];
-    for (const item of netInterface) {
-      // 跳过内部/回环地址和IPv6地址
-      if (!item.internal && item.family === 'IPv4') {
-        // 排除docker等虚拟网卡，可以添加特定网络接口过滤
-        if (!name.includes('docker') && !name.includes('vEthernet')) {
-          return item.address;
+    if (netInterface) { // 检查netInterface是否为null或undefined
+      for (const item of netInterface) {
+        // 跳过内部/回环地址和IPv6地址
+        if (!item.internal && item.family === 'IPv4') {
+          // 排除docker等虚拟网卡，可以添加特定网络接口过滤
+          if (!name.includes('docker') && !name.includes('vEthernet')) {
+            return item.address;
+          }
         }
       }
     }

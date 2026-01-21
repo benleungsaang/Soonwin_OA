@@ -3,12 +3,15 @@ import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 // 导入页面组件（对应之前创建的视图）
 import HomeView from '@/views/HomeView.vue';
 import LoginView from '@/views/LoginView.vue';
+import PunchView from '@/views/PunchView.vue';
 import PunchSuccessView from '@/views/PunchSuccessView.vue';
 import PunchRecordsView from '@/views/PunchRecordsView.vue';
 import EmployeeManagementView from '@/views/EmployeeManagementView.vue';
 import ExpenseManagementView from '@/views/ExpenseManagementView.vue';
 import OrderInspectionView from '@/views/OrderInspectionView.vue';
 import InspectionReportView from '@/views/InspectionReportView.vue';
+import DisplayFileUploadView from '@/views/DisplayFileUploadView.vue';
+import DisplayFileView from '@/views/DisplayFileView.vue';
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -23,6 +26,12 @@ const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { title: '登录' }
+  },
+  {
+    path: '/punch',
+    name: 'punch',
+    component: PunchView,
+    meta: { title: '打卡', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
     path: '/punch-success',
@@ -67,17 +76,29 @@ const routes: RouteRecordRaw[] = [
     component: InspectionReportView,
     props: true,
     meta: { title: '验收报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  }
+  },
+  {
+    path: '/display-file-upload',
+    name: 'displayFileUpload',
+    component: DisplayFileUploadView,
+    meta: { title: '上传展示文件', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  },
+  {
+    path: '/display-files',
+    name: 'displayFiles',
+    component: DisplayFileView,
+    meta: { title: '展示文件', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
 ];
 
 // 创建路由实例
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL), // 使用 HTML5 History 模式
+  history: createWebHistory(), // 使用 HTML5 History 模式
   routes // 导入路由规则
 });
 
 // 路由守卫：验证需要登录的页面（未登录则跳转登录页）
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   // 设置页面标题
   document.title = to.meta.title as string || 'SoonWin OA系统';
 

@@ -6,8 +6,7 @@
 路由文件夹 ./app/routes
 数据库文件是 ./soonwin_oa.db
 
-优化PunchRecordsView页的数据展示
-打卡时间，最后登录时间都是两行展示，上日期下时间，日期都是yyyy-mm-dd
+DisplayFileView.vue:95  Uncaught SyntaxError: The requested module '/node_modules/.vite/deps/element-plus.js?v=58e8a630' does not provide an export named 'ElSpinner' (at DisplayFileView.vue:95:21)
 
 
 提醒：

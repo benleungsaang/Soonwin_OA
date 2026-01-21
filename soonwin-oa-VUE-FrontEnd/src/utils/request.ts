@@ -40,7 +40,7 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolea
 // 创建Axios实例
 const getBaseURL = () => {
   // 在开发环境中使用相对路径，通过Vite代理转发请求
-  if (import.meta.env.MODE === 'development') {
+  if (process.env.NODE_ENV === 'development') {
     return '';
   }
   // 在生产环境中使用当前访问的域名和端口5000
@@ -75,7 +75,6 @@ const processQueue = (error: any, token: string | null = null) => {
 
 // 刷新令牌函数
 const refreshToken = async (): Promise<string> => {
-  const refreshTokenUrl = '/api/auth/refresh';
   const token = localStorage.getItem('oa_token');
   
   if (!token) {
@@ -83,13 +82,11 @@ const refreshToken = async (): Promise<string> => {
   }
 
   try {
-    const response = await service.post(refreshTokenUrl, {}, {
+    const response = await axios.post(`${getBaseURL()}/api/auth/refresh`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      // 不使用拦截器，避免无限递归
-      _skipAuthRefresh: true
     });
     const newToken = response.data.data.token;
     localStorage.setItem('oa_token', newToken);
@@ -101,11 +98,17 @@ const refreshToken = async (): Promise<string> => {
   }
 };
 
+// 定义扩展的AxiosRequestConfig接口
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  _skipAuthRefresh?: boolean;
+  _retry?: boolean;
+}
+
 // 请求拦截器：添加JWT令牌
 service.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: ExtendedAxiosRequestConfig) => {
     // 跳过认证刷新的请求
-    if ((config as any)._skipAuthRefresh) {
+    if (config._skipAuthRefresh) {
       return config;
     }
     
@@ -150,10 +153,10 @@ service.interceptors.response.use(
     return Promise.reject(new Error(res.msg || '接口请求错误'));
   },
   (error: AxiosError) => {
-    const originalRequest = error.config as AxiosRequestConfig & {_retry?: boolean};
+    const originalRequest = error.config as ExtendedAxiosRequestConfig;
     
     // 跳过认证刷新的请求
-    if ((originalRequest as any)._skipAuthRefresh) {
+    if (originalRequest._skipAuthRefresh) {
       let errorMsg = '网络异常，请重试';
       if (error.response) {
         const status = error.response.status;
@@ -184,7 +187,9 @@ service.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then(token => {
-          originalRequest.headers!.Authorization = `Bearer ${token}`;
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+          }
           return service(originalRequest);
         }).catch(err => {
           return Promise.reject(err);
@@ -197,7 +202,9 @@ service.interceptors.response.use(
       return refreshToken()
         .then(newToken => {
           processQueue(null, newToken);
-          originalRequest.headers!.Authorization = `Bearer ${newToken}`;
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          }
           return service(originalRequest);
         })
         .catch(error => {

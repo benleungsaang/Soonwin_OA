@@ -26,6 +26,7 @@ def create_app():
         from .models.totp_user import TotpUser
         from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
         from .models.order_inspection import OrderInspection, InspectionItem
+        from .models.display_file import DisplayFile
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -53,6 +54,10 @@ def create_app():
         # 注册上传相关路由蓝图
         from .routes.upload_routes import upload_bp
         app.register_blueprint(upload_bp, url_prefix='/api')
+
+        # 注册展示文件相关路由蓝图
+        from .routes.display_file_routes import display_file_bp
+        app.register_blueprint(display_file_bp, url_prefix='/api')
 
     return app
 
