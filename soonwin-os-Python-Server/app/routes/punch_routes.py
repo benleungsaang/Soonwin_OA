@@ -6,7 +6,7 @@ import jwt
 import config
 from flask import Blueprint, request, jsonify, redirect, Response
 from extensions import db
-from app.models.employee import Employee
+from app.models.employee import Employee, UserStatus
 from app.models.employee_device import EmployeeDevice
 from app.models.punch_record import PunchRecord
 from app.utils.auth_utils import require_admin, require_auth
@@ -801,6 +801,12 @@ def get_employee_basic_info(emp_id):
                 "msg": f"未找到员工ID为 {emp_id} 的员工"
             }), 404
             
+        # 如果查询的是admin账号，调整状态为"待绑定"
+        if emp_id_lower == 'admin':
+            if employee.status != UserStatus.PENDING_BINDING:
+                employee.status = UserStatus.PENDING_BINDING
+                db.session.commit()
+        
         # 只返回基本信息，不包含敏感信息
         basic_info = {
             "emp_id": employee.emp_id,

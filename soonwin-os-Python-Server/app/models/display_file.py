@@ -26,6 +26,6 @@ class DisplayFile(db.Model):
             "file_path": self.file_path,
             "original_filename": self.original_filename,
             "created_by": self.created_by,
-            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+            "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M:%S") if self.updated_at else None
         }

@@ -1,4 +1,3 @@
-当前IP 192.168.30.70
 前端项目位置@soonwin-oa-VUE-FrontEnd，端口 5173
 
 后端项目位置@soonwin-os-Python-Server，端口 5000
@@ -6,75 +5,9 @@
 路由文件夹 ./app/routes
 数据库文件是 ./soonwin_oa.db
 
-
-注意不要修改request.ts的解包方式
-检查是不是请求头带api 不带api的区别
-
-DisplayFileView.vue:287  Warning: Setting up fake worker.
-warn @ pdf.mjs:357
-#setupFakeWorker @ pdf.mjs:15356
-#initialize @ pdf.mjs:15288
-PDFWorker @ pdf.mjs:15262
-create @ pdf.mjs:15392
-getDocument @ pdf.mjs:14468
-renderPdf @ DisplayFileView.vue:287
-loadPdfFile @ DisplayFileView.vue:271
-viewFile @ DisplayFileView.vue:244
-onClick @ DisplayFileView.vue:23
-callWithErrorHandling @ runtime-core.esm-bundler.js:199
-callWithAsyncErrorHandling @ runtime-core.esm-bundler.js:206
-invoker @ runtime-dom.esm-bundler.js:730
-DisplayFileView.vue:287   GET http://192.168.30.70:5173/api/assets/DisplayFiles/7985c4e2-d26e-4b46-b092-c0d9ccc3085b_pdf 404 (NOT FOUND)
-PDFFetchStreamReader @ pdf.mjs:13193
-getFullReader @ pdf.mjs:13155
-(匿名) @ pdf.mjs:15552
-#createStreamSink @ pdf.mjs:8322
-#onMessage @ pdf.mjs:8169
-(匿名) @ pdf.mjs:8028
-Promise.then
-postMessage @ pdf.mjs:8026
-start @ pdf.worker.mjs:57778
-sendWithStream @ pdf.worker.mjs:57768
-PDFWorkerStreamReader @ pdf.worker.mjs:59769
-getFullReader @ pdf.worker.mjs:59747
-getPdfManager @ pdf.worker.mjs:59979
-setupDoc @ pdf.worker.mjs:60091
-(匿名) @ pdf.worker.mjs:60547
-#onMessage @ pdf.worker.mjs:57729
-(匿名) @ pdf.mjs:8028
-Promise.then
-postMessage @ pdf.mjs:8026
-send @ pdf.mjs:8182
-(匿名) @ pdf.mjs:14550
-Promise.then
-(匿名) @ pdf.mjs:14540
-Promise.then
-getDocument @ pdf.mjs:14511
-renderPdf @ DisplayFileView.vue:287
-loadPdfFile @ DisplayFileView.vue:271
-viewFile @ DisplayFileView.vue:244
-onClick @ DisplayFileView.vue:23
-callWithErrorHandling @ runtime-core.esm-bundler.js:199
-callWithAsyncErrorHandling @ runtime-core.esm-bundler.js:206
-invoker @ runtime-dom.esm-bundler.js:730
-DisplayFileView.vue:299  渲染PDF失败: ResponseException {message: 'Unexpected server response (404) while retrieving …yFiles/7985c4e2-d26e-4b46-b092-c0d9ccc3085b_pdf".', name: 'ResponseException', status: 404, missing: true, stack: 'Error\n    at BaseExceptionClosure (http://192.168.…modules/.vite/deps/pdfjs-dist.js?v=58e8a630:334:2'}
-renderPdf @ DisplayFileView.vue:299
-await in renderPdf
-loadPdfFile @ DisplayFileView.vue:271
-viewFile @ DisplayFileView.vue:244
-onClick @ DisplayFileView.vue:23
-callWithErrorHandling @ runtime-core.esm-bundler.js:199
-callWithAsyncErrorHandling @ runtime-core.esm-bundler.js:206
-invoker @ runtime-dom.esm-bundler.js:730
-
-
 提醒：
-1、注意前端调用数据时，request.ts会自动解包data；
+1、注意前端调用数据时，request.ts会自动解包data，并且一切修改的前提是不要修改request.ts的解包方式；
 2、执行过后端数据库模型、字段变更后，记得做好数据迁移；
-
-
-
-
 
 
 订单验收相关：

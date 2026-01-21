@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from app.models.employee import Employee
+from app.models.employee import Employee, UserStatus
 from app.models.punch_record import PunchRecord
 from app.models.totp_user import TotpUser
 from app.models.order import Order
@@ -51,7 +51,7 @@ def init_admin():
             phone_mac=unique_mac,  # 使用生成的唯一MAC地址
             inner_ip="127.0.0.1",  # 管理员默认值
             user_role="admin",
-            status="active"
+            status=UserStatus.PENDING_BINDING  # 设置为待绑定状态
         )
         db.session.add(admin_employee)
 
@@ -122,7 +122,7 @@ def create_employee():
             phone_mac=unique_mac,  # 使用生成的唯一MAC地址
             inner_ip=data.get('inner_ip', '0.0.0.0'),  # 默认值
             user_role=data.get('user_role', 'user'),
-            status='pending_binding'  # 新员工初始状态为待绑定
+            status=UserStatus.PENDING_BINDING  # 新员工初始状态为待绑定
         )
         db.session.add(new_employee)
 
@@ -440,7 +440,7 @@ def totp_login():
 
         # 检查员工状态
         if employee.user_role != 'admin':
-            if employee.status != 'active' and employee.status != 'pending_binding':
+            if employee.status != UserStatus.ACTIVE and employee.status != UserStatus.PENDING_BINDING:
                 return jsonify({
                     "code": 403,
                     "msg": "员工账户未激活",
@@ -462,10 +462,9 @@ def totp_login():
 
         if is_valid:
             # 如果员工状态是"待绑定"，验证成功后更新为"已激活"
-            if employee.status == 'pending_binding':
-                employee.status = 'active'
+            if employee.status == UserStatus.PENDING_BINDING:
+                employee.status = UserStatus.ACTIVE
                 db.session.commit()
-
             # 更新最后登录时间和设备信息
             employee.last_login_time = datetime.now()
             # 获取客户端IP作为登录设备IP
@@ -532,7 +531,7 @@ def verify_totp():
             }), 404
 
         # 检查员工状态是否为待绑定
-        if employee.status != 'pending_binding':
+        if employee.status != UserStatus.PENDING_BINDING:
             return jsonify({
                 "code": 400,
                 "msg": "员工状态不是待绑定",
@@ -552,13 +551,20 @@ def verify_totp():
         is_valid = totp.verify(data['totp_code'])
 
         if is_valid:
-            # 更新员工状态为待审批
-            employee.status = 'pending_approval'
+            # 对于管理员账号，直接激活；对于其他用户，需要审批
+            if employee.emp_id.lower() == 'admin':
+                employee.status = UserStatus.ACTIVE
+                msg = "TOTP验证成功，管理员账户已直接激活"
+            else:
+                # 更新员工状态为待审批
+                employee.status = UserStatus.PENDING_APPROVAL
+                msg = "TOTP验证成功，账户已更新为待审批状态"
+            
             db.session.commit()
 
             return jsonify({
                 "code": 200,
-                "msg": "TOTP验证成功，账户已更新为待审批状态",
+                "msg": msg,
                 "data": None
             })
         else:

@@ -32,6 +32,7 @@
 
         <el-form-item label="文件上传" prop="files" required>
           <el-upload
+            ref="uploadRef"
             class="upload-area"
             drag
             :action="uploadUrl"
@@ -109,6 +110,9 @@ const form = reactive({
 
 // 文件列表
 const fileList = ref<any[]>([]);
+
+// 上传组件引用
+const uploadRef = ref();
 
 // 上传状态
 const uploading = ref(false);
@@ -258,21 +262,30 @@ const submitForm = async () => {
 
     uploading.value = true;
 
-        // 创建FormData对象
-        const formData = new FormData();
-        formData.append('title', form.title);
-        formData.append('file_type', form.fileType);
-        formData.append('display_mode', 'waterfall'); // 默认瀑布流
+    // 创建FormData对象
+    const formData = new FormData();
+    formData.append('title', form.title);
+    formData.append('file_type', form.fileType);
+    formData.append('display_mode', 'waterfall'); // 默认瀑布流
 
-        // 添加文件
-        for (let i = 0; i < fileList.value.length; i++) {
-          // 仅处理原始文件（未上传的文件）
-          if (fileList.value[i].raw) {
-            formData.append('file', fileList.value[i].raw);
-          } else if (fileList.value[i].originFileObj) {
-            formData.append('file', fileList.value[i].originFileObj);
-          }
-        }
+    // 添加文件 - 确保所有文件都被添加
+    let hasValidFile = false;
+    for (let i = 0; i < fileList.value.length; i++) {
+      // 仅处理原始文件（未上传的文件）
+      if (fileList.value[i].raw) {
+        formData.append('file', fileList.value[i].raw);
+        hasValidFile = true;
+      } else if (fileList.value[i].originFileObj) {
+        formData.append('file', fileList.value[i].originFileObj);
+        hasValidFile = true;
+      }
+    }
+
+    if (!hasValidFile) {
+      ElMessage.error('没有有效的文件可以上传!');
+      return;
+    }
+
     // 发送请求
     const response = await request.post('/api/display-file/upload', formData, {
       headers: {
@@ -305,7 +318,7 @@ const resetUploadSuccess = () => {
 };
 
 // 重置表单
-const resetForm = () => {
+const resetForm = async () => {
   if (formRef.value) {
     formRef.value.resetFields();
   }
@@ -314,6 +327,11 @@ const resetForm = () => {
   form.displayMode = 'waterfall';
   form.files = [];
   fileList.value = [];
+  
+  // 清空el-upload组件中的文件
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles();
+  }
 };
 
 // 跳转到展示文件页面

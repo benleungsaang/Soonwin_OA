@@ -23,10 +23,10 @@
           @click="viewFile(file)"
         >
           <div class="file-info">
-            <h3 class="file-title">{{ file.title }}</h3>
+            <h3 class="file-title">文件标题：{{ file.title }}</h3>
             <div class="file-meta">
               <span class="file-type">{{ file.file_type === 'image_group' ? '图片组' : 'PDF文件' }}</span>
-              <span class="display-mode">{{ file.display_mode === 'waterfall' ? '瀑布流' : '分页' }}</span>
+              <!-- <span class="display-mode">{{ file.display_mode === 'waterfall' ? '瀑布流' : '分页' }}</span> -->
               <span class="created-time">{{ file.created_at }}</span>
             </div>
           </div>
@@ -75,33 +75,50 @@
               v-for="(img, index) in imageList"
               :key="index"
               class="waterfall-item"
+              :data-page-index="index + 1"
               @contextmenu="handleContextMenu"
               @selectstart="handleSelectStart"
             >
               <img
-                :src="img"
+                v-if="img"
+                :src="normalizeImagePath(img)"
                 :alt="`Image ${index + 1}`"
                 @load="onImageLoad"
                 @contextmenu="handleContextMenu"
                 @selectstart="handleSelectStart"
                 draggable="false"
               />
+              <div
+                v-else-if="loadingPages.has(index + 1)"
+                class="placeholder-item loading"
+                @contextmenu="handleContextMenu"
+                @selectstart="handleSelectStart"
+              >
+                <div class="placeholder-content">
+                  <el-icon class="loading-icon">
+                    <Loading />
+                  </el-icon>
+                  <p v-if="currentFile.file_type === 'pdf'">正在加载第 {{ index + 1 }} 页...</p>
+                  <p v-else>正在加载第 {{ index + 1 }} 张图片...</p>
+                </div>
+              </div>
+              <div
+                v-else
+                class="placeholder-item pending"
+                @contextmenu="handleContextMenu"
+                @selectstart="handleSelectStart"
+              >
+                <div class="placeholder-content">
+                  <el-icon class="pending-icon">
+                    <Document />
+                  </el-icon>
+                  <p v-if="currentFile.file_type === 'pdf'">第 {{ index + 1 }} 页 (待加载)</p>
+                  <p v-else>第 {{ index + 1 }} 张图片 (待加载)</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        <!-- 分页展示PDF -->
-        <div v-else-if="currentFile.file_type === 'pdf' && currentFile.display_mode === 'pagination'" class="pagination-container">
-          <div class="pagination-controls">
-            <el-button @click="prevPage" :disabled="currentPage <= 1" icon="ArrowLeft">上一页</el-button>
-            <span class="page-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页</span>
-            <el-button @click="nextPage" :disabled="currentPage >= totalPages" icon="ArrowRight">下一页</el-button>
-          </div>
-          <div class="pdf-page">
-            <canvas ref="pdfCanvas" class="pdf-canvas"></canvas>
-          </div>
-        </div>
-      </div>
+        </div>      </div>
     </el-dialog>
   </div>
 </template>
@@ -109,16 +126,19 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
 import { ElMessage, ElButton, ElPageHeader, ElDivider, ElMessageBox } from 'element-plus';
-import { Delete, Loading } from '@element-plus/icons-vue';
+import { Delete, Loading, Document } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { useRouter } from 'vue-router';
 import * as pdfjsLib from 'pdfjs-dist';
-import 'pdfjs-dist/build/pdf.worker.mjs';
 
-// 设置PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
+// 设置PDF.js worker (使用新版本推荐的配置方式)
+const workerUrl = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url);
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.href;
 
-// 显示文件列表
+// ==================== 路由相关 ====================
+const router = useRouter();
+
+// ==================== 文件列表相关 ====================
 const displayFiles = ref<any[]>([]);
 const loading = ref(false);
 const page = ref(1);
@@ -126,28 +146,24 @@ const perPage = ref(10);
 const hasMore = ref(true);
 const isCurrentUserAdmin = ref(false);
 
-// 预览相关
+// ==================== 预览相关 ====================
 const previewVisible = ref(false);
 const currentFile = ref<any>(null);
-const imageList = ref<string[]>([]);
+const imageList = ref<string[]>([]); // 已渲染的页面
 const loadingImages = ref(false);
-const currentPage = ref(1);
-const totalPages = ref(1);
-const pdfDoc = ref<any>(null);
+let pdfDoc: any = null; // PDF文档对象（使用普通变量以避免响应式代理问题）
+const currentPage = ref(1); // 当前渲染到的页面
+const totalPages = ref(0); // PDF总页数
+const renderedPages = ref<Set<number>>(new Set()); // 已渲染的页面集合
+const maxRenderedPage = ref(1); // 已渲染的最大页码
+const loadingPages = ref<Set<number>>(new Set()); // 正在加载的页面集合
 
-// 瀑布流相关
+// PDF页面渲染队列
+const renderQueue = ref<number[]>([]);
+const isRendering = ref(false);
+
+// ==================== 布局相关 ====================
 const waterfallRef = ref<HTMLElement | null>(null);
-const pdfCanvas = ref<HTMLCanvasElement | null>(null);
-
-// 路由
-const router = useRouter();
-
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
-};
-
-// 检查用户是否为管理员
 const checkAdminRole = () => {
   const token = localStorage.getItem('oa_token');
   if (token) {
@@ -251,8 +267,29 @@ const loadImageGroup = async (uuid: string) => {
 
   try {
     const response = await request.get(`/api/display-file/${uuid}/images`);
-    if (response && response.images) {
-      imageList.value = response.images;
+    if (response && response.images && Array.isArray(response.images)) {
+      // 保存原始图片URL列表
+      const originalImageUrls = response.images;
+      
+      // 初始化imageList，为所有图片创建null占位符
+      imageList.value = Array(originalImageUrls.length).fill(null);
+      
+      // 保存原始URL以便后续懒加载使用
+      // 使用普通变量存储原始URL，避免响应式代理
+      (window as any).__originalImageUrls = originalImageUrls;
+      
+      // 启动滚动监听器以实现懒加载
+      startScrollListener();
+      
+      // 初始化后立即检查视口中的图片并加载它们
+      nextTick(() => {
+        applyWaterfallLayout();
+        setTimeout(() => {
+          checkAndLoadVisibleImages();
+        }, 100); // 短暂延迟以确保DOM已更新
+      });
+    } else {
+      ElMessage.error('获取的图片数据格式不正确');
     }
   } catch (error) {
     console.error('获取图片组失败:', error);
@@ -268,7 +305,7 @@ const loadPdfFile = async (file: any) => {
 
   try {
     // PDF文件通过PDF.js直接渲染，不需要获取图片组
-    await renderPdf(file.file_path);
+    await initializePdf(file.file_path);
   } catch (error) {
     console.error('加载PDF文件失败:', error);
     ElMessage.error('加载PDF文件失败');
@@ -277,84 +314,117 @@ const loadPdfFile = async (file: any) => {
   }
 };
 
-// 渲染PDF
-const renderPdf = async (pdfPath: string) => {
+// 初始化PDF文档
+const initializePdf = async (pdfPath: string) => {
   try {
-    // 构建PDF URL - 直接使用文件路径，因为后端路由会处理
-    // 根据后端display_file_routes.py中的serve_display_file路由，文件访问路径应该是 /api/display-file/file/{filename}
+    // 构建PDF URL
     const fileName = pdfPath.split('/').pop(); // 从完整路径中提取文件名
     const pdfUrl = `/api/display-file/file/${fileName}`;
 
+    // 配置PDF.js以启用流式加载
+    // 使用更兼容的配置确保PDF能正常加载
+    const getDocumentParams = {
+      url: pdfUrl,
+      cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.530/cmaps/',
+      cMapPacked: true,
+      isEvalSupported: false, // 避免eval相关错误
+      disableAutoFetch: true,  // 禁用自动预取所有页面数据
+      disableStream: false,    // 启用流式加载
+      disableRange: false,     // 确保启用范围请求
+      // 忽略非致命错误
+      stopAtErrors: false,
+      // 增大token限制，兼容大PDF
+      maxTokenSize: 1024 * 1024
+    };
+    
+    const loadingTask = pdfjsLib.getDocument(getDocumentParams);
+  
     // 获取PDF文档
-    const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-    pdfDoc.value = pdf;
-    totalPages.value = pdf.numPages;
-
-    // 渲染第一页
-    if (currentFile.value.display_mode === 'pagination') {
-      await renderPdfPage(pdf, 1);
-    } else {
-      // 瀑布流模式：渲染所有页面为图片
-      await renderAllPdfPages(pdf);
-    }
+    const doc = await loadingTask.promise;
+    pdfDoc = doc; // 直接赋值给普通变量
+    totalPages.value = doc.numPages;
+    
+    // 初始化图片数组，为所有页面预留位置，但初始值为null
+    imageList.value = Array(totalPages.value).fill(null);
+    
+    // 首先将第一页添加到渲染队列
+    addToRenderQueue(1);
+    maxRenderedPage.value = 1;
+    
+    // 启动滚动监听器以实现懒加载
+    startScrollListener();
+    
+    // 初始化后立即检查视口中的页面并加载它们
+    nextTick(() => {
+      setTimeout(() => {
+        checkAndLoadVisiblePages();
+      }, 100); // 短暂延迟以确保DOM已更新
+    });
   } catch (error) {
-    console.error('渲染PDF失败:', error);
-    ElMessage.error('渲染PDF失败');
+    console.error('初始化PDF失败:', error);
+    ElMessage.error('初始化PDF失败');
   }
 };
 
-// 渲染所有PDF页面
-const renderAllPdfPages = async (pdf: any) => {
-  try {
-    imageList.value = [];
-    const images = [];
-
-    // 限制渲染页面数以提高性能
-    const maxPages = Math.min(pdf.numPages, 20);
-
-    for (let i = 1; i <= maxPages; i++) {
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      if (!context) continue;
-
-      const page = await pdf.getPage(i);
-      const scale = 1.5;
-      const viewport = page.getViewport({ scale });
-
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-
-      await page.render(renderContext).promise;
-
-      // 将canvas转换为图片
-      const imgSrc = canvas.toDataURL('image/png');
-      images.push(imgSrc);
-    }
-
-    imageList.value = images;
-  } catch (error) {
-    console.error('渲染所有PDF页面失败:', error);
-    ElMessage.error('渲染PDF页面失败');
+// 将页面添加到渲染队列
+const addToRenderQueue = (pageNumber: number) => {
+  if (!renderQueue.value.includes(pageNumber) && 
+      pageNumber >= 1 && 
+      pageNumber <= totalPages.value && 
+      !imageList.value[pageNumber - 1] && 
+      !loadingPages.value.has(pageNumber)) {  // 确保页面不在加载中
+    renderQueue.value.push(pageNumber);
+    loadingPages.value.add(pageNumber);  // 添加到正在加载的页面集合
+    // 启动队列处理
+    processRenderQueue();
   }
 };
 
-// 渲染PDF页面
-const renderPdfPage = async (pdf: any, pageNumber: number) => {
-  if (!pdfCanvas.value) return;
+// 处理渲染队列
+const processRenderQueue = async () => {
+  if (isRendering.value || renderQueue.value.length === 0 || !pdfDoc) {  // 检查普通变量
+    return;
+  }
+
+  isRendering.value = true;
+
+  while (renderQueue.value.length > 0) {
+    const pageNumber = renderQueue.value.shift();
+    if (pageNumber && !imageList.value[pageNumber - 1]) { // 确保页面未被渲染
+      await renderPdfPageDirectly(pageNumber);
+    }
+  }
+
+  isRendering.value = false;
+};
+
+// 直接渲染PDF页面（内部使用）
+const renderPdfPageDirectly = async (pageNumber: number) => {
+  // 验证参数和状态
+  if (!pdfDoc || !totalPages.value || pageNumber < 1 || pageNumber > totalPages.value) {
+    console.error('PDF文档未正确初始化或页面号超出范围');
+    return;
+  }
+
+  // 检查页面是否已经渲染
+  if (imageList.value[pageNumber - 1]) {
+    return; // 如果页面已渲染，则返回
+  }
 
   try {
-    const page = await pdf.getPage(pageNumber);
-    const scale = 1.5;
-    const viewport = page.getViewport({ scale });
-
-    const canvas = pdfCanvas.value;
+    const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) return;
+
+    // 确保获取页面操作正确执行
+    const page = await pdfDoc.getPage(pageNumber);  // 直接访问普通变量
+    if (!page) {
+      console.error(`无法获取PDF第${pageNumber}页`);
+      return;
+    }
+    
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale });
 
     canvas.height = viewport.height;
     canvas.width = viewport.width;
@@ -365,36 +435,325 @@ const renderPdfPage = async (pdf: any, pageNumber: number) => {
     };
 
     await page.render(renderContext).promise;
+
+    // 创建一个新的canvas用于添加页码
+    const overlayCanvas = document.createElement('canvas');
+    const overlayContext = overlayCanvas.getContext('2d');
+    if (!overlayContext) return;
+
+    overlayCanvas.width = canvas.width;
+    overlayCanvas.height = canvas.height;
+
+    // 先绘制原始PDF页面
+    overlayContext.drawImage(canvas, 0, 0);
+
+    // 在右下角绘制页码
+    overlayContext.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 半透明黑色背景
+    overlayContext.font = '16px Arial';
+    overlayContext.textAlign = 'right';
+    
+    const pageNumText = `${pageNumber} / ${totalPages.value}`;
+    const textMetrics = overlayContext.measureText(pageNumText);
+    const padding = 8;
+    const x = overlayCanvas.width - padding;
+    const y = overlayCanvas.height - padding;
+    
+    // 绘制文本背景
+    overlayContext.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    overlayContext.fillRect(
+      x - textMetrics.width - padding,
+      y - 16 - padding/2,
+      textMetrics.width + padding * 2,
+      16 + padding
+    );
+    
+    // 绘制页码文本
+    overlayContext.fillStyle = 'white';
+    overlayContext.fillText(pageNumText, x, y);
+
+    // 将带页码的canvas转换为图片
+    const imgSrc = overlayCanvas.toDataURL('image/png');
+    
+    // 更新imageList中对应位置的页面
+    const updatedImageList = [...imageList.value];
+    updatedImageList[pageNumber - 1] = imgSrc;
+    imageList.value = updatedImageList;
+    
+    // 添加到已渲染页面集合
+    renderedPages.value.add(pageNumber);
+    
+    // 从加载页面集合中移除
+    loadingPages.value.delete(pageNumber);
+    
+    // 更新最大渲染页码
+    if (pageNumber > maxRenderedPage.value) {
+      maxRenderedPage.value = pageNumber;
+    }
   } catch (error) {
-    console.error('渲染PDF页面失败:', error);
-    ElMessage.error('渲染PDF页面失败');
+    console.error(`渲染PDF第${pageNumber}页失败:`, error);
+    // 即使发生错误，也要从加载页面集合中移除，以便用户可以重试
+    loadingPages.value.delete(pageNumber);
+    ElMessage.error(`渲染PDF第${pageNumber}页失败`);
   }
 };
 
-// 上一页
-const prevPage = async () => {
-  if (currentPage.value > 1 && pdfDoc.value) {
-    currentPage.value--;
-    await renderPdfPage(pdfDoc.value, currentPage.value);
+// 检查并加载视口中的页面（支持PDF和图片组）
+const checkAndLoadVisiblePages = () => {
+  if (!previewVisible.value) return;
+  
+  const previewContent = document.querySelector('.preview-content') as HTMLElement;
+  if (!previewContent) return;
+  
+  // 根据文件类型决定处理逻辑
+  if (currentFile.value?.file_type === 'pdf' && pdfDoc) {
+    // PDF文件处理逻辑
+    // 获取滚动位置信息
+    const scrollTop = previewContent.scrollTop;
+    const clientHeight = previewContent.clientHeight;
+    const scrollBottom = scrollTop + clientHeight;
+    
+    // 遍历所有瀑布流项目，检查哪些在视口内但尚未加载
+    const waterfallItems = document.querySelectorAll('.waterfall-item');
+    
+    waterfallItems.forEach(item => {
+      const pageIndexStr = item.getAttribute('data-page-index');
+      if (!pageIndexStr) return;
+      
+      const pageIndex = parseInt(pageIndexStr);
+      
+      // 检查页面是否已经加载或正在加载
+      if (imageList.value[pageIndex - 1] || loadingPages.value.has(pageIndex)) {
+        return; // 已加载或正在加载，跳过
+      }
+      
+      // 获取元素的位置信息
+      const rect = item.getBoundingClientRect();
+      const containerRect = previewContent.getBoundingClientRect();
+      
+      // 计算元素相对于容器的位置
+      const elementTop = rect.top - containerRect.top + scrollTop;
+      const elementBottom = rect.bottom - containerRect.top + scrollTop;
+      
+      // 检查元素是否在可视区域内
+      if (elementTop <= scrollBottom && elementBottom >= scrollTop) {
+        // 如果在视口内且尚未加载，添加到渲染队列
+        addToRenderQueue(pageIndex);
+      }
+    });
+  } else if (currentFile.value?.file_type === 'image_group') {
+    // 图片组处理逻辑
+    checkAndLoadVisibleImages();
   }
 };
 
-// 下一页
-const nextPage = async () => {
-  if (currentPage.value < totalPages.value && pdfDoc.value) {
-    currentPage.value++;
-    await renderPdfPage(pdfDoc.value, currentPage.value);
-  }
-};
-
-// 图片加载完成
-const onImageLoad = () => {
-  // 瀑布流布局调整
+// 启动滚动监听器以实现懒加载
+const startScrollListener = () => {
+  // 首先移除可能已存在的监听器
+  stopScrollListener();
+  
+  // 添加滚动事件监听器
   nextTick(() => {
-    if (currentFile.value && currentFile.value.display_mode === 'waterfall') {
-      applyWaterfallLayout();
+    const previewContent = document.querySelector('.preview-content');
+    if (previewContent) {
+      previewContent.addEventListener('scroll', handleScroll);
     }
   });
+};
+
+// 滚动处理函数 - 检测当前可见的项目，然后加载对应内容（支持PDF和图片组）
+const handleScroll = async () => {
+  if (!previewVisible.value) return;
+  
+  const previewContent = document.querySelector('.preview-content') as HTMLElement;
+  if (!previewContent) return;
+  
+  // 根据文件类型决定处理逻辑
+  if (currentFile.value?.file_type === 'pdf' && pdfDoc) {
+    // PDF文件处理逻辑
+    // 获取滚动位置信息
+    const scrollTop = previewContent.scrollTop;
+    const clientHeight = previewContent.clientHeight;
+    const scrollHeight = previewContent.scrollHeight;
+    
+    // 计算可视区域底部位置
+    const scrollBottom = scrollTop + clientHeight;
+    
+    // 寻找当前可视区域内的最后一个已加载的图片
+    const loadedImageElements = document.querySelectorAll('.waterfall-item img');
+    let lastVisibleLoadedIndex = -1;
+    let maxPageIndex = 0;
+    
+    loadedImageElements.forEach(item => {
+      const parentItem = item.closest('.waterfall-item');
+      if (parentItem) {
+        const pageIndex = parseInt(parentItem.getAttribute('data-page-index') || '0');
+        
+        // 获取元素的位置信息
+        const rect = parentItem.getBoundingClientRect();
+        const containerRect = previewContent.getBoundingClientRect();
+        
+        // 计算元素相对于容器的位置
+        const elementTop = rect.top - containerRect.top + scrollTop;
+        const elementBottom = rect.bottom - containerRect.top + scrollTop;
+        
+        // 检查元素是否在可视区域内或接近底部
+        if (elementTop <= scrollBottom && elementBottom >= scrollTop) {
+          // 如果这个元素的页码比之前找到的更大，更新
+          if (pageIndex > maxPageIndex) {
+            maxPageIndex = pageIndex;
+          }
+        }
+      }
+    });
+    
+    // 如果找到了当前可视区域内的最后一页，并且下一页未加载，则加载下一页
+    if (maxPageIndex > 0) {
+      const nextPageIndex = maxPageIndex + 1;
+      if (nextPageIndex <= totalPages.value && 
+          !imageList.value[nextPageIndex - 1] && 
+          !loadingPages.value.has(nextPageIndex)) {
+        // 检查是否接近最后一页的内容（提前加载）
+        addToRenderQueue(nextPageIndex);
+      }
+    }
+    
+    // 计算接近底部的阈值（例如：还剩100px时就开始预加载）
+    const threshold = 100;
+    
+    // 如果接近底部且还有未渲染的页面，则可能需要预加载更多页面
+    if (scrollTop + clientHeight >= scrollHeight - threshold) {
+      // 查找下一个未渲染的页面
+      let nextPage = -1;
+      for (let i = maxRenderedPage.value + 1; i <= totalPages.value; i++) {
+        if (!renderedPages.value.has(i)) {
+          nextPage = i;
+          break;
+        }
+      }
+      
+      // 如果找到了下一个未渲染的页面，则将其添加到渲染队列
+      if (nextPage !== -1) {
+        addToRenderQueue(nextPage);
+        
+        // 预加载下一页（最多预加载一页）
+        preloadNextPage();
+      }
+    }
+  } else if (currentFile.value?.file_type === 'image_group') {
+    // 图片组处理逻辑
+    checkAndLoadVisibleImages();
+  }
+};
+
+// 停止滚动监听器
+const stopScrollListener = () => {
+  const previewContent = document.querySelector('.preview-content');
+  if (previewContent) {
+    previewContent.removeEventListener('scroll', handleScroll);
+  }
+};
+
+
+
+// 预加载下一页（如果当前已渲染页面小于总页数）
+const preloadNextPage = async () => {
+  if (maxRenderedPage.value < totalPages.value) {
+    const nextPage = maxRenderedPage.value + 1;
+    if (!renderedPages.value.has(nextPage)) {
+      addToRenderQueue(nextPage);
+    }
+  }
+};
+
+// 检查并加载视口中的图片（用于图片组）
+const checkAndLoadVisibleImages = () => {
+  if (!previewVisible.value || currentFile.value?.file_type !== 'image_group') return;
+  
+  const previewContent = document.querySelector('.preview-content') as HTMLElement;
+  if (!previewContent) return;
+  
+  // 获取滚动位置信息
+  const scrollTop = previewContent.scrollTop;
+  const clientHeight = previewContent.clientHeight;
+  const scrollBottom = scrollTop + clientHeight;
+  
+  // 遍历所有瀑布流项目，检查哪些在视口内但尚未加载
+  const waterfallItems = document.querySelectorAll('.waterfall-item');
+  
+  waterfallItems.forEach(item => {
+    const imgIndexStr = item.getAttribute('data-page-index');
+    if (!imgIndexStr) return;
+    
+    const imgIndex = parseInt(imgIndexStr);
+    
+    // 检查图片是否已经加载或正在加载
+    if (imageList.value[imgIndex - 1] || loadingPages.value.has(imgIndex)) {
+      return; // 已加载或正在加载，跳过
+    }
+    
+    // 获取元素的位置信息
+    const rect = item.getBoundingClientRect();
+    const containerRect = previewContent.getBoundingClientRect();
+    
+    // 计算元素相对于容器的位置
+    const elementTop = rect.top - containerRect.top + scrollTop;
+    const elementBottom = rect.bottom - containerRect.top + scrollTop;
+    
+    // 检查元素是否在可视区域内
+    if (elementTop <= scrollBottom && elementBottom >= scrollTop) {
+      // 如果在视口内且尚未加载，添加到加载队列
+      addToLoadImageQueue(imgIndex);
+    }
+  });
+};
+
+// 将图片添加到加载队列
+const addToLoadImageQueue = (imgIndex: number) => {
+  if (!loadingPages.value.has(imgIndex) && 
+      imgIndex >= 1 && 
+      imgIndex <= imageList.value.length && 
+      !imageList.value[imgIndex - 1]) {  // 确保图片未被加载
+    loadingPages.value.add(imgIndex);  // 添加到正在加载的集合
+    // 加载图片
+    loadImageAtIndex(imgIndex);
+  }
+};
+
+// 加载指定索引的图片
+const loadImageAtIndex = async (imgIndex: number) => {
+  try {
+    // 从存储的原始URL中获取对应图片URL
+    const originalImageUrls = (window as any).__originalImageUrls;
+    if (!originalImageUrls || imgIndex > originalImageUrls.length) {
+      console.error(`图片索引 ${imgIndex} 超出范围`);
+      return;
+    }
+    
+    const imgSrc = originalImageUrls[imgIndex - 1]; // 转换为0基索引
+    
+    // 预加载图片以确保能正确显示
+    const img = new Image();
+    img.src = imgSrc;
+    
+    // 等待图片加载完成
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve(null);
+      img.onerror = () => reject(null); // 即使加载失败也继续
+    });
+    
+    // 更新imageList中对应位置的图片
+    const updatedImageList = [...imageList.value];
+    updatedImageList[imgIndex - 1] = imgSrc;
+    imageList.value = updatedImageList;
+    
+  } catch (error) {
+    console.error(`加载第${imgIndex}张图片失败:`, error);
+    // 即使发生错误，也要从加载图片集合中移除，以便用户可以重试
+    loadingPages.value.delete(imgIndex);
+  } finally {
+    // 从加载图片集合中移除
+    loadingPages.value.delete(imgIndex);
+  }
 };
 
 // 应用瀑布流布局
@@ -404,46 +763,66 @@ const applyWaterfallLayout = () => {
   const container = waterfallRef.value;
   const items = container.querySelectorAll('.waterfall-item');
 
-  // 移动端使用单列，桌面端使用多列
-  const isMobile = window.innerWidth < 768;
-  const columnCount = isMobile ? 1 : 2;
+  // 强制使用单列展示，不再根据屏幕大小调整
+  const columnCount = 1;
 
-  // 重置高度
-  const columns = Array(columnCount).fill(0).map(() => 0);
-
-  // 清除之前的定位
+  // 使用普通流布局，每张图片占满容器宽度
   items.forEach((item: Element) => {
     (item as HTMLElement).style.position = 'static';
     (item as HTMLElement).style.top = 'auto';
     (item as HTMLElement).style.left = 'auto';
-    (item as HTMLElement).style.width = `${100 / columnCount}%`;
+    (item as HTMLElement).style.width = '100%';
+    (item as HTMLElement).style.marginBottom = '10px';
   });
+  
+  // 重置容器高度
+  container.style.height = 'auto';
+};
 
-  // 重新应用瀑布流布局
-  items.forEach((item: Element) => {
-    const img = item.querySelector('img');
-    if (img) {
-      // 使用自然尺寸计算高度
-      const imgHeight = img.naturalHeight && img.naturalWidth ?
-        (img.naturalHeight * img.offsetWidth) / img.naturalWidth : 200;
+// 确保图片路径正确
+const normalizeImagePath = (path: string): string => {
+  if (!path) return '';
+  
+  // 检查是否为base64编码的图像数据
+  if (path.startsWith('data:image/')) {
+    // 如果是base64图像数据，直接返回，不进行URL转换
+    return path;
+  }
+  
+  // 只处理图片路径，不处理PDF文件路径
+  if (currentFile.value && currentFile.value.file_type === 'pdf') {
+    // 对于PDF文件，如果是完整的URL则直接返回，否则构造正确的路径
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    } else if (path.startsWith('/api/display-file/file/')) {
+      return path;
+    } else if (path.startsWith('/display-file/file/')) {
+      return `/api${path}`;
+    } else {
+      return `/api/display-file/file/${path}`;
+    }
+  } else {
+    // 对于图片组，确保路径以 /api 开头
+    if (!path.startsWith('/api/')) {
+      if (path.startsWith('/')) {
+        return `/api${path}`;
+      } else {
+        return `/api/${path}`;
+      }
+    }
+  }
+  return path;
+};
 
-      // 找到最短的列
-      const minHeight = Math.min(...columns);
-      const minIndex = columns.indexOf(minHeight);
-
-      // 设置项目位置
-      (item as HTMLElement).style.position = 'absolute';
-      (item as HTMLElement).style.top = `${columns[minIndex]}px`;
-      (item as HTMLElement).style.left = `${(minIndex * 100) / columnCount}%`;
-      (item as HTMLElement).style.width = `${100 / columnCount}%`;
-
-      // 更新列高度
-      columns[minIndex] += imgHeight + 10; // 添加间距
+// 图片加载完成
+const onImageLoad = () => {
+  // 瀑布流布局调整
+  nextTick(() => {
+    if (currentFile.value && (currentFile.value.file_type === 'image_group' ||
+        (currentFile.value.file_type === 'pdf' && currentFile.value.display_mode === 'waterfall'))) {
+      applyWaterfallLayout();
     }
   });
-
-  // 设置容器高度
-  container.style.height = `${Math.max(...columns) + 20}px`;
 };
 
 // 删除文件
@@ -485,11 +864,25 @@ const deleteFile = async (file: any, event: Event) => {
 
 // 关闭预览
 const closePreview = (done: () => void) => {
+  // 清理资源
   currentFile.value = null;
   imageList.value = [];
+  pdfDoc = null;  // 清理普通变量
   currentPage.value = 1;
-  totalPages.value = 1;
-  pdfDoc.value = null;
+  totalPages.value = 0;
+  renderedPages.value.clear();
+  maxRenderedPage.value = 1;
+  
+  // 清理渲染队列
+  renderQueue.value = [];
+  isRendering.value = false;
+  
+  // 停止滚动监听
+  stopScrollListener();
+  
+  // 清理全局变量
+  (window as any).__originalImageUrls = null;
+  
   done();
 };
 
@@ -505,6 +898,11 @@ const handleSelectStart = (e: Event) => {
   return false;
 };
 
+// 返回上一页
+const goBack = () => {
+  router.go(-1); // 返回上一页
+};
+
 // 初始化
 onMounted(() => {
   checkAdminRole(); // 检查用户是否为管理员
@@ -513,7 +911,7 @@ onMounted(() => {
   // 监听窗口大小变化，重新应用瀑布流布局
   window.addEventListener('resize', () => {
     if (currentFile.value && (currentFile.value.file_type === 'image_group' ||
-        (currentFile.value.file_type === 'pdf' && currentFile.value.display_mode === 'waterfall'))) {
+        (currentFile.value.file_type === 'pdf'))) {
       nextTick(() => {
         applyWaterfallLayout();
       });
@@ -570,10 +968,12 @@ onMounted(() => {
 }
 
 .file-title {
-  margin: 0 0 10px 0;
+  margin: 0 0 10px 15px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 800;
   color: #303133;
+
+
 }
 
 .file-meta {
@@ -586,6 +986,10 @@ onMounted(() => {
 
 .file-type, .display-mode, .created-time {
   display: inline-block;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: white;
+  padding: 1px 8px;
+  border-radius: 2px;
 }
 
 .load-more {
@@ -625,12 +1029,78 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
+.waterfall-grid {
+  position: relative;
+  width: 100%;
+}
+
+.waterfall-item {
+  position: relative;
+  padding: 5px;
+  box-sizing: border-box;
+}
+
 .waterfall-item img {
   width: 100%;
   height: auto;
   display: block;
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.placeholder-item {
+  width: 100%;
+  min-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.placeholder-item.loading {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.placeholder-item.pending {
+  background: #f8f9fa;
+  border: 2px dashed #dcdfe6;
+}
+
+.placeholder-content {
+  color: #909399;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content .loading-icon {
+  font-size: 24px;
+  margin-bottom: 10px;
+  color: #409eff;
+  animation: spin 1s linear infinite;
+}
+
+.placeholder-content .pending-icon {
+  font-size: 24px;
+  margin-bottom: 10px;
+  color: #909399;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+
+/* 为页码添加额外样式 */
+.waterfall-item {
+  position: relative;
 }
 
 .loading-images {
@@ -676,14 +1146,94 @@ onMounted(() => {
     padding: 10px;
   }
 
+  .file-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .file-info {
+    width: 100%;
+  }
+
+  .file-title {
+    font-size: 15px;
+    margin: 0 0 8px 0;
+  }
+
   .file-meta {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 11px;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .display-card {
+    margin: 5px;
+  }
+
+  .card-header {
     flex-direction: column;
-    gap: 5px;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .pagination-controls {
     flex-direction: column;
     gap: 10px;
+    align-items: stretch;
+  }
+
+  .pagination-controls .el-button {
+    width: 100%;
+    margin: 2px 0;
+  }
+
+  .page-info {
+    text-align: center;
+  }
+
+  .preview-dialog .el-dialog {
+    margin-top: 5px !important;
+    margin-bottom: 5px !important;
+    width: 95% !important;
+    max-height: 98vh;
+  }
+
+  .waterfall-item {
+    padding: 3px;
+  }
+
+  .waterfall-item img {
+    border-radius: 2px;
+  }
+
+  .load-more .el-button {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .no-data {
+    padding: 20px 0;
+  }
+
+  .delete-btn {
+    font-size: 20px;
+    margin-right: 10px;
+  }
+
+  .preview-content {
+    padding: 10px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .waterfall-container {
+    max-height: 80vh;
   }
 }
 </style>

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FreeFileSync XmlType="GUI" XmlFormat="19">
+    <Notes>Soonwin_OA 项目同步配置 - 包含 Vue 前端和 Python 后端</Notes>
+    <Compare>
+        <Variant>TimeAndSize</Variant>
+        <Symlinks>Exclude</Symlinks>
+        <IgnoreTimeShift/>
+    </Compare>
+    <Synchronize>
+        <Variant>TwoWay</Variant>
+        <DetectMovedFiles>false</DetectMovedFiles>
+        <DeletionPolicy>RecycleBin</DeletionPolicy>
+        <VersioningFolder Style="Replace"/>
+    </Synchronize>
+    <Filter>
+        <Include>
+            <Item>*</Item>
+        </Include>
+        <Exclude>
+            <Item>*.tmp</Item>
+            <Item>*.temp</Item>
+            <Item>*~</Item>
+            <Item>\System Volume Information\</Item>
+            <Item>\$Recycle.Bin\</Item>
+            <Item>\RECYCLE?\</Item>
+            <Item>\Recovery\</Item>
+            <Item>*\thumbs.db</Item>
+            <Item>*.DS_Store</Item>
+            <Item>.vscode\</Item>
+            <Item>.idea\</Item>
+            <Item>.project</Item>
+            <Item>.classpath</Item>
+            <Item>.c9\</Item>
+            <Item>*.launch</Item>
+            <Item>.settings\</Item>
+            <Item>*.sublime-workspace</Item>
+            <Item>*.sublime-project</Item>
+            <Item>node_modules\</Item>
+            <Item>.env</Item>
+            <Item>.env.local</Item>
+            <Item>.env.development.local</Item>
+            <Item>.env.production.local</Item>
+            <Item>.env.test.local</Item>
+            <Item>dist\</Item>
+            <Item>build\</Item>
+            <Item>out\</Item>
+            <Item>npm-debug.log*</Item>
+            <Item>yarn-debug.log*</Item>
+            <Item>yarn-error.log*</Item>
+            <Item>pnpm-debug.log*</Item>
+            <Item>.eslintcache</Item>
+            <Item>*.tgz</Item>
+            <Item>venv\</Item>
+            <Item>env\</Item>
+            <Item>ENV\</Item>
+            <Item>.venv\</Item>
+            <Item>env3\</Item>
+            <Item>__pycache__\</Item>
+            <Item>*.py[cod]</Item>
+            <Item>*$py.class</Item>
+            <Item>*.so</Item>
+            <Item>.Python</Item>
+            <Item>*.log</Item>
+            <Item>*.pid</Item>
+            <Item>*.seed</Item>
+            <Item>*.pid.lock</Item>
+            <Item>*.db</Item>
+            <Item>*.sqlite</Item>
+            <Item>*.sqlite3</Item>
+            <Item>data\</Item>
+            <Item>migrations\\versions\</Item>
+            <Item>*.pdf</Item>
+            <Item>*.txt</Item>
+            <Item>.local</Item>
+            <Item>*.local.conf</Item>
+            <Item>.git\</Item>
+            <Item>.gitignore</Item>
+            <Item>*.last_build_id</Item>
+            <Item>\build\</Item>
+            <Item>\.dart_tool\</Item>
+            <Item>\.flutter-plugins-dependencies</Item>
+            <Item>\.metadata</Item>
+            <Item>\analysis_options.yaml</Item>
+            <Item>\devtools_options.yaml</Item>
+            <Item>\test\</Item>
+            <Item>\.iflow\</Item>
+            <Item>*\node_modules\</Item>
+            <Item>*\__pycache__\</Item>
+            <Item>*\migrations\</Item>
+            <Item>*\venv\</Item>
+            <Item>\soonwin-os-Python-Server\assets\</Item>
+        </Exclude>
+        <SizeMin Unit="None">0</SizeMin>
+        <SizeMax Unit="None">0</SizeMax>
+        <TimeSpan Type="None">0</TimeSpan>
+    </Filter>
+    <FolderPairs>
+        <Pair>
+            <Left>G:\Soonwin_OA</Left>
+            <Right>G:\Soonwin_OA_Code</Right>
+        </Pair>
+    </FolderPairs>
+    <Errors Ignore="false" Retry="0" Delay="5"/>
+    <PostSyncCommand Condition="Completion"/>
+    <LogFolder/>
+    <EmailNotification Condition="Always"/>
+    <GridViewType>Action</GridViewType>
+</FreeFileSync>
