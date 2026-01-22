@@ -179,17 +179,42 @@ def upload_display_file():
         display_path = os.path.join(current_app.root_path, '..', DISPLAY_FILE_FOLDER)
         
         if file_type == 'image_group':
-            # 为图片组创建独立文件夹
-            group_folder = f"{file_uuid}_{secure_filename(title)}"
+            # 为图片组创建独立文件夹，确保唯一性
+            base_folder_name = f"{file_uuid}_{secure_filename(title)}"
+            group_folder = base_folder_name
             group_path = os.path.join(display_path, group_folder)
+            
+            # 如果文件夹已存在，添加数字后缀
+            counter = 1
+            while os.path.exists(group_path):
+                group_folder = f"{base_folder_name}_{counter}"
+                group_path = os.path.join(display_path, group_folder)
+                counter += 1
+                
             os.makedirs(group_path, exist_ok=True)
             
+            # 先对上传的文件按原始文件名进行自然排序
+            import re
+            def natural_sort_key(file_obj):
+                if file_obj.filename == '':
+                    return ''
+                filename = secure_filename(file_obj.filename)
+                return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', filename)]
+            
+            # 按原始文件名进行自然排序
+            sorted_files = sorted([f for f in files if f.filename != ''], key=natural_sort_key)
+            
+            # 生成一个统一的UUID前缀
+            common_uuid_prefix = str(uuid.uuid4())
+            
             saved_files = []
-            for file in files:
+            # 使用统一的UUID前缀加上序号来保持排序
+            for index, file in enumerate(sorted_files, start=1):
                 if file.filename == '':
                     continue
                 original_filename = secure_filename(file.filename)
-                unique_filename = f"{str(uuid.uuid4())}_{original_filename}"
+                # 使用统一UUID前缀+序号来命名文件，这样即使按文件名排序也会保持正确的顺序
+                unique_filename = f"{common_uuid_prefix}_{index:03d}_{original_filename}"
                 save_path = os.path.join(group_path, unique_filename)
                 
                 # 保存文件
@@ -199,6 +224,9 @@ def upload_display_file():
             # 存储文件夹路径
             file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, group_folder)
             original_filename = f"{len(saved_files)}张图片"
+            
+            # 将图片数量写入页数字段
+            pages = len(saved_files)
         else:
             # 对于PDF文件，只保存第一个文件
             file = files[0]
@@ -235,9 +263,9 @@ def upload_display_file():
         display_file = DisplayFile(
             title=title,
             file_type=file_type,
-            display_mode=display_mode,
             file_path=file_path_to_store,
             original_filename=original_filename,
+            page_count=len(saved_files) if file_type == 'image_group' else None,  # 为图片组设置页数
             created_by=current_user.name if current_user else 'Unknown'
         )
         
@@ -369,9 +397,11 @@ def get_image_group(uuid):
             if os.path.splitext(filename)[1].lower() in allowed_extensions:
                 image_files.append(filename)
         
-        # 按文件名排序
-        image_files.sort()
-        
+        # 按文件名自然排序（处理数字排序如 1,2,3,10 而不是 1,10,2,3）
+        import re
+        def natural_sort_key(s):
+            return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+        image_files.sort(key=natural_sort_key)
         # 构建图片URL列表 - 使用新的静态文件服务路由
         image_urls = []
         for img_file in image_files:
@@ -396,14 +426,83 @@ def get_image_group(uuid):
             "data": None
         }), 500
 
-@display_file_bp.route('/display-file/<int:file_id>', methods=['DELETE'])
+@display_file_bp.route('/display-file/<int:file_id>', methods=['PUT'])
 @login_required
 @admin_required
-def delete_display_file(file_id):
-    """删除展示文件（仅管理员）"""
+def update_display_file(file_id):
+    """更新展示文件信息（仅管理员）"""
     try:
         display_file = DisplayFile.query.get_or_404(file_id)
         
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "code": 400,
+                "msg": "请求数据不能为空",
+                "data": None
+            }), 400
+
+        # 更新允许的字段
+        if 'title' in data:
+            display_file.title = data['title']
+        if 'page_count' in data:
+            display_file.page_count = data['page_count']
+            
+        db.session.commit()
+        
+        return jsonify({
+            "code": 200,
+            "msg": "文件信息更新成功",
+            "data": display_file.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"更新文件信息失败: {str(e)}",
+            "data": None
+        }), 500
+        # 获取请求数据
+        data = request.get_json()
+        if not data or 'page_count' not in data:
+            return jsonify({
+                "code": 400,
+                "msg": "页数参数缺失",
+                "data": None
+            }), 400
+
+        page_count = data['page_count']
+        if page_count is not None and (not isinstance(page_count, int) or page_count < 0):
+            return jsonify({
+                "code": 400,
+                "msg": "页数必须是非负整数",
+                "data": None
+            }), 400
+
+        # 只有当当前页数为空时才更新
+        if display_file.page_count is None:
+            display_file.page_count = page_count
+            db.session.commit()
+            
+            return jsonify({
+                "code": 200,
+                "msg": "页数更新成功",
+                "data": display_file.to_dict()
+            })
+        else:
+            return jsonify({
+                "code": 200,
+                "msg": "页数已存在，无需更新",
+                "data": display_file.to_dict()
+            })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"更新页数失败: {str(e)}",
+            "data": None
+        }), 500
         # 删除物理文件或文件夹
         file_path = os.path.join(current_app.root_path, '..', display_file.file_path)
         if os.path.exists(file_path):

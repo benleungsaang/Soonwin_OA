@@ -5,9 +5,20 @@
 路由文件夹 ./app/routes
 数据库文件是 ./soonwin_oa.db
 
+订单状态中选择器中的展示文本以current_status对应中文显示，value以current_status的对应current_status_time填入（没有就显示“未有日期”）
+
+
+
+
+
 提醒：
 1、注意前端调用数据时，request.ts会自动解包data，并且一切修改的前提是不要修改request.ts的解包方式；
-2、执行过后端数据库模型、字段变更后，记得做好数据迁移；
+2、执行过后端数据库模型、字段变更后，记得做好数据迁移并生效再执行后续操作；
+3、文件修改后不执行Validate with frontend-tester；
+
+
+
+
 
 
 订单验收相关：
@@ -15,10 +26,6 @@
 后端模型：order_inspection.py
 订单验收主页：OrderInspectionView.vue
 验收报告页：InspectionReportView.vue
-
-
-3、修改过的前端代码要经过Validate with frontend-tester验收才能确认返回；
-
 
 
 订单管理页相关：

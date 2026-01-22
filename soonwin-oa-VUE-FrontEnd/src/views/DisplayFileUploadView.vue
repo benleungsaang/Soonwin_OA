@@ -327,7 +327,7 @@ const resetForm = async () => {
   form.displayMode = 'waterfall';
   form.files = [];
   fileList.value = [];
-  
+
   // 清空el-upload组件中的文件
   if (uploadRef.value) {
     uploadRef.value.clearFiles();

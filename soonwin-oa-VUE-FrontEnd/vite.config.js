@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 import os from 'os';
+import path from 'path';
 function getNetworkIP() {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
@@ -28,6 +29,7 @@ export default defineConfig({
         // 配置路径别名（@指向src目录）
         alias: {
             '@': resolve(__dirname, 'src'),
+            'pdfjs-dist': path.resolve(__dirname, 'node_modules/pdfjs-dist'),
         },
     },
     server: {

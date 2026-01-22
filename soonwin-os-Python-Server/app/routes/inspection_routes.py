@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from app.models.order_inspection import OrderInspection, InspectionItem
+from app.models.order_inspection import OrderInspection, InspectionItem, OrderInspectionStatusLog
 from app.models.order import Order
 from app.models.employee import Employee
 from datetime import datetime
@@ -804,6 +804,13 @@ def batch_update_inspection_items(inspection_id):
                                     delete_payload = {
                                         'path': photo_path
                                     }
+
+                                    print(f"图片文件移动失败: {photo_path}, 错误: {result.get('msg', '未知错误')}")
+                                    # 移动失败，尝试直接删除
+                                    delete_url = f"http://192.168.30.70:5000/api/upload/delete"
+                                    delete_payload = {
+                                        'path': photo_path
+                                    }
                                     delete_response = requests.post(delete_url, json=delete_payload, headers=headers)
                                     if delete_response.status_code == 200:
                                         delete_result = delete_response.json()
@@ -1178,5 +1185,105 @@ def clear_inspection_items(inspection_id):
         return jsonify({
             "code": 500,
             "msg": f"清空验收检查项失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@inspection_bp.route('/inspections/<int:inspection_id>/status', methods=['PUT'])
+def update_inspection_status(inspection_id):
+    """更新验收记录状态"""
+    try:
+        # 验证验收记录是否存在
+        inspection = OrderInspection.query.get(inspection_id)
+        if not inspection:
+            return jsonify({
+                "code": 400,
+                "msg": "验收记录不存在",
+                "data": None
+            }), 400
+
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "code": 400,
+                "msg": "请求数据不能为空",
+                "data": None
+            }), 400
+
+        # 获取新状态和时间
+        new_status = data.get('status')
+        status_time_str = data.get('status_time')
+
+        if new_status is None:
+            return jsonify({
+                "code": 400,
+                "msg": "状态值不能为空",
+                "data": None
+            }), 400
+
+        # 验证状态值是否在有效范围内（1-5）
+        if not isinstance(new_status, int) or new_status < 1 or new_status > 5:
+            return jsonify({
+                "code": 400,
+                "msg": "状态值必须是1-5之间的整数",
+                "data": None
+            }), 400
+
+        # 解析状态时间，如果未提供则设置为None
+        status_time = None
+        if status_time_str:
+            try:
+                # 尝试解析时间字符串
+                status_time = datetime.strptime(status_time_str, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # 尝试只解析日期
+                    status_time = datetime.strptime(status_time_str, '%Y-%m-%d').date()
+                    # 将日期转换为datetime对象，时间部分设为00:00:00
+                    status_time = datetime.combine(status_time, datetime.min.time())
+                except ValueError:
+                    return jsonify({
+                        "code": 400,
+                        "msg": "时间格式错误，应为 'YYYY-MM-DD HH:MM:SS' 或 'YYYY-MM-DD'",
+                        "data": None
+                    }), 400
+
+        # 更新主表的状态
+        inspection.current_status = new_status
+        inspection.current_status_time = status_time
+
+        # 创建状态日志记录
+        status_log = OrderInspectionStatusLog(
+            inspection_id=inspection_id,
+            status=new_status,
+            status_time=status_time,
+            create_time=datetime.now()
+        )
+        db.session.add(status_log)
+
+        db.session.commit()
+
+        # 返回成功响应
+        import json
+        from flask import Response
+        response_data = {
+            "code": 200,
+            "msg": "验收状态更新成功",
+            "data": {
+                "inspection_id": inspection_id,
+                "current_status": inspection.current_status,
+                "current_status_time": inspection.current_status_time.strftime('%Y-%m-%d') if inspection.current_status_time else None,
+                "status_log_id": status_log.id
+            }
+        }
+        # 使用自定义编码器处理Decimal类型
+        json_response = json.dumps(response_data, cls=DecimalEncoder, ensure_ascii=False)
+        return Response(json_response, mimetype='application/json')
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"更新验收状态失败: {str(e)}",
             "data": None
         }), 500

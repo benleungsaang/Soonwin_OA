@@ -17,6 +17,9 @@ class OrderInspection(db.Model):
     total_items = db.Column(db.Integer, default=0, comment="总检查项数")
     completed_items = db.Column(db.Integer, default=0, comment="已完成检查项数")
     remarks = db.Column(db.Text, comment="备注信息")
+    # 新增订单状态字段
+    current_status = db.Column(db.Integer, default=1, comment="当前订单状态: 1-下单, 2-排产, 3-完成生产, 4-验收阶段, 5-发货")
+    current_status_time = db.Column(db.DateTime, comment="当前状态时间")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
     
@@ -33,6 +36,9 @@ class OrderInspection(db.Model):
             "total_items": self.total_items,
             "completed_items": self.completed_items,
             "remarks": self.remarks,
+            # 订单状态相关字段
+            "current_status": self.current_status,
+            "current_status_time": self.current_status_time.strftime('%Y-%m-%d') if self.current_status_time else None,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
             "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
             # 订单基础信息
@@ -44,6 +50,31 @@ class OrderInspection(db.Model):
             "machine_count": order_data.get('machine_count', 0),
             "order_time": order_data.get('order_time', ''),
             "ship_time": order_data.get('ship_time', ''),
+        }
+
+
+class OrderInspectionStatusLog(db.Model):
+    """
+    订单状态流水表
+    """
+    __tablename__ = "OrderInspectionStatusLog"
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
+    inspection_id = db.Column(db.Integer, db.ForeignKey('OrderInspection.id'), nullable=False, comment="关联验收ID")
+    status = db.Column(db.Integer, nullable=False, comment="状态值: 1-下单, 2-排产, 3-完成生产, 4-验收阶段, 5-发货")
+    status_time = db.Column(db.DateTime, comment="状态变更时间")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    
+    # 关联验收记录
+    inspection = db.relationship('OrderInspection', backref=db.backref('status_logs', lazy=True))
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "inspection_id": self.inspection_id,
+            "status": self.status,
+            "status_time": self.status_time.strftime('%Y-%m-%d') if self.status_time else None,
+            "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
         }
 
 
