@@ -39,13 +39,12 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolea
 
 // 创建Axios实例
 const getBaseURL = () => {
-  // 开发环境：使用相对路径（由vite proxy转发，避免localhost硬编码）
+  // 在开发环境中使用相对路径，通过Vite代理转发请求
   if (import.meta.env.MODE === 'development') {
-    return '/api'; // 关键：改为相对路径，由vite proxy转发到5001
+    return '${window.location.origin}';
   }
-  // 生产环境：动态拼接当前访问的IP+端口 + /api（核心：解决移动端localhost问题）
-  // window.location.origin会自动获取当前访问的地址，如http://192.168.30.64:5183
-  return `${window.location.origin}/api`;
+  // 在生产环境中使用VITE_API_BASE_URL环境变量
+  return import.meta.env.VITE_API_BASE_URL || '';
 };
 
 const service = axios.create({
@@ -80,8 +79,9 @@ const refreshToken = async (): Promise<string> => {
   }
 
   try {
-    // 统一使用service的baseURL，避免重复拼接
-    const response = await axios.post(`${getBaseURL()}/auth/refresh`, {}, {
+    // 在开发环境中使用相对路径，生产环境使用完整的API基础URL
+    const baseURL = import.meta.env.MODE === 'development' ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+    const response = await axios.post(`${baseURL}/api/auth/refresh`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',

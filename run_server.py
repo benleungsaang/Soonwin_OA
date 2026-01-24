@@ -152,12 +152,14 @@ class OAServerManager:
 
         server {{
             listen       {self.nginx_port};
-            server_name  localhost 192.168.110.13;
+            # server_name  localhost 192.168.110.13;
+            # 修改：server_name 改为 _（匹配所有IP/域名），适配192.168.30.xx网段
+            server_name  _;
             root         {frontend_dist};
             index        index.html;
 
             location /api/ {{
-                proxy_pass http://backend_server;
+                proxy_pass http://backend_server/;  # 补充末尾的/，避免路径拼接错误
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -165,6 +167,10 @@ class OAServerManager:
                 proxy_connect_timeout 30s;
                 proxy_send_timeout 30s;
                 proxy_read_timeout 60s;
+                # 新增：跨域头（避免移动端跨域报错）
+                add_header Access-Control-Allow-Origin *;
+                add_header Access-Control-Allow-Methods 'GET, POST, PUT, DELETE, OPTIONS';
+                add_header Access-Control-Allow-Headers 'Content-Type, Authorization';
             }}
 
             location / {{
