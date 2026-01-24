@@ -24,7 +24,7 @@
         :auto-upload="true"
         :show-file-list="false"
         list-type="picture"
-        :http-request="(options) => handlePhotoUpload(options, 'normal')"
+        :http-request="(options: any) => handlePhotoUpload(options, 'normal')"
       >
         <el-icon style="cursor: pointer; border: 1px ; margin-left: 2cqw; font-size: 25px; background-color: #ddd; padding: 8px; border-radius: 5px;">
           <Camera />
@@ -66,7 +66,7 @@
         :show-file-list="false"
         list-type="picture"
         style="display: inline-flex; margin-left: 15px;"
-        :http-request="(options) => handlePhotoUpload(options, 'defect')"
+        :http-request="(options: any) => handlePhotoUpload(options, 'defect')"
       >
         <el-icon style=" cursor: pointer; border: 1px ; font-size: 25px; background-color: #ddd; padding: 8px; border-radius: 5px;">
           <Camera />
@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { uploadFile } from '@/utils/upload';
 import { Close, Camera } from '@element-plus/icons-vue';
@@ -123,11 +123,11 @@ const handleResize = () => {
 
 
 // 监听窗口大小变化
-const onMounted = () => {
+const onComponentMounted = () => {
   window.addEventListener('resize', handleResize);
 };
 
-const onUnmounted = () => {
+const onComponentUnmounted = () => {
   window.removeEventListener('resize', handleResize);
 };
 
@@ -151,10 +151,18 @@ const getPhotoUrl = (path: string) => {
 
   // 否则添加基础URL
   if (import.meta.env.MODE === 'development') {
-    // 开发环境下，假设文件服务在后端服务器上
-    return `http://192.168.30.70:5000/${normalizedPath}`;
+    // 开发环境下，使用相对路径通过Vite代理访问后端5001
+    return `/${normalizedPath}`;
   } else {
-    return `${window.location.protocol}//${window.location.hostname}:5000/${normalizedPath}`;
+    // 生产环境下，使用配置的API基础URL或默认的5000端口
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:5000`;
+    if (apiBaseUrl.startsWith('http')) {
+      // 如果VITE_API_BASE_URL是完整URL，则直接使用
+      return `${apiBaseUrl}/${normalizedPath}`;
+    } else {
+      // 否则构建完整URL
+      return `${window.location.protocol}//${window.location.hostname}${apiBaseUrl}/${normalizedPath}`;
+    }
   }
 };
 
@@ -243,10 +251,10 @@ const onDescriptionBlur = () => {
 };
 
 // 组件挂载时添加事件监听
-onMounted();
+onComponentMounted();
 
 // 组件卸载前移除事件监听
-onUnmounted();
+onComponentUnmounted();
 </script>
 
 <style scoped>

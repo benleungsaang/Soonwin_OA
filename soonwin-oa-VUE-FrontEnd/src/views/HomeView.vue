@@ -7,7 +7,7 @@
       <el-main class="main">
         <el-card shadow="hover" class="card">
           <!-- 替换 el-title 为 el-page-header -->
-          <el-page-header content="SoonWin OA系统" />
+          <el-page-header content="Soonwin OA系统" />
           <el-divider></el-divider>
           <el-menu :default-active="activeMenu" class="menu">
             <el-menu-item index="1" @click="goToOrder" v-if="hasToken && isCurrentUserAdmin">
@@ -30,7 +30,7 @@
               <el-icon><Money /></el-icon>
               <span>运营费用</span>
             </el-menu-item>
-            <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
+            <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken && isCurrentUserAdmin">
               <el-icon><Finished /></el-icon>
               <span>订单验收</span>
             </el-menu-item>
@@ -38,10 +38,10 @@
               <el-icon><User /></el-icon>
               <span>登录</span>
             </el-menu-item>
-            <el-menu-item index="8" @click="goToDisplayFileUpload" v-if="hasToken && isCurrentUserAdmin">
+            <!-- <el-menu-item index="8" @click="goToDisplayFileUpload" v-if="hasToken && isCurrentUserAdmin">
               <el-icon><Upload /></el-icon>
               <span>上传展示文件</span>
-            </el-menu-item>
+            </el-menu-item> -->
             <el-menu-item index="9" @click="goToDisplayFiles" v-if="hasToken">
               <el-icon><Files /></el-icon>
               <span>展示文件</span>
@@ -185,10 +185,11 @@ const logout = () => {
 }
 
 .header {
-  background-color: #1989fa;
+  background-color: #0653a0;
   color: white;
   text-align: center;
-  line-height: 60px;
+  border-radius: 8px;
+  font: hevatica, sans-serif;
 }
 
 .main {
@@ -201,6 +202,7 @@ const logout = () => {
 .card {
   width: 400px;
   padding: 20px;
+  border-radius: 8px;
 }
 
 .menu {

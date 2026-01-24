@@ -18,16 +18,16 @@ def require_admin(f):
                 "msg": "缺少访问令牌",
                 "data": None
             }), 401
-            
+
         # 移除 "Bearer " 前缀
         if token.startswith("Bearer "):
             token = token[7:]
-        
+
         try:
             # 解码JWT令牌
-            payload = jwt.decode(token, config.JWT_SECRET_KEY, algorithms=['HS256'])
+            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
             emp_id = payload['emp_id']
-            
+
             # 查询员工信息
             employee = Employee.query.filter_by(emp_id=emp_id).first()
             if not employee:
@@ -36,7 +36,7 @@ def require_admin(f):
                     "msg": "员工信息不存在",
                     "data": None
                 }), 401
-            
+
             # 检查是否为管理员
             if employee.user_role != 'admin':
                 return jsonify({
@@ -44,7 +44,7 @@ def require_admin(f):
                     "msg": "权限不足，仅管理员可访问",
                     "data": None
                 }), 403
-            
+
         except jwt.ExpiredSignatureError:
             return jsonify({
                 "code": 401,
@@ -63,9 +63,9 @@ def require_admin(f):
                 "msg": f"权限验证失败: {str(e)}",
                 "data": None
             }), 500
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 
@@ -80,16 +80,16 @@ def require_auth(f):
                 "msg": "缺少访问令牌",
                 "data": None
             }), 401
-            
+
         # 移除 "Bearer " 前缀
         if token.startswith("Bearer "):
             token = token[7:]
-        
+
         try:
             # 解码JWT令牌
-            payload = jwt.decode(token, config.JWT_SECRET_KEY, algorithms=['HS256'])
+            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
             emp_id = payload['emp_id']
-            
+
             # 查询员工信息
             employee = Employee.query.filter_by(emp_id=emp_id).first()
             if not employee:
@@ -98,7 +98,7 @@ def require_auth(f):
                     "msg": "员工信息不存在",
                     "data": None
                 }), 401
-            
+
         except jwt.ExpiredSignatureError:
             return jsonify({
                 "code": 401,
@@ -117,9 +117,9 @@ def require_auth(f):
                 "msg": f"认证失败: {str(e)}",
                 "data": None
             }), 500
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 
@@ -134,16 +134,16 @@ def require_auth_with_leeway(f):
                 "msg": "缺少访问令牌",
                 "data": None
             }), 401
-            
+
         # 移除 "Bearer " 前缀
         if token.startswith("Bearer "):
             token = token[7:]
-        
+
         try:
             # 解码JWT令牌，允许5分钟宽限期
             payload = jwt.decode(
-                token, 
-                config.JWT_SECRET_KEY, 
+                token,
+                config.Config.JWT_SECRET_KEY,
                 algorithms=['HS256'],
                 options={
                     "verify_exp": True
@@ -151,7 +151,7 @@ def require_auth_with_leeway(f):
                 leeway=timedelta(minutes=5)  # 允许5分钟的宽限时间
             )
             emp_id = payload['emp_id']
-            
+
             # 查询员工信息
             employee = Employee.query.filter_by(emp_id=emp_id).first()
             if not employee:
@@ -160,7 +160,7 @@ def require_auth_with_leeway(f):
                     "msg": "员工信息不存在",
                     "data": None
                 }), 401
-            
+
         except jwt.ExpiredSignatureError:
             return jsonify({
                 "code": 401,
@@ -179,7 +179,7 @@ def require_auth_with_leeway(f):
                 "msg": f"认证失败: {str(e)}",
                 "data": None
             }), 500
-        
+
         return f(*args, **kwargs)
-    
+
     return decorated_function

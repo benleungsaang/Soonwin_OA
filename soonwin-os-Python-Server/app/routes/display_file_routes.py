@@ -77,13 +77,13 @@ def upload_display_file():
     """上传展示文件（仅管理员）"""
     try:
         create_display_file_directories()
-        
+
         # 获取表单数据
         title = request.form.get('title', '').strip()
         file_type = request.form.get('file_type', '').strip()  # image_group 或 pdf
         display_mode = request.form.get('display_mode', '').strip()  # pagination 或 waterfall
         current_user = getattr(request, 'current_user', None)
-        
+
         # 验证参数
         if not title:
             return jsonify({
@@ -91,21 +91,21 @@ def upload_display_file():
                 "msg": "标题不能为空",
                 "data": None
             }), 400
-        
+
         if file_type not in ['image_group', 'pdf']:
             return jsonify({
                 "code": 400,
                 "msg": "文件类型必须是 image_group 或 pdf",
                 "data": None
             }), 400
-        
+
         if display_mode not in ['pagination', 'waterfall']:
             return jsonify({
                 "code": 400,
                 "msg": "展示方式必须是 pagination 或 waterfall",
                 "data": None
             }), 400
-        
+
         # 验证是否包含文件
         if 'file' not in request.files:
             return jsonify({
@@ -113,7 +113,7 @@ def upload_display_file():
                 "msg": "没有文件被上传",
                 "data": None
             }), 400
-        
+
         files = request.files.getlist('file')
         if len(files) == 0:
             return jsonify({
@@ -121,7 +121,7 @@ def upload_display_file():
                 "msg": "没有选择文件",
                 "data": None
             }), 400
-        
+
         # 验证文件数量
         if file_type == 'image_group' and len(files) > 50:
             return jsonify({
@@ -129,7 +129,7 @@ def upload_display_file():
                 "msg": "图片组最多只能上传50张图片",
                 "data": None
             }), 400
-        
+
         # 验证文件类型
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
         for file in files:
@@ -141,7 +141,7 @@ def upload_display_file():
                     "msg": "文件没有扩展名",
                     "data": None
                 }), 400
-            
+
             file_ext = file.filename.rsplit('.', 1)[1].lower()
             if file_ext not in allowed_extensions:
                 return jsonify({
@@ -149,7 +149,7 @@ def upload_display_file():
                     "msg": f"不允许的文件类型: {file_ext}",
                     "data": None
                 }), 400
-            
+
             # 如果是 image_group 类型，只能上传图片
             if file_type == 'image_group' and file_ext not in {'png', 'jpg', 'jpeg', 'gif'}:
                 return jsonify({
@@ -157,7 +157,7 @@ def upload_display_file():
                     "msg": "图片组类型只能上传图片文件",
                     "data": None
                 }), 400
-            
+
             # 如果是 pdf 类型，只能上传 PDF
             if file_type == 'pdf' and file_ext != 'pdf':
                 return jsonify({
@@ -165,34 +165,34 @@ def upload_display_file():
                     "msg": "PDF类型只能上传PDF文件",
                     "data": None
                 }), 400
-        
+
         # 获取表单数据
         title = request.form.get('title', '').strip()
         file_type = request.form.get('file_type', '').strip()  # image_group 或 pdf
         display_mode = request.form.get('display_mode', '').strip()  # pagination 或 waterfall
         current_user = getattr(request, 'current_user', None)
-        
+
         # 生成UUID用于创建文件夹或作为文件命名
         file_uuid = str(uuid.uuid4())
-        
+
         # 确定保存路径
         display_path = os.path.join(current_app.root_path, '..', DISPLAY_FILE_FOLDER)
-        
+
         if file_type == 'image_group':
             # 为图片组创建独立文件夹，确保唯一性
             base_folder_name = f"{file_uuid}_{secure_filename(title)}"
             group_folder = base_folder_name
             group_path = os.path.join(display_path, group_folder)
-            
+
             # 如果文件夹已存在，添加数字后缀
             counter = 1
             while os.path.exists(group_path):
                 group_folder = f"{base_folder_name}_{counter}"
                 group_path = os.path.join(display_path, group_folder)
                 counter += 1
-                
+
             os.makedirs(group_path, exist_ok=True)
-            
+
             # 先对上传的文件按原始文件名进行自然排序
             import re
             def natural_sort_key(file_obj):
@@ -200,13 +200,13 @@ def upload_display_file():
                     return ''
                 filename = secure_filename(file_obj.filename)
                 return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', filename)]
-            
+
             # 按原始文件名进行自然排序
             sorted_files = sorted([f for f in files if f.filename != ''], key=natural_sort_key)
-            
+
             # 生成一个统一的UUID前缀
             common_uuid_prefix = str(uuid.uuid4())
-            
+
             saved_files = []
             # 使用统一的UUID前缀加上序号来保持排序
             for index, file in enumerate(sorted_files, start=1):
@@ -216,15 +216,15 @@ def upload_display_file():
                 # 使用统一UUID前缀+序号来命名文件，这样即使按文件名排序也会保持正确的顺序
                 unique_filename = f"{common_uuid_prefix}_{index:03d}_{original_filename}"
                 save_path = os.path.join(group_path, unique_filename)
-                
+
                 # 保存文件
                 file.save(save_path)
                 saved_files.append(unique_filename)
-            
+
             # 存储文件夹路径
             file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, group_folder)
             original_filename = f"{len(saved_files)}张图片"
-            
+
             # 将图片数量写入页数字段
             pages = len(saved_files)
         else:
@@ -233,32 +233,14 @@ def upload_display_file():
             original_filename = secure_filename(file.filename)
             unique_filename = f"{file_uuid}_{original_filename}"
             save_path = os.path.join(display_path, unique_filename)
-            
+
             # 保存文件
             file.save(save_path)
-            
+
             # 如果是PDF文件，进行线性化处理
             file_ext = file.filename.rsplit('.', 1)[1].lower()
-            if file_ext == 'pdf':
-                # 生成线性化后的文件名
-                filename = f"{unique_filename}"
-                path = os.path.join(display_path, filename)
-                
-                # 执行线性化处理
-                success = lightweight_linearize_pdf(save_path, path)
-                
-                if success:
-                    # 线性化成功，使用线性化后的文件，并删除原始文件
-                    file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, filename)
-                    # 删除原始文件
-                    os.remove(save_path)
-                else:
-                    # 线性化失败，使用原始文件
-                    file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, unique_filename)
-            else:
-                # 非PDF文件，直接使用原始路径
-                file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, unique_filename)
-        
+            file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, unique_filename)
+
         # 创建数据库记录
         display_file = DisplayFile(
             title=title,
@@ -268,10 +250,10 @@ def upload_display_file():
             page_count=len(saved_files) if file_type == 'image_group' else None,  # 为图片组设置页数
             created_by=current_user.name if current_user else 'Unknown'
         )
-        
+
         db.session.add(display_file)
         db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": "展示文件上传成功",
@@ -293,21 +275,21 @@ def get_display_file_list():
         # 分页参数
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        
+
         # 限制每页最多100条记录
         per_page = min(per_page, 100)
-        
+
         query = DisplayFile.query.order_by(DisplayFile.created_at.desc())
-        
+
         # 执行分页查询
         paginated_files = query.paginate(
-            page=page, 
-            per_page=per_page, 
+            page=page,
+            per_page=per_page,
             error_out=False
         )
-        
+
         files = [file.to_dict() for file in paginated_files.items]
-        
+
         return jsonify({
             "code": 200,
             "msg": "获取展示文件列表成功",
@@ -334,7 +316,7 @@ def get_display_file(file_id):
     """获取单个展示文件详情"""
     try:
         display_file = DisplayFile.query.get_or_404(file_id)
-        
+
         return jsonify({
             "code": 200,
             "msg": "获取展示文件详情成功",
@@ -352,7 +334,7 @@ def get_display_file_by_uuid(uuid):
     """通过UUID获取展示文件详情（用于前端展示，不需登录）"""
     try:
         display_file = DisplayFile.query.filter_by(uuid=uuid).first_or_404()
-        
+
         return jsonify({
             "code": 200,
             "msg": "获取展示文件详情成功",
@@ -370,33 +352,33 @@ def get_image_group(uuid):
     """获取图片组中的所有图片（用于前端展示）"""
     try:
         display_file = DisplayFile.query.filter_by(uuid=uuid).first_or_404()
-        
+
         if display_file.file_type != 'image_group':
             return jsonify({
                 "code": 400,
                 "msg": "该文件不是图片组类型",
                 "data": None
             }), 400
-        
+
         # 获取图片组文件夹路径
         file_path = display_file.file_path
         group_path = os.path.join(current_app.root_path, '..', file_path)
-        
+
         if not os.path.exists(group_path):
             return jsonify({
                 "code": 400,
                 "msg": "图片组文件夹不存在",
                 "data": None
             }), 400
-        
+
         # 获取文件夹中的所有图片文件
         allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
         image_files = []
-        
+
         for filename in os.listdir(group_path):
             if os.path.splitext(filename)[1].lower() in allowed_extensions:
                 image_files.append(filename)
-        
+
         # 按文件名自然排序（处理数字排序如 1,2,3,10 而不是 1,10,2,3）
         import re
         def natural_sort_key(s):
@@ -433,7 +415,7 @@ def update_display_file(file_id):
     """更新展示文件信息（仅管理员）"""
     try:
         display_file = DisplayFile.query.get_or_404(file_id)
-        
+
         # 获取请求数据
         data = request.get_json()
         if not data:
@@ -448,9 +430,9 @@ def update_display_file(file_id):
             display_file.title = data['title']
         if 'page_count' in data:
             display_file.page_count = data['page_count']
-            
+
         db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": "文件信息更新成功",
@@ -463,6 +445,15 @@ def update_display_file(file_id):
             "msg": f"更新文件信息失败: {str(e)}",
             "data": None
         }), 500
+
+@display_file_bp.route('/display-file/<int:file_id>/page-count', methods=['PUT'])
+@login_required
+@admin_required
+def update_display_file_page_count(file_id):
+    """更新展示文件页数（仅管理员）"""
+    try:
+        display_file = DisplayFile.query.get_or_404(file_id)
+
         # 获取请求数据
         data = request.get_json()
         if not data or 'page_count' not in data:
@@ -481,21 +472,20 @@ def update_display_file(file_id):
             }), 400
 
         # 只有当当前页数为空时才更新
-        if display_file.page_count is None:
+        if display_file.page_count is None or display_file.page_count == 0:
             display_file.page_count = page_count
-            db.session.commit()
-            
-            return jsonify({
-                "code": 200,
-                "msg": "页数更新成功",
-                "data": display_file.to_dict()
-            })
         else:
-            return jsonify({
-                "code": 200,
-                "msg": "页数已存在，无需更新",
-                "data": display_file.to_dict()
-            })
+            # 如果页数已存在但与新值不同，也更新
+            if display_file.page_count != page_count:
+                display_file.page_count = page_count
+
+        db.session.commit()
+
+        return jsonify({
+            "code": 200,
+            "msg": "页数更新成功",
+            "data": display_file.to_dict()
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({
@@ -503,6 +493,15 @@ def update_display_file(file_id):
             "msg": f"更新页数失败: {str(e)}",
             "data": None
         }), 500
+
+@display_file_bp.route('/display-file/<int:file_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_display_file(file_id):
+    """删除展示文件（仅管理员）"""
+    try:
+        display_file = DisplayFile.query.get_or_404(file_id)
+
         # 删除物理文件或文件夹
         file_path = os.path.join(current_app.root_path, '..', display_file.file_path)
         if os.path.exists(file_path):
@@ -513,11 +512,11 @@ def update_display_file(file_id):
                 # 如果是文件夹（图片组），删除整个文件夹
                 import shutil
                 shutil.rmtree(file_path)
-        
+
         # 删除数据库记录
         db.session.delete(display_file)
         db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": "删除展示文件成功",
@@ -540,9 +539,9 @@ def serve_display_files(filename):
         # 构建文件路径，确保安全，防止路径遍历攻击
         display_path = os.path.join(current_app.root_path, '..', DISPLAY_FILE_FOLDER)
         display_path = os.path.abspath(display_path)
-        
+
         requested_path = os.path.abspath(os.path.join(display_path, filename))
-        
+
         # 确保请求的路径在DisplayFiles目录内
         if not requested_path.startswith(display_path):
             return jsonify({
@@ -550,7 +549,7 @@ def serve_display_files(filename):
                 "msg": "非法路径访问",
                 "data": None
             }), 400
-        
+
         if not os.path.exists(requested_path):
             return jsonify({
                 "code": 404,
@@ -584,7 +583,7 @@ def serve_pdf_with_range_support(file_path, original_filename):
     """
     try:
         file_size = os.path.getsize(file_path)
-        
+
         # 解析Range请求头
         range_header = request.headers.get('Range')
         if range_header:
@@ -601,7 +600,7 @@ def serve_pdf_with_range_support(file_path, original_filename):
 
                 # 返回206分段数据
                 chunk_size = end - start + 1
-                
+
                 def generate_chunk():
                     with open(file_path, 'rb') as f:
                         f.seek(start)
@@ -654,15 +653,15 @@ def serve_display_file(filename):
     try:
         # 从路径中提取真正的文件名
         actual_filename = os.path.basename(filename)
-        
+
         # 构建文件路径
         file_path = os.path.join(current_app.root_path, '..', DISPLAY_FILE_FOLDER)
         file_path = os.path.normpath(file_path)
-        
+
         # 手动构建完整文件路径
         full_path = os.path.join(file_path, actual_filename)
         full_path = os.path.normpath(full_path)
-        
+
         # 检查文件是否存在
         if not os.path.exists(full_path):
             return jsonify({
@@ -670,9 +669,9 @@ def serve_display_file(filename):
                 "msg": f"文件不存在: {actual_filename}",
                 "data": None
             }), 404
-        
+
         file_size = os.path.getsize(full_path)
-        
+
         # 解析Range请求头（后续页面加载用）
         range_header = request.headers.get('Range')
         if range_header:
@@ -689,7 +688,7 @@ def serve_display_file(filename):
 
                 # 返回206分段数据（后续页面加载）
                 chunk_size = end - start + 1
-                
+
                 def generate_chunk():
                     with open(full_path, 'rb') as f:
                         f.seek(start)

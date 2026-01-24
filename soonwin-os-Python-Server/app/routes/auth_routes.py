@@ -25,24 +25,24 @@ def refresh_token():
                 "msg": "缺少访问令牌",
                 "data": None
             }), 401
-            
+
         # 移除 "Bearer " 前缀
         if token.startswith("Bearer "):
             token = token[7:]
-        
+
         try:
             # 尝试解码token，允许小范围的过期（比如5分钟内）
             # 使用 leeway 参数允许一点时间差异
             payload = jwt.decode(
-                token, 
-                config.JWT_SECRET_KEY, 
+                token,
+                config.Config.JWT_SECRET_KEY,
                 algorithms=['HS256'],
                 options={
                     "verify_exp": True  # 仍然验证过期时间，但允许小的leeway
                 },
                 leeway=timedelta(minutes=5)  # 允许5分钟的宽限时间
             )
-            
+
             # 检查员工是否仍然存在且有效（使用大小写不敏感的查询）
             emp_id_lower = payload['emp_id'].lower()
             employee = Employee.query.filter(db.func.lower(Employee.emp_id) == emp_id_lower).first()
@@ -52,7 +52,7 @@ def refresh_token():
                     "msg": "员工信息不存在",
                     "data": None
                 }), 401
-            
+
             # 生成新的JWT令牌 (2小时有效期)
             new_payload = {
                 'emp_id': employee.emp_id,
@@ -60,7 +60,7 @@ def refresh_token():
                 'user_role': employee.user_role,
                 'exp': datetime.now() + timedelta(hours=2)  # 2小时后过期
             }
-            new_token = jwt.encode(new_payload, config.JWT_SECRET_KEY, algorithm='HS256')
+            new_token = jwt.encode(new_payload, config.Config.JWT_SECRET_KEY, algorithm='HS256')
 
             return jsonify({
                 "code": 200,
@@ -69,7 +69,7 @@ def refresh_token():
                     "token": new_token
                 }
             })
-            
+
         except jwt.ExpiredSignatureError:
             # Token已过期超过宽限时间，不允许刷新
             return jsonify({
@@ -83,7 +83,7 @@ def refresh_token():
                 "msg": "无效的令牌",
                 "data": None
             }), 401
-            
+
     except Exception as e:
         return jsonify({
             "code": 500,

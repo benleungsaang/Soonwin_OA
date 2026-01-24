@@ -95,7 +95,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { ElMessage, ElButton, ElPageHeader, ElDivider } from 'element-plus';
+import { ElMessage, ElMessageBox, ElButton, ElPageHeader, ElDivider } from 'element-plus';
 import { Upload } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { useRouter } from 'vue-router';
@@ -135,7 +135,7 @@ const goBack = () => {
 // 登出
 const logout = async () => {
   try {
-    await ElMessage.confirm(
+    await ElMessageBox.confirm(
       '确定要退出登录吗？',
       '确认退出',
       {

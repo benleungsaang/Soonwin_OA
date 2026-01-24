@@ -40,19 +40,16 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolea
 // 创建Axios实例
 const getBaseURL = () => {
   // 在开发环境中使用相对路径，通过Vite代理转发请求
-  if (process.env.NODE_ENV === 'development') {
-    return '';
+  if (import.meta.env.MODE === 'development') {
+    return '${window.location.origin}';
   }
-  // 在生产环境中使用当前访问的域名和端口5000
-  const protocol = window.location.protocol;
-  const hostname = window.location.hostname;
-  const port = 5000; // 后端服务端口固定为5000
-  return `${protocol}//${hostname}:${port}`;
+  // 在生产环境中使用VITE_API_BASE_URL环境变量
+  return import.meta.env.VITE_API_BASE_URL || '';
 };
 
 const service = axios.create({
   baseURL: getBaseURL(),
-  timeout: 10000, // 增加超时时间
+  timeout: 5000, // 增加超时时间
   headers: {
     'Content-Type': 'application/json;charset=utf-8',
   },
@@ -76,13 +73,15 @@ const processQueue = (error: any, token: string | null = null) => {
 // 刷新令牌函数
 const refreshToken = async (): Promise<string> => {
   const token = localStorage.getItem('oa_token');
-  
+
   if (!token) {
     throw new Error('No token available for refresh');
   }
 
   try {
-    const response = await axios.post(`${getBaseURL()}/api/auth/refresh`, {}, {
+    // 在开发环境中使用相对路径，生产环境使用完整的API基础URL
+    const baseURL = import.meta.env.MODE === 'development' ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+    const response = await axios.post(`${baseURL}/api/auth/refresh`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -106,12 +105,12 @@ interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
 
 // 请求拦截器：添加JWT令牌
 service.interceptors.request.use(
-  (config: ExtendedAxiosRequestConfig) => {
+  (config: any) => {
     // 跳过认证刷新的请求
     if (config._skipAuthRefresh) {
       return config;
     }
-    
+
     // 从localStorage获取JWT令牌（登录后存储）
     const token = localStorage.getItem('oa_token');
     if (token) {
@@ -121,7 +120,7 @@ service.interceptors.request.use(
           console.error('Token refresh failed:', err);
         });
       }
-      
+
       if (config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -154,7 +153,7 @@ service.interceptors.response.use(
   },
   (error: AxiosError) => {
     const originalRequest = error.config as ExtendedAxiosRequestConfig;
-    
+
     // 跳过认证刷新的请求
     if (originalRequest._skipAuthRefresh) {
       let errorMsg = '网络异常，请重试';
@@ -179,7 +178,7 @@ service.interceptors.response.use(
       });
       return Promise.reject(error);
     }
-    
+
     // 如果是401错误且不是重试请求
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -195,10 +194,10 @@ service.interceptors.response.use(
           return Promise.reject(err);
         });
       }
-      
+
       originalRequest._retry = true;
       isRefreshing = true;
-      
+
       return refreshToken()
         .then(newToken => {
           processQueue(null, newToken);
@@ -215,7 +214,7 @@ service.interceptors.response.use(
           isRefreshing = false;
         });
     }
-    
+
     // 网络错误或服务器错误
     let errorMsg = '网络异常，请重试';
     if (error.response) {
@@ -249,17 +248,21 @@ service.interceptors.response.use(
 
 // 封装请求方法（GET/POST/PUT/DELETE）
 const request = {
-  get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return service.get<T>(url, config);
+  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await service.get<T>(url, config);
+    return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  post: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    return service.post<T>(url, data, config);
+  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await service.post<T>(url, data, config);
+    return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  put: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
-    return service.put<T>(url, data, config);
+  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await service.put<T>(url, data, config);
+    return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  delete: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    return service.delete<T>(url, config);
+  async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await service.delete<T>(url, config);
+    return response as any as T; // 拦截器已处理，response是解包后的数据
   },
 };
 

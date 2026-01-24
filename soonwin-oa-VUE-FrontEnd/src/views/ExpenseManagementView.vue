@@ -487,7 +487,7 @@ const deleteExpense = async (expense: any) => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'danger'
+        type: 'error'
       }
     );
 

@@ -4,10 +4,12 @@ import config
 # 从 extensions.py 导入扩展（而非本地初始化）
 from extensions import db, migrate
 
-def create_app():
+def create_app(port=5000):
     app = Flask(__name__, static_folder='../assets', static_url_path='/assets')
-    # 加载配置
-    app.config.from_object(config)
+    
+    # 根据端口动态设置数据库URI
+    app.config['SQLALCHEMY_DATABASE_URI'] = config.get_database_uri(port)
+    app.config.from_object(config.Config)
 
     # 绑定扩展与app（核心：延迟绑定，避免循环）
     db.init_app(app)
@@ -62,7 +64,9 @@ def create_app():
     return app
 
 # 暴露app实例（供flask命令识别）
-application = create_app()
+# 注意：现在application需要指定端口，所以不再在这里创建
+# application = create_app()
 
 if __name__ == "__main__":
+    application = create_app(5000)  # 默认端口5000，使用主数据库
     application.run(host="0.0.0.0", port=5000, debug=True)

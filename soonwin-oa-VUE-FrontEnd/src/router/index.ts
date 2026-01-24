@@ -1,17 +1,17 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 
-// 导入页面组件（对应之前创建的视图）
-import HomeView from '@/views/HomeView.vue';
-import LoginView from '@/views/LoginView.vue';
-import PunchView from '@/views/PunchView.vue';
-import PunchSuccessView from '@/views/PunchSuccessView.vue';
-import PunchRecordsView from '@/views/PunchRecordsView.vue';
-import EmployeeManagementView from '@/views/EmployeeManagementView.vue';
-import ExpenseManagementView from '@/views/ExpenseManagementView.vue';
-import OrderInspectionView from '@/views/OrderInspectionView.vue';
-import InspectionReportView from '@/views/InspectionReportView.vue';
-import DisplayFileUploadView from '@/views/DisplayFileUploadView.vue';
-import DisplayFileView from '@/views/DisplayFileView.vue';
+// 懒加载页面组件以优化性能（按需加载）
+const HomeView = () => import('@/views/HomeView.vue');
+const LoginView = () => import('@/views/LoginView.vue');
+const PunchView = () => import('@/views/PunchView.vue');
+const PunchSuccessView = () => import('@/views/PunchSuccessView.vue');
+const PunchRecordsView = () => import('@/views/PunchRecordsView.vue');
+const EmployeeManagementView = () => import('@/views/EmployeeManagementView.vue');
+const ExpenseManagementView = () => import('@/views/ExpenseManagementView.vue');
+const OrderInspectionView = () => import('@/views/OrderInspectionView.vue');
+const InspectionReportView = () => import('@/views/InspectionReportView.vue');
+const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
+const DisplayFileView = () => import('@/views/DisplayFileView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [

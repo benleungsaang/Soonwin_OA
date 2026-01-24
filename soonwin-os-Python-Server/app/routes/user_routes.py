@@ -481,7 +481,7 @@ def totp_login():
                 'user_role': employee.user_role,
                 'exp': datetime.now() + timedelta(hours=2)  # 2小时后过期
             }
-            token = jwt.encode(payload, config.JWT_SECRET_KEY, algorithm='HS256')
+            token = jwt.encode(payload, config.Config.JWT_SECRET_KEY, algorithm='HS256')
 
             return jsonify({
                 "code": 200,
@@ -559,7 +559,7 @@ def verify_totp():
                 # 更新员工状态为待审批
                 employee.status = UserStatus.PENDING_APPROVAL
                 msg = "TOTP验证成功，账户已更新为待审批状态"
-            
+
             db.session.commit()
 
             return jsonify({

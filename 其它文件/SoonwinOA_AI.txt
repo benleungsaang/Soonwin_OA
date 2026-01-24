@@ -1,13 +1,21 @@
-前端项目位置@soonwin-oa-VUE-FrontEnd，端口 5173
+前端项目位置@soonwin-oa-VUE-FrontEnd，开发端口 5173，生产（稳定）端口5183
 
-后端项目位置@soonwin-os-Python-Server，端口 5000
+后端项目位置@soonwin-os-Python-Server，开发端口 5001，生产（稳定）端口5173
 模型文件夹 ./app/models
 路由文件夹 ./app/routes
-数据库文件是 ./soonwin_oa.db
-
-订单状态中选择器中的展示文本以current_status对应中文显示，value以current_status的对应current_status_time填入（没有就显示“未有日期”）
+数据库文件 生产环境 ./soonwin_oa.db / 开发环境 soonwin_oa_dev.db
 
 
+还未处理好开发环境与生产环境访问的端口问题
+
+开发环境
+前端5173端口，后端5001端口，对应数据库 soonwin_oa_dev.db
+
+生产环境（稳定环境）
+前端5183端口，后端5000端口，对应数据库 soonwin_oa.db
+
+当前5183还是访问到5001开发端口去了
+5173是正确的访问开发端口
 
 
 
@@ -15,6 +23,7 @@
 1、注意前端调用数据时，request.ts会自动解包data，并且一切修改的前提是不要修改request.ts的解包方式；
 2、执行过后端数据库模型、字段变更后，记得做好数据迁移并生效再执行后续操作；
 3、文件修改后不执行Validate with frontend-tester；
+4、注意前端代码要符合TypeScript要求；
 
 
 

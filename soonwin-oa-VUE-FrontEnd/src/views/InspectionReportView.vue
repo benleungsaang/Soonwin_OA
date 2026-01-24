@@ -319,10 +319,18 @@ const getPhotoUrl = (path: string) => {
 
   // 否则添加基础URL
   if (import.meta.env.MODE === 'development') {
-    // 开发环境下，假设文件服务在后端服务器上
-    return `http://192.168.30.70:5000/${normalizedPath}`;
+    // 开发环境下，使用相对路径通过Vite代理访问后端5001
+    return `/${normalizedPath}`;
   } else {
-    return `${window.location.protocol}//${window.location.hostname}:5000/${normalizedPath}`;
+    // 生产环境下，使用配置的API基础URL或默认的5000端口
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:5000`;
+    if (apiBaseUrl.startsWith('http')) {
+      // 如果VITE_API_BASE_URL是完整URL，则直接使用
+      return `${apiBaseUrl}/${normalizedPath}`;
+    } else {
+      // 否则构建完整URL
+      return `${window.location.protocol}//${window.location.hostname}${apiBaseUrl}/${normalizedPath}`;
+    }
   }
 };
 

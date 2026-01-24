@@ -166,19 +166,35 @@ const handleLogin = async () => {
       totp_code: loginForm.totpCode,
     });
 
+    console.log('登录API响应:', res); // 添加调试信息
+    console.log('响应类型:', typeof res);
+    if (res) {
+      console.log('响应中的属性:', Object.keys(res));
+      console.log('res.token:', res.token);
+      console.log('res.data:', res.data);
+      console.log('res.emp_id:', res.emp_id);
+      console.log('res.name:', res.name);
+      console.log('res.user_role:', res.user_role);
+    }
+
     // 检查响应结构并提取token
+    // 现在request.ts的响应拦截器会自动解包data，所以res应该是解包后的数据
     let token, empId, name;
     if (res && res.token) {
       // 如果res直接包含token（axios拦截器已解包）
       token = res.token;
       empId = res.emp_id || res.empId;
       name = res.name || res.name;
+      console.log('使用解包后的数据结构');
     } else {
-      // 如果res是完整响应（不太可能，但作为后备）
+      // 如果由于某些原因拦截器未解包（不太可能），作为后备
       token = res?.data?.token;
       empId = res?.data?.emp_id || res?.data?.empId;
       name = res?.data?.name || res?.data?.name;
+      console.log('使用完整响应结构');
     }
+
+    console.log('提取的token:', token); // 添加调试信息
 
     if (!token) {
       throw new Error('登录响应中未包含有效token');

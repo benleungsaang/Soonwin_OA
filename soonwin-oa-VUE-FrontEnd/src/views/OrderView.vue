@@ -641,7 +641,7 @@ import request from '@/utils/request';
 import { Pointer } from '@element-plus/icons-vue';
 
 // 导入ECharts
-import * as echarts from 'echarts';
+
 
 // 路由实例
 const router = useRouter();
@@ -747,10 +747,11 @@ const orderForm = ref({
   payment_received: 0,  // 默认0
   machine_cost: 0,  // 新字段，原direct_cost
   net_profit: 0,  // 默认0
-  operational_cost: 0,  // 新增字段，默认0
   gross_profit: 0,  // 默认0
   pay_type: 'T/T',  // 默认T/T
   commission: 0,  // 默认0
+  proportionate_cost: 0,  // 摊分费用
+  individual_cost: 0,  // 个别费用
   latest_ship_date: '',
   expected_delivery: '',
   order_dept: '',
@@ -865,8 +866,41 @@ const showEditDialog = (order: any) => {
   isEdit.value = true;
   // 深拷贝订单数据到表单，确保所有字段都被正确复制
   orderForm.value = {
-    ...orderForm.value, // 保持默认值
-    ...order // 覆盖为实际订单值
+    id: order.id || 0,
+    is_new: order.is_new || 1,
+    area: order.area || '',
+    customer_name: order.customer_name || '',
+    customer_type: order.customer_type || '',
+    order_time: order.order_time || '',
+    ship_time: order.ship_time || '',
+    ship_country: order.ship_country || '',
+    contract_no: order.contract_no || '',
+    order_no: order.order_no || '',
+    machine_no: order.machine_no || '',
+    machine_name: order.machine_name || '包装机',
+    machine_model: order.machine_model || '',
+    machine_count: order.machine_count || 1,
+    unit: order.unit || 'set',
+    contract_amount: order.contract_amount || 0,
+    deposit: order.deposit || 0,
+    balance: order.balance || 0,
+    tax_rate: order.tax_rate || 13.0,
+    tax_refund_amount: order.tax_refund_amount || 0,
+    currency_amount: order.currency_amount || 0,
+    payment_received: order.payment_received || 0,
+    machine_cost: order.machine_cost || 0,
+    net_profit: order.net_profit || 0,
+    gross_profit: order.gross_profit || 0,
+    pay_type: order.pay_type || 'T/T',
+    commission: order.commission || 0,
+    proportionate_cost: order.proportionate_cost || 0,
+    individual_cost: order.individual_cost || 0,
+    latest_ship_date: order.latest_ship_date || '',
+    expected_delivery: order.expected_delivery || '',
+    order_dept: order.order_dept || '',
+    check_requirement: order.check_requirement || '',
+    attachment_imgs: order.attachment_imgs || '',
+    attachment_videos: order.attachment_videos || ''
   };
   // 编辑时自动计算利润
   setTimeout(() => {
@@ -902,11 +936,11 @@ const resetForm = () => {
     payment_received: 0,  // 默认0
     machine_cost: 0,  // 新字段，原direct_cost
     net_profit: 0,  // 默认0，将在calculateProfits中更新
-    proportionate_cost: 0,  // 摊分费用
-    individual_cost: 0,  // 个别费用
     gross_profit: 0,  // 默认0，将在calculateProfits中更新
     pay_type: 'T/T',  // 默认T/T
     commission: 0,  // 默认0
+    proportionate_cost: 0,  // 摊分费用
+    individual_cost: 0,  // 个别费用
     latest_ship_date: '',
     expected_delivery: '',
     order_dept: '',
@@ -1093,13 +1127,16 @@ const fetchExpenseSummary = async () => {
 };
 
 // 生成饼图
-const generatePieChart = () => {
+const generatePieChart = async () => {
   if (!expenseSummary.value) return;
 
   // 获取DOM元素
   const chartDom = document.getElementById('expense-pie-chart');
   if (!chartDom) return;
 
+  // 动态导入ECharts
+  const echarts = await import('echarts');
+  
   // 如果已有实例，先销毁
   if (chartInstance) {
     chartInstance.dispose();
@@ -1403,7 +1440,7 @@ const updateOrderProportionateCost = async () => {
 };
 
 // 用于存储ECharts实例
-let chartInstance: echarts.ECharts | null = null;
+let chartInstance: any = null;
 
 // 退出登录
 const logout = async () => {

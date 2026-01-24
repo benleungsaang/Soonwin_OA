@@ -1,0 +1,11 @@
+# OA系统配置文件（键=值格式，等号前后无空格，注释以#开头）
+# Nginx相关配置
+NGINX_CONF=E:\Soonwin_OA\nginx.conf
+NGINX_FALLBACK_PATH=D:\Program Files\nginx-1.28.1\nginx.exe
+NGINX_PORT=5183
+
+# 后端项目配置
+BACKEND_DIR=E:\Soonwin_OA\soonwin-os-Python-Server
+
+# 前端项目配置
+FRONTEND_DIR=E:\Soonwin_OA\soonwin-oa-VUE-FrontEnd

@@ -295,15 +295,15 @@ const newEmployee = ref({
   name: '',
   emp_id: '',
   dept: '',
-  user_role: 'user' as 'user' | 'admin',
+  user_role: 'user' as 'user' | 'admin' | 'sales',
   remarks: ''
 });
 const editEmployee = ref({
   emp_id: '',
   name: '',
   dept: '',
-  user_role: 'user' | 'admin',
-  status: 'active' | 'pending_binding' | 'pending_approval' | 'inactive',
+  user_role: 'user' as 'user' | 'admin' | 'sales',
+  status: 'active' as 'active' | 'pending_binding' | 'pending_approval' | 'inactive',
   remarks: '',
   last_login_time: '',
   login_device: ''
@@ -363,7 +363,7 @@ const createEmployee = async () => {
       name: '',
       emp_id: '',
       dept: '',
-      user_role: 'user',
+      user_role: 'user' as 'user' | 'admin' | 'sales',
       remarks: ''
     };
     // 刷新员工列表
@@ -410,7 +410,7 @@ const deleteEmployee = async (employee: Employee) => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'danger'
+        type: 'error'
       }
     );
 
@@ -432,7 +432,7 @@ const showEditDialog = (employee: Employee) => {
     emp_id: employee.emp_id,
     name: employee.name,
     dept: employee.dept || '',
-    user_role: employee.user_role as 'user' | 'admin',
+    user_role: employee.user_role as 'user' | 'admin' | 'sales',
     status: employee.status as 'pending_binding' | 'pending_approval' | 'active' | 'inactive',
     remarks: employee.remarks || '',
     last_login_time: employee.last_login_time || '',

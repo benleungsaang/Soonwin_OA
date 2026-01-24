@@ -10,7 +10,12 @@
     <el-card class="display-card">
       <template #header>
         <div class="card-header">
-          <span>展示文件</span>
+          <span style="font-size: 25px;">展示文件</span>
+          <el-icon
+          v-if="isCurrentUserAdmin"
+          class="upload-icon"
+          @click.stop="goToDisplayFileUpload"
+          ><FolderOpened /></el-icon>
         </div>
       </template>
 
@@ -224,20 +229,17 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
 import { ElMessage, ElButton, ElPageHeader, ElDivider, ElMessageBox, ElSwitch, ElDialog, ElForm, ElFormItem, ElInput, ElSelect, ElOption } from 'element-plus';
-import { Delete, Loading, Document, ArrowLeft, ArrowRight, ArrowLeftBold, ArrowRightBold, Edit } from '@element-plus/icons-vue';
+import { Delete, Loading, Document, ArrowLeft, ArrowRight, FolderOpened, Edit } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { useRouter } from 'vue-router';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// 设置PDF.js worker (使用新版本推荐的配置方式)
-const workerUrl = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url);
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.href;
+import { initializePdfDocument, getPdfPage, renderPdfPage } from '@/utils/pdfUtils';
+import { DisplayFile, DisplayFileListResponse } from '@/types';
 
 // ==================== 路由相关 ====================
 const router = useRouter();
 
 // ==================== 文件列表相关 ====================
-const displayFiles = ref<any[]>([]);
+const displayFiles = ref<DisplayFile[]>([]);
 const loading = ref(false);
 const page = ref(1);
 const perPage = ref(10);
@@ -275,6 +277,7 @@ const editForm = ref({
 
 // ==================== 布局相关 ====================
 const waterfallRef = ref<HTMLElement | null>(null);
+const pdfPageContainerRef = ref<HTMLElement | null>(null);
 
 // 分页导航函数
 
@@ -297,7 +300,7 @@ const checkAdminRole = () => {
 // 登出
 const logout = async () => {
   try {
-    await ElMessage.confirm(
+    await ElMessageBox.confirm(
       '确定要退出登录吗？',
       '确认退出',
       {
@@ -332,6 +335,15 @@ const fetchDisplayFiles = async (reset = false) => {
   loading.value = true;
 
   try {
+    // 检查是否有认证令牌
+    const token = localStorage.getItem('oa_token');
+    if (!token) {
+      console.error('缺少认证令牌，请先登录');
+      ElMessage.error('请先登录系统');
+      return;
+    }
+
+    // 发起API请求
     const response = await request.get('/api/display-file/list', {
       params: {
         page: page.value,
@@ -339,20 +351,39 @@ const fetchDisplayFiles = async (reset = false) => {
       }
     });
 
-    if (response && response.files) {
+    // 处理API响应数据
+    // response应该是在request.ts解包后的数据，即 { files: [...], pagination: {...} }
+    if (response && response.files && Array.isArray(response.files)) {
       if (reset) {
-        displayFiles.value = response.files;
+        displayFiles.value = [...response.files]; // 使用展开运算符确保响应式更新
       } else {
-        displayFiles.value = [...displayFiles.value, ...response.files];
+        displayFiles.value = [...displayFiles.value, ...response.files]; // 合并现有和新获取的文件
       }
 
-      // 检查是否还有更多数据
-      hasMore.value = response.pagination.page < response.pagination.pages;
-      page.value += 1;
+      // 更新分页信息
+      if (response.pagination) {
+        hasMore.value = response.pagination.page < response.pagination.pages;
+        // 只有在还有更多数据时才增加页数
+        if (hasMore.value) {
+          page.value += 1;
+        }
+      } else {
+        // 如果没有pagination信息，假设没有更多数据
+        hasMore.value = false;
+      }
+    } else {
+      // 如果响应中没有files字段，也设置为没有更多数据
+      hasMore.value = false;
     }
   } catch (error) {
     console.error('获取展示文件列表失败:', error);
-    ElMessage.error('获取展示文件列表失败');
+    // 检查错误是否与认证相关
+    if (error && typeof error === 'object' && error.message && error.message.includes('401')) {
+      console.error('认证失败，请检查登录状态');
+      ElMessage.error('未认证，请重新登录');
+    } else {
+      ElMessage.error('获取展示文件列表失败');
+    }
   } finally {
     loading.value = false;
   }
@@ -450,55 +481,31 @@ const loadPdfFile = async (file: any) => {
 
 // 初始化PDF文档
 const initializePdf = async (pdfPath: string) => {
+  // 构建PDF URL
+  const fileName = pdfPath.split('/').pop(); // 从完整路径中提取文件名
+  const pdfUrl = `/api/display-file/file/${fileName}`;
+
   try {
-    // 构建PDF URL
-    const fileName = pdfPath.split('/').pop(); // 从完整路径中提取文件名
-    const pdfUrl = `/api/display-file/file/${fileName}`;
-
-    // 配置PDF.js以启用流式加载
-    // 使用更兼容的配置确保PDF能正常加载
-    const getDocumentParams = {
-      url: pdfUrl,
-      cMapUrl: 'https://unpkg.com/pdfjs-dist@5.4.530/cmaps/',
+    // 使用新的按需加载PDF工具初始化文档
+    const doc = await initializePdfDocument(pdfUrl, {
       cMapPacked: true,
-      isEvalSupported: false, // 避免eval相关错误
-      disableAutoFetch: true,  // 禁用自动预取所有页面数据
-      disableStream: false,    // 启用流式加载
-      disableRange: false,     // 确保启用范围请求
-      // 忽略非致命错误
-      stopAtErrors: false,
       // 增大token限制，兼容大PDF
-      maxTokenSize: 1024 * 1024
-    };
-
-    const loadingTask = pdfjsLib.getDocument(getDocumentParams);
-
-    // 获取PDF文档
-    const doc = await loadingTask.promise;
+      maxCanvasPixels: 10000 * 10000, // 默认是16794880，适当增大以支持大PDF
+    });
+    
     pdfDoc = doc; // 直接赋值给普通变量
     totalPages.value = doc.numPages;
-
-    // 初始化图片数组，为所有页面预留位置，但初始值为null
-    imageList.value = Array(totalPages.value).fill(null);
-
-    // 首先将第一页添加到渲染队列
-    addToRenderQueue(1);
-    maxRenderedPage.value = 1;
-
-    // 如果当前文件的页数为空，则更新页数
-    if (currentFile.value && currentFile.value.page_count === null) {
-      await updateFilePageCount(currentFile.value.id, totalPages.value);
+    // 重置渲染队列
+    renderQueue.value = [];
+    // 添加所有页面到渲染队列
+    for (let i = 1; i <= totalPages.value; i++) {
+      renderQueue.value.push(i);
     }
-
-    // 启动滚动监听器以实现懒加载
-    startScrollListener();
-
-    // 初始化后立即检查视口中的页面并加载它们
-    nextTick(() => {
-      setTimeout(() => {
-        checkAndLoadVisiblePages();
-      }, 100); // 短暂延迟以确保DOM已更新
-    });
+    // 立即渲染第一页
+    if (totalPages.value > 0) {
+      renderQueue.value = [1];
+      renderPdfPageDirectly(1);
+    }
   } catch (error) {
     console.error('初始化PDF失败:', error);
     ElMessage.error('初始化PDF失败');
@@ -537,100 +544,65 @@ const processRenderQueue = async () => {
 };
 
 // 直接渲染PDF页面（内部使用）
+// 更新页面加载状态的函数
+const updatePageLoadStatus = (pageNumber: number, loaded: boolean) => {
+  if (loaded) {
+    renderedPages.value.add(pageNumber);
+    if (pageNumber > maxRenderedPage.value) {
+      maxRenderedPage.value = pageNumber;
+    }
+  } else {
+    renderedPages.value.delete(pageNumber);
+    loadingPages.value.add(pageNumber);
+  }
+};
+
 const renderPdfPageDirectly = async (pageNumber: number) => {
-  // 验证参数和状态
   if (!pdfDoc || !totalPages.value || pageNumber < 1 || pageNumber > totalPages.value) {
     console.error('PDF文档未正确初始化或页面号超出范围');
     return;
   }
 
-  // 检查页面是否已经渲染
-  if (imageList.value[pageNumber - 1]) {
-    return; // 如果页面已渲染，则返回
-  }
-
   try {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return;
-
-    // 确保获取页面操作正确执行
-    const page = await pdfDoc.getPage(pageNumber);  // 直接访问普通变量
+    // 使用新的PDF工具获取页面
+    const page = await getPdfPage(pdfDoc, pageNumber);
     if (!page) {
       console.error(`无法获取PDF第${pageNumber}页`);
       return;
     }
 
-    const scale = 1.5;
-    const viewport = page.getViewport({ scale });
-
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
-
-    await page.render(renderContext).promise;
-
-    // 创建一个新的canvas用于添加页码
-    const overlayCanvas = document.createElement('canvas');
-    const overlayContext = overlayCanvas.getContext('2d');
-    if (!overlayContext) return;
-
-    overlayCanvas.width = canvas.width;
-    overlayCanvas.height = canvas.height;
-
-    // 先绘制原始PDF页面
-    overlayContext.drawImage(canvas, 0, 0);
-
-    // 在右下角绘制页码
-    overlayContext.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 半透明黑色背景
-    overlayContext.font = '16px Arial';
-    overlayContext.textAlign = 'right';
-
-    const pageNumText = `${pageNumber} / ${totalPages.value}`;
-    const textMetrics = overlayContext.measureText(pageNumText);
-    const padding = 8;
-    const x = overlayCanvas.width - padding;
-    const y = overlayCanvas.height - padding;
-
-    // 绘制文本背景
-    overlayContext.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    overlayContext.fillRect(
-      x - textMetrics.width - padding,
-      y - 16 - padding/2,
-      textMetrics.width + padding * 2,
-      16 + padding
-    );
-
-    // 绘制页码文本
-    overlayContext.fillStyle = 'white';
-    overlayContext.fillText(pageNumText, x, y);
-
-    // 将带页码的canvas转换为图片
-    const imgSrc = overlayCanvas.toDataURL('image/png');
-
-    // 更新imageList中对应位置的页面
-    const updatedImageList = [...imageList.value];
-    updatedImageList[pageNumber - 1] = imgSrc;
-    imageList.value = updatedImageList;
-
-    // 添加到已渲染页面集合
-    renderedPages.value.add(pageNumber);
-
-    // 从加载页面集合中移除
-    loadingPages.value.delete(pageNumber);
-
-    // 更新最大渲染页码
-    if (pageNumber > maxRenderedPage.value) {
-      maxRenderedPage.value = pageNumber;
+    // 获取容器元素
+    const container = pdfPageContainerRef.value;
+    if (!container) {
+      console.error('未找到PDF页面容器');
+      return;
     }
+
+    // 为当前页面创建canvas（如果不存在）
+    let canvas = container.querySelector(`#pdf-canvas-${pageNumber}`) as HTMLCanvasElement;
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.id = `pdf-canvas-${pageNumber}`;
+      canvas.className = 'pdf-canvas';
+      container.appendChild(canvas);
+    }
+
+    // 使用新的PDF工具渲染页面
+    await renderPdfPage(page, canvas, window.devicePixelRatio || 1);
+
+    // 如果是瀑布流模式，确保容器尺寸正确
+    if (displayMode.value === 'waterfall') {
+      // 设置canvas容器的样式
+      canvas.style.maxWidth = '100%';
+      canvas.style.height = 'auto';
+    }
+
+    // 更新加载状态
+    updatePageLoadStatus(pageNumber, true);
+
+    console.log(`PDF第${pageNumber}页渲染完成`);
   } catch (error) {
     console.error(`渲染PDF第${pageNumber}页失败:`, error);
-    // 即使发生错误，也要从加载页面集合中移除，以便用户可以重试
-    loadingPages.value.delete(pageNumber);
     ElMessage.error(`渲染PDF第${pageNumber}页失败`);
   }
 };
@@ -1499,9 +1471,31 @@ const goBack = () => {
   router.go(-1); // 返回上一页
 };
 
+
+// 跳转上传展示文件页面（仅管理员可见）
+const goToDisplayFileUpload = () => {
+  if (!isCurrentUserAdmin.value) {
+    ElMessage.error('您没有权限访问上传展示文件页面！');
+    return;
+  }
+  router.push('/display-file-upload');
+};
+
+
 // 初始化
 onMounted(() => {
-  checkAdminRole(); // 检查用户是否为管理员
+  // 检查认证令牌
+  const token = localStorage.getItem('oa_token');
+  if (!token) {
+    console.error('缺少认证令牌，重定向到登录页');
+    ElMessage.error('请先登录系统');
+    router.push('/login');
+    return;
+  }
+  
+  // 确保在获取文件列表之前检查用户权限
+  checkAdminRole();
+  // 重置并获取展示文件列表
   fetchDisplayFiles(true);
 
   // 监听窗口大小变化，重新应用瀑布流布局
@@ -1516,6 +1510,12 @@ onMounted(() => {
 });</script>
 
 <style scoped>
+.upload-icon{
+  font-size: 25px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
 .display-container {
   padding: 20px;
   max-width: 1200px;
@@ -1530,6 +1530,9 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: rgba(0, 0, 0, 0.1);
+  padding:10px 25px ;
+  border-radius: 5px;
 }
 
 .file-list {
@@ -1794,6 +1797,8 @@ onMounted(() => {
   margin-left: 20px;
 }
 
+
+
 /* 预览框标题样式 */
 .preview-header {
   display: flex;
@@ -1975,6 +1980,18 @@ onMounted(() => {
 
   .waterfall-container {
     max-height: 80vh;
+  }
+
+  .preview-header > span {
+    font-size: 2vh;
+    padding: 0.8vh 2vh;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .display-mode-controls {
+    margin-bottom: 0;
+    margin-left: 10px;
   }
 }
 </style>

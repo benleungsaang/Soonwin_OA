@@ -20,4 +20,4 @@ echo "" >> .env.development
 echo "# 项目标题" >> .env.development
 echo "VITE_APP_TITLE=SoonWin OA系统" >> .env.development
 
-echo "已生成 .env.development 文件，后端地址设置为: http://$LOCAL_IP:5000"
+echo "已生成 .env.development 文件，后端地址设置为: http://$LOCAL_IP:5001"
