@@ -38,17 +38,17 @@ def init_admin():
         # 创建TOTP密钥
         totp_secret = pyotp.random_base32()
 
-        # 生成唯一的phone_mac值，避免唯一性约束冲突
+        # 生成唯一的device_id值，避免唯一性约束冲突
         import uuid
-        # 生成基于管理员ID和随机数的唯一MAC地址
-        unique_mac = f"FF:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:FE".upper()
+        # 生成基于管理员ID和随机数的唯一设备ID
+        unique_device_id = f"FF:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:FE".upper()
 
         # 创建管理员员工记录
         admin_employee = Employee(
             name="管理员",
             emp_id="admin",
             dept="系统管理",
-            phone_mac=unique_mac,  # 使用生成的唯一MAC地址
+            device_id=unique_device_id,  # 使用生成的唯一设备ID
             inner_ip="127.0.0.1",  # 管理员默认值
             user_role="admin",
             status=UserStatus.PENDING_BINDING  # 设置为待绑定状态
@@ -105,13 +105,13 @@ def create_employee():
                 "data": None
             }), 400
 
-        # 如果没有提供phone_mac，则生成唯一的phone_mac值，避免唯一性约束冲突
+        # 如果没有提供device_id，则生成唯一的device_id值，避免唯一性约束冲突
         import uuid
-        if not data.get('phone_mac'):
-            # 生成基于员工ID和随机数的唯一MAC地址
-            unique_mac = f"AA:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:BB".upper()
+        if not data.get('device_id'):
+            # 生成基于员工ID和随机数的唯一设备ID
+            unique_device_id = f"AA:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:BB".upper()
         else:
-            unique_mac = data.get('phone_mac')
+            unique_device_id = data.get('device_id')
 
         # 创建员工记录
         new_employee = Employee(
@@ -119,7 +119,7 @@ def create_employee():
             emp_id=data['emp_id'],
             dept=data.get('dept', ''),
             remarks=data.get('remarks', ''),  # 添加备注字段
-            phone_mac=unique_mac,  # 使用生成的唯一MAC地址
+            device_id=unique_device_id,  # 使用生成的唯一设备ID
             inner_ip=data.get('inner_ip', '0.0.0.0'),  # 默认值
             user_role=data.get('user_role', 'user'),
             status=UserStatus.PENDING_BINDING  # 新员工初始状态为待绑定
@@ -180,7 +180,7 @@ def get_employees():
                     "emp_id": emp.emp_id,
                     "name": emp.name,
                     "dept": emp.dept,
-                    "phone_mac": emp.phone_mac,
+                    "device_id": emp.device_id,
                     "inner_ip": emp.inner_ip,
                     "user_role": emp.user_role,
                     "status": emp.status,
@@ -239,19 +239,19 @@ def update_employee(emp_id):
         # 保存旧的emp_id用于后续更新TOTP记录
         old_emp_id = employee.emp_id
 
-        # 检查phone_mac是否被其他员工使用
-        new_phone_mac = data.get('phone_mac')
-        if new_phone_mac and new_phone_mac != employee.phone_mac:
-            # 检查是否已有其他员工使用此MAC地址
-            existing_employee_with_mac = Employee.query.filter(
-                Employee.phone_mac == new_phone_mac,
+        # 检查device_id是否被其他员工使用
+        new_device_id = data.get('device_id')
+        if new_device_id and new_device_id != employee.device_id:
+            # 检查是否已有其他员工使用此设备ID
+            existing_employee_with_device = Employee.query.filter(
+                Employee.device_id == new_device_id,
                 Employee.emp_id != emp_id  # 排除当前员工
             ).first()
 
-            if existing_employee_with_mac:
+            if existing_employee_with_device:
                 return jsonify({
                     "code": 400,
-                    "msg": f"MAC地址 {new_phone_mac} 已被员工 {existing_employee_with_mac.name}({existing_employee_with_mac.emp_id}) 使用"
+                    "msg": f"设备ID {new_device_id} 已被员工 {existing_employee_with_device.name}({existing_employee_with_device.emp_id}) 使用"
                 }), 400
 
         # 更新员工信息
@@ -260,8 +260,8 @@ def update_employee(emp_id):
         employee.user_role = data.get('user_role', employee.user_role)
         employee.status = data.get('status', employee.status)
         employee.remarks = data.get('remarks', employee.remarks)
-        if new_phone_mac:
-            employee.phone_mac = new_phone_mac
+        if new_device_id:
+            employee.device_id = new_device_id
 
         # 如果员工ID被修改，更新它
         if new_emp_id and new_emp_id != emp_id:

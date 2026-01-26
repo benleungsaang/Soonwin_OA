@@ -15,7 +15,7 @@ export interface Employee {
   name: string;
   emp_id: string;
   dept?: string;
-  phone_mac: string;
+  device_id: string;
   inner_ip: string;
   user_role: string;
   status: string;
@@ -34,7 +34,7 @@ export interface PunchRecord {
   punch_type: '上班打卡' | '下班打卡';
   punch_time: string;
   inner_ip?: string;
-  phone_mac?: string;
+  device_id?: string;
   last_login_time?: string;
   login_device?: string;
 }

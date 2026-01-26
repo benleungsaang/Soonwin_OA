@@ -6,16 +6,21 @@
 数据库文件 生产环境 ./soonwin_oa.db / 开发环境 soonwin_oa_dev.db
 
 
-还未处理好开发环境与生产环境访问的端口问题
+优化打卡流程
+当前我检查到的逻辑是
+点击“开始打卡”，发送http://192.168.110.13:5173/api/device-clock-in
+返回
+{
+    "code": 200,
+    "data": {
+        "emp_id": "ben",
+        "status": "device_change_required"
+    },
+    "msg": "设备ID发生变化，请申请更换设备"
+}
+前端有弹框是否更换设备，但点击“申请更换”，应该直接发送'/api/request-device-change'
 
-开发环境
-前端5173端口，后端5001端口，对应数据库 soonwin_oa_dev.db
-
-生产环境（稳定环境）
-前端5183端口，后端5000端口，对应数据库 soonwin_oa.db
-
-当前5183还是访问到5001开发端口去了
-5173是正确的访问开发端口
+就在这一步，并没有发送这个API
 
 
 

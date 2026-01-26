@@ -34,9 +34,9 @@ def init_admin():
                 print(f"状态: {existing_admin.status}")
                 return False
 
-            # 生成唯一的phone_mac值，避免唯一性约束冲突
-            # 生成基于管理员ID和随机数的唯一MAC地址
-            unique_mac = f"FF:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:FE".upper()
+            # 生成唯一的device_id值，避免唯一性约束冲突
+            # 生成基于管理员ID和随机数的唯一设备ID
+            unique_device_id = f"FF:{str(uuid.uuid4()).split('-')[0][:2]}:{str(uuid.uuid4()).split('-')[1][:2]}:{str(uuid.uuid4()).split('-')[2][:2]}:{str(uuid.uuid4()).split('-')[3][:2]}:FE".upper()
 
             # 创建TOTP密钥
             totp_secret = pyotp.random_base32()
@@ -46,7 +46,7 @@ def init_admin():
                 name="管理员",
                 emp_id="admin",
                 dept="系统管理",
-                phone_mac=unique_mac,  # 使用生成的唯一MAC地址
+                device_id=unique_device_id,  # 使用生成的唯一设备ID
                 inner_ip="127.0.0.1",  # 管理员默认值
                 user_role="admin",
                 status=UserStatus.PENDING_BINDING  # 设置为待绑定状态
@@ -69,7 +69,7 @@ def init_admin():
             print(f"部门: {admin_employee.dept}")
             print(f"角色: {admin_employee.user_role}")
             print(f"状态: {admin_employee.status}")
-            print(f"手机MAC地址: {admin_employee.phone_mac}")
+            print(f"设备ID: {admin_employee.device_id}")
             print(f"TOTP密钥: {totp_secret}")
             print("\n请使用此TOTP密钥在您的TOTP应用（如Google Authenticator）中添加账户")
             print("注意: 管理员账户初始状态为'待绑定'，需要通过TOTP验证后才能激活")

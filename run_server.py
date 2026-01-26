@@ -11,93 +11,49 @@ import sys
 import subprocess
 import socket
 import time
-import threading
 import signal
 import platform
-from typing import Optional
 
 
 # ====================== 基础配置，请根据实际环境修改 ======================
 # Nginx配置 - 请在此处修改Nginx安装路径
-NGINX_INSTALL_PATH = r"D:\\Program Files\\nginx-1.28.1"  # 您提供的Nginx静态路径
-NGINX_CONF = r"E:\\Soonwin_OA\\nginx.conf"
-NGINX_EXE = os.path.join(NGINX_INSTALL_PATH, "nginx.exe")  # 修复：统一Nginx可执行文件路径
+UPPER_PATH = os.path.dirname(os.getcwd())
+
+# 修复1：使用os.path.join拼接路径，避免手动加反斜杠导致的转义问题
+NGINX_INSTALL_PATH = os.path.join(os.getcwd(),  "nginx-1.28.1")
+NGINX_CONF = os.path.join(os.getcwd(), "nginx.conf")
+NGINX_EXE = os.path.join(NGINX_INSTALL_PATH, "nginx.exe")
 NGINX_PORT = 5183
 
-# 后端项目路径
-BACKEND_DIR = r"E:\\Soonwin_OA\\soonwin-os-Python-Server"
+if os.path.exists("soonwin-os-Python-Server"):
+    # 后端项目路径
+    BACKEND_DIR = os.path.join(os.getcwd(), "soonwin-os-Python-Server")
+    # 前端项目路径
+    FRONTEND_DIR = os.path.join(os.getcwd(), "soonwin-oa-VUE-FrontEnd")
+else:
+    # 后端项目路径
+    BACKEND_DIR = os.path.join(os.getcwd(), "SoonwinOA_Backend")
+    # 前端项目路径
+    FRONTEND_DIR = os.path.join(os.getcwd(), "SoonwinOA_Frontend")
 
-# 前端项目路径
-FRONTEND_DIR = r"E:\\Soonwin_OA\\soonwin-oa-VUE-FrontEnd"
 
 # 前端构建输出路径 (Nginx静态文件目录)
-FRONTEND_DIST_DIR = r"E:\\Soonwin_OA\\soonwin-oa-VUE-FrontEnd\\dist"
+FRONTEND_DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
 
 # mime.types
-MIME_TYPES_PATH = r"D:\\Program Files\\nginx-1.28.1\\conf\\mime.types"
+MIME_TYPES_PATH = os.path.join(NGINX_INSTALL_PATH, "conf", "mime.types")
 
 # 新增：低权限PID目录（避免Program Files权限问题）
-NGINX_PID_DIR = r"D:\\nginx_temp"
+# 修复2：用os.path.join拼接，避免手动加反斜杠
+NGINX_PID_DIR = os.path.join(os.getcwd(), "nginx_pid")
 
 # 确保PID目录存在
 os.makedirs(NGINX_PID_DIR, exist_ok=True)
-NGINX_PID_PATH = os.path.join(NGINX_PID_DIR, "nginx.pid").replace("\\", "/")
+# 修复3：直接用Windows原生路径（反斜杠），不做多余的replace
+NGINX_PID_PATH = os.path.join(NGINX_PID_DIR, "nginx.pid")
 
-# Nginx配置模板
-# 修复点1：给含空格的mime.types路径添加引号，并用统一的/分隔符
-NGINX_CONFIG_TEMPLATE = f"""# oa_frontend.conf 完整配置（由Python脚本自动生成）
-# 生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}
-worker_processes  1;  # 内网自用，1个进程足够
-pid        "{NGINX_PID_PATH}";  # 移到低权限目录，避免Program Files权限问题
-
-events {{
-    worker_connections  1024;
-}}
-
-http {{
-    include       "{MIME_TYPES_PATH.replace('\\', '/')}";  # 引号包裹含空格路径，单斜杠
-    default_type  application/octet-stream;
-    sendfile        on;
-    keepalive_timeout  65;
-
-    # 后端服务代理配置（保留/api前缀转发）
-    upstream backend_server {{
-        server 127.0.0.1:5000;
-        keepalive 64;
-    }}
-
-    server {{
-        listen       {NGINX_PORT};
-        server_name  localhost 192.168.110.13;  # 适配局域网访问
-
-        # 前端静态文件目录
-        root         {FRONTEND_DIST_DIR.replace('\\', '/')};
-        index        index.html;
-
-        # 反向代理：/api开头的请求转发到后端（保留/api前缀）
-        location /api/ {{
-            proxy_pass http://backend_server;  # 不带末尾/，保留/api前缀
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 60s;
-        }}
-
-        # Vue History模式兼容：刷新页面不404
-        location / {{
-            try_files $uri $uri/ /index.html;
-        }}
-
-        # 禁止访问隐藏文件
-        location ~ /\. {{
-            deny all;
-        }}
-    }}
-}}
-"""
+# 生成时间
+generate_time = time.strftime('%Y-%m-%d %H:%M:%S')
 
 
 class OAServerManager:
@@ -119,78 +75,133 @@ class OAServerManager:
             signal.signal(signal.SIGINT, self._signal_handler)
             signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def generate_nginx_config(self):
+    def generate_nginx_config(self, force_overwrite: bool = False):
         """生成Nginx配置文件 - 修复PID路径格式"""
         try:
-            # 关键：将PID路径转为Windows风格的反斜杠，且确保目录存在
-            pid_path = self.nginx_pid_path.replace('/', '\\')
-            # 确保PID目录存在（避免Nginx创建PID文件失败）
-            os.makedirs(os.path.dirname(pid_path), exist_ok=True)
+            # 检查文件是否已存在，非强制模式下提示
+            if os.path.exists(self.nginx_conf) and not force_overwrite:
+                print(f"[!] Nginx配置文件 {self.nginx_conf} 已存在，跳过生成（如需覆盖请使用重新生成功能）")
+                return False
+
+            # 修复5：PID路径转成Nginx兼容的正斜杠，且不加多余转义
+            pid_path_nginx = self.nginx_pid_path.replace('\\', '/')
 
             # 统一路径处理
             mime_types_path = self.mime_path.replace('\\', '/')
             frontend_dist = FRONTEND_DIST_DIR.replace('\\', '/')
 
-            config_content = f"""# oa_frontend.conf 完整配置（由Python脚本自动生成）
-    worker_processes  1;  # 内网自用，1个进程足够
-    pid        "{pid_path}";  # 修复：Windows风格绝对路径，加引号
+            config_content = """# oa_frontend.conf 完整配置（由Python脚本自动生成）
+worker_processes  1;  # 内网自用，1个进程足够
+pid        "{}";  # 修复：Nginx兼容的正斜杠路径，加引号
 
-    events {{
-        worker_connections  1024;
+events {{
+    worker_connections  1024;
+}}
+
+http {{
+    include       "{}";
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    upstream backend_server {{
+        server 127.0.0.1:5000;
+        keepalive 64;
     }}
 
-    http {{
-        include       "{mime_types_path}";
-        default_type  application/octet-stream;
-        sendfile        on;
-        keepalive_timeout  65;
+    server {{
+        listen       {};
+        # server_name  localhost 192.168.110.13;
+        # 修改：server_name 改为 _（匹配所有IP/域名），适配192.168.30.xx网段
+        server_name  _;
+        root         {};
+        index        index.html;
 
-        upstream backend_server {{
-            server 127.0.0.1:5000;
-            keepalive 64;
+        location /api/ {{
+            proxy_pass http://backend_server;  # 无末尾/，保留/api
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_connect_timeout 30s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 60s;
+            # 新增：跨域头（避免移动端跨域报错）
+            add_header Access-Control-Allow-Origin *;
+            add_header Access-Control-Allow-Methods 'GET, POST, PUT, DELETE, OPTIONS';
+            add_header Access-Control-Allow-Headers 'Content-Type, Authorization';
+
+            # 新增：处理OPTIONS预检请求（避免跨域报错）
+            if ($request_method = 'OPTIONS') {{
+                return 204;
+            }}
         }}
 
-        server {{
-            listen       {self.nginx_port};
-            # server_name  localhost 192.168.110.13;
-            # 修改：server_name 改为 _（匹配所有IP/域名），适配192.168.30.xx网段
-            server_name  _;
-            root         {frontend_dist};
-            index        index.html;
+        location / {{
+            try_files $uri $uri/ /index.html;
+        }}
 
-            location /api/ {{
-                proxy_pass http://backend_server/;  # 补充末尾的/，避免路径拼接错误
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                proxy_connect_timeout 30s;
-                proxy_send_timeout 30s;
-                proxy_read_timeout 60s;
-                # 新增：跨域头（避免移动端跨域报错）
-                add_header Access-Control-Allow-Origin *;
-                add_header Access-Control-Allow-Methods 'GET, POST, PUT, DELETE, OPTIONS';
-                add_header Access-Control-Allow-Headers 'Content-Type, Authorization';
-            }}
-
-            location / {{
-                try_files $uri $uri/ /index.html;
-            }}
-
-            location ~ /\\. {{
-                deny all;
-            }}
+        # 修复6：正则表达式转义正确（Nginx需要的是 /\\.）
+        location ~ /\\\\. {{
+            deny all;
         }}
     }}
-    """
+}}
+""".format(
+    pid_path_nginx,
+    mime_types_path,
+    self.nginx_port,
+    frontend_dist
+)
+
             with open(self.nginx_conf, 'w', encoding='utf-8') as f:
                 f.write(config_content)
-            print(f"[v] Nginx配置文件已生成: {self.nginx_conf}")
-            print(f"[v] 配置中PID路径: {pid_path}")
+
+            # 额外：验证PID目录是否真的存在
+            if not os.path.exists(os.path.dirname(self.nginx_pid_path)):
+                os.makedirs(os.path.dirname(self.nginx_pid_path), exist_ok=True)
+
+            print(f"[v] Nginx配置文件已{'强制' if force_overwrite else ''}生成: {self.nginx_conf}")
             return True
         except Exception as e:
             print(f"[!] 生成Nginx配置文件失败: {e}")
+            import traceback
+            traceback.print_exc()  # 新增：打印详细错误栈
             return False
+
+    def regenerate_nginx_config(self):
+        """重新生成Nginx配置文件（强制覆盖）"""
+        print("=" * 55)
+        print("                重新生成Nginx配置文件")
+        print("=" * 55)
+
+        # 二次确认，防止误操作
+        try:
+            confirm = input(f"确认要覆盖已有Nginx配置文件 {self.nginx_conf} 吗？(y/N): ").strip().lower()
+            if confirm not in ['y', 'yes', '是']:
+                print("[v] 用户取消覆盖操作")
+                self._wait_for_input()
+                return
+        except:
+            print("[!] 输入异常，取消操作")
+            self._wait_for_input()
+            return
+
+        # 强制生成并覆盖
+        success = self.generate_nginx_config(force_overwrite=True)
+
+        if success:
+            # 额外校验配置文件语法
+            print("[v] 正在校验新生成的Nginx配置语法...")
+            syntax_ok = self.run_nginx("-t")
+            if syntax_ok:
+                print("[v] ✅ 配置文件生成成功且语法校验通过")
+            else:
+                print("[!] ⚠️ 配置文件生成成功，但语法校验失败，请检查！")
+        else:
+            print("[!] ❌ 配置文件生成失败")
+
+        self._wait_for_input()
 
     def check_paths(self):
         """检查所有配置路径是否存在"""
@@ -221,6 +232,14 @@ class OAServerManager:
         status = "[v] 存在" if venv_exists else "[!] 不存在"
         print(f"后端虚拟环境: {venv_path} {status}")
         if not venv_exists:
+            all_paths_exist = False
+
+        # 新增：检查后端wsgi.py文件是否存在
+        wsgi_path = os.path.join(self.backend_dir, "wsgi.py")
+        wsgi_exists = os.path.exists(wsgi_path)
+        status = "[v] 存在" if wsgi_exists else "[!] 不存在"
+        print(f"后端WSGI文件: {wsgi_path} {status}")
+        if not wsgi_exists:
             all_paths_exist = False
 
         # 特别检查前端配置文件
@@ -273,6 +292,14 @@ class OAServerManager:
 
         self.running_processes.clear()
 
+        # 额外：终止所有waitress-serve进程（兜底）
+        try:
+            subprocess.run(['taskkill', '/F', '/IM', 'python.exe', '/FI', 'WINDOWTITLE eq OA System - *后端*'],
+                          capture_output=True)
+            print("[v] 已终止所有后端waitress-serve进程")
+        except:
+            pass
+
     def check_port(self, port: int) -> bool:
         """
         检查端口是否被占用
@@ -314,11 +341,11 @@ class OAServerManager:
 
     def kill_port_process(self, port: int):
         """
-        强制杀死占用指定端口的进程（Windows）
+        强制杀死占用指定端口的所有进程（Windows增强版）
         :param port: 要释放的端口号
         """
         try:
-            # 查找占用端口的PID
+            # 步骤1：查找所有占用该端口的PID
             result = subprocess.run(
                 ['netstat', '-ano', '-p', 'tcp'],
                 capture_output=True,
@@ -326,21 +353,64 @@ class OAServerManager:
                 encoding='gbk'
             )
             lines = result.stdout.split('\n')
-            pid = None
-            for line in lines:
-                if f':{port}' in line and 'LISTENING' in line:
-                    pid = line.strip().split()[-1]
-                    break
+            pids = set()  # 用集合去重，避免重复杀进程
 
-            if pid:
-                # 终止进程
-                subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True)
-                print(f"[v] 已强制终止占用{port}端口的进程(PID: {pid})")
-                time.sleep(2)  # 等待端口释放
-            else:
+            for line in lines:
+                line_stripped = line.strip()
+                if f':{port}' in line_stripped and 'LISTENING' in line_stripped:
+                    try:
+                        pid = line_stripped.split()[-1]
+                        if pid.isdigit():
+                            pids.add(pid)
+                    except:
+                        continue
+
+            if not pids:
                 print(f"[v] {port}端口未被占用")
+                return
+
+            # 步骤2：终止所有关联PID（包括子进程）
+            for pid in pids:
+                # 先尝试正常终止
+                try:
+                    subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True, check=True)
+                    print(f"[v] 已强制终止PID {pid}（占用{port}端口）")
+                except subprocess.CalledProcessError:
+                    # 若正常终止失败，尝试终止进程树
+                    try:
+                        subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True)
+                        print(f"[v] 已强制终止PID {pid}及其子进程（占用{port}端口）")
+                    except:
+                        print(f"[!] 终止PID {pid}失败，请手动结束进程")
+
+            # 步骤3：额外终止所有nginx.exe和python.exe进程（兜底）
+            try:
+                subprocess.run(['taskkill', '/F', '/IM', 'nginx.exe'], capture_output=True)
+                print(f"[v] 已终止所有nginx.exe进程（兜底）")
+            except:
+                pass
+
+            try:
+                subprocess.run(['taskkill', '/F', '/IM', 'python.exe', '/FI', 'WINDOWTITLE eq OA System - *后端*'],
+                              capture_output=True)
+                print(f"[v] 已终止所有后端Python进程（兜底）")
+            except:
+                pass
+
+            # 步骤4：等待端口释放（关键：给Windows足够时间清理端口）
+            print(f"[v] 等待5秒，让{port}端口完全释放...")
+            time.sleep(5)
+
+            # 步骤5：再次检查端口状态
+            if self.check_port_with_netstat(port):
+                print(f"[v] {port}端口已成功释放")
+            else:
+                print(f"[!] {port}端口仍显示被占用，可能是Windows网络栈延迟，建议等待10秒后重试")
+
         except Exception as e:
             print(f"[!] 释放{port}端口失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     def start_process(self, command: str, cwd: str = None, name: str = "Process"):
         """
@@ -352,10 +422,10 @@ class OAServerManager:
         try:
             if platform.system().lower() == "windows":
                 # 根据命令类型判断是否需要激活后端虚拟环境
-                # 后端命令包含"python run.py"，前端命令包含"yarn"或"npm"
-                if "python run.py" in command:
+                # 后端命令包含"waitress-serve"，前端命令包含"yarn"或"npm"
+                if "waitress-serve" in command:
                     # 后端命令需要激活Python虚拟环境
-                    activate_cmd = "call venv\\Scripts\\activate.bat && " if os.path.exists(f"{self.backend_dir}\\venv\\Scripts\\activate.bat") else ""
+                    activate_cmd = "call venv\\Scripts\\activate.bat && " if os.path.exists(os.path.join(self.backend_dir, "venv", "Scripts", "activate.bat")) else ""
                 else:
                     # 前端命令不需要激活Python虚拟环境
                     activate_cmd = ""
@@ -377,7 +447,7 @@ class OAServerManager:
                 print(f"[v] {name} 已在新窗口中启动 (PID: {proc.pid})")
                 return proc
             else:
-                activate_cmd = f"source {self.backend_dir}/venv/bin/activate && " if os.path.exists(f"{self.backend_dir}/venv/bin/activate") else ""
+                activate_cmd = f"source {self.backend_dir}/venv/bin/activate && " if os.path.exists(os.path.join(self.backend_dir, "venv", "bin", "activate")) else ""
                 full_command = f"gnome-terminal -e 'bash -c \"{activate_cmd}{command}; exec bash\"' || xterm -e 'bash -c \"{activate_cmd}{command}; exec bash\"'"
                 proc = subprocess.Popen(full_command, shell=True)
                 self.running_processes.append(proc)
@@ -385,6 +455,8 @@ class OAServerManager:
                 return proc
         except Exception as e:
             print(f"[!] 启动 {name} 失败: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def run_nginx(self, cmd: str = ""):
@@ -397,9 +469,9 @@ class OAServerManager:
             pid_dir = os.path.dirname(self.nginx_pid_path)
             if not os.path.exists(pid_dir):
                 os.makedirs(pid_dir, exist_ok=True)
-                print(f"[v] 已创建Nginx PID目录: {pid_dir}")
 
             nginx_dir = os.path.dirname(self.nginx_exe)
+            # 修复7：处理配置文件路径的引号（避免空格问题）
             nginx_conf_quoted = f'"{self.nginx_conf}"' if ' ' in self.nginx_conf else self.nginx_conf
 
             # 构造Nginx命令
@@ -446,10 +518,6 @@ class OAServerManager:
             else:
                 error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
                 print(f"[!] Nginx错误信息: {error_msg}")
-                # 补充：PID文件相关错误提示
-                if "CreateFile() .*nginx.pid failed" in error_msg:
-                    print(f"[!] 解决方案：检查PID目录权限 -> {pid_dir}")
-                    print(f"[!] 或手动创建目录：mkdir {pid_dir}")
                 if "-t" in cmd and error_msg:
                     print(f"[!] Nginx配置文件语法错误，请检查：{self.nginx_conf}")
                 return False
@@ -460,10 +528,12 @@ class OAServerManager:
             return False
         except Exception as e:
             print(f"[!] 执行Nginx命令出错: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def start_stable_version(self):
-        """启动稳定版服务 (后端5000 + Nginx)"""
+        """启动稳定版服务 (后端5000 + Nginx动态代理)"""
         print("=" * 55)
         print("                启动稳定版服务...")
         print("=" * 55)
@@ -473,6 +543,14 @@ class OAServerManager:
         if not os.path.exists(venv_path):
             print(f"[!] 后端未找到Python虚拟环境！")
             print(f"路径：{venv_path}")
+            self._wait_for_input()
+            return
+
+        # 检查wsgi.py文件
+        wsgi_path = os.path.join(self.backend_dir, "wsgi.py")
+        if not os.path.exists(wsgi_path):
+            print(f"[!] 未找到后端WSGI文件！")
+            print(f"路径：{wsgi_path}")
             self._wait_for_input()
             return
 
@@ -488,7 +566,8 @@ class OAServerManager:
                 self._wait_for_input()
                 return
 
-        backend_cmd = f"python run.py --port {backend_port} --debug=False"
+        # 修改：使用waitress-serve启动后端
+        backend_cmd = f"waitress-serve --host=0.0.0.0 --port={backend_port} wsgi:application"
         self.start_process(backend_cmd, cwd=self.backend_dir, name="稳定版后端(5000)")
         time.sleep(2)
 
@@ -530,6 +609,14 @@ class OAServerManager:
             self._wait_for_input()
             return
 
+        # 检查wsgi.py文件
+        # wsgi_path = os.path.join(self.backend_dir, "wsgi.py")
+        # if not os.path.exists(wsgi_path):
+        #     print(f"[!] 未找到后端WSGI文件！")
+        #     print(f"路径：{wsgi_path}")
+        #     self._wait_for_input()
+        #     return
+
         # 检查前端项目
         frontend_config = os.path.join(self.frontend_dir, "package.json")
         if not os.path.exists(frontend_config):
@@ -548,7 +635,8 @@ class OAServerManager:
                 self._wait_for_input()
                 return
 
-        backend_cmd = f"python run.py --port {backend_port}"
+        # 开发时使用普通方式启动服务
+        backend_cmd = r"python .\run.py --port 5001"
         self.start_process(backend_cmd, cwd=self.backend_dir, name="开发版后端(5001)")
         time.sleep(2)
 
@@ -620,26 +708,41 @@ class OAServerManager:
         self._wait_for_input()
 
     def nginx_stop(self):
-        """停止Nginx服务"""
+        """停止Nginx服务（增强版：多维度终止）"""
         print("=" * 55)
         print("                停止Nginx...")
         print("=" * 55)
 
-        # 第一步：执行正常stop命令
-        self.run_nginx("stop")
+        # 第一步：尝试通过Nginx命令正常停止（忽略PID文件错误）
+        print("[1/4] 尝试正常停止Nginx...")
+        result = self.run_nginx("stop")
         time.sleep(3)  # 延长等待时间
 
-        # 第二步：检查端口是否仍被占用，若占用则强制释放
-        if not self.check_port_with_netstat(self.nginx_port):
-            print(f"[!] Nginx正常停止失败，强制释放{self.nginx_port}端口...")
-            self.kill_port_process(self.nginx_port)
-            time.sleep(2)
+        # 第二步：强制终止所有nginx.exe进程（不管端口）
+        print("[2/4] 强制终止所有nginx.exe进程...")
+        try:
+            subprocess.run(['taskkill', '/F', '/IM', 'nginx.exe'], capture_output=True)
+            print(f"[v] 已发送终止命令给所有nginx.exe进程")
+        except:
+            pass
+        time.sleep(2)
 
-        # 第三步：校验停止结果
+        # 第三步：强制释放Nginx端口
+        print(f"[3/4] 强制释放{self.nginx_port}端口...")
+        self.kill_port_process(self.nginx_port)
+
+        # 第四步：最终校验端口状态
+        print("[4/4] 校验端口释放状态...")
         if self.check_port_with_netstat(self.nginx_port):
             print(f"[v] Nginx停止成功，端口{self.nginx_port}已释放")
         else:
-            print(f"[!] Nginx停止失败，端口{self.nginx_port}仍被占用，请手动检查")
+            print(f"[!] Nginx停止后端口{self.nginx_port}仍显示被占用：")
+            # 打印当前端口占用详情
+            result = subprocess.run(['netstat', '-ano', '-p', 'tcp'], capture_output=True, text=True, encoding='gbk')
+            for line in result.stdout.split('\n'):
+                if f':{self.nginx_port}' in line and 'LISTENING' in line:
+                    print(f"    {line.strip()}")
+            print("[!] 解决方案：等待10秒后重试，或手动在任务管理器结束nginx.exe进程")
 
         self._wait_for_input()
 
@@ -680,6 +783,7 @@ class OAServerManager:
             print("[3] Nginx - 启动服务")
             print("[4] Nginx - 停止服务")
             print("[5] Nginx - 重启服务")
+            print("[6] Nginx - 重新生成配置文件（覆盖）")  # 新增选项
             print("[0] 退出")
             print("=" * 55)
 
@@ -696,6 +800,8 @@ class OAServerManager:
                     self.nginx_stop()
                 elif choice == "5":
                     self.nginx_restart()
+                elif choice == "6":  # 新增分支
+                    self.regenerate_nginx_config()
                 elif choice == "0":
                     self._stop_all_processes()
                     self.run_nginx("stop")  # 退出时停止nginx
@@ -712,6 +818,8 @@ class OAServerManager:
                 break
             except Exception as e:
                 print(f"[!] 发生错误: {e}")
+                import traceback
+                traceback.print_exc()
                 self._wait_for_input()
 
     def _wait_for_input(self):

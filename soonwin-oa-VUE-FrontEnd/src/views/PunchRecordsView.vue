@@ -71,9 +71,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="login_device" label="设备" width="150" align="center" header-align="center" />
-        <el-table-column label="操作" width="100" fixed="right" align="center" header-align="center">
+        <el-table-column label="操作" width="150" fixed="right" align="center" header-align="center">
           <template #default="scope">
             <el-button type="primary" size="small" @click="showDetails(scope.row)">详情</el-button>
+            <el-button type="danger" size="small" @click="deleteRecord(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -115,7 +116,7 @@
           <div v-else>无记录</div>
         </el-descriptions-item>
         <el-descriptions-item label="打卡IP">{{ selectedRecord.inner_ip }}</el-descriptions-item>
-        <el-descriptions-item label="设备MAC">{{ selectedRecord.phone_mac }}</el-descriptions-item>
+        <el-descriptions-item label="设备ID">{{ selectedRecord.device_id }}</el-descriptions-item>
         <el-descriptions-item label="最后登录时间">
           <div v-if="selectedRecord.last_login_time">
             <div>{{ formatDateToYMD(new Date(selectedRecord.last_login_time)) }}</div>
@@ -259,6 +260,32 @@ const goBack = () => {
 const showDetails = (record: PunchRecord) => {
   selectedRecord.value = record;
   detailDialogVisible.value = true;
+};
+
+// 删除打卡记录
+const deleteRecord = async (record: PunchRecord) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除员工 ${record.name}(${record.emp_id}) 在 ${record.punch_time} 的打卡记录吗？`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 调用后端删除API
+    await request.delete(`/api/punch-records/${record.id}`);
+    
+    ElMessage.success('打卡记录删除成功');
+    // 刷新列表
+    fetchPunchRecords();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除打卡记录失败');
+    }
+  }
 };
 
 // 关闭详情弹窗

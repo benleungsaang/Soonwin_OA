@@ -22,11 +22,9 @@
 
 ```cmd
 cd E:\Soonwin_OA\soonwin-oa-VUE-FrontEnd
-npm install  # 或 yarn install
-npm run build  # 或 yarn build
+yarn 本地安装依赖
+yarn build:prod 生成静态文件给nginx使用
 ```
-
-构建完成后，生成的静态文件会位于 `dist` 目录中。将整个 `dist` 目录中的内容复制到后端项目的 `static` 目录下（如果不存在该目录，可创建一个）。
 
 ### 2.2 后端部署包准备
 将从开发环境同步的 "OA后端迁移包" 复制到生产服务器，包含以下目录和文件：
@@ -44,9 +42,6 @@ OA_System/
 ├── extensions.py       # Flask扩展配置
 ├── requirements.txt    # 依赖包列表
 ├── alembic.ini         # 数据库迁移配置
-├── static/             # 前端静态文件（从dist目录复制）
-│   ├── index.html
-│   ├── assets/
 │   └── ...
 ├── app/                # 应用核心代码
 │   ├── __init__.py
@@ -152,7 +147,7 @@ python run.py --port 8080
 pip install waitress
 
 # 启动服务
-waitress-serve --host=0.0.0.0 --port=5000 run:app
+waitress-serve --host=0.0.0.0 --port=5000 wsgi:application
 ```
 
 ## 7. 访问系统

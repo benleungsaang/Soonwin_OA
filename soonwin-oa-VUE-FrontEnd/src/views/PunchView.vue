@@ -3,7 +3,7 @@
     <el-card shadow="hover" class="punch-card">
       <el-page-header content="员工打卡" @back="goBackHome" />
       <el-divider></el-divider>
-      
+
       <div class="punch-content">
         <div class="user-info">
           <el-descriptions :column="1" border>
@@ -12,16 +12,16 @@
             <el-descriptions-item label="部门">{{ userInfo.dept }}</el-descriptions-item>
           </el-descriptions>
         </div>
-        
+
         <div class="punch-time">
           <h3>当前时间</h3>
           <p class="current-time">{{ currentTime }}</p>
         </div>
-        
+
         <div class="punch-actions">
-          <el-button 
-            type="primary" 
-            size="large" 
+          <el-button
+            type="primary"
+            size="large"
             :loading="punchLoading"
             @click="handlePunch"
             :disabled="isPunchDisabled"
@@ -103,16 +103,89 @@ const loadUserInfo = async () => {
   }
 };
 
+// 检测是否为移动设备
+const isMobileDevice = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const mobileKeywords = ['mobile', 'android', 'iphone'];
+  return mobileKeywords.some(keyword => userAgent.includes(keyword));
+};
+
 // 打卡处理函数
 const handlePunch = async () => {
+  if (!isMobileDevice()) {
+    ElMessage.warning('请使用个人手机进行打卡');
+    return;
+  }
+
   if (punchLoading.value) return;
 
   punchLoading.value = true;
   isPunchDisabled.value = true;
 
+  // 提取通用函数：处理首次打卡逻辑
+  const handleFirstPunch = async (empId: string) => {
+    try {
+      const response = await request.post('/api/device-clock-in', { emp_id: empId }, {
+        headers: { 'X-Device-ID': null }
+      });
+      if (response.device_id) {
+        saveDeviceId(response.device_id);
+        ElMessage.success(`首次打卡成功！设备ID已保存: ${response.device_id.substring(0, 8)}...`);
+        // 通用跳转逻辑
+        jumpToPunchSuccess(response);
+      }
+      return response;
+    } catch (error) {
+      console.error('首次打卡处理失败:', error);
+      ElMessage.error('首次打卡绑定设备失败，请稍后重试');
+      return null;
+    }
+  };
+
+  // 提取通用函数：处理设备更换申请
+  const handleDeviceChange = async (empId: string, newDeviceId: string | null) => {
+    if (!newDeviceId) {
+      ElMessage.error('设备ID未获取到，请稍后重试');
+      return null;
+    }
+    try {
+      const deviceChangeResponse = await request.post('/api/request-device-change', {
+        emp_id: empId,
+        new_device_id: newDeviceId
+      });
+      if (deviceChangeResponse?.request_id) {
+        ElMessage.success('设备更换申请已提交，请等待管理员审批');
+      }
+      return deviceChangeResponse;
+    } catch (error) {
+      console.error('发送设备更换申请失败:', error);
+      ElMessage.error('设备更换申请发送失败，请稍后重试');
+      return null;
+    }
+  };
+
+  // 提取通用函数：打卡成功跳转
+  const jumpToPunchSuccess = (response: any) => {
+    router.push({
+      name: 'punchSuccess',
+      query: {
+        name: response.name,
+        emp_id: response.emp_id,
+        punch_type: response.punch_type,
+        punch_time: response.punch_time
+      }
+    });
+  };
+
   try {
     const deviceId = getDeviceId();
-    const empId = userInfo.value.emp_id;
+    const empId = userInfo.value?.emp_id; // 增加可选链，避免取值报错
+
+    // 校验员工ID是否存在
+    if (!empId) {
+      ElMessage.error('员工信息未加载，请刷新页面重试');
+      return;
+    }
 
     // 调用后端打卡API
     const response = await request.post('/api/device-clock-in', {
@@ -125,132 +198,67 @@ const handlePunch = async () => {
     });
 
     if (response.device_id) {
-      // 首次打卡成功，需要保存设备ID
+      // 首次打卡成功
       saveDeviceId(response.device_id);
       ElMessage.success(`首次打卡成功！设备ID已保存: ${response.device_id.substring(0, 8)}...`);
+      jumpToPunchSuccess(response);
     } else if (response.status === 'device_change_required') {
-      // 设备ID变化，询问用户是否申请更换设备
-      const confirmChange = await ElMessageBox.confirm(
-        '检测到设备ID发生变化，是否申请更换设备？',
-        '设备变更提示',
-        {
-          confirmButtonText: '申请更换',
-          cancelButtonText: '暂不更换',
-          type: 'warning',
-        }
-      ).catch(() => {
+      // 设备ID变化，询问是否更换
+      try {
+        await ElMessageBox.confirm(
+          '检测到设备ID发生变化，是否申请更换设备？',
+          '设备变更提示',
+          {
+            confirmButtonText: '申请更换',
+            cancelButtonText: '暂不更换',
+            type: 'warning',
+          }
+        );
+        // 用户点击确认（无需判断===true，confirm成功则执行此处）
+        await handleDeviceChange(empId, deviceId);
+      } catch (error) {
         // 用户取消操作
         ElMessage.info('已取消设备更换申请');
-        return null;
-      });
-
-      if (confirmChange === true) {
-        // 用户同意申请更换设备
-        const deviceChangeResponse = await request.post('/api/request-device-change', {
-          emp_id: empId,
-          new_device_id: deviceId
-        });
-
-        if (deviceChangeResponse.request_id) {
-          ElMessage.success('设备更换申请已提交，请等待管理员审批');
-        }
       }
     } else if (response.status === 'pending_approval') {
-      // 设备更换申请已提交
       ElMessage.success('设备更换申请已提交，请等待管理员审批');
     } else {
       ElMessage.success('打卡成功！');
-    }
-
-    // 如果是成功打卡（非待审批状态），则跳转到成功页面
-    if (!response.status || response.status !== 'pending_approval') {
-      router.push({
-        name: 'punchSuccess',
-        query: {
-          name: response.name,
-          emp_id: response.emp_id,
-          punch_type: response.punch_type,
-          punch_time: response.punch_time
-        }
-      });
+      jumpToPunchSuccess(response);
     }
   } catch (error: any) {
     console.error('打卡失败:', error);
-    if (error.response?.data?.msg?.includes('设备ID未提供')) {
-      // 首次打卡，没有设备ID，直接发送员工ID让后端生成设备ID
-      const response = await request.post('/api/device-clock-in', {
-        emp_id: userInfo.value.emp_id
-      }, {
-        headers: {
-          'X-Device-ID': null
-        }
-      });
+    const errorMsg = error.response?.data?.msg || '';
+    const empId = userInfo.value?.emp_id;
 
-      if (response.device_id) {
-        saveDeviceId(response.device_id);
-        ElMessage.success('首次打卡成功！设备ID已保存');
-        router.push({
-          name: 'punchSuccess',
-          query: {
-            name: response.name,
-            emp_id: response.emp_id,
-            punch_type: response.punch_type,
-            punch_time: response.punch_time
-          }
-        });
-      }
-    } else if (error.response?.data?.msg?.includes('需要绑定设备')) {
-      // 首次打卡，需要绑定设备
-      const response = await request.post('/api/device-clock-in', {
-        emp_id: userInfo.value.emp_id
-      }, {
-        headers: {
-          'X-Device-ID': null
-        }
-      });
+    if (!empId) {
+      ElMessage.error('员工信息未加载，请刷新页面重试');
+      return;
+    }
 
-      if (response.device_id) {
-        saveDeviceId(response.device_id);
-        ElMessage.success('首次打卡成功！设备ID已保存');
-        router.push({
-          name: 'punchSuccess',
-          query: {
-            name: response.name,
-            emp_id: response.emp_id,
-            punch_type: response.punch_type,
-            punch_time: response.punch_time
+    // 首次打卡相关错误：合并重复逻辑
+    if (errorMsg.includes('设备ID未提供') || errorMsg.includes('需要绑定设备')) {
+      await handleFirstPunch(empId);
+    }
+    // 设备ID变化相关错误
+    else if (errorMsg.includes('设备ID变化') || error.response?.data?.data?.status === 'device_change_required') {
+      try {
+        await ElMessageBox.confirm(
+          '检测到设备ID发生变化，是否申请更换设备？',
+          '设备变更提示',
+          {
+            confirmButtonText: '申请更换',
+            cancelButtonText: '暂不更换',
+            type: 'warning',
           }
-        });
-      }
-    } else if (error.response?.data?.msg?.includes('设备ID变化')) {
-      // 设备ID变化，询问用户是否申请更换设备
-      const confirmChange = await ElMessageBox.confirm(
-        '检测到设备ID发生变化，是否申请更换设备？',
-        '设备变更提示',
-        {
-          confirmButtonText: '申请更换',
-          cancelButtonText: '暂不更换',
-          type: 'warning',
-        }
-      ).catch(() => {
-        // 用户取消操作
+        );
+        // 用户确认更换：调用通用函数
+        await handleDeviceChange(empId, getDeviceId());
+      } catch (cancelError) {
         ElMessage.info('已取消设备更换申请');
-        return null;
-      });
-
-      if (confirmChange === true) {
-        // 用户同意申请更换设备
-        const deviceChangeResponse = await request.post('/api/request-device-change', {
-          emp_id: userInfo.value.emp_id,
-          new_device_id: getDeviceId()  // 使用当前设备ID作为新设备ID
-        });
-
-        if (deviceChangeResponse.request_id) {
-          ElMessage.success('设备更换申请已提交，请等待管理员审批');
-        }
       }
     } else {
-      ElMessage.error(error.response?.data?.msg || '打卡失败');
+      ElMessage.error(errorMsg || '打卡失败');
     }
   } finally {
     punchLoading.value = false;
@@ -273,7 +281,7 @@ const updateTime = () => {
 onMounted(async () => {
   await loadUserInfo();
   updateTime();
-  
+
   // 每秒更新一次时间
   timeInterval = setInterval(updateTime, 1000);
 });

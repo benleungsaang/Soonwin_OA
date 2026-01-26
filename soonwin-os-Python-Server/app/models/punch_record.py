@@ -9,6 +9,6 @@ class PunchRecord(db.Model):
     punch_type = db.Column(db.String(20), nullable=False, comment="打卡类型（上班/下班）")
     punch_time = db.Column(db.DateTime, default=datetime.now, comment="打卡时间")
     inner_ip = db.Column(db.String(20), comment="打卡设备IP")
-    phone_mac = db.Column(db.String(20), comment="打卡设备MAC地址")
+    device_id = db.Column(db.String(100), comment="打卡设备ID")
     last_login_time = db.Column(db.DateTime, comment="最后登录时间")
     login_device = db.Column(db.String(100), comment="登录设备")

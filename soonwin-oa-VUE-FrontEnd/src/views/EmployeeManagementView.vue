@@ -11,9 +11,20 @@
       <template #header>
         <div class="card-header">
           <span>员工管理</span>
-          <el-button class="button" type="primary" @click="showCreateDialog = true">
-            新增员工
-          </el-button>
+          <div>
+            <el-button 
+              v-if="isCurrentUserAdmin" 
+              type="info" 
+              @click="showDeviceChangeApprovalDialogFunc"
+              :icon="Position"
+              style="margin-right: 10px;"
+            >
+              设备更换审批
+            </el-button>
+            <el-button class="button" type="primary" @click="showCreateDialog = true">
+              新增员工
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -230,7 +241,7 @@
       </el-dialog>
 
       <!-- 替换设备对话框 -->
-      <el-dialog v-model="showReplaceDeviceDialog" title="替换设备MAC" width="500px">
+      <el-dialog v-model="showReplaceDeviceDialog" title="替换设备ID" width="500px">
         <div v-if="currentEmployee">
           <p>将临时员工 <strong>{{ currentEmployee.name }}</strong> (ID: {{ currentEmployee.emp_id }}) 的设备转移至：</p>
           <el-form label-width="120px" style="margin-top: 20px;">
@@ -242,7 +253,7 @@
               />
               <el-button
                 type="primary"
-                @click="replaceDeviceMac"
+                @click="replaceDeviceId"
                 :disabled="!targetEmployeeId"
                 style="margin-left: 10px;"
               >
@@ -252,7 +263,7 @@
           </el-form>
           <p style="margin-top: 15px; color: #f56c6c;">
             <el-icon><Warning /></el-icon>
-            注意：此操作会将临时员工的设备MAC转移到目标员工，并删除该临时员工！
+            注意：此操作会将临时员工的设备ID转移到目标员工，并删除该临时员工！
           </p>
         </div>
         <template #footer>
@@ -261,12 +272,71 @@
           </span>
         </template>
       </el-dialog>
+
+      <!-- 设备更换申请审批对话框 -->
+      <el-dialog v-model="showDeviceChangeApprovalDialog" title="设备更换申请审批" width="700px">
+        <div v-if="deviceChangeRequests.length === 0 && !loadingDeviceChangeRequests" class="no-data">
+          <el-empty description="暂无设备更换申请" :image-size="100" />
+          <p style="text-align: center; margin-top: 10px; color: #909399;">
+            员工需要在打卡页面申请更换设备后，才会显示在此处进行审批
+          </p>
+        </div>
+        <el-table
+          v-else
+          :data="deviceChangeRequests"
+          v-loading="loadingDeviceChangeRequests"
+          style="width: 100%"
+          stripe
+          border
+          :header-cell-style="{ 'text-align': 'center' }"
+          :cell-style="{ 'text-align': 'center', 'vertical-align': 'middle' }"
+        >
+          <el-table-column prop="emp_id" label="员工ID" width="120" align="center" header-align="center" />
+          <el-table-column prop="name" label="员工姓名" width="120" align="center" header-align="center" />
+          <el-table-column prop="punch_type" label="申请类型" width="150" align="center" header-align="center">
+            <template #default="scope">
+              <el-tag type="warning">{{ scope.row.punch_type }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="punch_time" label="申请时间" width="160" align="center" header-align="center" />
+          <el-table-column prop="device_id" label="新设备ID" width="200" align="center" header-align="center">
+            <template #default="scope">
+              <el-tooltip :content="scope.row.device_id" placement="top" :disabled="!scope.row.device_id || scope.row.device_id.length <= 20">
+                <span class="device-text">{{ scope.row.device_id && scope.row.device_id.length > 20 ? scope.row.device_id.substring(0, 20) + '...' : scope.row.device_id || '无设备ID' }}</span>
+              </el-tooltip>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150" align="center" header-align="center">
+            <template #default="scope">
+              <el-button
+                size="small"
+                type="success"
+                @click="approveDeviceChange(scope.row.id)"
+                :icon="CircleCheck"
+                circle
+              />
+              <el-button
+                size="small"
+                type="danger"
+                @click="rejectDeviceChange(scope.row.id)"
+                :icon="Delete"
+                circle
+              />
+            </template>
+          </el-table-column>
+        </el-table>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="showDeviceChangeApprovalDialog = false">关闭</el-button>
+          </span>
+        </template>
+      </el-dialog>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Warning, View, Edit, Delete, Position, CircleCheck } from '@element-plus/icons-vue';
@@ -279,6 +349,26 @@ const router = useRouter();
 // 用于存储原始员工ID
 let originalEmpId = '';
 
+// 检查当前用户是否为管理员
+const isCurrentUserAdmin = computed(() => {
+  const token = localStorage.getItem('oa_token');
+  if (!token) return false;
+  
+  try {
+    // 解码JWT令牌（不验证签名，仅解码）
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join('')));
+    
+    return payload.user_role === 'admin';
+  } catch (error) {
+    console.error('解析用户角色失败:', error);
+    return false;
+  }
+});
+
 // 员工数据
 const employees = ref<Employee[]>([]);
 const loading = ref(false);
@@ -286,11 +376,15 @@ const showCreateDialog = ref(false);
 const showEditDialogVisible = ref(false);
 const showDeviceDialog = ref(false);
 const showReplaceDeviceDialog = ref(false); // 设备替换对话框
+const showDeviceChangeApprovalDialog = ref(false); // 设备更换申请审批对话框
 const detailDialogVisible = ref(false); // 详情对话框
 const devices = ref<any[]>([]);
 const currentEmployee = ref<Employee | null>(null);
 const targetEmployeeId = ref(''); // 目标员工ID
 const selectedEmployee = ref<Employee | null>(null); // 选中的员工（用于详情）
+const deviceChangeRequests = ref<any[]>([]); // 设备更换申请列表
+const loadingDeviceChangeRequests = ref(false); // 加载设备更换申请的加载状态
+
 const newEmployee = ref({
   name: '',
   emp_id: '',
@@ -309,8 +403,7 @@ const editEmployee = ref({
   login_device: ''
 });
 const newDeviceForm = ref({
-  device_mac: '',
-  device_ip: '',
+          device_id: '',  device_ip: '',
   device_type: 'Mobile',
   device_info: ''
 });
@@ -541,8 +634,8 @@ const showReplaceDeviceDialogFunc = (employee: Employee) => {
   showReplaceDeviceDialog.value = true;
 };
 
-// 替换设备MAC
-const replaceDeviceMac = async () => {
+// 替换设备ID
+const replaceDeviceId = async () => {
   if (!currentEmployee.value || !targetEmployeeId.value) {
     ElMessage.error('请选择临时员工和目标员工');
     return;
@@ -561,13 +654,14 @@ const replaceDeviceMac = async () => {
 
     // 由于request.ts的拦截器会自动处理code=200的情况并返回data部分，
     // 所以这里response将是API返回的data部分
+    // 注意：API端点名为replace-device-mac，但实际操作的是device_id字段
     const response: any = await request.post('/api/replace-device-mac', {
       temp_emp_id: currentEmployee.value.emp_id,
       target_emp_id: targetEmployeeId.value
     });
 
     // 如果请求成功，拦截器会自动处理并返回data部分
-    ElMessage.success(`设备MAC替换成功：${targetEmployeeId.value}的设备已更新，临时员工已删除`);
+    ElMessage.success(`设备ID替换成功：${targetEmployeeId.value}的设备已更新，临时员工已删除`);
     showReplaceDeviceDialog.value = false;
     fetchEmployees(); // 刷新列表
   } catch (error: any) {
@@ -609,6 +703,92 @@ const showDetails = (employee: Employee) => {
 const closeDetailDialog = () => {
   detailDialogVisible.value = false;
   selectedEmployee.value = null;
+};
+
+// 获取设备更换申请列表
+const fetchDeviceChangeRequests = async () => {
+  loadingDeviceChangeRequests.value = true;
+  try {
+    // 获取所有打卡记录，然后筛选出设备更换申请
+    const response: any = await request.get('/api/punch-records', {
+      params: {
+        punch_type: '设备更换申请',
+        page: 1,
+        size: 100  // 获取所有申请
+      }
+    });
+    
+    if (response && response.list) {
+      deviceChangeRequests.value = response.list;
+    } else {
+      deviceChangeRequests.value = [];
+    }
+  } catch (error) {
+    ElMessage.error('获取设备更换申请列表失败');
+    console.error('Error fetching device change requests:', error);
+    deviceChangeRequests.value = [];
+  } finally {
+    loadingDeviceChangeRequests.value = false;
+  }
+};
+
+// 显示设备更换申请审批对话框
+const showDeviceChangeApprovalDialogFunc = async () => {
+  await fetchDeviceChangeRequests();
+  showDeviceChangeApprovalDialog.value = true;
+};
+
+// 批准设备更换申请
+const approveDeviceChange = async (requestId: number) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要批准此设备更换申请吗？',
+      '确认批准',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await request.post('/api/approve-device-change', {
+      request_id: requestId
+    });
+
+    ElMessage.success('设备更换申请已批准');
+    await fetchDeviceChangeRequests(); // 刷新列表
+    fetchEmployees(); // 也刷新员工列表以确保最新状态
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('批准设备更换申请失败');
+    }
+  }
+};
+
+// 拒绝设备更换申请
+const rejectDeviceChange = async (requestId: number) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要拒绝此设备更换申请吗？',
+      '确认拒绝',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await request.post('/api/reject-device-change', {
+      request_id: requestId
+    });
+
+    ElMessage.success('设备更换申请已拒绝');
+    await fetchDeviceChangeRequests(); // 刷新列表
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('拒绝设备更换申请失败');
+    }
+  }
 };
 
 // 退出登录
@@ -669,5 +849,10 @@ const logout = async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px 0;
 }
 </style>

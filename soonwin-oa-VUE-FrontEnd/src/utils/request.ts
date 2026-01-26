@@ -41,11 +41,11 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolea
 const getBaseURL = () => {
   // 开发环境：使用相对路径（由vite proxy转发，避免localhost硬编码）
   if (import.meta.env.MODE === 'development') {
-    return '/api'; // 关键：改为相对路径，由vite proxy转发到5001
+    return '/'; // 关键：改为相对路径，由vite proxy转发到5001
   }
   // 生产环境：动态拼接当前访问的IP+端口 + /api（核心：解决移动端localhost问题）
   // window.location.origin会自动获取当前访问的地址，如http://192.168.30.64:5183
-  return `${window.location.origin}/api`;
+  return `${window.location.origin}/`;
 };
 
 const service = axios.create({

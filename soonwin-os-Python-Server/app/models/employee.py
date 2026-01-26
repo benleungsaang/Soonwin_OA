@@ -15,7 +15,7 @@ class Employee(db.Model):
     name = db.Column(db.String(50), nullable=False, comment="员工姓名")
     emp_id = db.Column(db.String(20), unique=True, nullable=False, comment="工号（唯一标识）")
     dept = db.Column(db.String(50), comment="部门")
-    phone_mac = db.Column(db.String(20), nullable=False, comment="手机MAC地址")
+    device_id = db.Column(db.String(100), comment="设备ID")
     inner_ip = db.Column(db.String(20), nullable=False, comment="内网IP")
     user_role = db.Column(db.String(10), default='user', comment="用户角色（admin/sales/user）")
     status = db.Column(db.String(20), default=UserStatus.PENDING_BINDING, comment="用户状态")
@@ -31,7 +31,7 @@ class Employee(db.Model):
             "name": self.name,
             "emp_id": self.emp_id,
             "dept": self.dept,
-            "phone_mac": self.phone_mac,
+            "device_id": self.device_id,
             "inner_ip": self.inner_ip,
             "user_role": self.user_role,
             "status": self.status,
