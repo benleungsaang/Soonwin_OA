@@ -16,13 +16,17 @@ import platform
 
 
 # ====================== 基础配置，请根据实际环境修改 ======================
-# Nginx配置 - 请在此处修改Nginx安装路径
-UPPER_PATH = os.path.dirname(os.getcwd())
 
-# 修复1：使用os.path.join拼接路径，避免手动加反斜杠导致的转义问题
+# 确保 nginx 目录存在
+# NGINX_FILES = os.path.join(os.getcwd(),  "nginx")
+# os.makedirs(NGINX_FILES, exist_ok=True)
 NGINX_INSTALL_PATH = os.path.join(os.getcwd(),  "nginx-1.28.1")
-NGINX_CONF = os.path.join(os.getcwd(), "nginx.conf")
-NGINX_EXE = os.path.join(NGINX_INSTALL_PATH, "nginx.exe")
+NGINX_TEMP_FILES = os.path.join(NGINX_INSTALL_PATH, 'temp', "personal_temp_files")
+os.makedirs(NGINX_TEMP_FILES, exist_ok=True)
+NGINX_EXE = os.path.join(NGINX_INSTALL_PATH, "nginx.exe") # nginx.exe
+MIME_TYPES_PATH = os.path.join(NGINX_INSTALL_PATH, "conf", "mime.types") # nginx 自带的 mime.types
+NGINX_CONF = os.path.join(NGINX_INSTALL_PATH, 'conf', "nginx.conf") # 自生成的 nginx.conf 文件路径
+NGINX_PID_PATH = os.path.join(NGINX_INSTALL_PATH, 'logs', "nginx.pid") # 开启nginx后会生成一个PID文件，方便停止程序时使用，实际经常用不上
 NGINX_PORT = 5183
 
 if os.path.exists("soonwin-os-Python-Server"):
@@ -40,17 +44,6 @@ else:
 # 前端构建输出路径 (Nginx静态文件目录)
 FRONTEND_DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
 
-# mime.types
-MIME_TYPES_PATH = os.path.join(NGINX_INSTALL_PATH, "conf", "mime.types")
-
-# 新增：低权限PID目录（避免Program Files权限问题）
-# 修复2：用os.path.join拼接，避免手动加反斜杠
-NGINX_PID_DIR = os.path.join(os.getcwd(), "nginx_pid")
-
-# 确保PID目录存在
-os.makedirs(NGINX_PID_DIR, exist_ok=True)
-# 修复3：直接用Windows原生路径（反斜杠），不做多余的replace
-NGINX_PID_PATH = os.path.join(NGINX_PID_DIR, "nginx.pid")
 
 # 生成时间
 generate_time = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -59,13 +52,14 @@ generate_time = time.strftime('%Y-%m-%d %H:%M:%S')
 class OAServerManager:
     def __init__(self):
         # 基础配置
+        self.nginx_exe = NGINX_EXE
         self.nginx_conf = NGINX_CONF
-        self.nginx_exe = NGINX_EXE  # 使用统一的Nginx可执行文件路径
+        self.mime_path = MIME_TYPES_PATH
+        self.nginx_pid_path = NGINX_PID_PATH
+        self.nginx_temp_files = NGINX_TEMP_FILES
         self.nginx_port = NGINX_PORT
         self.backend_dir = BACKEND_DIR
         self.frontend_dir = FRONTEND_DIR
-        self.mime_path = MIME_TYPES_PATH
-        self.nginx_pid_path = NGINX_PID_PATH  # 新增：PID路径属性
 
         # 存储运行的进程
         self.running_processes = []
@@ -76,7 +70,7 @@ class OAServerManager:
             signal.signal(signal.SIGTERM, self._signal_handler)
 
     def generate_nginx_config(self, force_overwrite: bool = False):
-        """生成Nginx配置文件 - 修复PID路径格式"""
+        """生成Nginx配置文件"""
         try:
             # 检查文件是否已存在，非强制模式下提示
             if os.path.exists(self.nginx_conf) and not force_overwrite:
@@ -89,6 +83,7 @@ class OAServerManager:
             # 统一路径处理
             mime_types_path = self.mime_path.replace('\\', '/')
             frontend_dist = FRONTEND_DIST_DIR.replace('\\', '/')
+            nginx_temp_files = self.nginx_temp_files.replace('\\', '/')
 
             config_content = """# oa_frontend.conf 完整配置（由Python脚本自动生成）
 worker_processes  1;  # 内网自用，1个进程足够
@@ -116,6 +111,21 @@ http {{
         server_name  _;
         root         {};
         index        index.html;
+        # 核心：允许200MB的请求体（必须≥你的最大上传文件大小）
+        client_max_body_size 200M;
+
+        # 请求体缓冲区大小（Windows下建议适度增大）
+        # 默认16K太小，大文件会频繁写临时文件，调整为128K
+        client_body_buffer_size 128K;
+
+        # 指定请求体临时文件存储路径（Windows下需确保目录存在）
+        # 避免系统临时目录权限问题，建议自定义
+        client_body_temp_path "{}";
+
+        # 代理缓冲区（针对/api/转发的请求，避免后端接收不完整）
+        proxy_buffering on;
+        proxy_buffer_size 64K;
+        proxy_buffers 4 64K;
 
         location /api/ {{
             proxy_pass http://backend_server;  # 无末尾/，保留/api
@@ -151,7 +161,8 @@ http {{
     pid_path_nginx,
     mime_types_path,
     self.nginx_port,
-    frontend_dist
+    frontend_dist,
+    nginx_temp_files
 )
 
             with open(self.nginx_conf, 'w', encoding='utf-8') as f:
@@ -178,7 +189,7 @@ http {{
         # 二次确认，防止误操作
         try:
             confirm = input(f"确认要覆盖已有Nginx配置文件 {self.nginx_conf} 吗？(y/N): ").strip().lower()
-            if confirm not in ['y', 'yes', '是']:
+            if confirm not in ['y', 'yes', '是', '']:
                 print("[v] 用户取消覆盖操作")
                 self._wait_for_input()
                 return
@@ -366,7 +377,7 @@ http {{
                         continue
 
             if not pids:
-                print(f"[v] {port}端口未被占用")
+                print(f"[v] {port}端口未被占用，nginx 启动成功！")
                 return
 
             # 步骤2：终止所有关联PID（包括子进程）
@@ -517,7 +528,9 @@ http {{
                 return True
             else:
                 error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
-                print(f"[!] Nginx错误信息: {error_msg}")
+                # 因为后续会强制 kill 5183端口相关的程序，所以这里的使用 pid错误跟 stop错误都不作提醒
+                if all(keyword not in error_msg for keyword in ['nginx.pid', 'stop']):
+                    print(f"[!] Nginx错误信息: {error_msg}")
                 if "-t" in cmd and error_msg:
                     print(f"[!] Nginx配置文件语法错误，请检查：{self.nginx_conf}")
                 return False
@@ -847,7 +860,7 @@ def main():
         print("\n[!] 路径检查未通过，是否继续？(y/N): ", end="")
         try:
             response = input().strip().lower()
-            if response not in ['y', 'yes', '是']:
+            if response not in ['y', 'yes', '是', '']:
                 print("用户选择退出。")
                 return
         except:

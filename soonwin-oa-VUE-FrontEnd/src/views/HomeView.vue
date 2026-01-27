@@ -42,11 +42,15 @@
               <el-icon><Upload /></el-icon>
               <span>上传展示文件</span>
             </el-menu-item> -->
-            <el-menu-item index="9" @click="goToDisplayFiles" v-if="hasToken">
+            <el-menu-item index="9" @click="goToInquiries" v-if="hasToken">
+              <el-icon><Document /></el-icon>
+              <span>询盘登记表</span>
+            </el-menu-item>
+            <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken">
               <el-icon><Files /></el-icon>
               <span>展示文件</span>
             </el-menu-item>
-            <el-menu-item index="10" @click="logout" v-if="hasToken">
+            <el-menu-item index="11" @click="logout" v-if="hasToken">
               <el-icon><SwitchButton /></el-icon>
               <span>退出登录</span>
             </el-menu-item>
@@ -157,6 +161,11 @@ const goToDisplayFileUpload = () => {
     return;
   }
   router.push('/display-file-upload');
+};
+
+// 跳转询盘登记表页面（需登录）
+const goToInquiries = () => {
+  router.push('/inquiries');
 };
 
 // 跳转展示文件页面（需登录）

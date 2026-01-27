@@ -12,6 +12,8 @@ const OrderInspectionView = () => import('@/views/OrderInspectionView.vue');
 const InspectionReportView = () => import('@/views/InspectionReportView.vue');
 const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
 const DisplayFileView = () => import('@/views/DisplayFileView.vue');
+const InquiryListView = () => import('@/views/InquiryListView.vue');
+const InquiryView = () => import('@/views/InquiryView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -88,6 +90,24 @@ const routes: RouteRecordRaw[] = [
     name: 'displayFiles',
     component: DisplayFileView,
     meta: { title: '展示文件', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/inquiries',
+    name: 'inquiries',
+    component: InquiryListView,
+    meta: { title: '询盘管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/inquiry',
+    name: 'inquiryCreate',
+    redirect: '/inquiries',
+    meta: { title: '新增询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/inquiry/:id',
+    name: 'inquiryEdit',
+    redirect: '/inquiries',
+    meta: { title: '编辑询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 ];
 

@@ -134,4 +134,43 @@ export interface DisplayFileListResponse {
   pagination: PaginationInfo;
 }
 
+// 询盘类型
+export interface Inquiry {
+  id: number;
+  area?: string;
+  inquiry_date?: string;
+  inquiry_source?: string;
+  company_name?: string;
+  contact_person: string;
+  phone?: string;
+  email?: string;
+  packaging_product: string;
+  machine_type: string;
+  creator_id: number;
+  creator_name?: string;
+  create_time?: string;
+  update_time?: string;
+}
+
+// 询盘沟通记录类型
+export interface InquiryCommunication {
+  id: number;
+  inquiry_id: number;
+  subject: string;
+  content?: string;
+  communication_date?: string;
+  creator_id: number;
+  creator_name?: string;
+  create_time?: string;
+  update_time?: string;
+}
+
+// 询盘列表响应类型
+export interface InquiryListResponse {
+  list: Inquiry[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 // 其他原有类型（员工、打卡记录等）保持不变...
