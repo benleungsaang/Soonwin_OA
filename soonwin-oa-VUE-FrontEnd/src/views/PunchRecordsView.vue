@@ -1,10 +1,6 @@
 <template>
   <div class="punch-records-container">
-    <el-page-header content="打卡记录" @back="goBack">
-      <template #extra>
-        <el-button @click="logout">退出登录</el-button>
-      </template>
-    </el-page-header>
+    <CommonHeader title="打卡记录" />
     <el-divider></el-divider>
 
     <el-card shadow="hover" class="records-card">
@@ -141,6 +137,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '@/utils/request';
 import { PunchRecord } from '@/types';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由实例
 const router = useRouter();
@@ -251,11 +248,6 @@ onMounted(() => {
   fetchPunchRecords();
 });
 
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
-};
-
 // 显示详情
 const showDetails = (record: PunchRecord) => {
   selectedRecord.value = record;
@@ -292,33 +284,6 @@ const deleteRecord = async (record: PunchRecord) => {
 const closeDetailDialog = () => {
   detailDialogVisible.value = false;
   selectedRecord.value = null;
-};
-
-// 退出登录
-const logout = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要退出登录吗？',
-      '确认退出',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-
-    // 清除本地存储的token
-    localStorage.removeItem('oa_token');
-    // 提示用户
-    ElMessage.success('已退出登录');
-    // 跳转到登录页
-    router.push('/login');
-  } catch (error) {
-    // 用户取消操作
-    if (error !== 'cancel') {
-      console.error('退出登录失败：', error);
-    }
-  }
 };
 </script>
 

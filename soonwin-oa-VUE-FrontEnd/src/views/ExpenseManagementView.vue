@@ -1,11 +1,6 @@
 <template>
   <div class="expense-management-container">
-    <el-page-header content="运营费用管理" @back="goBack">
-      <template #extra>
-        <el-button @click="logout">退出登录</el-button>
-      </template>
-    </el-page-header>
-    <el-divider></el-divider>
+    <CommonHeader title="运营费用管理" />
 
     <el-card shadow="hover" class="management-card">
       <template #header>
@@ -283,6 +278,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '@/utils/request';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由实例
 const router = useRouter();
@@ -658,38 +654,6 @@ onMounted(async () => {
     };
   }
 });
-
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
-};
-
-// 退出登录
-const logout = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要退出登录吗？',
-      '确认退出',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-
-    // 清除本地存储的token
-    localStorage.removeItem('oa_token');
-    // 提示用户
-    ElMessage.success('已退出登录');
-    // 跳转到登录页
-    router.push('/login');
-  } catch (error) {
-    // 用户取消操作
-    if (error !== 'cancel') {
-      console.error('退出登录失败：', error);
-    }
-  }
-};
 
 // 金额正负样式
 const positiveAmountStyle = (amount: number) => {

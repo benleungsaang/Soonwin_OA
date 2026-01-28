@@ -1,10 +1,6 @@
 <template>
   <div class="order-inspection-container">
-    <div class="header">
-      <div class="header-content">
-        <el-page-header @back="goBack" content="订单验收" />
-      </div>
-    </div>
+    <CommonHeader title="订单验收" />
 
     <!-- 订单列表 -->
     <div class="order-list-section">
@@ -462,6 +458,7 @@ import { useRouter } from 'vue-router';
 import { Delete, Plus, Close, List, ArrowRight, Loading, Camera } from '@element-plus/icons-vue';
 import { uploadFile } from '@/utils/upload';
 import InspectionImageUpload from '@/components/InspectionImageUpload.vue';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 响应式数据
 const orders = ref<any[]>([]);
@@ -2133,11 +2130,6 @@ const generateReport = async (order?: any) => {
 
   // 在新窗口中打开报告页面
   window.open(`/inspection-report/${inspectionId}`, '_blank');
-};
-
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
 };
 
 // 路由

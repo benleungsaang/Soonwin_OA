@@ -34,6 +34,10 @@
               <el-icon><Finished /></el-icon>
               <span>订单验收</span>
             </el-menu-item>
+            <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && isCurrentUserAdmin">
+              <el-icon><Tools /></el-icon>
+              <span>机器零部件管理</span>
+            </el-menu-item>
             <el-menu-item index="7" @click="goToLogin" v-if="!hasToken">
               <el-icon><User /></el-icon>
               <span>登录</span>
@@ -64,7 +68,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Document, User, Clock, SwitchButton, Money, Finished, Monitor, Upload, Files } from '@element-plus/icons-vue';
+import { Tools, Document, User, Clock, SwitchButton, Money, Finished, Monitor, Upload, Files, Box } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 // 路由实例
@@ -171,6 +175,15 @@ const goToInquiries = () => {
 // 跳转展示文件页面（需登录）
 const goToDisplayFiles = () => {
   router.push('/display-files');
+};
+
+// 跳转机器零部件管理页面（仅管理员可见）
+const goToMachinePartsManagement = () => {
+  if (!isCurrentUserAdmin.value) {
+    ElMessage.error('您没有权限访问机器零部件管理页面！');
+    return;
+  }
+  router.push('/machine-parts-management');
 };
 
 // 退出登录

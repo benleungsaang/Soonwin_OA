@@ -30,6 +30,7 @@ def create_app(port=5000):
         from .models.order_inspection import OrderInspection, InspectionItem
         from .models.display_file import DisplayFile
         from .models.inquiry import Inquiry, InquiryCommunication, InquiryLog
+        from .models.machine import Machine, PartType
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -65,6 +66,10 @@ def create_app(port=5000):
         # 注册询盘管理相关路由蓝图
         from .routes.inquiry_routes import inquiry_bp
         app.register_blueprint(inquiry_bp, url_prefix='/api')
+
+        # 注册机器管理相关路由蓝图
+        from .routes.machine_routes import machine_bp
+        app.register_blueprint(machine_bp, url_prefix='/api')
 
     return app
 

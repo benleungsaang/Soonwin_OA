@@ -1,11 +1,6 @@
 <template>
   <div class="display-container" @contextmenu="handleContextMenu" @selectstart="handleSelectStart">
-    <el-page-header content="展示文件" @back="goBack">
-      <template #extra>
-        <el-button @click="logout">退出登录</el-button>
-      </template>
-    </el-page-header>
-    <el-divider></el-divider>
+    <CommonHeader title="展示文件" />
 
     <el-card class="display-card">
       <template #header>
@@ -234,6 +229,7 @@ import request from '@/utils/request';
 import { useRouter } from 'vue-router';
 import { initializePdfDocument, getPdfPage, renderPdfPage } from '@/utils/pdfUtils';
 import { DisplayFile, DisplayFileListResponse } from '@/types';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // ==================== 路由相关 ====================
 const router = useRouter();
@@ -1467,9 +1463,9 @@ const goToNextPage = () => {
 };
 
 // 返回上一页
-const goBack = () => {
-  router.go(-1); // 返回上一页
-};
+// const goBack = () => {
+//   router.go(-1); // 返回上一页
+// };
 
 
 // 跳转上传展示文件页面（仅管理员可见）

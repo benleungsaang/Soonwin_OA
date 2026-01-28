@@ -135,21 +135,40 @@ service.interceptors.request.use(
 
 // 响应拦截器：统一处理结果和错误
 service.interceptors.response.use(
-  (response: AxiosResponse<ApiResponse>) => {
+  (response: AxiosResponse<any>) => {
     const res = response.data;
-    // 成功响应（code=200）
-    if (res.code === 200) {
+    // 检查是否为success/data格式的响应（后端API）
+    if (typeof res === 'object' && 'success' in res) {
+      if (res.success) {
+        // 成功响应，返回data部分
+        return res.data || {};
+      } else {
+        // 业务错误
+        const errorMsg = res.message || res.msg || '操作失败';
+        ElMessage({
+          message: errorMsg,
+          type: 'error',
+          duration: 5000,
+          showClose: true
+        });
+        return Promise.reject(new Error(res.message || res.msg || '接口请求错误'));
+      }
+    }
+    // 兼容原来的code/msg/data格式
+    else if (typeof res === 'object' && 'code' in res && res.code === 200) {
       return res.data;
     }
-    // 业务错误（code≠200）
-    const errorMsg = res.code ? `[${res.code}] ${res.msg}` : res.msg || '操作失败';
-    ElMessage({
-      message: errorMsg,
-      type: 'error',
-      duration: 5000, // 延长显示时间到5秒
-      showClose: true  // 显示关闭按钮
-    });
-    return Promise.reject(new Error(res.msg || '接口请求错误'));
+    // 其他情况，直接返回data部分
+    else {
+      const errorMsg = res.code ? `[${res.code}] ${res.msg}` : res.msg || '操作失败';
+      ElMessage({
+        message: errorMsg,
+        type: 'error',
+        duration: 5000,
+        showClose: true
+      });
+      return Promise.reject(new Error(res.msg || '接口请求错误'));
+    }
   },
   (error: AxiosError) => {
     const originalRequest = error.config as ExtendedAxiosRequestConfig;
@@ -160,8 +179,17 @@ service.interceptors.response.use(
       if (error.response) {
         const status = error.response.status;
         const data = error.response.data as any;
-        if (data && typeof data === 'object' && data.code && data.msg) {
-          errorMsg = `[${data.code}] ${data.msg}`;
+        if (data && typeof data === 'object') {
+          // 处理success/data格式的错误响应
+          if ('success' in data && !data.success) {
+            errorMsg = data.message || data.msg || `[${status}] ${error.response.statusText || '服务器错误'}`;
+          }
+          // 处理code/msg格式的错误响应
+          else if (data.code && data.msg) {
+            errorMsg = `[${data.code}] ${data.msg}`;
+          } else {
+            errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+          }
         } else {
           errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
         }
@@ -221,11 +249,18 @@ service.interceptors.response.use(
       // 服务器返回了错误状态码
       const status = error.response.status;
       const data = error.response.data as any;
-      if (data && typeof data === 'object' && data.code && data.msg) {
-        // 如果后端返回了标准格式的错误信息，使用后端的错误信息
-        errorMsg = `[${data.code}] ${data.msg}`;
+      if (data && typeof data === 'object') {
+        // 处理success/data格式的错误响应
+        if ('success' in data && !data.success) {
+          errorMsg = data.message || data.msg || `[${status}] ${error.response.statusText || '服务器错误'}`;
+        }
+        // 处理code/msg格式的错误响应
+        else if (data.code && data.msg) {
+          errorMsg = `[${data.code}] ${data.msg}`;
+        } else {
+          errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+        }
       } else {
-        // 否则使用HTTP状态码和状态文本
         errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
       }
     } else if (error.request) {
@@ -265,5 +300,39 @@ const request = {
     return response as any as T; // 拦截器已处理，response是解包后的数据
   },
 };
+
+// 机器管理相关API
+export const getMachines = (params?: any) => request.get('/api/machines', { params });
+
+export const getMachine = (model: string) => request.get(`/api/machines/${model}`);
+
+export const createMachine = (data: any) => request.post('/api/machines', data);
+
+export const updateMachine = (model: string, data: any) => request.put(`/api/machines/${model}`, data);
+
+export const deleteMachine = (model: string) => request.delete(`/api/machines/${model}`);
+
+export const importMachines = (data: FormData) => request.post('/api/machines/import', data);
+
+// 直接JSON数据导入导出API
+export const importMachinesJson = (data: any) => request.post('/api/machines/import-json', data);
+
+export const exportMachinesJson = () => request.get('/api/machines/export-json');
+
+// 部件管理相关API
+export const getParts = (params?: any) => request.get('/api/parts', { params });
+
+export const getPart = (partTypeId: number) => request.get(`/api/parts/${partTypeId}`);
+
+export const createPart = (data: any) => request.post('/api/parts', data);
+
+export const updatePart = (partTypeId: number, data: any) => request.put(`/api/parts/${partTypeId}`, data);
+
+export const deletePart = (partTypeId: number) => request.delete(`/api/parts/${partTypeId}`);
+
+// 部件JSON导入导出API
+export const importPartsJson = (data: any) => request.post('/api/parts/import-json', data);
+
+export const exportPartsJson = () => request.get('/api/parts/export-json');
 
 export default request;

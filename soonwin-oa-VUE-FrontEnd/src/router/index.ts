@@ -14,6 +14,7 @@ const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
 const DisplayFileView = () => import('@/views/DisplayFileView.vue');
 const InquiryListView = () => import('@/views/InquiryListView.vue');
 const InquiryView = () => import('@/views/InquiryView.vue');
+const MachinePartsManagementView = () => import('@/views/MachinePartsManagementView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -108,6 +109,12 @@ const routes: RouteRecordRaw[] = [
     name: 'inquiryEdit',
     redirect: '/inquiries',
     meta: { title: '编辑询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/machine-parts-management',
+    name: 'machinePartsManagement',
+    component: MachinePartsManagementView,
+    meta: { title: '机器零部件管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
 ];
 

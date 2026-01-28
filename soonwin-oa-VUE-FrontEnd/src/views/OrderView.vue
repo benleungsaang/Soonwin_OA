@@ -1,11 +1,6 @@
 <template>
   <div class="order-management-container">
-    <el-page-header content="订单管理" @back="goBack">
-      <template #extra>
-        <el-button @click="logout">退出登录</el-button>
-      </template>
-    </el-page-header>
-    <el-divider></el-divider>
+    <CommonHeader title="订单管理" />
 
 
     <el-card shadow="hover" class="management-card">
@@ -639,6 +634,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import request from '@/utils/request';
 import { Pointer } from '@element-plus/icons-vue';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 导入ECharts
 
@@ -1096,11 +1092,6 @@ const calculateProfits = () => {
   orderForm.value.net_profit = netProfit;
 };
 
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
-};
-
 // 组件挂载时获取数据
 onMounted(() => {
   fetchOrders();
@@ -1441,33 +1432,6 @@ const updateOrderProportionateCost = async () => {
 
 // 用于存储ECharts实例
 let chartInstance: any = null;
-
-// 退出登录
-const logout = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要退出登录吗？',
-      '确认退出',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    );
-
-    // 清除本地存储的token
-    localStorage.removeItem('oa_token');
-    // 提示用户
-    ElMessage.success('已退出登录');
-    // 跳转到登录页
-    router.push('/login');
-  } catch (error) {
-    // 用户取消操作
-    if (error !== 'cancel') {
-      console.error('退出登录失败：', error);
-    }
-  }
-};
 
 // 组件卸载时清理ECharts实例
 onUnmounted(() => {

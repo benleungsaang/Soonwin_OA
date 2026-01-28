@@ -1,10 +1,6 @@
 <template>
   <div class="inquiry-list-container">
-    <el-page-header :title="'询盘管理'" @back="goBack" style="margin-bottom: 20px;">
-      <template #content>
-        <span class="page-title">询盘管理</span>
-      </template>
-    </el-page-header>
+    <CommonHeader title="询盘管理" />
 
     <!-- 搜索和筛选 -->
     <el-card shadow="hover" class="filter-card">
@@ -202,7 +198,10 @@
         <el-divider />
         <div class="communication-header">
           <h3>沟通记录</h3>
-          <el-button type="primary" size="small" @click="showAddCommunicationDialog">添加沟通记录</el-button>
+          <el-button type="primary" size="large" @click="showAddCommunicationDialog">
+            添加沟通记录
+            <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
+          </el-button>
         </div>
 
         <!-- 沟通记录列表 -->
@@ -212,6 +211,7 @@
             :key="comm.id"
             class="communication-item"
             shadow="hover"
+            body-style="padding:10px"
           >
             <div class="communication-content-header">
               <span class="subject">主题：{{ comm.subject }}</span>
@@ -220,18 +220,8 @@
                 <el-icon @click="editCommunication(comm)" class="el-icon edit"><Edit /></el-icon>
                 <el-icon @click="deleteCommunication(comm.id)" class="el-icon delete"><Delete /></el-icon>
               </div>
-              <!-- <div class="communication-actions"> -->
-                <!-- <el-button size="small" @click="editCommunication(comm)">编辑</el-button>
-                <el-button size="small" type="danger" @click="deleteCommunication(comm.id)">删除</el-button> -->
-              <!-- </div> -->
             </div>
             <div class="communication-content">{{ comm.content }}</div>
-            <!-- <div class="communication-footer">
-              <el-button size="small" @click="editCommunication(comm)">编辑</el-button>
-              <el-button size="small" type="danger" @click="deleteCommunication(comm.id)">删除</el-button>
-              <span class="creator">{{ comm.creator_name }}</span>
-              <span class="time">{{ comm.create_time }}</span>
-            </div> -->
           </el-card>
           <div v-if="communications.length === 0" class="no-communications">
             暂无沟通记录
@@ -362,6 +352,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { Delete, Edit, ChatLineRound } from '@element-plus/icons-vue';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由
 const router = useRouter();
@@ -498,11 +489,6 @@ const communicationRules = {
   subject: [
     { required: true, message: '请输入沟通主题', trigger: 'blur' }
   ]
-};
-
-// 返回上一页
-const goBack = () => {
-  router.push('/');
 };
 
 // 显示新增询盘对话框
@@ -1030,14 +1016,14 @@ onMounted(async () => {
 }
 
 .communication-content {
-  margin-left: 30px;
+  margin-left: 10px;
   margin-bottom: 8px;
   padding: 8px;
   background-color: #f5f7fa;
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.5;
-  padding: 15px;
+  padding: 15px 50px;
 }
 
 .communication-footer {

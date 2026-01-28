@@ -1,7 +1,7 @@
 <template>
   <div class="punch-container">
     <el-card shadow="hover" class="punch-card">
-      <el-page-header content="员工打卡" @back="goBackHome" />
+      <CommonHeader title="员工打卡" />
       <el-divider></el-divider>
 
       <div class="punch-content">
@@ -42,6 +42,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Clock } from '@element-plus/icons-vue';
 import request from '@/utils/request';
+import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由实例
 const router = useRouter();
@@ -264,11 +265,6 @@ const handlePunch = async () => {
     punchLoading.value = false;
     isPunchDisabled.value = false;
   }
-};
-
-// 返回首页
-const goBackHome = () => {
-  router.push('/');
 };
 
 // 更新时间
