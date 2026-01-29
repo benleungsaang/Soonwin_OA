@@ -54,6 +54,7 @@
       :data="inquiries"
       style="width: 100%"
       v-loading="loading"
+      :row-style="{ cursor: 'pointer' }"
       @row-click="viewInquiryById"
     >
       <el-table-column prop="area" label="地区" width="120" />

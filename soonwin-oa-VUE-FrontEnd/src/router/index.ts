@@ -15,6 +15,7 @@ const DisplayFileView = () => import('@/views/DisplayFileView.vue');
 const InquiryListView = () => import('@/views/InquiryListView.vue');
 const InquiryView = () => import('@/views/InquiryView.vue');
 const MachinePartsManagementView = () => import('@/views/MachinePartsManagementView.vue');
+const PhotoManagementView = () => import('@/views/PhotoManagementView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -115,6 +116,12 @@ const routes: RouteRecordRaw[] = [
     name: 'machinePartsManagement',
     component: MachinePartsManagementView,
     meta: { title: '机器零部件管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  },
+  {
+    path: '/photo-management',
+    name: 'photoManagement',
+    component: PhotoManagementView,
+    meta: { title: '照片管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 ];
 

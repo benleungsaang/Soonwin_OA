@@ -732,3 +732,53 @@ def serve_display_file(filename):
             "msg": f"文件服务错误: {str(e)}",
             "data": None
         }), 500
+
+
+@display_file_bp.route('/assets/MachinePhoto/<path:filename>')
+def serve_machine_photos(filename):
+    """
+    服务MachinePhoto目录下的静态图片文件
+    """
+    try:
+        # 构建MachinePhoto文件路径，确保安全，防止路径遍历攻击
+        photo_path = os.path.join(current_app.root_path, '..', 'assets', 'MachinePhoto')
+        photo_path = os.path.abspath(photo_path)
+
+        requested_path = os.path.abspath(os.path.join(photo_path, filename))
+
+        # 确保请求的路径在MachinePhoto目录内
+        if not requested_path.startswith(photo_path):
+            return jsonify({
+                "code": 400,
+                "msg": "非法路径访问",
+                "data": None
+            }), 400
+
+        if not os.path.exists(requested_path):
+            return jsonify({
+                "code": 404,
+                "msg": f"文件不存在: {filename}",
+                "data": None
+            }), 404
+
+        # 检查文件扩展名，只允许图片类型
+        import mimetypes
+        mimetype, _ = mimetypes.guess_type(requested_path)
+        if not mimetype or not mimetype.startswith('image/'):
+            return jsonify({
+                "code": 400,
+                "msg": "只允许访问图片文件",
+                "data": None
+            }), 400
+
+        # 发送图片文件
+        from flask import send_file
+        response = send_file(requested_path, mimetype=mimetype)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"图片文件服务错误: {str(e)}",
+            "data": None
+        }), 500

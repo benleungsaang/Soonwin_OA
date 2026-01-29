@@ -24,3 +24,5 @@ class Config:
 
     # Flask调试模式（开发环境开启，生产环境关闭）
     DEBUG = False
+
+    MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 限制200MB

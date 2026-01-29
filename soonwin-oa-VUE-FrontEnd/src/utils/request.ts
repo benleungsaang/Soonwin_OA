@@ -335,4 +335,106 @@ export const importPartsJson = (data: any) => request.post('/api/parts/import-js
 
 export const exportPartsJson = () => request.get('/api/parts/export-json');
 
+// 照片管理相关API - 使用特殊处理FormData的函数
+const multipartRequest = axios.create({
+  baseURL: getBaseURL(),
+  timeout: 30000, // 增加超时时间，因为文件上传可能需要更长时间
+  headers: {
+    // 这里不设置默认Content-Type，让浏览器自动设置
+  },
+});
+
+// 添加请求和响应拦截器到multipartRequest
+multipartRequest.interceptors.request.use(
+  (config) => {
+    // 从localStorage获取JWT令牌
+    const token = localStorage.getItem('oa_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    ElMessage.error('请求发送失败，请检查网络');
+    return Promise.reject(error);
+  }
+);
+
+multipartRequest.interceptors.response.use(
+  (response) => {
+    const res = response.data;
+    // 检查是否为success/data格式的响应（后端API）
+    if (typeof res === 'object' && 'success' in res) {
+      if (res.success) {
+        // 成功响应，返回data部分
+        return res.data || {};
+      } else {
+        // 业务错误
+        const errorMsg = res.message || res.msg || '操作失败';
+        ElMessage({
+          message: errorMsg,
+          type: 'error',
+          duration: 5000,
+          showClose: true
+        });
+        return Promise.reject(new Error(res.message || res.msg || '接口请求错误'));
+      }
+    }
+    // 兼容原来的code/msg/data格式
+    else if (typeof res === 'object' && 'code' in res && res.code === 200) {
+      return res.data;
+    }
+    // 其他情况，直接返回data部分
+    else {
+      const errorMsg = res.code ? `[${res.code}] ${res.msg}` : res.msg || '操作失败';
+      ElMessage({
+        message: errorMsg,
+        type: 'error',
+        duration: 5000,
+        showClose: true
+      });
+      return Promise.reject(new Error(res.msg || '接口请求错误'));
+    }
+  },
+  (error) => {
+    // 复制错误处理逻辑
+    let errorMsg = '网络异常，请重试';
+    if (error.response) {
+      const status = error.response.status;
+      const data = error.response.data as any;
+      if (data && typeof data === 'object') {
+        if ('success' in data && !data.success) {
+          errorMsg = data.message || data.msg || `[${status}] ${error.response.statusText || '服务器错误'}`;
+        }
+        else if (data.code && data.msg) {
+          errorMsg = `[${data.code}] ${data.msg}`;
+        } else {
+          errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+        }
+      } else {
+        errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+      }
+    } else if (error.request) {
+      errorMsg = '网络连接失败，请检查网络';
+    } else {
+      errorMsg = error.message || '请求配置错误';
+    }
+    ElMessage({
+      message: errorMsg,
+      type: 'error',
+      duration: 5000,
+      showClose: true
+    });
+    return Promise.reject(error);
+  }
+);
+
+export const createPhoto = (data: FormData) => multipartRequest.post('/api/photos', data);
+
+export const updatePhoto = (photoId: number, data: any) => request.put(`/api/photos/${photoId}`, data);
+
+export const deletePhoto = (photoId: number) => request.delete(`/api/photos/${photoId}`);
+
+export const getMachinesForPhotos = () => request.get('/api/photos/machines');
+
 export default request;

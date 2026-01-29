@@ -17,6 +17,8 @@
       style="width: 100%; margin-top: 20px;"
       v-loading="loading"
       border
+      :row-style="{ cursor: 'pointer' }"
+      @row-click="handleRowClick"
     >
       <el-table-column prop="image" label="部件缩略图" width="120">
         <template #default="scope">
@@ -27,7 +29,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="part_model" label="部件型号" width="150" />
-      <el-table-column prop="show_price" label="展示价格" width="120" />
+      <el-table-column prop="show_price" label="价格" width="120" />
       <el-table-column label="操作" width="200">
         <template #default="scope">
           <el-button size="small" @click="showEditPartDialog(scope.row)">编辑</el-button>
@@ -73,24 +75,26 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="原始价格" prop="original_price">
+            <el-form-item label="成本价格" prop="original_price">
               <el-input-number
                 v-model="partForm.original_price"
                 :precision="2"
                 :min="0"
-                controls-position="right"
+                :controls=false
                 style="width: 100%;"
+                :disabled="!isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="展示价格" prop="show_price">
+            <el-form-item label="价格" prop="show_price">
               <el-input-number
                 v-model="partForm.show_price"
                 :precision="2"
                 :min="0"
-                controls-position="right"
+                :controls=false
                 style="width: 100%;"
+                :disabled="!isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
@@ -143,6 +147,21 @@ const partRules = {
     { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' }
   ]
 }
+
+const props = defineProps({
+  // 是否为管理员
+  isCurrentUserAdmin: {
+    type: Boolean,
+    required: true, // 必填，确保父组件传递
+    default: false  // 默认值（防止未传递时出错）
+  },
+  // 是否登录（有token）
+  hasToken: {
+    type: Boolean,
+    required: true,
+    default: false
+  }
+});
 
 // 获取部件列表
 const fetchParts = async () => {
@@ -248,7 +267,7 @@ const deletePart = async (partTypeId: number) => {
         type: 'warning'
       }
     )
-    
+
     await deletePartAPI(partTypeId)
     ElMessage.success('部件删除成功')
     fetchParts()
@@ -299,7 +318,7 @@ const importPartsData = async (jsonData: any) => {
 
     const message = `成功导入 ${successCount} 个部件`;
     ElMessage.success(message);
-    
+
     // 刷新列表
     fetchParts();
     return { success: true, message, importedCount: successCount };
@@ -315,7 +334,7 @@ const exportPartsData = async () => {
   try {
     // 使用新的直接JSON导出API
     const response: any = await exportPartsJson();
-    
+
     return response.data || [];
   } catch (error) {
     console.error('导出部件数据失败:', error);
@@ -323,6 +342,12 @@ const exportPartsData = async () => {
     throw error;
   }
 };
+
+// 处理行点击事件
+const handleRowClick = (row: any) => {
+  // 点击行时显示编辑对话框
+  showEditPartDialog(row);
+}
 
 // 初始化数据
 onMounted(() => {

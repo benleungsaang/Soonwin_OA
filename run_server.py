@@ -350,6 +350,26 @@ http {{
             # 如果netstat命令失败，回退到socket方法
             return self.check_port(port)
 
+    def kill_port_5000(self):
+        """杀死占用5000端口的进程"""
+        print("=" * 55)
+        print("                释放5000端口...")
+        print("=" * 55)
+        self.kill_port_process(5000)
+        print("=" * 55)
+        print("[v] 5000端口已释放完成")
+        self._wait_for_input()
+
+    def kill_port_5001(self):
+        """杀死占用5001端口的进程"""
+        print("=" * 55)
+        print("                释放5001端口...")
+        print("=" * 55)
+        self.kill_port_process(5001)
+        print("=" * 55)
+        print("[v] 5001端口已释放完成")
+        self._wait_for_input()
+
     def kill_port_process(self, port: int):
         """
         强制杀死占用指定端口的所有进程（Windows增强版）
@@ -797,11 +817,13 @@ http {{
             print("[4] Nginx - 停止服务")
             print("[5] Nginx - 重启服务")
             print("[6] Nginx - 重新生成配置文件（覆盖）")  # 新增选项
+            print("[7] 释放 5000 端口")  # 新增选项
+            print("[8] 释放 5001 端口")  # 新增选项
             print("[0] 退出")
             print("=" * 55)
 
             try:
-                choice = input("请输入数字：0-5：").strip()
+                choice = input("请输入数字：0-8：").strip()
 
                 if choice == "1":
                     self.start_stable_version()
@@ -815,13 +837,17 @@ http {{
                     self.nginx_restart()
                 elif choice == "6":  # 新增分支
                     self.regenerate_nginx_config()
+                elif choice == "7":  # 新增分支
+                    self.kill_port_5000()
+                elif choice == "8":  # 新增分支
+                    self.kill_port_5001()
                 elif choice == "0":
                     self._stop_all_processes()
                     self.run_nginx("stop")  # 退出时停止nginx
                     print("[v] 系统退出，所有服务已停止")
                     break
                 else:
-                    print("[!] 输入错误，只能输入0-5之间的数字")
+                    print("[!] 输入错误，只能输入0-8之间的数字")
                     self._wait_for_input()
 
             except KeyboardInterrupt:

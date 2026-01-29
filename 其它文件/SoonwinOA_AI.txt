@@ -5,22 +5,33 @@
 路由文件夹 ./app/routes
 数据库文件 生产环境 ./soonwin_oa.db / 开发环境 soonwin_oa_dev.db
 
-
-当前是开发环境、“机器（零部件）管理”页
-
-
-
-
-增加后端的检测功能，如果当前是非管理员用户user_role，不发送机器、部件的原始价格，前端也不展示
-机器展示字段修改为：机器缩略图（暂时以占位符展示）、设备型号、包装速度、展示价格、操作
+提醒：
+1、注意前端调用数据时，request.ts会自动解包data，并且一切修改的前提是不要修改request.ts的解包方式；
+2、执行过后端数据库模型、字段变更后，记得做好数据迁移并生效再执行后续操作；
+3、文件修改后不执行Validate with frontend-tester；
+4、注意前端代码要符合TypeScript要求；
 
 
+PhotoManagementView
+把“编辑editPhoto”功能，整合到viewPhotoDetails当中
+展示图片详情时，标题及标签位置提供编辑即可
+标签的方式使用以下
+<template>
+  <el-input-tag
+    v-model="input"
+    draggable
+    placeholder="Try to separate words with ,"
+    delimiter=","
+  />
+</template>
 
-添加/编辑 机器时，自定义部分修改为
-点击加号图标，生成列表选择/填写字段头（一些之前创建过的字段），后带输入框输入参数
-保存时把当前创建的字段及对应值组成json再写入，降低前端用户操作难度
-填写
-部件管理展示字段修改为：部件缩略图（暂时以占位符展示）、部件型号、展示价格、操作
+<script lang="ts" setup>
+import { ref } from 'vue'
+
+const input = ref<string[]>([])
+</script>
+
+
 
 
 提醒：
@@ -31,8 +42,7 @@
 
 
 
-
-
+在图片上传修改为接受多文件上传，但每个图片要求填写各自对应的填写参数
 
 订单验收相关：
 后端路由：inspection_routes.py

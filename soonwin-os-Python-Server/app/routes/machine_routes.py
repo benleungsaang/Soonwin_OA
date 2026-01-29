@@ -4,6 +4,7 @@ import json
 from .. import db
 from ..models.machine import Machine, PartType
 from ..utils.json_utils import import_json_data, export_json_data
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user
 import uuid
 
 machine_bp = Blueprint('machine_bp', __name__, url_prefix='/api')
@@ -15,39 +16,29 @@ def get_machines():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         
-        # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        current_app.logger.info(f"请求头 Authorization: {auth_header}")
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            current_app.logger.info(f"提取的token: {token[:20]}...")
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                current_app.logger.info(f"JWT payload: {payload}")
-                user_role = payload.get('user_role')
-                current_app.logger.info(f"用户角色: {user_role}")
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
-        else:
-            current_app.logger.warning(f"Authorization header 不存在或格式不正确: {auth_header}")
+        # 使用通用函数检查用户权限
+        is_admin = is_admin_user()
         
-        pagination = Machine.query.paginate(
+        # 过滤掉已删除的机器
+        query = Machine.query.filter_by(is_deleted=0)
+        pagination = query.paginate(
             page=page, per_page=per_page, error_out=False
         )
         machines = pagination.items
         
+        # 根据用户权限处理数据
+        machine_data = []
+        for machine in machines:
+            machine_dict = machine.to_dict()
+            if not is_admin:
+                # 非管理员用户不显示原始价格
+                machine_dict.pop('original_price', None)
+            machine_data.append(machine_dict)
+        
         return jsonify({
             'success': True,
             'data': {
-                'machines': [machine.to_dict(is_admin=is_admin) for machine in machines],
+                'machines': machine_data,
                 'total': pagination.total,
                 'pages': pagination.pages,
                 'current_page': page
@@ -62,31 +53,22 @@ def get_machines():
 def get_machine(model):
     """根据型号获取单个机器"""
     try:
-        # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        # 使用通用函数检查用户权限
+        is_admin = is_admin_user()
         
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
         
+        # 根据用户权限处理数据
+        machine_dict = machine.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格
+            machine_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
-            'data': machine.to_dict(is_admin=is_admin)
+            'data': machine_dict
         })
     except Exception as e:
         current_app.logger.error(f"获取机器信息失败: {str(e)}")
@@ -98,22 +80,9 @@ def create_machine():
     """创建新机器"""
     try:
         # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可创建机器'}), 403
         
         data = request.get_json()
         
@@ -178,10 +147,16 @@ def create_machine():
         db.session.add(machine)
         db.session.commit()
         
+        # 根据用户权限处理返回数据
+        machine_dict = machine.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
+            machine_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
             'message': '机器创建成功',
-            'data': machine.to_dict(is_admin=is_admin)
+            'data': machine_dict
         })
     except Exception as e:
         db.session.rollback()
@@ -198,22 +173,9 @@ def update_machine(model):
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
         
         # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可更新机器'}), 403
         
         data = request.get_json()
         
@@ -260,10 +222,16 @@ def update_machine(model):
         
         db.session.commit()
         
+        # 根据用户权限处理返回数据
+        machine_dict = machine.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
+            machine_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
             'message': '机器更新成功',
-            'data': machine.to_dict(is_admin=is_admin)
+            'data': machine_dict
         })
     except Exception as e:
         db.session.rollback()
@@ -273,22 +241,25 @@ def update_machine(model):
 
 @machine_bp.route('/machines/<string:model>', methods=['DELETE'])
 def delete_machine(model):
-    """删除机器"""
+    """逻辑删除机器（归档）"""
     try:
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
         
-        db.session.delete(machine)
+        # 设置逻辑删除标记
+        machine.is_deleted = 1
+        machine.delete_time = datetime.utcnow()
+        
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': '机器删除成功'
+            'message': '机器已归档（逻辑删除）'
         })
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"删除机器失败: {str(e)}")
+        current_app.logger.error(f"归档机器失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -299,33 +270,27 @@ def get_parts():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         
-        # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        # 使用通用函数检查用户权限
+        is_admin = is_admin_user()
         
         pagination = PartType.query.paginate(
             page=page, per_page=per_page, error_out=False
         )
         parts = pagination.items
         
+        # 根据用户权限处理数据
+        parts_data = []
+        for part in parts:
+            part_dict = part.to_dict()
+            if not is_admin:
+                # 非管理员用户不显示原始价格
+                part_dict.pop('original_price', None)
+            parts_data.append(part_dict)
+        
         return jsonify({
             'success': True,
             'data': {
-                'parts': [part.to_dict(is_admin=is_admin) for part in parts],
+                'parts': parts_data,
                 'total': pagination.total,
                 'pages': pagination.pages,
                 'current_page': page
@@ -340,31 +305,22 @@ def get_parts():
 def get_part(part_type_id):
     """根据ID获取单个部件"""
     try:
-        # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        # 使用通用函数检查用户权限
+        is_admin = is_admin_user()
         
         part = PartType.query.filter_by(part_type_id=part_type_id).first()
         if not part:
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
         
+        # 根据用户权限处理数据
+        part_dict = part.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格
+            part_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
-            'data': part.to_dict(is_admin=is_admin)
+            'data': part_dict
         })
     except Exception as e:
         current_app.logger.error(f"获取部件信息失败: {str(e)}")
@@ -376,22 +332,9 @@ def create_part():
     """创建新部件"""
     try:
         # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可创建部件'}), 403
         
         data = request.get_json()
         
@@ -432,10 +375,16 @@ def create_part():
         db.session.add(part)
         db.session.commit()
         
+        # 根据用户权限处理返回数据
+        part_dict = part.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
+            part_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
             'message': '部件创建成功',
-            'data': part.to_dict(is_admin=is_admin)
+            'data': part_dict
         })
     except Exception as e:
         db.session.rollback()
@@ -452,22 +401,9 @@ def update_part(part_type_id):
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
         
         # 检查用户权限
-        is_admin = False
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-                user_role = payload.get('user_role')
-                is_admin = user_role == 'admin'
-                current_app.logger.info(f"解析用户角色: user_role={user_role}, is_admin={is_admin}")
-            except jwt.ExpiredSignatureError:
-                current_app.logger.warning(f"JWT token 已过期: {token[:20]}...")
-            except jwt.InvalidTokenError as e:
-                current_app.logger.warning(f"无效的JWT token: {str(e)}, token: {token[:20]}...")
-            except Exception as e:
-                current_app.logger.error(f"解析JWT token时发生未知错误: {str(e)}")
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可更新部件'}), 403
         
         data = request.get_json()
         
@@ -506,10 +442,16 @@ def update_part(part_type_id):
         
         db.session.commit()
         
+        # 根据用户权限处理返回数据
+        part_dict = part.to_dict()
+        if not is_admin:
+            # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
+            part_dict.pop('original_price', None)
+        
         return jsonify({
             'success': True,
             'message': '部件更新成功',
-            'data': part.to_dict(is_admin=is_admin)
+            'data': part_dict
         })
     except Exception as e:
         db.session.rollback()
@@ -542,6 +484,11 @@ def delete_part(part_type_id):
 def import_parts_json():
     """直接从JSON数据导入部件数据（不需要文件上传）"""
     try:
+        # 检查用户权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入部件数据'}), 403
+        
         data = request.get_json()
         
         if not data:
@@ -576,6 +523,11 @@ def import_parts_json():
 def export_parts_json():
     """导出部件数据为JSON格式"""
     try:
+        # 检查用户权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可导出部件数据'}), 403
+        
         # 获取过滤参数
         filters = {}
         # 可以根据需要添加过滤参数处理
@@ -596,6 +548,11 @@ def export_parts_json():
 def import_machines():
     """从JSON文件导入机器数据（保留原有功能）"""
     try:
+        # 检查用户权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入机器数据'}), 403
+        
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': '未提供文件'}), 400
         
@@ -641,6 +598,11 @@ def import_machines():
 def import_machines_json():
     """直接从JSON数据导入机器数据（不需要文件上传）"""
     try:
+        # 检查用户权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入机器数据'}), 403
+        
         data = request.get_json()
         
         if not data:
@@ -675,6 +637,11 @@ def import_machines_json():
 def export_machines_json():
     """导出机器数据为JSON格式"""
     try:
+        # 检查用户权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可导出机器数据'}), 403
+        
         # 获取过滤参数
         filters = {}
         # 可以根据需要添加过滤参数处理

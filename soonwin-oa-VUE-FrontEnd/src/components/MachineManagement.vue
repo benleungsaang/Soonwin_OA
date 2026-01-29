@@ -10,26 +10,28 @@
         export-success-message="机器数据导出成功"
       />
     </div>
-
-          <el-table :data="machines" style="width: 100%" border>
-            <el-table-column prop="thumbnail" label="设备缩略图" width="120">
-              <template #default="{ row }">
-                <div class="image-placeholder">
-                  <el-icon><Picture /></el-icon>
-                  <span>缩略图</span>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="model" label="设备型号" width="200" />
-            <el-table-column prop="packing_speed" label="包装速度" width="150" />
-            <el-table-column prop="show_price" label="展示价格" width="120" />
-            <el-table-column label="操作" width="200">
-              <template #default="{ row }">
-                <el-button size="small" @click="showEditMachineDialog(row)">编辑</el-button>
-                <el-button size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+    <el-table :data="machines" style="width: 100%" border
+    :row-style="{ cursor: 'pointer' }"
+    @row-click="handleRowClick"
+    >
+      <el-table-column prop="thumbnail" label="设备缩略图" width="120">
+        <template #default="{ row }">
+          <div class="image-placeholder">
+            <el-icon><Picture /></el-icon>
+            <span>缩略图</span>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="model" label="设备型号" width="200" />
+      <el-table-column prop="packing_speed" label="包装速度" width="150" />
+      <el-table-column prop="show_price" label="价格" width="120" />
+      <el-table-column label="操作" width="200">
+        <template #default="{ row }">
+          <el-button size="small" @click="showEditMachineDialog(row)">编辑</el-button>
+          <el-button v-if="isCurrentUserAdmin" size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
     <!-- 分页 -->
     <el-pagination
@@ -73,6 +75,30 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="成本价格" prop="original_price">
+              <el-input-number
+                v-model="machineForm.original_price"
+                :precision="2"
+                :min="0"
+                :controls=false
+                style="width: 100%;"
+                :disabled="!isCurrentUserAdmin"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="价格" prop="show_price">
+              <el-input-number
+                v-model="machineForm.show_price"
+                :precision="2"
+                :min="0"
+                :controls=false
+                style="width: 100%;"
+                :disabled="!isCurrentUserAdmin"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="包装速度" prop="packing_speed">
               <el-input v-model="machineForm.packing_speed" placeholder="请输入包装速度" />
             </el-form-item>
@@ -112,39 +138,28 @@
               <el-input v-model="machineForm.image" placeholder="请输入缩略图路径" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="计数字段" prop="added_count">
-              <el-input-number
-                v-model="machineForm.added_count"
-                :min="0"
-                controls-position="right"
-                style="width: 100%;"
+          <el-col
+            v-for="(attr, index) in customAttributes"
+            :key="index" :span="12">
+              <el-form-item :label="attrConfig[attr.key]?.label || attr.key">
+              <el-input
+                v-model="attr.value"
+                :placeholder="attrConfig[attr.key]?.placeholder || `请输入${attr.key}`"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="原始价格" prop="original_price">
-              <el-input-number
-                v-model="machineForm.original_price"
-                :precision="2"
-                :min="0"
-                controls-position="right"
-                style="width: 100%;"
-              />
+            <el-form-item label="被添加次数" prop="added_count">
+              <el-span>{{ machineForm.added_count }} 次</el-span>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="展示价格" prop="show_price">
-              <el-input-number
-                v-model="machineForm.show_price"
-                :precision="2"
-                :min="0"
-                controls-position="right"
-                style="width: 100%;"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
+          <!-- <el-col :span="24">
+            <el-button @click="addCustomAttribute" style="margin-top: 10px;">
+              <el-icon><Plus /></el-icon>
+              添加自定义属性
+            </el-button>
+          </el-col> -->
+          <!-- <el-col :span="24">
             <el-form-item label="自定义属性">
               <div class="custom-attributes-section">
                 <div
@@ -176,7 +191,7 @@
                 </el-button>
               </div>
             </el-form-item>
-          </el-col>
+          </el-col> -->
         </el-row>
       </el-form>
       <template #footer>
@@ -224,6 +239,21 @@ const machineForm = reactive({
   custom_attrs: ''
 })
 
+const props = defineProps({
+  // 是否为管理员
+  isCurrentUserAdmin: {
+    type: Boolean,
+    required: true, // 必填，确保父组件传递
+    default: false  // 默认值（防止未传递时出错）
+  },
+  // 是否登录（有token）
+  hasToken: {
+    type: Boolean,
+    required: true,
+    default: false
+  }
+});
+
 // 自定义属性相关
 const customAttributes = ref<{ key: string; value: string }[]>([])
 
@@ -262,6 +292,12 @@ const fetchMachines = async () => {
     loading.value = false
   }
 }
+
+// 定义行点击处理函数
+const handleRowClick = (row) => {
+  // 调用编辑弹窗方法，和编辑按钮逻辑一致
+  showEditMachineDialog(row);
+};
 
 // 显示添加机器对话框
 const showAddMachineDialog = () => {
@@ -467,6 +503,107 @@ const exportMachinesData = async () => {
   }
 };
 
+// 设备差异化参数配置（剔除全量重复字段）
+const attrConfig = {
+  working_stations: {
+    label: '工位数',
+    placeholder: '请输入工作工位数量（如6/8/10）'
+  },
+  packing_speed: {
+    label: '包装速度',
+    placeholder: '请输入包装速度（如≤60pouches/min）'
+  },
+  bagsize_length: {
+    label: '包装袋长度',
+    placeholder: '请输入包装袋长度（如L≤360mm）'
+  },
+  bagsize_width: {
+    label: '包装袋宽度',
+    placeholder: '请输入包装袋宽度（如W70-180mm）'
+  },
+  machine_weight: {
+    label: '设备重量',
+    placeholder: '请输入设备重量（如400kg）'
+  },
+  dimensions: {
+    label: '设备外形尺寸',
+    placeholder: '请输入设备外形尺寸（如1500x900x1150mm）'
+  },
+  general_power: {
+    label: '总功率',
+    placeholder: '请输入设备总功率（如3.4kW）'
+  },
+  premade_bag_type: {
+    label: '预制袋类型',
+    placeholder: '请输入预制袋类型（如Flatpouch,Stand-up Pouch等）'
+  },
+  package_material: {
+    label: '包装材料',
+    placeholder: '请输入包装材料（如Single layer PE, PE laminated film等）'
+  },
+  bagging_stations: {
+    label: '装袋工位数量',
+    placeholder: '请输入装袋工位数量（如10）'
+  },
+  vacuumized_stations: {
+    label: '抽真空工位数量',
+    placeholder: '请输入抽真空工位数量（如12）'
+  },
+  open_pouch_speed: {
+    label: '开袋速度',
+    placeholder: '请输入开袋速度（如Max.60pouches/min）'
+  },
+  sealed_pouch_speed: {
+    label: '封袋速度',
+    placeholder: '请输入封袋速度（如Max.45pouches/min）'
+  },
+  pouch_length: {
+    label: '袋长',
+    placeholder: '请输入袋长（如150-300mm）'
+  },
+  pouch_width: {
+    label: '袋宽',
+    placeholder: '请输入袋宽（如70-150mm）'
+  },
+  pouch_height: {
+    label: '袋高',
+    placeholder: '请输入袋高（如40-90mm）'
+  },
+  packing_film_width: {
+    label: '包装膜宽度',
+    placeholder: '请输入包装膜宽度（如100-320mm）'
+  },
+  end_sealing: {
+    label: '刀封类型',
+    placeholder: '请输入刀封类型（如Box-motion Rotray-motion）'
+  },
+  packaging_material: {
+    label: '包装物料类型',
+    placeholder: '请输入包装物料类型（如Liquid,high viscosity fluid）'
+  },
+  filling_capacity: {
+    label: '填充容量',
+    placeholder: '请输入填充容量（如500-5000g）'
+  },
+  productsizerange: {
+    label: '产品尺寸范围',
+    placeholder: '请输入产品尺寸范围（如H5-60mm）'
+  },
+  sealing_wheels_structure: {
+    label: '密封轮结构',
+    placeholder: '请输入密封轮结构（如Small/Big）'
+  },
+  centerdistance: {
+    label: '中心距',
+    placeholder: '请输入中心距（如150mm）'
+  },
+  centerdiameter: {
+    label: '中心直径',
+    placeholder: '请输入中心直径（如120mm）'
+  }
+};
+
+
 // 初始化数据
 onMounted(() => {
   fetchMachines()
@@ -539,5 +676,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
+}
+
+tr.el-table__row:hover {
+  cursor: pointer;
+  background-color: #f5f7fa;
 }
 </style>

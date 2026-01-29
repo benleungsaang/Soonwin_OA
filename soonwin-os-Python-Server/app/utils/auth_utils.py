@@ -183,3 +183,39 @@ def require_auth_with_leeway(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def get_user_role_from_token():
+    """从JWT token中获取用户角色信息"""
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+
+        # 查询员工信息
+        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        if not employee:
+            return None
+
+        return employee.user_role
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
+
+
+def is_admin_user():
+    """检查当前用户是否为管理员"""
+    user_role = get_user_role_from_token()
+    return user_role == 'admin'

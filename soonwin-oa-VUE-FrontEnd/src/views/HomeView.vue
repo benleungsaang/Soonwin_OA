@@ -38,6 +38,10 @@
               <el-icon><Tools /></el-icon>
               <span>机器零部件管理</span>
             </el-menu-item>
+            <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken">
+              <el-icon><Picture /></el-icon>
+              <span>照片管理</span>
+            </el-menu-item>
             <el-menu-item index="7" @click="goToLogin" v-if="!hasToken">
               <el-icon><User /></el-icon>
               <span>登录</span>
@@ -68,7 +72,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Tools, Document, User, Clock, SwitchButton, Money, Finished, Monitor, Upload, Files, Box } from '@element-plus/icons-vue';
+import { Tools, Document, User, Clock, SwitchButton, Money, Finished, Monitor, Upload, Files, Box, Picture } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 // 路由实例
@@ -184,6 +188,15 @@ const goToMachinePartsManagement = () => {
     return;
   }
   router.push('/machine-parts-management');
+};
+
+// 跳转照片管理页面（仅管理员可见）
+const goToPhotoManagement = () => {
+  if (!isCurrentUserAdmin.value) {
+    ElMessage.error('您没有权限访问照片管理页面！');
+    return;
+  }
+  router.push('/photo-management');
 };
 
 // 退出登录
