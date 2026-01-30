@@ -435,6 +435,24 @@ export const updatePhoto = (photoId: number, data: any) => request.put(`/api/pho
 
 export const deletePhoto = (photoId: number) => request.delete(`/api/photos/${photoId}`);
 
+export const getPhotos = (params?: any) => request.get('/api/photos', { params });
+
 export const getMachinesForPhotos = () => request.get('/api/photos/machines');
+
+// 视频管理相关API - 使用特殊处理FormData的函数
+export const createVideo = (
+  data: FormData, 
+  onUploadProgress?: (progressEvent: ProgressEvent) => void
+) => {
+  return multipartRequest.post('/api/videos', data, {
+    onUploadProgress
+  });
+};
+
+export const updateVideo = (videoId: number, data: any) => request.put(`/api/videos/${videoId}`, data);
+
+export const deleteVideo = (videoId: number) => request.delete(`/api/videos/${videoId}`);
+
+export const getMachinesForVideos = () => request.get('/api/videos/machines');
 
 export default request;

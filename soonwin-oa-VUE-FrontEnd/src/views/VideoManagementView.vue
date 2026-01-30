@@ -1,12 +1,12 @@
 <template>
-  <div class="photo-management">
-    <CommonHeader title="照片管理" />
+  <div class="video-management">
+    <CommonHeader title="视频管理" />
     <div class="header">
       <div class="title-with-count">
-        <h2>照片管理</h2>
-        <span v-if="showResultCount" class="result-count">找到 {{ totalPhotos }} 张照片</span>
+        <h2>视频管理</h2>
+        <span v-if="showResultCount" class="result-count">找到 {{ totalVideos }} 条视频</span>
       </div>
-      <el-button type="primary" @click="showUploadDialog = true">上传照片</el-button>
+      <el-button type="primary" @click="showUploadDialog = true">上传视频</el-button>
     </div>
 
     <!-- 搜索和筛选 -->
@@ -36,79 +36,81 @@
       <el-button type="primary" @click="searchByMachine">机器搜索</el-button>
     </div>
 
-    <!-- 照片列表 -->
-    <div v-if="photos.length > 0" class="photo-grid">
+    <!-- 视频列表 -->
+    <div v-if="videos.length > 0" class="video-grid">
       <div
-    v-for="photo in photos"
-    :key="photo.id"
-    class="photo-card"
-    @click="viewPhotoDetails(photo)"
-  >
-    <!-- 删除按钮 - 右上角圆形X按钮 -->
-    <div class="delete-btn" @click.stop="deletePhoto(photo.id)">
-      <el-icon><Delete /></el-icon>
-    </div>
+        v-for="video in videos"
+        :key="video.id"
+        class="video-card"
+        @click="viewVideoDetails(video)"
+      >
+        <!-- 删除按钮 - 右上角圆形X按钮 -->
+        <div class="delete-btn" @click.stop="deleteVideo(video.id)">
+          <el-icon><Delete /></el-icon>
+        </div>
 
-    <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
-    <div class="photo-image" >
+        <!-- 视频区域 - 包含标题、分辨率、点击触发详情 -->
+        <div class="video-image">
+          <img
+            v-if="video.thumbnail_path"
+            :src="`${apiBaseUrl}/assets/Media/Videos/${video.thumbnail_path}`"
+            :alt="video.title"
+            @error="onImageError"
+            style="object-fit: contain; width: 100%; height: 100%;"
+          />
+          <div v-else class="no-thumbnail">
+            <el-icon><VideoPlay /></el-icon>
+            <span>无缩略图</span>
+          </div>
 
-      <img
-        :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
-        :alt="photo.title"
-        @error="onImageError"
-      />
+          <!-- 右下角时长和文件大小 -->
+          <div class="video-info-bottom">
+            <span v-if="video.duration" class="video-duration">{{ formatDuration(video.duration) }}</span>
+            <span v-if="video.file_size" class="video-file-size">{{ formatFileSize(video.file_size) }}</span>
+          </div>
+        </div>
 
-      <!-- 右下角分辨率 -->
-      <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
-        {{ photo.original_width }} x {{ photo.original_height }}
-      </div>
-    </div>
-
-    <div class="photo-info">
-
-      <div class="photo-title">{{ photo.title }}</div>
-      <div class="photo-upload-time">{{ photo.upload_time }}</div>
-      <div class="card-tags-container" v-if="photo.tags">
-        <div
-          v-for="tag in photo.tags.split(',')"
-          :key="tag"
-          class="card-tags"
-        >
-          {{ tag.trim() }}
+        <div class="video-info">
+          <div class="video-title">{{ video.title }}</div>
+          <div class="video-upload-time">{{ video.upload_time }}</div>
+          <div class="card-tags-container" v-if="video.tags">
+            <div
+              v-for="tag in video.tags.split(',')"
+              :key="tag"
+              class="card-tags"
+            >
+              {{ tag.trim() }}
+            </div>
+          </div>
+          <p class="machine" v-if="video.machine_info">
+            机器: {{ video.machine_info.model }} - {{ video.machine_info.original_model }}
+          </p>
+          <div class="video-actions">
+            <!-- 编辑功能已整合到详情对话框中 -->
+          </div>
         </div>
       </div>
-      <p class="machine" v-if="photo.machine_info">
-        机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
-      </p>
-      <div class="photo-actions">
-        <!-- 编辑功能已整合到详情对话框中 -->
-      </div>
-    </div>
-  </div>
     </div>
 
     <!-- 无搜索结果提示 -->
     <div v-else class="no-results">
       <el-empty
-        :description="searchQuery || selectedMachine ? '没有找到匹配的照片' : '暂无照片'"
+        :description="searchQuery || selectedMachine ? '没有找到匹配的视频' : '暂无视频'"
         :image-size="100">
       </el-empty>
       <div v-if="searchQuery || selectedMachine" class="no-results-actions">
-        <el-button type="primary" @click="clearSearch">返回照片主页</el-button>
+        <el-button type="primary" @click="clearSearch">返回视频主页</el-button>
       </div>
     </div>
 
     <!-- 搜索结果统计和分页 -->
-    <div class="result-info" v-if="photos.length > 0">
-      <!-- <div class="result-count">
-        共找到 {{ totalPhotos }} 张照片
-      </div> -->
+    <div class="result-info" v-if="videos.length > 0">
       <div class="pagination">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
-          :total="totalPhotos"
+          :total="totalVideos"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
@@ -116,17 +118,17 @@
       </div>
     </div>
 
-    <!-- 上传照片对话框 -->
+    <!-- 上传视频对话框 -->
     <el-dialog
       v-model="showUploadDialog"
-      title="上传照片"
+      title="上传视频"
       width="600px"
       :before-close="handleUploadDialogClose"
       class="mobile-dialog"
     >
       <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-width="100px">
-        <el-form-item label="照片标题" prop="title">
-          <el-input v-model="uploadForm.title" placeholder="请输入照片标题" />
+        <el-form-item label="视频标题" prop="title">
+          <el-input v-model="uploadForm.title" placeholder="请输入视频标题" />
         </el-form-item>
         <el-form-item label="关联机器" prop="machineId">
           <el-select v-model="uploadForm.machineId" placeholder="选择关联机器" clearable style="width: 100%;">
@@ -153,7 +155,7 @@
             :rows="2"
           />
         </el-form-item>
-        <el-form-item label="照片文件" prop="file">
+        <el-form-item label="视频文件" prop="file">
           <el-upload
             ref="uploadRef"
             drag
@@ -162,17 +164,25 @@
             :file-list="fileList"
             :limit="1"
             :on-remove="handleFileRemove"
+            :accept="'.mp4,.avi,.mov,.mkv,.wmv'"
           >
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">
-              将照片拖到此处，或<em>点击上传</em>
+              将视频拖到此处，或<em>点击上传</em>
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                只能上传 png/jpg/jpeg/webp 格式图片，大小不超过50MB
+                只能上传 mp4/avi/mov/mkv/wmv 格式视频，大小不超过500MB
               </div>
             </template>
           </el-upload>
+        </el-form-item>
+        <!-- 上传进度条 -->
+        <el-form-item v-if="uploadProgress > 0" label="上传进度">
+          <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
+            <div :style="{width: `${uploadProgress}%`, height: '100%', backgroundColor: uploadProgress === 100 ? '#67c23a' : '#409eff', borderRadius: '4px', transition: 'width 0.3s ease'}"></div>
+          </div>
+          <div style="text-align: right; margin-top: 4px; font-size: 12px; color: #606266;">{{ uploadProgress }}%</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -183,63 +193,62 @@
       </template>
     </el-dialog>
 
-
-
-    <!-- 照片详情对话框 -->
+    <!-- 视频详情对话框 -->
     <el-dialog
       v-model="showDetailsDialog"
-      title="照片详情"
-      width="900px"
+      title="视频详情"
       :before-close="handleDialogClose"
       class="mobile-dialog details-dialog"
+      width="90%"
     >
-      <div v-if="selectedPhoto" class="photo-details-container">
+      <div v-if="selectedVideo" class="video-details-container">
         <!-- 左右分栏布局 -->
-        <div class="photo-details-left">
-          <div class="photo-preview-wrapper">
-            <img
-              :src="`${apiBaseUrl}/assets/Media/Photos/${selectedPhoto.normal_path}`"
-              :alt="selectedPhoto.title"
-              @error="onImageError"
-              class="photo-preview-img"
+        <div class="video-details-left">
+          <div class="video-preview-wrapper">
+            <video
+              :src="`${apiBaseUrl}/assets/Media/Videos/${selectedVideo.compressed_path || selectedVideo.original_path}`"
+              :alt="selectedVideo.title"
+              controls
+              class="video-preview"
+              @error="onVideoError"
             />
             <!-- 预览图底部操作 -->
             <div class="preview-actions">
               <el-button
-                v-if="selectedPhoto.original_path"
+                v-if="selectedVideo.original_path"
                 type="text"
-                @click="viewOriginalImage"
+                @click="downloadVideo"
                 size="small"
               >
-                <el-icon class="icon-zoomin"><ZoomIn /></el-icon> 查看原图
+                <el-icon class="icon-download"><Download /></el-icon> 下载视频
               </el-button>
             </div>
           </div>
         </div>
 
-        <div class="photo-details-right">
+        <div class="video-details-right">
           <!-- 标题区域 -->
           <div class="detail-section">
             <div v-if="!isEditingAll" class="detail-row title-row">
               <label class="detail-label">标题:</label>
-              <h3 class="detail-title">{{ selectedPhoto.title }}</h3>
+              <span class="detail-value small detail-title">{{ selectedVideo.title }}</span>
             </div>
             <div v-else class="detail-row">
               <label class="detail-label">标题:</label>
               <el-input
                 v-model="editTitle"
-                placeholder="输入照片标题"
+                placeholder="输入视频标题"
                 class="title-input"
               />
             </div>
           </div>
 
           <!-- 关联机器 -->
-          <div v-if="selectedPhoto.machine_info" class="detail-section">
+          <div v-if="selectedVideo.machine_info" class="detail-section">
             <div class="detail-row">
               <label class="detail-label">关联机器:</label>
               <span class="detail-value machine-value">
-                {{ selectedPhoto.machine_info.model }} ( {{ selectedPhoto.machine_info.original_model }} )
+                {{ selectedVideo.machine_info.model }} ( {{ selectedVideo.machine_info.original_model }} )
               </span>
             </div>
           </div>
@@ -279,18 +288,9 @@
           <div class="detail-section">
             <div v-if="!isEditingAll" class="detail-row" style="flex-direction: column;">
               <label class="detail-label">备注:</label>
-              <div class="detail-value remark-value" style="width: 90%;">
-                {{ selectedPhoto.remark || '无备注' }}
+              <div class="detail-value remark-value">
+                {{ selectedVideo.remark || '无备注' }}
               </div>
-              <!-- <el-input
-                v-model="editRemark"
-                type="input"
-                :rows="4"
-                placeholder="请输入备注信息"
-                class="detail-value remark-value"
-                :value="selectedPhoto.remark || '无备注'"
-                disabled
-              /> -->
             </div>
             <div v-else>
               <label class="detail-label">备注:</label>
@@ -309,28 +309,24 @@
             <div class="info-grid">
               <div class="info-item">
                 <label class="detail-label small">上传时间:</label>
-                <span class="detail-value small">{{ formatDate(selectedPhoto.upload_time) }}</span>
+                <span class="detail-value small">{{ formatDate(selectedVideo.upload_time) }}</span>
               </div>
               <div class="info-item">
                 <label class="detail-label small">上传者:</label>
-                <span class="detail-value small">{{ selectedPhoto.uploader }}</span>
+                <span class="detail-value small">{{ selectedVideo.uploader }}</span>
               </div>
               <div class="info-item">
                 <label class="detail-label small">文件大小:</label>
-                <span class="detail-value small">{{ formatFileSize(selectedPhoto.file_size) }}</span>
+                <span class="detail-value small">{{ formatFileSize(selectedVideo.file_size) }}</span>
               </div>
-              <div class="info-item">
-                <label class="detail-label small">原始尺寸:</label>
-                <span class="detail-value small">{{ selectedPhoto.original_width }} x {{ selectedPhoto.original_height }}</span>
+              <div class="info-item" v-if="selectedVideo.duration">
+                <label class="detail-label small">视频时长:</label>
+                <span class="detail-value small">{{ formatDuration(selectedVideo.duration) }}</span>
               </div>
-              <!-- <div class="info-item">
-                <label class="detail-label small">压缩状态:</label>
-                <span class="detail-value small">
-                  <el-tag :type="getCompressStatusType(selectedPhoto.compress_status)" size="small">
-                    {{ getCompressStatusText(selectedPhoto.compress_status) }}
-                  </el-tag>
-                </span>
-              </div> -->
+              <div class="info-item" v-if="selectedVideo.original_width && selectedVideo.original_height">
+                <label class="detail-label small">视频分辨率:</label>
+                <span class="detail-value small">{{ selectedVideo.original_width }} x {{ selectedVideo.original_height }}</span>
+              </div>
             </div>
           </div>
 
@@ -341,7 +337,7 @@
               type="primary"
               @click="startEditingAll"
             >
-              编辑照片信息
+              编辑视频信息
             </el-button>
             <div v-else class="edit-actions-group">
               <el-button
@@ -357,24 +353,23 @@
         </div>
       </div>
     </el-dialog>
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, ZoomIn } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, Download, VideoPlay } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import { uploadFile } from '@/utils/upload';
-import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI } from '@/utils/request';
+import request, { getMachinesForVideos, createVideo, updateVideo, deleteVideo as deleteVideoAPI } from '@/utils/request';
 
 // 响应式数据
-const photos = ref<any[]>([]);
+const videos = ref<any[]>([]);
 const currentPage = ref(1);
 const pageSize = ref(10);
-const totalPhotos = ref(0);
+const totalVideos = ref(0);
 const searchQuery = ref('');
 const selectedMachine = ref('');
 const showUploadDialog = ref(false);
@@ -383,6 +378,7 @@ const showResultCount = ref(false); // 是否显示结果计数
 const showDetailsDialog = ref(false);
 const showPreviewDialog = ref(false);
 const uploading = ref(false);
+const uploadProgress = ref(0); // 上传进度
 
 const uploadForm = ref({
   title: '',
@@ -395,12 +391,10 @@ const uploadForm = ref({
 // 表单引用
 const uploadFormRef = ref();
 
-const selectedPhoto = ref<any>(null);
-const previewPhotoData = ref<any>(null);
+const selectedVideo = ref<any>(null);
+const previewVideoData = ref<any>(null);
 const fileList = ref<any[]>([]);
 const machineList = ref<any[]>([]);
-
-
 
 // 预览相关变量
 const isShowingOriginal = ref(false);
@@ -416,11 +410,9 @@ const savingAll = ref(false);
 
 // 表单验证规则
 const uploadRules = {
-  title: [{ required: true, message: '请输入照片标题', trigger: 'blur' }],
-  file: [{ required: true, message: '请选择照片文件', trigger: 'change' }]
+  title: [{ required: true, message: '请输入视频标题', trigger: 'blur' }],
+  file: [{ required: true, message: '请选择视频文件', trigger: 'change' }]
 };
-
-
 
 // 获取router
 const router = useRouter();
@@ -451,31 +443,23 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+// 格式化视频时长
+const formatDuration = (seconds: number) => {
+  if (!seconds) return '00:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  } else {
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+};
 
 // 定义行点击处理函数
-const showPhotoDetails = (photo) => {
-  viewPhotoDetails(photo)
-};
-
-// 获取压缩状态类型
-const getCompressStatusType = (status: string) => {
-  switch (status) {
-    case 'success': return 'success';
-    case 'processing': return 'warning';
-    case 'failed': return 'danger';
-    default: return 'info';
-  }
-};
-
-// 获取压缩状态文本
-const getCompressStatusText = (status: string) => {
-  switch (status) {
-    case 'pending': return '待处理';
-    case 'processing': return '处理中';
-    case 'success': return '已完成';
-    case 'failed': return '失败';
-    default: return status;
-  }
+const showVideoDetails = (video) => {
+  viewVideoDetails(video)
 };
 
 // 图片加载错误处理
@@ -488,10 +472,16 @@ const onImageError = (event: Event) => {
   }
 };
 
-// 获取照片列表
-const fetchPhotos = async () => {
+// 视频加载错误处理
+const onVideoError = (event: Event) => {
+  console.error('视频加载失败:', event);
+  ElMessage.error('视频加载失败');
+};
+
+// 获取视频列表
+const fetchVideos = async () => {
   try {
-    const response = await request.get('/api/photos', {
+    const response = await request.get('/api/videos', {
       params: {
         page: currentPage.value,
         per_page: pageSize.value,
@@ -500,18 +490,18 @@ const fetchPhotos = async () => {
       }
     });
 
-    photos.value = response.photos;
-    totalPhotos.value = response.total;
+    videos.value = response.videos;
+    totalVideos.value = response.total;
   } catch (error) {
-    console.error('获取照片列表失败:', error);
-    ElMessage.error('获取照片列表失败');
+    console.error('获取视频列表失败:', error);
+    ElMessage.error('获取视频列表失败');
   }
 };
 
 // 获取机器列表
 const fetchMachines = async () => {
   try {
-    const response = await getMachinesForPhotos();
+    const response = await getMachinesForVideos();
     machineList.value = response;
   } catch (error) {
     console.error('获取机器列表失败:', error);
@@ -522,16 +512,16 @@ const fetchMachines = async () => {
 // 文件选择处理
 const handleFileChange = (file: any) => {
   // 检查文件类型
-  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+  const allowedTypes = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-matroska', 'video/x-ms-wmv'];
   if (!allowedTypes.includes(file.raw.type)) {
-    ElMessage.error('仅支持png/jpg/jpeg/webp格式的图片');
+    ElMessage.error('仅支持mp4/avi/mov/mkv/wmv格式的视频');
     return;
   }
 
   // 检查文件大小
-  const maxSize = 50 * 1024 * 1024; // 50MB
+  const maxSize = 500 * 1024 * 1024; // 500MB
   if (file.raw.size > maxSize) {
-    ElMessage.error('文件大小不能超过50MB');
+    ElMessage.error('文件大小不能超过500MB');
     return;
   }
 
@@ -567,7 +557,6 @@ const handleUploadDialogClose = (done: () => void) => {
 // 添加标签函数
 const addTag = () => {
   // 这个函数可以用于添加标签，但目前我们只需要让输入框响应回车键
-  // 可以留空或执行一些标签处理逻辑
   console.log('addTag called');
 };
 
@@ -583,7 +572,7 @@ const submitUpload = async () => {
   }
 
   if (!uploadForm.value.file) {
-    ElMessage.error('请选择照片文件');
+    ElMessage.error('请选择视频文件');
     return;
   }
 
@@ -595,6 +584,7 @@ const submitUpload = async () => {
     formData.append('tags', uploadForm.value.tags);
     formData.append('machine_id', uploadForm.value.machineId);
     formData.append('remark', uploadForm.value.remark);
+
     // 从token中解析用户信息作为上传者
     const token = localStorage.getItem('oa_token');
     let uploader = 'system';
@@ -610,17 +600,23 @@ const submitUpload = async () => {
     }
     formData.append('uploader', uploader);
 
-    const response = await createPhoto(formData);
+    const response = await createVideo(formData, (progressEvent) => {
+      // 上传进度回调
+      if (progressEvent.total) {
+        uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      }
+    });
 
-    ElMessage.success('照片上传成功');
+    ElMessage.success('视频上传成功');
     showUploadDialog.value = false;
     resetUploadForm();
-    fetchPhotos(); // 刷新列表
+    fetchVideos(); // 刷新列表
   } catch (uploadError) {
-    console.error('上传照片失败:', uploadError);
+    console.error('上传视频失败:', uploadError);
     ElMessage.error('上传失败');
   } finally {
     uploading.value = false;
+    uploadProgress.value = 0; // 重置进度条
   }
 };
 
@@ -634,39 +630,38 @@ const resetUploadForm = () => {
     file: null
   };
   fileList.value = [];
+  uploadProgress.value = 0;
 };
 
-
-
-// 删除照片
-const deletePhoto = async (id: number) => {
+// 删除视频
+const deleteVideo = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要删除这张照片吗？', '警告', {
+    await ElMessageBox.confirm('确定要删除这个视频吗？', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
 
-    await deletePhotoAPI(id);
+    await deleteVideoAPI(id);
 
-    ElMessage.success('照片删除成功');
-    fetchPhotos(); // 刷新列表
+    ElMessage.success('视频删除成功');
+    fetchVideos(); // 刷新列表
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除照片失败:', error);
+      console.error('删除视频失败:', error);
       ElMessage.error('删除失败');
     }
   }
 };
 
-// 查看照片详情
-const viewPhotoDetails = (photo: any) => {
-  selectedPhoto.value = photo;
+// 查看视频详情
+const viewVideoDetails = (video: any) => {
+  selectedVideo.value = video;
   // 初始化编辑值
-  editTitle.value = photo?.title || '';
-  editRemark.value = photo?.remark || '';
+  editTitle.value = video?.title || '';
+  editRemark.value = video?.remark || '';
   // 初始化标签显示
-  const tagsString = photo?.tags || '';
+  const tagsString = video?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
 
   // 重置编辑状态
@@ -702,9 +697,9 @@ const removeTag = (tagToRemove: string) => {
 
 // 开始编辑所有信息
 const startEditingAll = () => {
-  editTitle.value = selectedPhoto.value?.title || '';
-  editRemark.value = selectedPhoto.value?.remark || '';
-  const tagsString = selectedPhoto.value?.tags || '';
+  editTitle.value = selectedVideo.value?.title || '';
+  editRemark.value = selectedVideo.value?.remark || '';
+  const tagsString = selectedVideo.value?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
   isEditingAll.value = true;
   editTagsInput.value = '';
@@ -712,36 +707,36 @@ const startEditingAll = () => {
 
 // 保存所有更改
 const saveAll = async () => {
-  if (!selectedPhoto.value) return;
+  if (!selectedVideo.value) return;
 
   savingAll.value = true;
   try {
     const tagsString = currentTags.value.join(',');
-    await updatePhoto(selectedPhoto.value.id, {
+    await updateVideo(selectedVideo.value.id, {
       title: editTitle.value,
       tags: tagsString,
-      machine_id: selectedPhoto.value.machine_id,
+      machine_id: selectedVideo.value.machine_id,
       remark: editRemark.value
     });
 
     // 更新本地数据
-    selectedPhoto.value.title = editTitle.value;
-    selectedPhoto.value.tags = tagsString;
-    selectedPhoto.value.remark = editRemark.value;
+    selectedVideo.value.title = editTitle.value;
+    selectedVideo.value.tags = tagsString;
+    selectedVideo.value.remark = editRemark.value;
 
-    // 同时更新photos列表中的对应项
-    const photoIndex = photos.value.findIndex(photo => photo.id === selectedPhoto.value.id);
-    if (photoIndex !== -1) {
-      photos.value[photoIndex].title = editTitle.value;
-      photos.value[photoIndex].tags = tagsString;
-      photos.value[photoIndex].remark = editRemark.value;
+    // 同时更新videos列表中的对应项
+    const videoIndex = videos.value.findIndex(video => video.id === selectedVideo.value.id);
+    if (videoIndex !== -1) {
+      videos.value[videoIndex].title = editTitle.value;
+      videos.value[videoIndex].tags = tagsString;
+      videos.value[videoIndex].remark = editRemark.value;
     }
 
-    ElMessage.success('照片信息更新成功');
+    ElMessage.success('视频信息更新成功');
     isEditingAll.value = false;
   } catch (error) {
-    console.error('更新照片信息失败:', error);
-    ElMessage.error('照片信息更新失败');
+    console.error('更新视频信息失败:', error);
+    ElMessage.error('视频信息更新失败');
   } finally {
     savingAll.value = false;
   }
@@ -750,20 +745,29 @@ const saveAll = async () => {
 // 取消所有编辑
 const cancelEditingAll = () => {
   // 重新加载原始值
-  editTitle.value = selectedPhoto.value?.title || '';
-  editRemark.value = selectedPhoto.value?.remark || '';
-  const tagsString = selectedPhoto.value?.tags || '';
+  editTitle.value = selectedVideo.value?.title || '';
+  editRemark.value = selectedVideo.value?.remark || '';
+  const tagsString = selectedVideo.value?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
   isEditingAll.value = false;
   editTagsInput.value = '';
 };
 
-// 查看原图
-const viewOriginalImage = () => {
-  if (selectedPhoto.value?.original_path) {
-    const originalImageUrl = `${apiBaseUrl.value}/assets/Media/Photos/${selectedPhoto.value.original_path}`;
-    // 在新窗口中打开原图
-    window.open(originalImageUrl, '_blank');
+// 下载视频
+const downloadVideo = () => {
+  if (selectedVideo.value?.original_path) {
+    const originalVideoUrl = `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.value.original_path}`;
+    // 创建一个临时链接来下载视频，并以视频标题命名
+    const link = document.createElement('a');
+    link.href = originalVideoUrl;
+    // 使用视频标题作为文件名，如果标题为空则使用默认名称
+    const fileName = selectedVideo.value.title ? selectedVideo.value.title.trim() : 'video';
+    // 确保文件扩展名正确
+    const fileExtension = originalVideoUrl.split('.').pop() || 'mp4';
+    link.download = `${fileName}.${fileExtension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 };
 
@@ -773,6 +777,13 @@ const handleDialogClose = () => {
   if (isEditingAll.value) {
     cancelEditingAll();
   }
+
+  // 停止视频播放
+  const videoElement = document.querySelector('.video-preview') as HTMLVideoElement;
+  if (videoElement) {
+    videoElement.pause();
+  }
+
   showDetailsDialog.value = false;
 };
 
@@ -780,14 +791,14 @@ const handleDialogClose = () => {
 const searchContent = async () => {
   currentPage.value = 1;
   showResultCount.value = !!(searchQuery.value); // 只有在有搜索内容时显示计数
-  await fetchPhotos();
+  await fetchVideos();
 };
 
 // 机器搜索
 const searchByMachine = async () => {
   currentPage.value = 1;
   showResultCount.value = selectedMachine.value !== '' && selectedMachine.value !== null && selectedMachine.value !== undefined; // 只有在选择了机器时显示计数
-  await fetchPhotos();
+  await fetchVideos();
 };
 
 // 清除搜索条件并返回主页
@@ -796,7 +807,7 @@ const clearSearch = () => {
   selectedMachine.value = '';
   showResultCount.value = false;
   currentPage.value = 1;
-  fetchPhotos();
+  fetchVideos();
 };
 
 // 分页处理
@@ -808,7 +819,7 @@ const handleSizeChange = (size: number) => {
   } else {
     showResultCount.value = false; // 非搜索状态下不显示计数
   }
-  fetchPhotos();
+  fetchVideos();
 };
 
 const handleCurrentChange = (page: number) => {
@@ -818,18 +829,18 @@ const handleCurrentChange = (page: number) => {
   } else {
     showResultCount.value = false; // 非搜索状态下不显示计数
   }
-  fetchPhotos();
+  fetchVideos();
 };
 
 // 初始化
 onMounted(() => {
-  fetchPhotos();
+  fetchVideos();
   fetchMachines();
 });
 </script>
 
 <style scoped>
-.photo-management {
+.video-management {
   padding: 20px;
 }
 
@@ -868,7 +879,7 @@ onMounted(() => {
   gap: 10px;
 }
 
-.photo-grid {
+.video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 10px;
@@ -879,7 +890,7 @@ onMounted(() => {
   border-radius: 15px;
 }
 
-.photo-card {
+.video-card {
   position: relative; /* 为删除按钮定位做准备 */
   width: 100%; /* 适应容器 */
   border: 1px solid #e6e6e6;
@@ -913,26 +924,44 @@ onMounted(() => {
   color: white;
 }
 
-.photo-card:hover {
+.video-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-
-.photo-image {
+.video-image {
   position: relative; /* 为标题和分辨率定位做准备 */
   width: 100%;
   height: 180px; /* 适配移动端 */
   overflow: hidden;
   cursor: pointer; /* 提示可点击 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
 }
 
-.photo-image img {
+.video-image img {
   width: 100%;
   height: 100%;
   object-fit: cover; /* 保持图片比例 */
 }
 
-.photo-title {
+.no-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #909399;
+}
+
+.no-thumbnail .el-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.video-title {
   font-size: 14px; /* 适配移动端 */
   font-weight: bold;
   max-width: 80%; /* 防止标题过长 */
@@ -941,7 +970,7 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-.photo-upload-time {
+.video-upload-time {
   font-size: 11px; /* 适配移动端 */
   color: #909399;
 }
@@ -964,30 +993,34 @@ onMounted(() => {
   margin-top: 6px;
 }
 
-
-/* 右下角分辨率样式 */
-.photo-resolution {
+/* 右下角时长和文件大小样式 */
+.video-info-bottom {
   position: absolute;
   bottom: 10px;
-  right: 10px;
+  left: 10px;  /* 改为左边对齐 */
+  right: 10px; /* 同时设置右边距，使内容居中或对齐 */
   color: white;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;  /* 左右分布 */
+}
+
+.video-info-bottom span {
   font-size: 11px; /* 适配移动端 */
   background-color: rgba(0, 0, 0, 0.5);
   padding: 2px 6px;
   border-radius: 4px;
-  z-index: 5;
 }
 
-.photo-info {
+.video-info {
   padding: 12px; /* 适配移动端 */
 }
 
-.photo-info h4 {
+.video-info h4 {
   margin: 0 0 10px 0;
   font-size: 15px; /* 适配移动端 */
   font-weight: 600;
 }
-
 
 .machine {
   color: #606266;
@@ -1003,7 +1036,7 @@ onMounted(() => {
   margin: 3px 0;
 }
 
-.photo-actions {
+.video-actions {
   margin-top: 10px;
   display: flex;
   gap: 5px;
@@ -1023,38 +1056,44 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 优化后的照片详情布局 */
-.photo-details-container {
+/* 优化后的视频详情布局 */
+.video-details-container {
   display: flex;
   gap: 24px;
   padding: 16px 0;
-  flex-direction: column; /* 移动端改为垂直布局 */
+  flex-direction: row; /* 移动端改为垂直布局 */
 }
 
 /* 左侧预览区 */
-.photo-details-left {
+.video-details-left {
   flex: 1;
   min-width: 300px;
+  display: flex;
+  align-items: center;
+  min-height: 100px;
+  background-color: #363636;
+  border-radius: 5px;
+
 }
 
-.photo-preview-wrapper {
+.video-preview-wrapper {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: #fafafa;
+  background: #000;
 }
 
-.photo-preview-img {
+.video-preview {
   width: 100%;
   height: auto;
   display: block;
+  max-height: 400px;
 }
 
 .preview-actions {
   position: absolute;
   bottom: 0;
-  /* left: 0; */
   right: 0;
   padding: 8px 12px;
   background: linear-gradient(to top, rgba(0,0,0,0.3), transparent);
@@ -1065,16 +1104,14 @@ onMounted(() => {
 }
 
 /* 右侧信息区 */
-.photo-details-right {
+.video-details-right {
   flex: 1.2;
   min-width: 300px;
   overflow-y: scroll;
 }
 
 .detail-section {
-  margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
 }
 
 .detail-section:last-child {
@@ -1087,6 +1124,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  flex-direction: column;
 }
 
 .detail-label {
@@ -1104,15 +1142,21 @@ onMounted(() => {
 
 /* 标题样式 */
 .title-row {
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .detail-title {
   flex: 1;
   margin: 0;
   font-size: 18px;
-  font-weight: 600;
   color: #1f2937;
+  border: rgba(0, 0, 0, 0.1)  1px solid;
+  width: 80%;
+  line-height: 30px;
+  border-radius: 5px;
+  padding: 0 8px;
 }
 
 .title-input {
@@ -1125,6 +1169,12 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+  border: rgba(0, 0, 0, 0.1)  1px solid;
+  width: 80%;
+  height: 30px;
+  border-radius: 5px;
+  padding: 0 8px;
+  align-items: center;
 }
 
 .detail-tag {
@@ -1194,9 +1244,10 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+
 /* 响应式适配 */
 @media (max-width: 768px) {
-  .photo-management {
+  .video-management {
     padding: 10px;
   }
 
@@ -1210,25 +1261,25 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .photo-grid {
+  .video-grid {
     grid-template-columns: 1fr; /* 移动端单列布局 */
     padding: 5px;
   }
 
-  .photo-card {
+  .video-card {
     margin: 5px 0;
   }
 
-  .photo-image {
+  .video-image {
     height: 200px; /* 移动端稍微大一些 */
   }
 
-  .photo-details-container {
+  .video-details-container {
     flex-direction: column;
   }
 
-  .photo-details-left,
-  .photo-details-right {
+  .video-details-left,
+  .video-details-right {
     width: 100%;
     min-width: auto;
   }
@@ -1241,60 +1292,60 @@ onMounted(() => {
     width: 70px;
     font-size: 12px;
   }
-  
+
   /* 移动端对话框适配 */
   .mobile-dialog {
-    width: 95% !important;
+    width: 85% !important;
     margin-top: 2vh;
   }
-  
+
   .details-dialog {
     width: 98% !important;
   }
-  
-  .photo-details-container {
+
+  .video-details-container {
     flex-direction: column;
     padding: 8px 0;
   }
-  
-  .photo-details-left,
-  .photo-details-right {
+
+  .video-details-left,
+  .video-details-right {
     width: 100%;
     min-width: auto;
   }
-  
-  .photo-preview-img {
+
+  .video-preview {
     max-height: 300px;
   }
-  
+
   .info-grid {
     grid-template-columns: 1fr !important;
   }
-  
+
   .detail-label {
     width: 70px !important;
     font-size: 12px;
   }
-  
+
   .detail-actions {
     text-align: center;
   }
-  
+
   .edit-actions-group {
     justify-content: center !important;
   }
 }
 
 @media (max-width: 480px) {
-  .photo-management {
+  .video-management {
     padding: 8px;
   }
 
-  .photo-image {
+  .video-image {
     height: 160px;
   }
 
-  .photo-title {
+  .video-title {
     font-size: 13px;
   }
 
@@ -1310,26 +1361,26 @@ onMounted(() => {
   .detail-section {
     padding: 8px 0;
   }
-  
+
   /* 移动端对话框适配 */
   .mobile-dialog {
     width: 98% !important;
     margin-top: 5vh;
   }
-  
-  .photo-preview-img {
+
+  .video-preview {
     max-height: 200px;
   }
-  
+
   .detail-label {
     width: 60px !important;
     font-size: 11px;
   }
-  
+
   .detail-value {
     font-size: 12px;
   }
-  
+
   .tag-input {
     width: 100% !important;
     margin-top: 8px;
@@ -1354,9 +1405,8 @@ onMounted(() => {
   padding: 20px;
 }
 
-.icon-zoomin{
+.icon-download {
   margin-right: 5px;
   font-size: 18px;
 }
-
 </style>

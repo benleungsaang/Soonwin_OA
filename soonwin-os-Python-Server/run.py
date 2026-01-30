@@ -84,8 +84,8 @@ def create_app_with_routes(port=5000):
 # ========== 启动入口 ==========
 if __name__ == "__main__":
     import sys
-    # 获取命令行参数指定的端口，默认为5000
-    port = 5000
+    # 获取命令行参数指定的端口，默认为5001（开发环境）
+    port = 5001
     debug_mode = True  # 默认启用调试模式（开发模式）
 
     # 检查是否有 --port 参数
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         i += 1
 
     # 如果没有找到 --port 参数，尝试检查第一个参数是否是数字
-    if port == 5000 and len(sys.argv) > 1:
+    if port == 5001 and len(sys.argv) > 1:
         try:
             # 检查第一个参数是否是纯数字（不是选项参数）
             first_arg = sys.argv[1]

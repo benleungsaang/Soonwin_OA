@@ -4,26 +4,22 @@
 
     <!-- 搜索和筛选 -->
     <el-card shadow="hover" class="filter-card">
-      <el-form :model="searchForm" label-width="100px" style="display: flex; flex-wrap: wrap;">
-        <el-form-item label="地区" style="min-width: 200px;">
-          <el-input v-model="searchForm.area" placeholder="请输入地区" clearable />
+      <el-form :model="searchForm" label-width="100px" style="display: flex; ">
+        <!-- 单一搜索框 -->
+        <el-form-item label="内容搜索" style="min-width: 300px; flex: 1;">
+          <el-input
+            v-model="searchForm.search"
+            placeholder="搜索地区、来源、公司名、联系人、电话、邮箱、包装产品、需求类型"
+            clearable
+            @keyup.enter="searchInquiriesByContent"
+          />
         </el-form-item>
-        <el-form-item label="联系人" style="min-width: 200px;">
-          <el-input v-model="searchForm.contact_person" placeholder="请输入联系人" clearable />
+        <el-form-item style="margin-left: 10px;">
+          <el-button type="primary" @click="searchInquiriesByContent">内容搜索</el-button>
         </el-form-item>
-        <el-form-item label="公司名" style="min-width: 200px;">
-          <el-input v-model="searchForm.company_name" placeholder="请输入公司名" clearable />
-        </el-form-item>
-        <el-form-item label="包装产品" style="min-width: 200px;">
-          <el-input v-model="searchForm.packaging_product" placeholder="请输入包装产品" clearable />
-        </el-form-item>
-        <el-form-item label="机器类型" style="min-width: 200px;">
-          <el-input v-model="searchForm.machine_type" placeholder="请输入机器类型" clearable />
-        </el-form-item>
-        <el-form-item label="询盘来源" style="min-width: 200px;">
-          <el-input v-model="searchForm.inquiry_source" placeholder="请输入询盘来源" clearable />
-        </el-form-item>
-        <el-form-item label="询盘日期" style="min-width: 300px;">
+
+        <!-- 日期筛选 -->
+        <el-form-item label="询盘日期" style="min-width: 300px; margin-left: 20px; flex: 1;">
           <el-date-picker
             v-model="dateRange"
             type="daterange"
@@ -35,9 +31,9 @@
             @change="onDateRangeChange"
           />
         </el-form-item>
-        <el-form-item style="margin-left: auto;">
-          <el-button type="primary" @click="searchInquiries">搜索</el-button>
-          <el-button @click="resetSearch">重置</el-button>
+        <el-form-item style="margin-left: 10px;">
+          <el-button type="primary" @click="searchInquiriesByDate">日期搜索</el-button>
+          <!-- <el-button @click="resetSearch">重置</el-button> -->
         </el-form-item>
       </el-form>
     </el-card>
@@ -198,7 +194,7 @@
       <div v-if="inquiryForm.id" class="communication-section">
         <el-divider />
         <div class="communication-header">
-          <h3>沟通记录</h3>
+          <h3>沟通记录 ({{ communications.length }})</h3>
           <el-button type="primary" size="large" @click="showAddCommunicationDialog">
             添加沟通记录
             <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
@@ -222,6 +218,7 @@
                 <el-icon @click="deleteCommunication(comm.id)" class="el-icon delete"><Delete /></el-icon>
               </div>
             </div>
+            <div class="communication-company" v-if="comm.company_name">公司：{{ comm.company_name }}</div>
             <div class="communication-content">{{ comm.content }}</div>
           </el-card>
           <div v-if="communications.length === 0" class="no-communications">
@@ -274,8 +271,9 @@
         <el-button type="primary" size="small" @click="showAddCommunicationDialog" style="margin-bottom: 20px;"><el-icon><ChatLineRound /></el-icon>添加沟通记录</el-button>
 
         <el-table :data="communications" style="width: 100%; margin-bottom: 20px;">
-          <el-table-column prop="subject" label="主题" width="200" />
-          <el-table-column prop="content" label="内容" />
+          <el-table-column prop="subject" label="主题" width="150" />
+          <el-table-column prop="content" label="内容" width="200" />
+          <el-table-column prop="company_name" label="公司名" width="150" />
           <el-table-column prop="communication_date" label="沟通日期" width="120" />
           <el-table-column prop="creator_name" label="创建人" width="120" />
           <el-table-column prop="create_time" label="创建时间" width="150" />
@@ -297,6 +295,9 @@
     <!-- 新增/编辑沟通记录对话框 -->
     <el-dialog :title="communicationDialogTitle" v-model="addCommunicationDialogVisible" width="50%">
       <el-form :model="communicationForm" :rules="communicationRules" ref="communicationFormRef" label-width="100px">
+        <el-form-item label="公司名">
+          <el-input v-model="inquiryForm.company_name" placeholder="自动填充公司名" readonly />
+        </el-form-item>
         <el-form-item label="主题" prop="subject">
           <el-input v-model="communicationForm.subject" placeholder="请输入沟通主题" />
         </el-form-item>
@@ -327,24 +328,92 @@
       </template>
     </el-dialog>
 
-    <!-- 日志对话框 -->
-    <el-dialog title="询盘操作日志" v-model="logDialogVisible" width="80%" top="5vh">
-      <el-table :data="inquiryLogs" style="width: 100%" v-loading="logLoading">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="inquiry_id" label="询盘ID" width="100" />
-        <el-table-column prop="operation_type" label="操作类型" width="120" />
-        <el-table-column prop="operator_name" label="操作人" width="120" />
-        <el-table-column prop="operator_role" label="角色" width="100" />
-        <el-table-column prop="operation_details" label="操作详情" show-overflow-tooltip />
-        <el-table-column prop="create_time" label="操作时间" width="160" />
-      </el-table>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="closeLogDialog">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
-  </div>
+        <!-- 日志对话框 -->
+        <el-dialog title="询盘操作日志" v-model="logDialogVisible" width="80%" top="5vh">
+          <div v-loading="logLoading" class="log-container">
+            <!-- 统计信息卡片 -->
+            <el-card class="statistics-card" shadow="never">
+              <div class="statistics-content">
+                <div class="stat-item">
+                  <span class="stat-label">询盘总数:</span>
+                  <span class="stat-value">{{ statistics.total_inquiries }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">沟通记录总数:</span>
+                  <span class="stat-value">{{ statistics.total_communications }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">新增询盘数:</span>
+                  <span class="stat-value">{{ statistics.new_inquiries }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">新增沟通数:</span>
+                  <span class="stat-value">{{ statistics.new_communications }}</span>
+                </div>
+              </div>
+            </el-card>
+            <!-- 日志列表 -->
+            <div v-for="log in inquiryLogs" :key="log.id" class="log-item">
+              <el-card class="log-card" shadow="hover">
+                <div class="log-header">
+                  <div class="log-operation-type">
+                    <span class="operation-type-text">{{ getOperationTypeText(log.operation_type) }}</span>
+                  </div>
+                                <div class="log-header-right">
+                                  <div class="log-time">{{ log.create_time }}</div>
+                                  <!-- 恢复按钮 - 只对删除和修改操作显示 -->
+                                  <el-button 
+                                    v-if="log.operation_type === 'delete' || log.operation_type === 'update'"
+                                    type="primary" 
+                                    link 
+                                    size="small" 
+                                    @click="restoreLog(log.id)"
+                                    class="restore-log-btn"
+                                    :title="'恢复数据'">
+                                    <el-icon><Refresh /></el-icon>
+                                  </el-button>
+                                  <el-button 
+                                    type="danger" 
+                                    link 
+                                    size="small" 
+                                    @click="deleteLog(log.id)"
+                                    class="delete-log-btn"
+                                    :title="'删除日志'">
+                                    <el-icon><Delete /></el-icon>
+                                  </el-button>
+                                </div>                </div>
+                <div class="log-body">
+                  <div class="log-user">
+                    <span class="user-label">操作人:</span>
+                    <span class="user-value">{{ log.operator_name }}</span>
+                    <span class="role-value">({{ log.operator_role }})</span>
+                  </div>
+                  <div class="log-details">
+                    <span class="details-label">操作详情:</span>
+                    <span class="details-value">{{ formatOperationDetails(log.operation_details) }}</span>
+                  </div>
+                </div>
+              </el-card>
+            </div>
+            <!-- 分页 -->
+            <div class="log-pagination" style="margin-top: 20px; display: flex; justify-content: center;">
+              <el-pagination
+                v-model:current-page="logCurrentPage"
+                v-model:page-size="logPageSize"
+                :page-sizes="[10, 20, 30, 50]"
+                :total="logTotal"
+                layout="total, sizes, prev, pager, next, jumper"
+                @size-change="handleLogSizeChange"
+                @current-change="handleLogCurrentChange"
+              />
+            </div>
+          </div>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button @click="closeLogDialog">关闭</el-button>
+            </span>
+          </template>
+        </el-dialog>  </div>
 </template>
 
 <script setup lang="ts">
@@ -353,6 +422,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { Delete, Edit, ChatLineRound } from '@element-plus/icons-vue';
+import { formatInquiryLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由
@@ -374,18 +444,20 @@ onMounted(async () => {
     console.error('解析用户信息失败:', error);
     isCurrentUserAdmin.value = false;
   }
-  loadInquiries();
 
-  // 获取预设地区列表
+  // 加载询盘列表，同时获取所有可能需要的地区信息
+  await loadInquiries();
+
+  // 获取预设地区列表 - 从已加载的数据中提取，而不是再次请求
   try {
-    const response = await request.get('/api/inquiries', { page: 1, size: 1000 });
-    if (response && response.list) {
-      // 提取所有不重复的地区
-      const areas = [...new Set(response.list.map((item: any) => item.area).filter((area: any) => area))];
+    // 使用已加载的询盘数据来填充地区列表
+    // 如果需要完整列表，可以单独获取，但目前我们只需要获取一次数据
+    if (inquiries.value && inquiries.value.length > 0) {
+      const areas = [...new Set(inquiries.value.map((item: any) => item.area).filter((area: any) => area))];
       presetAreas.value = areas;
     }
   } catch (error) {
-    console.error('获取地区列表失败:', error);
+    console.error('提取地区列表失败:', error);
     // 出错时使用空数组
     presetAreas.value = [];
   }
@@ -398,6 +470,7 @@ const total = ref(0);
 
 // 搜索参数
 const searchForm = ref({
+  search: '',  // 新增综合搜索字段
   area: '',
   contact_person: '',
   company_name: '',
@@ -417,7 +490,7 @@ const loading = ref(false);
 
 // 预设地区和来源
 const presetAreas = ref<string[]>([]);
-const presetSources = ref(['官网', '阿里', '展会']);
+const presetSources = ref(['官网', '阿里', '展会', '朋友介绍']);
 // 用于存储打开对话框时的初始表单值
 const initialInquiryForm = ref<any>(null);
 
@@ -454,13 +527,24 @@ const communicationForm = ref({
   id: null as number | null,
   subject: '',
   content: '',
-  communication_date: ''
+  communication_date: '',
+  company_name: ''
 });
 
 // 日志相关
 const logDialogVisible = ref(false);
 const inquiryLogs = ref<any[]>([]);
 const logLoading = ref(false);
+const statistics = ref({
+  total_inquiries: 0,
+  total_communications: 0,
+  new_inquiries: 0,
+  new_communications: 0
+});
+// 日志分页相关
+const logCurrentPage = ref(1);
+const logPageSize = ref(30);  // 每页30条
+const logTotal = ref(0);
 
 // 表单引用
 const inquiryFormRef = ref();
@@ -492,7 +576,7 @@ const communicationRules = {
   ]
 };
 
-// 显示新增询盘对话框
+  // 显示新增询盘对话框
 const showAddInquiryDialog = () => {
   inquiryDialogTitle.value = '新增询盘';
   editingInquiryId.value = null;
@@ -512,9 +596,7 @@ const showAddInquiryDialog = () => {
   // 保存初始表单值用于比较
   initialInquiryForm.value = JSON.parse(JSON.stringify(emptyForm));
   inquiryDialogVisible.value = true;
-  resetFormChangedFlag(); // 重置更改标记
 };
-
 
 
 // 查看询盘详情（支持编辑）
@@ -543,6 +625,13 @@ const viewInquiryById = (row: any) => {
 // 提交询盘
 const submitInquiry = async () => {
   if (!inquiryFormRef.value) return;
+
+  // 如果是编辑现有询盘且表单未被修改，则直接关闭
+  if (editingInquiryId.value && !isFormChanged()) {
+    ElMessage.info('表单内容未修改，无需提交');
+    inquiryDialogVisible.value = false;
+    return;
+  }
 
   await inquiryFormRef.value.validate(async (valid: boolean) => {
     if (valid) {
@@ -627,15 +716,56 @@ const onDateRangeChange = (value: [string, string] | null) => {
   }
 };
 
-// 搜索询盘
-const searchInquiries = () => {
+// 按内容搜索询盘
+const searchInquiriesByContent = async () => {
+  // 重置日期筛选
+  searchForm.value.start_date = '';
+  searchForm.value.end_date = '';
+  dateRange.value = null;
   currentPage.value = 1;
-  loadInquiries();
+  // 确保只传递内容搜索参数
+  const params = {
+    page: currentPage.value,
+    size: pageSize.value,
+    search: searchForm.value.search,  // 只传递搜索参数，不传递日期参数
+  };
+  await loadInquiriesWithParams(params);
+};
+
+// 按日期搜索询盘
+const searchInquiriesByDate = async () => {
+  // 重置内容搜索
+  searchForm.value.search = '';
+  currentPage.value = 1;
+  // 确保只传递日期参数
+  const params = {
+    page: currentPage.value,
+    size: pageSize.value,
+    start_date: searchForm.value.start_date,
+    end_date: searchForm.value.end_date
+  };
+  await loadInquiriesWithParams(params);
+};
+
+// 带参数的加载询盘函数
+const loadInquiriesWithParams = async (params: any) => {
+  loading.value = true;
+  try {
+    const response = await request.get('/api/inquiries', { params });
+    inquiries.value = response.list || [];
+    total.value = response.total || 0;
+  } catch (error) {
+    console.error('加载询盘列表失败:', error);
+    ElMessage.error('加载询盘列表失败');
+  } finally {
+    loading.value = false;
+  }
 };
 
 // 重置搜索
 const resetSearch = () => {
   searchForm.value = {
+    search: '',
     area: '',
     contact_person: '',
     company_name: '',
@@ -657,10 +787,12 @@ const loadInquiries = async () => {
     const params = {
       page: currentPage.value,
       size: pageSize.value,
-      ...searchForm.value
+      search: searchForm.value.search,
+      start_date: searchForm.value.start_date,
+      end_date: searchForm.value.end_date
     };
 
-    const response = await request.get('/api/inquiries', params);
+    const response = await request.get('/api/inquiries', { params });
     inquiries.value = response.list || [];
     total.value = response.total || 0;
   } catch (error) {
@@ -779,7 +911,8 @@ const showAddCommunicationDialog = () => {
     id: null,
     subject: '',
     content: '',
-    communication_date: ''
+    communication_date: '',
+    company_name: inquiryForm.value.company_name // Auto-populate from parent inquiry
   };
   addCommunicationDialogVisible.value = true;
 };
@@ -792,7 +925,8 @@ const editCommunication = (comm: any) => {
     id: comm.id,
     subject: comm.subject,
     content: comm.content,
-    communication_date: comm.communication_date
+    communication_date: comm.communication_date,
+    company_name: comm.company_name // Use the company_name from the communication record
   };
   addCommunicationDialogVisible.value = true;
 };
@@ -836,7 +970,8 @@ const submitCommunication = async () => {
           id: null,
           subject: '',
           content: '',
-          communication_date: ''
+          communication_date: '',
+          company_name: ''
         };
         editingCommunicationId.value = null;
       } catch (error) {
@@ -893,11 +1028,27 @@ const showInquiryLogs = async () => {
 
   try {
     logLoading.value = true;
+    // 重置为第一页
+    logCurrentPage.value = 1;
     const response = await request.get('/api/inquiry-logs', {
-      page: 1,
-      size: 100
+      params: {
+        page: logCurrentPage.value,
+        size: logPageSize.value
+      }
     });
+    
+    // 分离统计数据和日志数据
+    if (response.statistics) {
+      statistics.value = {
+        total_inquiries: response.statistics.total_inquiries || 0,
+        total_communications: response.statistics.total_communications || 0,
+        new_inquiries: response.statistics.new_inquiries || 0,
+        new_communications: response.statistics.new_communications || 0
+      };
+    }
+    // 后端已按倒序返回数据，无需额外处理
     inquiryLogs.value = response.list || [];
+    logTotal.value = response.total || 0;
     logDialogVisible.value = true;
   } catch (error) {
     console.error('加载询盘日志失败:', error);
@@ -906,43 +1057,148 @@ const showInquiryLogs = async () => {
     logLoading.value = false;
   }
 };
+// 操作类型对应的中文
+const getOperationTypeText = (operationType: string) => {
+  const typeMap: Record<string, string> = {
+    'create': '创建询盘',
+    'update': '更新询盘',
+    'delete': '删除询盘',
+    'create_communication': '创建沟通记录',
+    'update_communication': '更新沟通记录',
+    'delete_communication': '删除沟通记录'
+  };
+  return typeMap[operationType] || operationType;
+};
+
+// 格式化操作详情
+const formatOperationDetails = (details: string) => {
+  try {
+    // 尝试解析 JSON 格式的详情
+    const parsedDetails = JSON.parse(details);
+    if (typeof parsedDetails === 'object') {
+      // 使用新的日志格式化工具
+      return formatInquiryLog(parsedDetails);
+    }
+  } catch (e) {
+    // 如果解析失败，返回原始详情
+  }
+  return details;
+};
+
+// 删除日志
+const deleteLog = async (logId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条日志记录吗？', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // 发送删除请求到后端
+    await request.delete(`/api/inquiry-logs/${logId}`);
+
+    // 从本地列表中移除该日志
+    inquiryLogs.value = inquiryLogs.value.filter(log => log.id !== logId);
+
+    ElMessage.success('日志删除成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除日志失败:', error);
+      ElMessage.error('删除日志失败');
+    }
+  }
+};
+
+// 处理日志分页大小变化
+const handleLogSizeChange = (size: number) => {
+  logPageSize.value = size;
+  loadInquiryLogsPage(logCurrentPage.value);
+};
+
+// 处理日志页码变化
+const handleLogCurrentChange = (page: number) => {
+  loadInquiryLogsPage(page);
+};
+
+// 加载指定页码的日志数据
+const loadInquiryLogsPage = async (page: number) => {
+  if (!isCurrentUserAdmin.value) {
+    ElMessage.error('您没有权限查看日志');
+    return;
+  }
+
+  try {
+    logLoading.value = true;
+    logCurrentPage.value = page;
+    
+    const response = await request.get('/api/inquiry-logs', {
+      params: {
+        page: page,
+        size: logPageSize.value
+      }
+    });
+    
+    // 分离统计数据和日志数据
+    if (response.statistics) {
+      statistics.value = {
+        total_inquiries: response.statistics.total_inquiries || 0,
+        total_communications: response.statistics.total_communications || 0,
+        new_inquiries: response.statistics.new_inquiries || 0,
+        new_communications: response.statistics.new_communications || 0
+      };
+    }
+    // 后端已按倒序返回数据，无需额外处理
+    inquiryLogs.value = response.list || [];
+    logTotal.value = response.total || 0;
+  } catch (error) {
+    console.error('加载询盘日志失败:', error);
+    ElMessage.error('加载询盘日志失败');
+  } finally {
+    logLoading.value = false;
+  }
+};
+
+// 恢复日志
+const restoreLog = async (logId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要恢复这条记录吗？此操作将还原被删除或修改的数据。', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // 发送恢复请求到后端
+    const response = await request.post(`/api/inquiry-logs/${logId}/restore`);
+    
+    ElMessage.success(response.msg || '数据恢复成功');
+    
+    // 重新加载日志
+    await loadInquiryLogsPage(logCurrentPage.value);
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('恢复日志失败:', error);
+      ElMessage.error('恢复日志失败');
+    }
+  }
+};
 
 // 关闭日志对话框
 const closeLogDialog = () => {
   logDialogVisible.value = false;
   inquiryLogs.value = [];
+  // 重置统计数据
+  statistics.value = {
+    total_inquiries: 0,
+    total_communications: 0,
+    new_inquiries: 0,
+    new_communications: 0
+  };
+  // 重置分页
+  logCurrentPage.value = 1;
+  logTotal.value = 0;
 };
 
-// 初始化
-onMounted(async () => {
-  try {
-    const token = localStorage.getItem('oa_token');
-    if (token) {
-      // 解码JWT token获取用户角色信息
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      isCurrentUserAdmin.value = payload.user_role === 'admin';
-    }
-  } catch (error) {
-    console.error('解析用户信息失败:', error);
-    isCurrentUserAdmin.value = false;
-  }
 
-  loadInquiries();
-
-  // 获取预设地区列表
-  try {
-    const response = await request.get('/api/inquiries', { page: 1, size: 1000 });
-    if (response && response.list) {
-      // 提取所有不重复的地区
-      const areas = [...new Set(response.list.map((item: any) => item.area).filter((area: any) => area))];
-      presetAreas.value = areas;
-    }
-  } catch (error) {
-    console.error('获取地区列表失败:', error);
-    // 出错时使用空数组
-    presetAreas.value = [];
-  }
-});
 </script>
 
 <style scoped>
@@ -1027,6 +1283,14 @@ onMounted(async () => {
   padding: 15px 50px;
 }
 
+.communication-company {
+  margin-left: 20px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: #606266;
+  font-weight: 500;
+}
+
 .communication-footer {
   margin-top: 10px;
   display: flex;
@@ -1062,5 +1326,141 @@ onMounted(async () => {
   color: #FFFFFF;
   padding: 4px;
   border-radius: 3px;
+}
+
+/* 日志样式 */
+.log-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.statistics-card {
+  margin-bottom: 15px;
+  background-color: #f8f9fa;
+}
+
+.statistics-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #606266;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #303133;
+  margin-top: 2px;
+}
+
+.log-item {
+  margin-bottom: 10px;
+}
+
+.log-card {
+  padding: 12px;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.log-operation-type {
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: #ecf5ff;
+  color: #409eff;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.operation-type-text {
+  font-weight: 500;
+}
+
+.log-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-time {
+  font-size: 12px;
+  color: #909399;
+}
+
+.delete-log-btn {
+  cursor: pointer;
+  color: #f56c6c;
+  transition: color 0.2s;
+}
+
+.delete-log-btn:hover {
+  color: #ff0000;
+}
+
+.log-pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.log-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.log-user {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.user-label {
+  color: #909399;
+}
+
+.user-value {
+  font-weight: 500;
+}
+
+.role-value {
+  color: #909399;
+  font-size: 12px;
+}
+
+.log-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.details-label {
+  color: #909399;
+  flex-shrink: 0;
+}
+
+.details-value {
+  color: #606266;
+  word-break: break-word;
+  flex: 1;
 }
 </style>

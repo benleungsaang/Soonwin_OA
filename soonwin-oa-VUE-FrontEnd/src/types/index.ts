@@ -159,6 +159,7 @@ export interface InquiryCommunication {
   subject: string;
   content?: string;
   communication_date?: string;
+  company_name?: string;
   creator_id: number;
   creator_name?: string;
   create_time?: string;
