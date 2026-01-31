@@ -1,6 +1,6 @@
 """Remove display_mode and add page_count to DisplayFile
 
-Revision ID: 004
+Revision ID: 004_remove_display_mode_add_page_count
 Revises: 003_add_display_file_table
 Create Date: 2026-01-22 11:00:00.000000
 
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers
-revision = '004'
-down_revision = '003'
+revision = '004_remove_display_mode_add_page_count'
+down_revision = '003_add_display_file_table'
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """remove unique constraints on MAC addresses
 
-Revision ID: 002
-Revises: 001
+Revision ID: 002_remove_unique_constraints
+Revises: 001_add_device_management
 Create Date: 2026-01-21 15:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers
-revision = '002'
-down_revision = '001'
+revision = '002_remove_unique_constraints'
+down_revision = '001_add_device_management'
 branch_labels = None
 depends_on = None
 

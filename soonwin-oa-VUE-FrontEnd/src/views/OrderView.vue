@@ -1,14 +1,25 @@
-<template>
+﻿<template>
   <div class="order-management-container">
     <CommonHeader title="订单管理" />
 
 
     <el-card shadow="hover" class="management-card">
-      <!-- 搜索筛选区域 -->
+      <!-- 内容搜索筛选区域 -->
       <el-form :model="searchForm" :inline="true" class="search-form">
-        <el-form-item label="订单搜索">
-          <el-input v-model="searchForm.customerName" placeholder="请输入订单内容..." clearable></el-input>
+          <el-form-item label="订单搜索">
+            <el-input v-model="searchForm.search" placeholder="请输入订单内容..." clearable @keyup.enter="fetchOrdersByContent"></el-input>
         </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="fetchOrdersByContent"><el-icon style="margin-right: 5px;"><Search /></el-icon>内容查询</el-button>
+          <el-button class="create-order-btn" @click="showAddDialog">
+            <el-icon style="color:white; margin-right: 5px;"><Plus /></el-icon>新增订单
+          </el-button>
+
+          <span v-if="hasSearched" class="search-result">搜索结果: {{ orders.length }} 条</span>
+          <el-button v-if="hasSearched" type="secondary" @click="resetSearch">重置表单</el-button>
+        </el-form-item>
+        <br></br>
+        <!-- 日期搜索筛选区域 -->
         <el-form-item label="订单时间">
           <el-date-picker
             v-model="searchForm.orderTimeRange"
@@ -20,10 +31,9 @@
           ></el-date-picker>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchOrders">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button type="success" @click="refreshData">刷新</el-button>
-          <el-button type="warning" @click="showAddDialog">新增订单</el-button>
+          <el-button type="primary" @click="fetchOrdersByDate"><el-icon style="margin-right: 5px;"><Search /></el-icon>日期查询</el-button>
+          <!-- <el-button @click="resetSearch">重置</el-button>
+          <el-button type="success" @click="refreshData">刷新</el-button> -->
         </el-form-item>
       </el-form>
 
@@ -36,6 +46,8 @@
         border
         :header-cell-style="{background: '#f5f7fa', color: '#606266', textAlign: 'center' }"
         :cell-style="{ textAlign: 'center' }"
+        @row-click="viewOrderById"
+      :row-style="{ cursor: 'pointer' }"
       >
         <!-- <el-table-column prop="id" label="ID" width="80" /> -->
         <!-- <el-table-column prop="order_no" label="订单编号" width="150" /> -->
@@ -49,27 +61,27 @@
             ¥{{ formatCurrency(scope.row.contract_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="machine_cost" label="机器成本" width="100">
+        <el-table-column prop="machine_cost" label="机器成本" width="100" v-if="isCurrentUserAdmin">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.machine_cost) }}
           </template>
         </el-table-column>
-        <el-table-column prop="gross_profit" label="毛利" width="100">
+        <el-table-column v-if="isCurrentUserAdmin" prop="gross_profit" label="毛利" width="100">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.gross_profit) }}
           </template>
         </el-table-column>
-        <el-table-column prop="proportionate_cost" label="运营摊分费用" width="120">
+        <el-table-column prop="proportionate_cost" label="运营摊分费用" width="120" v-if="isCurrentUserAdmin">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.proportionate_cost) }}
           </template>
         </el-table-column>
-        <el-table-column prop="individual_cost" label="个别费用" width="100">
+        <el-table-column prop="individual_cost" label="其它费用" width="100">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.individual_cost) }}
           </template>
         </el-table-column>
-        <el-table-column prop="net_profit" label="净利" width="100">
+        <el-table-column v-if="isCurrentUserAdmin" prop="net_profit" label="净利" width="100">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.net_profit) }}
           </template>
@@ -78,9 +90,9 @@
         <el-table-column prop="ship_time" label="出货时间" width="120" />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="showEditDialog(scope.row)">编辑</el-button>
-            <el-button size="small" @click="showIndividualExpensesDialog(scope.row)">添加费用</el-button>
-            <el-button size="small" type="danger" @click="deleteOrder(scope.row.id)">删除</el-button>
+            <el-button size="small" @click.stop="showEditDialog(scope.row)">编辑</el-button>
+            <el-button size="small" @click.stop="showIndividualExpensesDialog(scope.row)">添加费用</el-button>
+            <el-button size="small" type="danger" @click.stop="deleteOrder(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -99,8 +111,8 @@
     </el-card>
 
 
-    <!-- 费用汇总信息卡片 -->
-    <el-card shadow="hover" class="expense-summary-card" style="margin-bottom: 20px;">
+    <!-- 费用汇总信息卡片 - 仅管理员可见 -->
+    <el-card shadow="hover" class="expense-summary-card" style="margin-bottom: 20px;" v-if="isCurrentUserAdmin">
       <template #header>
         <div class="card-header">
           <span>年度费用汇总</span>
@@ -209,28 +221,53 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="新旧" prop="is_new">
-              <el-select v-model="orderForm.is_new" placeholder="请选择新旧">
-                <el-option label="新" :value="1"></el-option>
-                <el-option label="旧" :value="0"></el-option>
-              </el-select>
-            </el-form-item>
+                <el-select v-model="orderForm.is_new" :disabled="isViewMode" placeholder="请选择新旧">
+                  <el-option label="新" :value="1"></el-option>
+                  <el-option label="旧" :value="0"></el-option>
+                </el-select>
+              </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="地区" prop="area">
-              <el-input v-model="orderForm.area" placeholder="请输入地区"></el-input>
+              <el-select
+                v-model="orderForm.area"
+                  filterable
+                  allow-create
+                  default-first-option
+                  :disabled="isViewMode"
+                  placeholder="请选择地区"
+                  style="width: 100%">
+                <el-option label="印尼" value="印尼"></el-option>
+                <el-option label="俄罗斯" value="俄罗斯"></el-option>
+                <el-option label="迪拜" value="迪拜"></el-option>
+                <el-option label="泰国" value="泰国"></el-option>
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户名称" prop="customer_name">
-              <el-input v-model="orderForm.customer_name" placeholder="请输入客户名称"></el-input>
+              <el-input v-model="orderForm.customer_name" :disabled="isViewMode" placeholder="请输入客户名称"></el-input>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="客户类型" prop="customer_type">
-              <el-input v-model="orderForm.customer_type" placeholder="经销商，终端 ..."></el-input>
-            </el-form-item>
+            <el-col :span="12">
+              <el-form-item label="客户类型" prop="customer_type">
+                <el-select
+                  v-model="orderForm.customer_type"
+                  :disabled="isViewMode"
+                  filterable
+                  allow-create
+                  default-first-option
+                  :reserve-keyword="true"
+                  placeholder="经销商，终端 ..."
+                  style="width: 100%"
+                >
+                  <el-option label="经销商" value="经销商" />
+                  <el-option label="终端" value="终端" />
+                  <el-option label="代理商" value="代理商" />
+                </el-select>
+              </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
@@ -238,6 +275,7 @@
             <el-form-item label="下单时间" prop="order_time">
               <el-date-picker
                 v-model="orderForm.order_time"
+                :disabled="isViewMode"
                 type="date"
                 placeholder="选择下单时间"
                 value-format="YYYY-MM-DD"
@@ -249,6 +287,7 @@
             <el-form-item label="出货时间" prop="ship_time">
               <el-date-picker
                 v-model="orderForm.ship_time"
+                :disabled="isViewMode"
                 type="date"
                 placeholder="选择出货时间"
                 value-format="YYYY-MM-DD"
@@ -260,7 +299,17 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发运国家" prop="ship_country">
-              <el-input v-model="orderForm.ship_country" placeholder="请输入发运国家"></el-input>
+              <el-select
+              v-model="orderForm.ship_country"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="请选择发运国家" style="width: 100%">
+                <el-option label="印尼" value="印尼"></el-option>
+                <el-option label="俄罗斯" value="俄罗斯"></el-option>
+                <el-option label="迪拜" value="迪拜"></el-option>
+                <el-option label="泰国" value="泰国"></el-option>
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -289,7 +338,23 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="机型" prop="machine_model">
-              <el-input v-model="orderForm.machine_model" placeholder="请输入机型"></el-input>
+              <el-select
+                v-model="orderForm.machine_model"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                :reserve-keyword="false"
+                placeholder="请选择机型"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in machineOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -310,6 +375,7 @@
             <el-form-item label="合同金额" prop="contract_amount">
               <el-input-number
               v-model="orderForm.contract_amount"
+              :disabled="isViewMode"
               :precision="2"
               :min="0"
               style="width: 100%"
@@ -391,10 +457,11 @@
             ></el-input-number>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="12" v-if="isCurrentUserAdmin">
             <el-form-item label="机器成本" prop="machine_cost">
               <el-input-number
               v-model="orderForm.machine_cost"
+              :disabled="isViewMode"
               :precision="2"
               :min="0"
               style="width: 100%"
@@ -405,7 +472,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <!-- <el-row :gutter="20">
+        <!-- <el-row :gutter="20" v-if="isCurrentUserAdmin">
           <el-col :span="12">
             <el-form-item label="佣金" prop="commission">
               <el-input-number
@@ -421,37 +488,46 @@
           </el-col>
         </el-row> -->
         <el-row :gutter="20">
-          <el-col :span="12">
+          <el-col :span="12" v-if="isCurrentUserAdmin">
             <el-form-item label="摊分费用" prop="proportionate_cost">
               <el-input-number
               v-model="orderForm.proportionate_cost"
+              :disabled="isViewMode || true"
               :precision="2"
               style="width: 100%"
               :format="formatNumber"
               :parser="parseNumber"
               @change="calculateProfits"
-              disabled
             ></el-input-number>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="独立费用" prop="individual_cost">
+            <el-form-item label="其它费用" prop="individual_cost">
               <el-input-number
               v-model="orderForm.individual_cost"
+              :disabled="isViewMode || true"
               :precision="2"
               style="width: 100%"
               :format="formatNumber"
               :parser="parseNumber"
               @change="calculateProfits"
-              disabled
             ></el-input-number>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12" v-if="isEdit && orderForm.id">
+            <el-form-item label="" prop="individual_cost">
+              <el-button size="small" @click.stop="showIndividualExpensesDialog(orderForm)">添加其它费用</el-button>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="付款方式" prop="pay_type">
-              <el-select v-model="orderForm.pay_type" placeholder="请选择付款方式" style="width: 100%">
+              <el-select
+                  filterable
+                  allow-create
+                  default-first-option
+              v-model="orderForm.pay_type" :disabled="isViewMode" placeholder="请选择付款方式" style="width: 100%">
                 <el-option label="T/T" value="T/T"></el-option>
                 <el-option label="L/C" value="L/C"></el-option>
               </el-select>
@@ -483,35 +559,59 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="下单部门" prop="order_dept">
-              <el-input v-model="orderForm.order_dept" placeholder="请输入下单部门"></el-input>
+              <el-select
+                v-model="orderForm.order_dept"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                :reserve-keyword="false"
+                placeholder="请选择下单部门"
+                style="width: 100%"
+              >
+                <el-option label="立式机事业部" value="立式机事业部"></el-option>
+                <el-option label="枕式机事业部" value="枕式机事业部"></el-option>
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
 
       <!-- 毛利和净利显示区域 -->
-      <div style="background-color: #f5f7fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+      <div v-if="isCurrentUserAdmin" style="background-color: #f5f7fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
 
           <div>
             <span style="font-weight: bold;">毛利：</span>
             <span :class="orderForm.gross_profit >= 0 ? 'positive' : 'negative'">¥{{ formatCurrency(orderForm.gross_profit) }}</span>
           </div>
         <div style="margin-top: 10px; font-size: 14px; color: #606266;">
-          <p>合同金额（{{ formatCurrency(orderForm.contract_amount || 0) }}） - 机器成本（{{ formatCurrency(orderForm.machine_cost || 0) }}）</p>
+          <p v-if="isCurrentUserAdmin">合同金额（{{ formatCurrency(orderForm.contract_amount || 0) }}） - 机器成本（{{ formatCurrency(orderForm.machine_cost || 0) }}）</p>
+          <p v-else>合同金额 - 成本</p>
         </div>
           <div>
             <span style="font-weight: bold;">净利：</span>
             <span :class="orderForm.net_profit >= 0 ? 'positive' : 'negative'">¥{{ formatCurrency(orderForm.net_profit) }}</span>
           </div>
         <div style="margin-top: 10px; font-size: 14px; color: #606266;">
-          <p>毛利（{{ formatCurrency(orderForm.gross_profit || 0) }}） - 摊分费用（{{ formatCurrency(orderForm.proportionate_cost || 0) }}） - 独立费用({{ formatCurrency(orderForm.individual_cost || 0) }}) - 佣金（{{ formatCurrency(orderForm.commission || 0) }}）</p>
+          <p v-if="isCurrentUserAdmin">毛利（{{ formatCurrency(orderForm.gross_profit || 0) }}） - 摊分费用（{{ formatCurrency(orderForm.proportionate_cost || 0) }}） - 独立费用({{ formatCurrency(orderForm.individual_cost || 0) }}) - 佣金（{{ formatCurrency(orderForm.commission || 0) }}）</p>
+          <p v-else>毛利 - 费用</p>
         </div>
       </div>
 
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleDialogClose">取消</el-button>
-          <el-button type="primary" @click="saveOrder" :loading="submitting">确定</el-button>
+          <el-button
+            v-if="!isViewMode"
+            type="primary"
+            @click="saveOrder"
+            :loading="submitting"
+          >确定</el-button>
+          <el-button
+            v-if="isViewMode"
+            type="primary"
+            @click="handleDialogClose"
+          >关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -545,7 +645,7 @@
     >
       <div class="individual-expenses-header" style="display: flex; align-items: center;">
         <h4>订单信息： - {{ currentOrder.customer_name }} - (合同金额: ¥{{ formatCurrency(currentOrder.contract_amount) }})</h4>
-        <el-button style="margin-left: 15px;" type="primary" @click="showAddIndividualExpenseDialog">添加费用</el-button>
+        <el-button style="margin-left: 15px;" type="primary" @click.stop="showAddIndividualExpenseDialog">添加费用</el-button>
       </div>
 
       <el-table
@@ -570,8 +670,8 @@
         <el-table-column prop="create_time" label="创建时间" width="160" />
         <el-table-column label="操作" width="150">
           <template #default="scope">
-            <el-button size="small" @click="showEditIndividualExpenseDialog(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteIndividualExpense(scope.row.id)">删除</el-button>
+            <el-button size="small" @click.stop="showEditIndividualExpenseDialog(scope.row)">编辑</el-button>
+            <el-button size="small" type="danger" @click.stop="deleteIndividualExpense(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -629,12 +729,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import request from '@/utils/request';
-import { Pointer } from '@element-plus/icons-vue';
+import { Search, Plus } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
+
+// 检查当前用户是否为管理员
+const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
 
 // 导入ECharts
 
@@ -662,6 +766,7 @@ const pagination = ref({
 
 // 搜索表单
 const searchForm = ref({
+  search: '', // 内容搜索字段
   customerName: '',
   orderNo: '',
   machineName: '',
@@ -673,10 +778,14 @@ const searchForm = ref({
 const orders = ref<any[]>([]);
 const loading = ref(false);
 
+// 搜索状态
+const hasSearched = ref(false);
+
 // 对话框相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
 const isEdit = ref(false);
+const isViewMode = ref(false); // 是否为查看模式
 const orderFormRef = ref<FormInstance | null>(null);
 const submitting = ref(false);
 
@@ -731,7 +840,7 @@ const orderForm = ref({
   order_no: '',  // X标记表示非必填，所以默认为空
   machine_no: '',
   machine_name: '包装机',  // 默认值"包装机"
-  machine_model: '',
+  machine_model: [] as string[],  // 修改为数组类型以支持多选
   machine_count: 1,  // 默认值1
   unit: 'set',  // 默认值"set"
   contract_amount: 0,
@@ -750,7 +859,7 @@ const orderForm = ref({
   individual_cost: 0,  // 个别费用
   latest_ship_date: '',
   expected_delivery: '',
-  order_dept: '',
+  order_dept: [] as string[],  // 修改为数组类型以支持多选
   check_requirement: '',
   attachment_imgs: '',
   attachment_videos: ''
@@ -774,7 +883,17 @@ const orderRules = ref<FormRules>({
     { required: true, message: '请输入名称', trigger: 'blur' }
   ],
   machine_model: [
-    { required: true, message: '请输入机型', trigger: 'blur' }
+    {
+      required: true,
+      validator: (rule: any, value: any, callback: any) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+          callback(new Error('请选择机型'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change'
+    }
   ],
   machine_count: [
     { required: true, message: '请输入主机数量', trigger: 'blur' },
@@ -789,6 +908,84 @@ const orderRules = ref<FormRules>({
   ]
 });
 
+// 机器选项
+const machineOptions = ref<{ value: string; label: string }[]>([]);
+// 标记是否已经尝试加载过机器选项
+const hasLoadedMachineOptions = ref(false);
+
+// 从本地缓存获取机器选项
+const getMachineOptionsFromCache = (): { value: string; label: string }[] => {
+  try {
+    const cachedData = localStorage.getItem('machineOptions');
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  } catch (error) {
+    console.error('读取本地机器选项缓存失败:', error);
+  }
+  return [];
+};
+
+// 将机器选项保存到本地缓存
+const saveMachineOptionsToCache = (options: { value: string; label: string }[]) => {
+  try {
+    localStorage.setItem('machineOptions', JSON.stringify(options));
+  } catch (error) {
+    console.error('保存机器选项到本地缓存失败:', error);
+  }
+};
+
+// 获取机器选项
+const fetchMachineOptions = async () => {
+  try {
+    // 首先尝试从本地缓存获取数据
+    const cachedOptions = getMachineOptionsFromCache();
+    if (cachedOptions.length > 0) {
+      // 如果有缓存数据，先使用缓存数据
+      machineOptions.value = cachedOptions;
+    }
+
+    // 然后发起API请求获取最新数据
+    const response: any = await request.get('/api/videos/machines');
+
+    // 由于request.ts会自动解包data，所以response直接就是数组
+    if (Array.isArray(response)) {
+      const newMachineOptions = response.map((machine: any) => {
+        if (typeof machine === 'object' && machine !== null) {
+          // 使用model字段作为value和label
+          const value = machine.model || machine.original_model || '';
+          return { value, label: value };
+        } else {
+          // 如果不是对象，返回空选项
+          return { value: '', label: '' };
+        }
+      }).filter(item => item.value !== ''); // 过滤掉空值
+
+      // 更新本地缓存和当前值
+      machineOptions.value = newMachineOptions;
+      saveMachineOptionsToCache(newMachineOptions);
+    } else {
+      console.warn('API返回的机器数据不是数组格式:', response);
+      // 如果API返回的数据格式不正确，但有缓存数据，则使用缓存数据
+      if (cachedOptions.length > 0) {
+        machineOptions.value = cachedOptions;
+      } else {
+        machineOptions.value = [];
+      }
+    }
+  } catch (error) {
+    console.error('获取机器选项失败:', error);
+    // 获取失败时，尝试使用缓存数据
+    const cachedOptions = getMachineOptionsFromCache();
+    if (cachedOptions.length > 0) {
+      machineOptions.value = cachedOptions;
+      ElMessage.warning('获取最新机器选项失败，已使用缓存数据');
+    } else {
+      ElMessage.error('获取机器选项失败');
+      machineOptions.value = [];
+    }
+  }
+};
 // 获取订单列表
 const fetchOrders = async () => {
   loading.value = true;
@@ -805,7 +1002,13 @@ const fetchOrders = async () => {
     };
 
     const response = await request.get('/api/orders', { params });
-    orders.value = response.list || [];
+    // 处理返回的订单数据，将多选字段的字符串转换回数组
+    const processedOrders = (response.list || []).map((order: any) => ({
+      ...order,
+      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
+      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
+    }));
+    orders.value = processedOrders;
     pagination.value.total = response.total || 0;
     pagination.value.page = response.page || 1;
     pagination.value.size = response.size || 10;
@@ -817,9 +1020,82 @@ const fetchOrders = async () => {
   }
 };
 
+// 按内容搜索订单（使用search_field）
+const fetchOrdersByContent = async () => {
+  loading.value = true;
+  try {
+    const params = {
+      page: pagination.value.page,
+      size: pagination.value.size,
+      search: searchForm.value.search || undefined, // 使用新的search参数
+      customer_name: undefined, // 清除其他筛选条件，避免混用
+      order_no: undefined,
+      machine_name: undefined,
+      area: undefined,
+      start_date: undefined,
+      end_date: undefined
+    };
+
+    const response = await request.get('/api/orders', { params });
+    // 处理返回的订单数据，将多选字段的字符串转换回数组
+    const processedOrders = (response.list || []).map((order: any) => ({
+      ...order,
+      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
+      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
+    }));
+    orders.value = processedOrders;
+    pagination.value.total = response.total || 0;
+    pagination.value.page = response.page || 1;
+    pagination.value.size = response.size || 10;
+    hasSearched.value = true; // 设置已搜索状态
+  } catch (error) {
+    console.error('Error fetching orders by content:', error);
+    ElMessage.error('按内容搜索订单失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 按日期筛选订单
+const fetchOrdersByDate = async () => {
+  loading.value = true;
+  try {
+    const params = {
+      page: pagination.value.page,
+      size: pagination.value.size,
+      start_date: searchForm.value.orderTimeRange?.[0] || undefined,
+      end_date: searchForm.value.orderTimeRange?.[1] || undefined,
+      search: undefined, // 清除内容搜索条件，避免混用
+      customer_name: undefined,
+      order_no: undefined,
+      machine_name: undefined,
+      area: undefined
+    };
+
+    const response = await request.get('/api/orders', { params });
+    // 处理返回的订单数据，将多选字段的字符串转换回数组
+    const processedOrders = (response.list || []).map((order: any) => ({
+      ...order,
+      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
+      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
+    }));
+    orders.value = processedOrders;
+    pagination.value.total = response.total || 0;
+    pagination.value.page = response.page || 1;
+    pagination.value.size = response.size || 10;
+    hasSearched.value = true; // 设置已搜索状态
+  } catch (error) {
+    console.error('Error fetching orders by date:', error);
+    ElMessage.error('按日期筛选订单失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 重置搜索
 const resetSearch = () => {
   searchForm.value = {
+    search: '',
     customerName: '',
     orderNo: '',
     machineName: '',
@@ -827,6 +1103,7 @@ const resetSearch = () => {
     orderTimeRange: [],
   };
   pagination.value.page = 1;
+  hasSearched.value = false; // 重置搜索状态
   fetchOrders();
 };
 
@@ -849,17 +1126,27 @@ const handleCurrentChange = (newPage: number) => {
 };
 
 // 显示新增对话框
-const showAddDialog = () => {
+const showAddDialog = async () => {
   dialogTitle.value = '新增订单';
   isEdit.value = false;
+  isViewMode.value = false; // 新增模式不是查看模式
   resetForm();
+
+  // 确保机器选项数据已加载
+  if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
+    // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
+    await fetchMachineOptions();
+    hasLoadedMachineOptions.value = true;
+  }
+
   dialogVisible.value = true;
 };
 
 // 显示编辑对话框
-const showEditDialog = (order: any) => {
+const showEditDialog = async (order: any) => {
   dialogTitle.value = '编辑订单';
   isEdit.value = true;
+  isViewMode.value = false; // 确保编辑模式不是查看模式
   // 深拷贝订单数据到表单，确保所有字段都被正确复制
   orderForm.value = {
     id: order.id || 0,
@@ -874,7 +1161,7 @@ const showEditDialog = (order: any) => {
     order_no: order.order_no || '',
     machine_no: order.machine_no || '',
     machine_name: order.machine_name || '包装机',
-    machine_model: order.machine_model || '',
+    machine_model: Array.isArray(order.machine_model) ? order.machine_model : order.machine_model ? [order.machine_model] : [],
     machine_count: order.machine_count || 1,
     unit: order.unit || 'set',
     contract_amount: order.contract_amount || 0,
@@ -893,7 +1180,7 @@ const showEditDialog = (order: any) => {
     individual_cost: order.individual_cost || 0,
     latest_ship_date: order.latest_ship_date || '',
     expected_delivery: order.expected_delivery || '',
-    order_dept: order.order_dept || '',
+    order_dept: Array.isArray(order.order_dept) ? order.order_dept : order.order_dept ? [order.order_dept] : [],
     check_requirement: order.check_requirement || '',
     attachment_imgs: order.attachment_imgs || '',
     attachment_videos: order.attachment_videos || ''
@@ -902,6 +1189,14 @@ const showEditDialog = (order: any) => {
   setTimeout(() => {
     calculateProfits();
   }, 100); // 延迟执行以确保数据已更新
+
+  // 确保机器选项数据已加载
+  if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
+    // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
+    await fetchMachineOptions();
+    hasLoadedMachineOptions.value = true;
+  }
+
   dialogVisible.value = true;
 };
 
@@ -920,7 +1215,7 @@ const resetForm = () => {
     order_no: '',  // X标记表示非必填，所以默认为空
     machine_no: '',
     machine_name: '包装机',  // 默认值"包装机"
-    machine_model: '',
+    machine_model: [],  // 修改为数组类型以支持多选
     machine_count: 1,  // 默认值1
     unit: 'set',  // 默认值"set"
     contract_amount: 0,
@@ -939,7 +1234,7 @@ const resetForm = () => {
     individual_cost: 0,  // 个别费用
     latest_ship_date: '',
     expected_delivery: '',
-    order_dept: '',
+    order_dept: [],  // 修改为数组类型以支持多选
     check_requirement: '',
     attachment_imgs: '',
     attachment_videos: ''
@@ -958,6 +1253,14 @@ const saveOrder = async () => {
 
     // 在发送到后端前计算毛利和净利
     const updatedOrderForm = { ...orderForm.value };
+
+    // 处理多选字段，将数组转换为逗号分隔的字符串
+    if (Array.isArray(updatedOrderForm.machine_model)) {
+      updatedOrderForm.machine_model = updatedOrderForm.machine_model.join(',');
+    }
+    if (Array.isArray(updatedOrderForm.order_dept)) {
+      updatedOrderForm.order_dept = updatedOrderForm.order_dept.join(',');
+    }
 
     // 毛利 = 合同金额 - 机器成本
     updatedOrderForm.gross_profit = (updatedOrderForm.contract_amount || 0) - (updatedOrderForm.machine_cost || 0);
@@ -1051,6 +1354,33 @@ const checkContractNoDuplicate = async () => {
   }
 };;
 
+// 查看订单详情
+const viewOrder = async (id: number) => {
+  try {
+    const response = await request.get(`/api/orders/${id}`);
+    // 处理返回的订单数据，将多选字段的字符串转换回数组
+    const processedOrder = {
+      ...response,
+      machine_model: typeof response.machine_model === 'string' ? response.machine_model.split(',').filter((item: string) => item) : response.machine_model || [],
+      order_dept: typeof response.order_dept === 'string' ? response.order_dept.split(',').filter((item: string) => item) : response.order_dept || []
+    };
+    // 用获取到的数据填充表单，但保持为只读模式或切换到只读模式
+    orderForm.value = processedOrder;
+    dialogTitle.value = '查看订单详情';
+    isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
+    isViewMode.value = true; // 设置为查看模式
+    dialogVisible.value = true;
+  } catch (error) {
+    console.error('加载订单详情失败:', error);
+    ElMessage.error('加载订单详情失败');
+  }
+};
+
+// 通过行点击查看详情
+const viewOrderById = (row: any) => {
+  viewOrder(row.id);
+};
+
 // 格式化货币显示
 const formatCurrency = (value: number) => {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -1093,9 +1423,12 @@ const calculateProfits = () => {
 };
 
 // 组件挂载时获取数据
-onMounted(() => {
+onMounted(async () => {
+  // 在组件挂载时获取数据
+  await fetchMachineOptions(); // 获取并缓存机器选项
+  hasLoadedMachineOptions.value = true; // 标记已经加载过机器选项
   fetchOrders();
-  fetchExpenseSummary(); // 获取费用汇总信息
+  if(!isCurrentUserAdmin){fetchExpenseSummary()}; // 获取费用汇总信息
 });
 
 // 获取费用汇总信息
@@ -1127,7 +1460,7 @@ const generatePieChart = async () => {
 
   // 动态导入ECharts
   const echarts = await import('echarts');
-  
+
   // 如果已有实例，先销毁
   if (chartInstance) {
     chartInstance.dispose();
@@ -1531,5 +1864,18 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.search-result{
+  font-size: 14px;
+  color: #606266;
+  margin-left: 30px;
+  margin-right:15px;
+}
+
+.create-order-btn {
+  background-color: green;
+  color: white;
+  margin-left: 30px;
 }
 </style>

@@ -1,6 +1,6 @@
 """add video compression fields
 
-Revision ID: 012
+Revision ID: 012_add_video_compression_fields
 Revises: 011_update_file_paths
 Create Date: 2026-01-30 14:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import sqlite
 
 # revision identifiers
-revision = '012'
+revision = '012_add_video_compression_fields'
 down_revision = '011_update_file_paths'
 branch_labels = None
 depends_on = None

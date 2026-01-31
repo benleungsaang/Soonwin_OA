@@ -1,6 +1,6 @@
 """add device management tables and improve existing tables
 
-Revision ID: 001
+Revision ID: 001_add_device_management
 Revises: 
 Create Date: 2026-01-20 10:00:00.000000
 
@@ -11,7 +11,7 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '001'
+revision = '001_add_device_management'
 down_revision = None
 branch_labels = None
 depends_on = None

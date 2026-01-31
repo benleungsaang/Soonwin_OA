@@ -38,8 +38,53 @@ class Order(db.Model):
     check_requirement = db.Column(db.Text, comment="验收要求")
     attachment_imgs = db.Column(db.String(500), comment="验收图片路径（多图逗号分隔）")
     attachment_videos = db.Column(db.String(500), comment="验收视频路径（多视频逗号分隔）")
+    search_field = db.Column(db.Text, comment="搜索字段，由多个字段内容组合而成")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    def generate_search_field(self):
+        """生成搜索字段，包含所有需要搜索的字段内容"""
+        parts = []
+        if self.area:
+            parts.append(str(self.area))
+        if self.customer_name:
+            parts.append(str(self.customer_name))
+        if self.customer_type:
+            parts.append(str(self.customer_type))
+        if self.order_time:
+            parts.append(self.order_time.strftime('%Y-%m-%d'))
+        if self.ship_country:
+            parts.append(str(self.ship_country))
+        if self.contract_no:
+            parts.append(str(self.contract_no))
+        if self.order_no:
+            parts.append(str(self.order_no))
+        if self.machine_no:
+            parts.append(str(self.machine_no))
+        if self.machine_name:
+            parts.append(str(self.machine_name))
+        if self.machine_model:
+            parts.append(str(self.machine_model))
+        if self.contract_amount:
+            parts.append(str(float(self.contract_amount)))
+        if self.deposit:
+            parts.append(str(float(self.deposit)))
+        if self.balance:
+            parts.append(str(float(self.balance)))
+        if self.tax_refund_amount:
+            parts.append(str(float(self.tax_refund_amount)))
+        if self.currency_amount:
+            parts.append(str(float(self.currency_amount)))
+        if self.payment_received:
+            parts.append(str(float(self.payment_received)))
+        if self.machine_cost:
+            parts.append(str(float(self.machine_cost)))
+        if self.pay_type:
+            parts.append(str(self.pay_type))
+        if self.order_dept:
+            parts.append(str(self.order_dept))
+        
+        return ' '.join(parts)
 
     # 定义序列化方法，便于接口返回JSON数据
     def to_dict(self):
@@ -80,5 +125,6 @@ class Order(db.Model):
             "attachment_imgs": self.attachment_imgs,
             "attachment_videos": self.attachment_videos,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
-            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None
+            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
+            "search_field": self.search_field
         }

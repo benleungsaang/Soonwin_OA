@@ -1,6 +1,6 @@
 """update file paths to use Media directory
 
-Revision ID: 011
+Revision ID: 011_update_file_paths
 Revises: 010_add_video_table
 Create Date: 2026-01-30 15:00:00.000000
 
@@ -11,7 +11,7 @@ from sqlalchemy.sql import table, column
 from sqlalchemy import String
 
 # revision identifiers
-revision = '011'
+revision = '011_update_file_paths'
 down_revision = '010_add_video_table'
 branch_labels = None
 depends_on = None

@@ -1,7 +1,7 @@
 """Remove status time defaults
 
-Revision ID: 006
-Revises: 005
+Revision ID: 006_remove_status_time_defaults
+Revises: 005_add_order_status_fields_and_log_table
 Create Date: 2026-01-22 16:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from datetime import datetime
 
 # revision identifiers
-revision = '006'
-down_revision = '005'
+revision = '006_remove_status_time_defaults'
+down_revision = '005_add_order_status_fields_and_log_table'
 branch_labels = None
 depends_on = None
 

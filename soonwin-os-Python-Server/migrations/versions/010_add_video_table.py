@@ -1,6 +1,6 @@
 """add video table
 
-Revision ID: 010
+Revision ID: 010_add_video_table
 Revises: 009_add_photo_table_and_soft_delete_machines
 Create Date: 2026-01-30 12:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from datetime import datetime
 
 # revision identifiers
-revision = '010'
+revision = '010_add_video_table'
 down_revision = '009_add_photo_table_and_soft_delete_machines'
 branch_labels = None
 depends_on = None

@@ -1,7 +1,7 @@
 """add display file table
 
-Revision ID: 003
-Revises: 002
+Revision ID: 003_add_display_file_table
+Revises: 002_remove_unique_constraints
 Create Date: 2026-01-21 16:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import uuid
 
 
 # revision identifiers
-revision = '003'
-down_revision = '002'
+revision = '003_add_display_file_table'
+down_revision = '002_remove_unique_constraints'
 branch_labels = None
 depends_on = None
 

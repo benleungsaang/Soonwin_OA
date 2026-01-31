@@ -1,7 +1,7 @@
 """add search_field to inquiry
 
 Revision ID: 013_add_search_field_to_inquiry
-Revises: 012
+Revises: 012_add_video_compression_fields
 Create Date: 2026-01-30 15:30:00.000000
 
 """
@@ -11,7 +11,7 @@ from datetime import datetime
 
 # revision identifiers
 revision = '013_add_search_field_to_inquiry'
-down_revision = '012'
+down_revision = '012_add_video_compression_fields'
 branch_labels = None
 depends_on = None
 

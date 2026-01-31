@@ -1,17 +1,17 @@
-<template>
+﻿<template>
   <div class="part-management">
     <div class="header-actions">
-      <el-button type="primary" @click="showAddPartDialog">添加部件</el-button>
+      <el-button type="primary" @click="showAddPartDialog">娣诲姞閮ㄤ欢</el-button>
       <JsonImportExport
         :import-function="importPartsData"
         :export-function="exportPartsData"
         export-file-name="parts.json"
-        import-success-message="部件数据导入成功"
-        export-success-message="部件数据导出成功"
+        import-success-message="閮ㄤ欢鏁版嵁瀵煎叆鎴愬姛"
+        export-success-message="閮ㄤ欢鏁版嵁瀵煎嚭鎴愬姛"
       />
     </div>
 
-    <!-- 部件列表 -->
+    <!-- 閮ㄤ欢鍒楄〃 -->
     <el-table
       :data="parts"
       style="width: 100%; margin-top: 20px;"
@@ -20,25 +20,25 @@
       :row-style="{ cursor: 'pointer' }"
       @row-click="handleRowClick"
     >
-      <el-table-column prop="image" label="部件缩略图" width="120">
+      <el-table-column prop="image" label="閮ㄤ欢缂╃暐鍥? width="120">
         <template #default="scope">
           <div class="image-placeholder">
             <el-icon><Picture /></el-icon>
-            <span>缩略图</span>
+            <span>缂╃暐鍥?/span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="part_model" label="部件型号" width="150" />
-      <el-table-column prop="show_price" label="价格" width="120" />
-      <el-table-column label="操作" width="200">
+      <el-table-column prop="part_model" label="閮ㄤ欢鍨嬪彿" width="150" />
+      <el-table-column prop="show_price" label="浠锋牸" width="120" />
+      <el-table-column label="鎿嶄綔" width="200">
         <template #default="scope">
-          <el-button size="small" @click="showEditPartDialog(scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="deletePart(scope.row.part_type_id)">删除</el-button>
+          <el-button size="small" @click="showEditPartDialog(scope.row)">缂栬緫</el-button>
+          <el-button size="small" type="danger" @click="deletePart(scope.row.part_type_id)">鍒犻櫎</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <!-- 分页 -->
+    <!-- 鍒嗛〉 -->
     <el-pagination
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
@@ -51,9 +51,9 @@
       style="margin-top: 20px; justify-content: center; display: flex;"
     />
 
-    <!-- 添加/编辑部件对话框 -->
+    <!-- 娣诲姞/缂栬緫閮ㄤ欢瀵硅瘽妗?-->
     <el-dialog
-      :title="editingPart ? '编辑部件' : '添加部件'"
+      :title="editingPart ? '缂栬緫閮ㄤ欢' : '娣诲姞閮ㄤ欢'"
       v-model="showPartDialog"
       width="50%"
       :before-close="closePartDialog"
@@ -66,16 +66,16 @@
       >
         <el-row :gutter="20">
           <el-col :span="24">
-            <el-form-item label="部件型号" prop="part_model">
+            <el-form-item label="閮ㄤ欢鍨嬪彿" prop="part_model">
               <el-input
                 v-model="partForm.part_model"
                 :disabled="!!editingPart"
-                placeholder="请输入部件型号（如MOTOR-001、SEAL-006）"
+                placeholder="璇疯緭鍏ラ儴浠跺瀷鍙凤紙濡侻OTOR-001銆丼EAL-006锛?
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="成本价格" prop="original_price">
+            <el-form-item label="鎴愭湰浠锋牸" prop="original_price">
               <el-input-number
                 v-model="partForm.original_price"
                 :precision="2"
@@ -87,7 +87,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="价格" prop="show_price">
+            <el-form-item label="浠锋牸" prop="show_price">
               <el-input-number
                 v-model="partForm.show_price"
                 :precision="2"
@@ -99,16 +99,16 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="缩略图路径" prop="image">
-              <el-input v-model="partForm.image" placeholder="请输入缩略图路径" />
+            <el-form-item label="缂╃暐鍥捐矾寰? prop="image">
+              <el-input v-model="partForm.image" placeholder="璇疯緭鍏ョ缉鐣ュ浘璺緞" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="closePartDialog">取消</el-button>
-          <el-button type="primary" @click="savePart">确定</el-button>
+          <el-button @click="closePartDialog">鍙栨秷</el-button>
+          <el-button type="primary" @click="savePart">纭畾</el-button>
         </span>
       </template>
     </el-dialog>
@@ -122,15 +122,13 @@ import { Picture } from '@element-plus/icons-vue'
 import { getParts, createPart, updatePart, deletePart as deletePartAPI, importPartsJson, exportPartsJson } from '@/utils/request'
 import JsonImportExport from '@/components/JsonImportExport.vue'
 
-// 响应式数据
-const parts = ref<any[]>([])
+// 鍝嶅簲寮忔暟鎹?const parts = ref<any[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
-// 对话框相关
-const showPartDialog = ref(false)
+// 瀵硅瘽妗嗙浉鍏?const showPartDialog = ref(false)
 const editingPart = ref<any>(null)
 const partFormRef = ref()
 const partForm = reactive({
@@ -140,30 +138,27 @@ const partForm = reactive({
   image: ''
 })
 
-// 表单验证规则
+// 琛ㄥ崟楠岃瘉瑙勫垯
 const partRules = {
   part_model: [
-    { required: true, message: '请输入部件型号', trigger: 'blur' },
-    { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' }
+    { required: true, message: '璇疯緭鍏ラ儴浠跺瀷鍙?, trigger: 'blur' },
+    { min: 1, max: 100, message: '闀垮害鍦?1 鍒?100 涓瓧绗?, trigger: 'blur' }
   ]
 }
 
 const props = defineProps({
-  // 是否为管理员
+  // 鏄惁涓虹鐞嗗憳
   isCurrentUserAdmin: {
     type: Boolean,
-    required: true, // 必填，确保父组件传递
-    default: false  // 默认值（防止未传递时出错）
-  },
-  // 是否登录（有token）
-  hasToken: {
+    required: true, // 蹇呭～锛岀‘淇濈埗缁勪欢浼犻€?    default: false  // 榛樿鍊硷紙闃叉鏈紶閫掓椂鍑洪敊锛?  },
+  // 鏄惁鐧诲綍锛堟湁token锛?  hasToken: {
     type: Boolean,
     required: true,
     default: false
   }
 });
 
-// 获取部件列表
+// 鑾峰彇閮ㄤ欢鍒楄〃
 const fetchParts = async () => {
   loading.value = true
   try {
@@ -171,19 +166,19 @@ const fetchParts = async () => {
       page: currentPage.value,
       per_page: pageSize.value
     })
-    // 添加安全检查，确保response存在且为对象
+    // 娣诲姞瀹夊叏妫€鏌ワ紝纭繚response瀛樺湪涓斾负瀵硅薄
     if (response && typeof response === 'object') {
       parts.value = response.parts || []
       total.value = response.total || 0
     } else {
-      console.error('API响应格式错误:', response)
-      ElMessage.error('API响应格式错误')
+      console.error('API鍝嶅簲鏍煎紡閿欒:', response)
+      ElMessage.error('API鍝嶅簲鏍煎紡閿欒')
       parts.value = []
       total.value = 0
     }
   } catch (error) {
-    console.error('获取部件列表失败:', error)
-    ElMessage.error('获取部件列表失败')
+    console.error('鑾峰彇閮ㄤ欢鍒楄〃澶辫触:', error)
+    ElMessage.error('鑾峰彇閮ㄤ欢鍒楄〃澶辫触')
     parts.value = []
     total.value = 0
   } finally {
@@ -191,8 +186,7 @@ const fetchParts = async () => {
   }
 }
 
-// 显示添加部件对话框
-const showAddPartDialog = () => {
+// 鏄剧ず娣诲姞閮ㄤ欢瀵硅瘽妗?const showAddPartDialog = () => {
   editingPart.value = null
   Object.keys(partForm).forEach(key => {
     (partForm as any)[key] = key === 'original_price' || key === 'show_price' ? null : ''
@@ -200,12 +194,11 @@ const showAddPartDialog = () => {
   showPartDialog.value = true
 }
 
-// 显示编辑部件对话框
-const showEditPartDialog = (part: any) => {
+// 鏄剧ず缂栬緫閮ㄤ欢瀵硅瘽妗?const showEditPartDialog = (part: any) => {
   editingPart.value = { ...part }
   Object.keys(partForm).forEach(key => {
     if (key === 'original_price' || key === 'show_price') {
-      // 确保数值字段是数字类型
+      // 纭繚鏁板€煎瓧娈垫槸鏁板瓧绫诲瀷
       const value = part[key];
       (partForm as any)[key] = value === null || value === undefined ? null : Number(value);
     } else {
@@ -215,71 +208,69 @@ const showEditPartDialog = (part: any) => {
   showPartDialog.value = true
 }
 
-// 保存部件
+// 淇濆瓨閮ㄤ欢
 const savePart = async () => {
   if (!partFormRef.value) return
 
   try {
     await partFormRef.value.validate()
 
-    // 确保数值字段类型正确
-    const partData = {
+    // 纭繚鏁板€煎瓧娈电被鍨嬫纭?    const partData = {
       ...partForm,
       original_price: partForm.original_price !== null && partForm.original_price !== undefined ? Number(partForm.original_price) : null,
       show_price: partForm.show_price !== null && partForm.show_price !== undefined ? Number(partForm.show_price) : null
     }
 
     if (editingPart.value) {
-      // 更新部件
+      // 鏇存柊閮ㄤ欢
       await updatePart(editingPart.value.part_type_id, partData)
-      ElMessage.success('部件更新成功')
+      ElMessage.success('閮ㄤ欢鏇存柊鎴愬姛')
     } else {
-      // 创建部件
+      // 鍒涘缓閮ㄤ欢
       await createPart(partData)
-      ElMessage.success('部件创建成功')
+      ElMessage.success('閮ㄤ欢鍒涘缓鎴愬姛')
     }
 
     showPartDialog.value = false
     fetchParts()
   } catch (error) {
-    console.error('保存部件失败:', error)
-    if (error !== true) { // Element Plus验证失败时会返回true
-      ElMessage.error('保存部件失败')
+    console.error('淇濆瓨閮ㄤ欢澶辫触:', error)
+    if (error !== true) { // Element Plus楠岃瘉澶辫触鏃朵細杩斿洖true
+      ElMessage.error('淇濆瓨閮ㄤ欢澶辫触')
     }
   }
 }
 
-// 关闭对话框
-const closePartDialog = () => {
+// 鍏抽棴瀵硅瘽妗?const closePartDialog = () => {
   showPartDialog.value = false
   editingPart.value = null
 }
 
-// 删除部件
+// 鍒犻櫎閮ㄤ欢
 const deletePart = async (partTypeId: number) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除ID为 ${partTypeId} 的部件吗？`,
-      '确认删除',
+      `纭畾瑕佸垹闄D涓?${partTypeId} 鐨勯儴浠跺悧锛焋,
+      '纭鍒犻櫎',
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: '纭畾',
+        cancelButtonText: '鍙栨秷',
         type: 'warning'
       }
     )
 
     await deletePartAPI(partTypeId)
-    ElMessage.success('部件删除成功')
+    ElMessage.success('閮ㄤ欢鍒犻櫎鎴愬姛')
     fetchParts()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除部件失败:', error)
-      ElMessage.error('删除部件失败')
+      console.error('鍒犻櫎閮ㄤ欢澶辫触:', error)
+      ElMessage.error('鍒犻櫎閮ㄤ欢澶辫触')
     }
   }
 }
 
-// 处理分页
+// 澶勭悊鍒嗛〉
 const handleSizeChange = (size: number) => {
   pageSize.value = size
   fetchParts()
@@ -290,67 +281,62 @@ const handleCurrentChange = (page: number) => {
   fetchParts()
 }
 
-// 导入部件数据
+// 瀵煎叆閮ㄤ欢鏁版嵁
 const importPartsData = async (jsonData: any) => {
   try {
-    // 确保jsonData是数组格式
-    let dataToImport = jsonData;
+    // 纭繚jsonData鏄暟缁勬牸寮?    let dataToImport = jsonData;
     if (!Array.isArray(jsonData)) {
       if (typeof jsonData === 'object' && jsonData !== null) {
-        // 如果是单个对象，转换为数组
-        dataToImport = [jsonData];
+        // 濡傛灉鏄崟涓璞★紝杞崲涓烘暟缁?        dataToImport = [jsonData];
       } else {
-        throw new Error('JSON数据格式不正确，应为对象或对象数组');
+        throw new Error('JSON鏁版嵁鏍煎紡涓嶆纭紝搴斾负瀵硅薄鎴栧璞℃暟缁?);
       }
     }
 
-    // 遵活处理数据导入 - 这里需要调用后端的导入API
-    // 由于后端没有专门的部件导入API，我们逐个创建
+    // 閬垫椿澶勭悊鏁版嵁瀵煎叆 - 杩欓噷闇€瑕佽皟鐢ㄥ悗绔殑瀵煎叆API
+    // 鐢变簬鍚庣娌℃湁涓撻棬鐨勯儴浠跺鍏PI锛屾垜浠€愪釜鍒涘缓
     let successCount = 0;
     for (const part of dataToImport) {
       try {
         await createPart(part);
         successCount++;
       } catch (error) {
-        console.error(`导入部件 ${part.part_model} 失败:`, error);
+        console.error(`瀵煎叆閮ㄤ欢 ${part.part_model} 澶辫触:`, error);
       }
     }
 
-    const message = `成功导入 ${successCount} 个部件`;
+    const message = `鎴愬姛瀵煎叆 ${successCount} 涓儴浠禶;
     ElMessage.success(message);
 
-    // 刷新列表
+    // 鍒锋柊鍒楄〃
     fetchParts();
     return { success: true, message, importedCount: successCount };
   } catch (error) {
-    console.error('导入部件数据失败:', error);
-    ElMessage.error('导入部件数据失败');
+    console.error('瀵煎叆閮ㄤ欢鏁版嵁澶辫触:', error);
+    ElMessage.error('瀵煎叆閮ㄤ欢鏁版嵁澶辫触');
     throw error;
   }
 };
 
-// 导出部件数据
+// 瀵煎嚭閮ㄤ欢鏁版嵁
 const exportPartsData = async () => {
   try {
-    // 使用新的直接JSON导出API
+    // 浣跨敤鏂扮殑鐩存帴JSON瀵煎嚭API
     const response: any = await exportPartsJson();
 
     return response.data || [];
   } catch (error) {
-    console.error('导出部件数据失败:', error);
-    ElMessage.error('导出部件数据失败');
+    console.error('瀵煎嚭閮ㄤ欢鏁版嵁澶辫触:', error);
+    ElMessage.error('瀵煎嚭閮ㄤ欢鏁版嵁澶辫触');
     throw error;
   }
 };
 
-// 处理行点击事件
-const handleRowClick = (row: any) => {
-  // 点击行时显示编辑对话框
-  showEditPartDialog(row);
+// 澶勭悊琛岀偣鍑讳簨浠?const handleRowClick = (row: any) => {
+  // 鐐瑰嚮琛屾椂鏄剧ず缂栬緫瀵硅瘽妗?  showEditPartDialog(row);
 }
 
-// 初始化数据
-onMounted(() => {
+// 鍒濆鍖栨暟鎹?onMounted(() => {
   fetchParts()
 })
 </script>

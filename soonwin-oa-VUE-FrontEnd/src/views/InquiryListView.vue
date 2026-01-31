@@ -4,7 +4,7 @@
 
     <!-- 搜索和筛选 -->
     <el-card shadow="hover" class="filter-card">
-      <el-form :model="searchForm" label-width="100px" style="display: flex; ">
+      <el-form :model="searchForm" style="display: flex; ">
         <!-- 单一搜索框 -->
         <el-form-item label="内容搜索" style="min-width: 300px; flex: 1;">
           <el-input
@@ -14,8 +14,9 @@
             @keyup.enter="searchInquiriesByContent"
           />
         </el-form-item>
-        <el-form-item style="margin-left: 10px;">
-          <el-button type="primary" @click="searchInquiriesByContent">内容搜索</el-button>
+
+        <el-form-item @click="searchInquiriesByContent">
+            <el-icon class="opera-icon-big" style="color: white;background-color: #409eff;"><Search /></el-icon>
         </el-form-item>
 
         <!-- 日期筛选 -->
@@ -32,17 +33,31 @@
           />
         </el-form-item>
         <el-form-item style="margin-left: 10px;">
-          <el-button type="primary" @click="searchInquiriesByDate">日期搜索</el-button>
-          <!-- <el-button @click="resetSearch">重置</el-button> -->
+          <el-icon class="opera-icon-big" style="color: white;background-color: #409eff;" @click="searchInquiriesByDate">
+            <Search />
+          </el-icon>
+          <!-- <el-button @click="resetSearch">
+            <el-icon><Refresh /></el-icon>
+            重置
+          </el-button> -->
         </el-form-item>
       </el-form>
     </el-card>
 
     <!-- 操作按钮 -->
     <div style="margin-bottom: 20px;">
-      <el-button type="primary" @click="showAddInquiryDialog">新增询盘</el-button>
-      <el-button @click="showInquiryLogs" v-if="isCurrentUserAdmin">查看日志</el-button>
-      <el-button @click="exportData">导出数据</el-button>
+      <el-button type="primary" @click="showAddInquiryDialog">
+        <el-icon><Plus /></el-icon>
+        新增询盘
+      </el-button>
+      <el-button @click="showInquiryLogs" v-if="isCurrentUserAdmin">
+        <el-icon><Document /></el-icon>
+        查看日志
+      </el-button>
+      <el-button @click="exportData">
+        <el-icon><Download /></el-icon>
+        导出数据
+      </el-button>
     </div>
 
     <!-- 数据表格 -->
@@ -53,6 +68,7 @@
       :row-style="{ cursor: 'pointer' }"
       @row-click="viewInquiryById"
     >
+      <el-table-column prop="creator_name" label="创建人" width="120" />
       <el-table-column prop="area" label="地区" width="120" />
       <el-table-column prop="inquiry_date" label="询盘日期" width="120" />
       <el-table-column prop="inquiry_source" label="询盘来源" width="120" />
@@ -62,12 +78,21 @@
       <el-table-column prop="email" label="邮箱" width="180" show-overflow-tooltip />
       <el-table-column prop="packaging_product" label="包装产品" width="150" show-overflow-tooltip />
       <el-table-column prop="machine_type" label="需求机器类型" show-overflow-tooltip />
-      <el-table-column prop="creator_name" label="创建人" width="120" />
       <el-table-column prop="create_time" label="创建时间" width="150" />
-      <el-table-column label="操作" width="200">
+      <el-table-column label="操作" width="130" fixed="right">
         <template #default="scope">
-          <el-button size="small" @click.stop="viewInquiry(scope.row.id)">查看详情</el-button>
-          <el-button size="small" type="danger" @click.stop="deleteInquiry(scope.row.id)">删除</el-button>
+          <el-icon
+            class="opera-icon"
+            style="cursor: pointer; margin-right: 8px;color: white; background-color: #409eff;"
+            @click.stop="viewInquiry(scope.row.id)">
+            <View />
+          </el-icon>
+          <el-icon
+            class="opera-icon"
+            style="cursor: pointer;color: white; background-color: #f56c6c;"
+            @click.stop="deleteInquiry(scope.row.id)">
+            <Delete />
+          </el-icon>
         </template>
       </el-table-column>
     </el-table>
@@ -331,27 +356,65 @@
         <!-- 日志对话框 -->
         <el-dialog title="询盘操作日志" v-model="logDialogVisible" width="80%" top="5vh">
           <div v-loading="logLoading" class="log-container">
-            <!-- 统计信息卡片 -->
-            <el-card class="statistics-card" shadow="never">
-              <div class="statistics-content">
-                <div class="stat-item">
-                  <span class="stat-label">询盘总数:</span>
-                  <span class="stat-value">{{ statistics.total_inquiries }}</span>
+                        <!-- 工具栏 -->
+                        <div class="log-toolbar">
+                          <el-button
+                            type="danger"
+                            size="small"
+                            @click="clearAllLogs"
+                            :icon="Loading"
+                            title="清空所有日志">
+                            清空日志
+                          </el-button>
+                          <el-button
+                            type="warning"
+                            size="small"
+                            @click="resetStats"
+                            :icon="Refresh"
+                            title="复位新增数字统计">
+                            复位统计
+                          </el-button>
+                        </div>
+              <!-- 统计卡片 - 显示三组统一风格的数据 -->
+              <el-card class="statistics-card" shadow="never">
+                <div class="statistics-content">
+                  <div class="stat-row">
+                    <div class="stat-item-unified">
+                      <span class="stat-label-unified">累计询盘</span>
+                      <span class="stat-value-unified">{{ statistics.total_inquiries }}</span>
+                    </div>
+                    <div class="stat-item-unified">
+                      <span class="stat-label-unified">累计沟通</span>
+                      <span class="stat-value-unified">{{ statistics.total_communications }}</span>
+                    </div>
+                  </div>
+
+                  <div class="stat-row">
+                    <div class="stat-item-unified monthly">
+                      <span class="stat-label-unified">月度询盘</span>
+                      <span class="stat-value-unified monthly">{{ statistics.monthly_inquiries }}</span>
+                    </div>
+                    <div class="stat-item-unified monthly">
+                      <span class="stat-label-unified">月度沟通</span>
+                      <span class="stat-value-unified monthly">{{ statistics.monthly_communications }}</span>
+                    </div>
+                  </div>
+
+                  <div class="stat-row">
+                    <div class="stat-item-unified highlight">
+                      <span class="stat-label-unified">新增询盘</span>
+                      <span class="stat-value-unified highlight">{{ statistics.new_inquiries }}</span>
+                    </div>
+                    <div class="stat-item-unified highlight">
+                      <span class="stat-label-unified">新增沟通</span>
+                      <span class="stat-value-unified highlight">{{ statistics.new_communications }}</span>
+                    </div>
+                    <div v-if="statistics.last_reset_time" class="stat-label-time">自 {{ statistics.last_reset_time }} 起</div>
+                  </div>
+
+
                 </div>
-                <div class="stat-item">
-                  <span class="stat-label">沟通记录总数:</span>
-                  <span class="stat-value">{{ statistics.total_communications }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">新增询盘数:</span>
-                  <span class="stat-value">{{ statistics.new_inquiries }}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">新增沟通数:</span>
-                  <span class="stat-value">{{ statistics.new_communications }}</span>
-                </div>
-              </div>
-            </el-card>
+              </el-card>
             <!-- 日志列表 -->
             <div v-for="log in inquiryLogs" :key="log.id" class="log-item">
               <el-card class="log-card" shadow="hover">
@@ -360,33 +423,44 @@
                     <span class="operation-type-text">{{ getOperationTypeText(log.operation_type) }}</span>
                   </div>
                                 <div class="log-header-right">
-                                  <div class="log-time">{{ log.create_time }}</div>
-                                  <!-- 恢复按钮 - 只对删除和修改操作显示 -->
-                                  <el-button 
-                                    v-if="log.operation_type === 'delete' || log.operation_type === 'update'"
-                                    type="primary" 
-                                    link 
-                                    size="small" 
+                                  <!-- 恢复按钮 - 对删除询盘、修改询盘、删除沟通记录、修改沟通记录操作显示 -->
+                                  <el-button
+                                    v-if="log.operation_type === 'delete' ||
+                                          log.operation_type === 'update' ||
+                                          log.operation_type === 'delete_communication' ||
+                                          log.operation_type === 'update_communication'"
+                                    link
                                     @click="restoreLog(log.id)"
-                                    class="restore-log-btn"
-                                    :title="'恢复数据'">
+                                    class="log-btn"
+                                    :title="'恢复数据'"
+                                    style="background-color: green;"
+                                    >
                                     <el-icon><Refresh /></el-icon>
                                   </el-button>
-                                  <el-button 
-                                    type="danger" 
-                                    link 
-                                    size="small" 
+                                  <el-button
+                                    link
+                                    style="background-color: #f56c6c;"
                                     @click="deleteLog(log.id)"
-                                    class="delete-log-btn"
+                                    class="log-btn"
                                     :title="'删除日志'">
                                     <el-icon><Delete /></el-icon>
                                   </el-button>
-                                </div>                </div>
+                                  <el-button
+                                    v-if="log.inquiry_id"
+                                    link
+                                    style="background-color: gray"
+                                    @click="log.inquiry_id && viewInquiry(log.inquiry_id)"
+                                    class="log-btn"
+                                    :title="'跳转至询盘详情'">
+                                    <el-icon><OfficeBuilding /></el-icon>
+                                  </el-button>
+                                  <div class="log-time">{{ log.create_time }}</div>
+                                </div>
+                              </div>
                 <div class="log-body">
                   <div class="log-user">
                     <span class="user-label">操作人:</span>
                     <span class="user-value">{{ log.operator_name }}</span>
-                    <span class="role-value">({{ log.operator_role }})</span>
                   </div>
                   <div class="log-details">
                     <span class="details-label">操作详情:</span>
@@ -417,34 +491,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
-import { Delete, Edit, ChatLineRound } from '@element-plus/icons-vue';
+import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding } from '@element-plus/icons-vue';
 import { formatInquiryLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
 
 // 路由
 const router = useRouter();
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = ref(false);
+const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
 
 // 在组件挂载时检查用户角色
+// 用户角色检查现在通过computed属性自动处理
 onMounted(async () => {
-  try {
-    const token = localStorage.getItem('oa_token');
-    if (token) {
-      // 解码JWT token获取用户角色信息
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      isCurrentUserAdmin.value = payload.user_role === 'admin';
-    }
-  } catch (error) {
-    console.error('解析用户信息失败:', error);
-    isCurrentUserAdmin.value = false;
-  }
-
   // 加载询盘列表，同时获取所有可能需要的地区信息
   await loadInquiries();
 
@@ -539,8 +603,13 @@ const statistics = ref({
   total_inquiries: 0,
   total_communications: 0,
   new_inquiries: 0,
-  new_communications: 0
+  new_communications: 0,
+  monthly_inquiries: 0,
+  monthly_communications: 0
 });
+
+const showMonthlyStats = ref(false);
+
 // 日志分页相关
 const logCurrentPage = ref(1);
 const logPageSize = ref(30);  // 每页30条
@@ -552,21 +621,37 @@ const communicationFormRef = ref();
 
 // 表单验证规则
 const inquiryRules = {
+  area: [
+    { required: true, message: '请输入地区', trigger: 'blur' }
+  ],
+  inquiry_date: [
+    { required: true, message: '请选择询盘日期', trigger: 'change' }
+  ],
+  inquiry_source: [
+    { required: true, message: '请输入询盘来源', trigger: 'blur' }
+  ],
+  company_name: [
+    { required: true, message: '请输入公司名称', trigger: 'blur' }
+  ],
   contact_person: [
     { required: true, message: '请输入联系人', trigger: 'blur' }
+  ],
+  phone: [
+    { required: true, message: '请输入电话', trigger: 'blur' }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    {
+      type: 'email',
+      message: '请输入正确的邮箱格式',
+      trigger: 'blur'
+    }
   ],
   packaging_product: [
     { required: true, message: '请输入包装产品', trigger: 'blur' }
   ],
   machine_type: [
     { required: true, message: '请输入需求机器类型', trigger: 'blur' }
-  ],
-  email: [
-    {
-      type: 'email',
-      message: '请输入正确的邮箱格式',
-      trigger: 'blur'
-    }
   ]
 };
 
@@ -1036,14 +1121,17 @@ const showInquiryLogs = async () => {
         size: logPageSize.value
       }
     });
-    
+
     // 分离统计数据和日志数据
     if (response.statistics) {
       statistics.value = {
         total_inquiries: response.statistics.total_inquiries || 0,
         total_communications: response.statistics.total_communications || 0,
         new_inquiries: response.statistics.new_inquiries || 0,
-        new_communications: response.statistics.new_communications || 0
+        new_communications: response.statistics.new_communications || 0,
+        last_reset_time: response.statistics.last_reset_time || null,
+        monthly_inquiries: response.statistics.monthly_inquiries || 0,
+        monthly_communications: response.statistics.monthly_communications || 0
       };
     }
     // 后端已按倒序返回数据，无需额外处理
@@ -1063,9 +1151,11 @@ const getOperationTypeText = (operationType: string) => {
     'create': '创建询盘',
     'update': '更新询盘',
     'delete': '删除询盘',
+    'restore': '恢复操作',
     'create_communication': '创建沟通记录',
     'update_communication': '更新沟通记录',
-    'delete_communication': '删除沟通记录'
+    'delete_communication': '删除沟通记录',
+    'reset_stats': '复位统计数字',
   };
   return typeMap[operationType] || operationType;
 };
@@ -1130,21 +1220,24 @@ const loadInquiryLogsPage = async (page: number) => {
   try {
     logLoading.value = true;
     logCurrentPage.value = page;
-    
+
     const response = await request.get('/api/inquiry-logs', {
       params: {
         page: page,
         size: logPageSize.value
       }
     });
-    
+
     // 分离统计数据和日志数据
     if (response.statistics) {
       statistics.value = {
         total_inquiries: response.statistics.total_inquiries || 0,
         total_communications: response.statistics.total_communications || 0,
         new_inquiries: response.statistics.new_inquiries || 0,
-        new_communications: response.statistics.new_communications || 0
+        new_communications: response.statistics.new_communications || 0,
+        last_reset_time: response.statistics.last_reset_time || null,
+        monthly_inquiries: response.statistics.monthly_inquiries || 0,
+        monthly_communications: response.statistics.monthly_communications || 0
       };
     }
     // 后端已按倒序返回数据，无需额外处理
@@ -1169,9 +1262,9 @@ const restoreLog = async (logId: number) => {
 
     // 发送恢复请求到后端
     const response = await request.post(`/api/inquiry-logs/${logId}/restore`);
-    
+
     ElMessage.success(response.msg || '数据恢复成功');
-    
+
     // 重新加载日志
     await loadInquiryLogsPage(logCurrentPage.value);
   } catch (error) {
@@ -1179,6 +1272,101 @@ const restoreLog = async (logId: number) => {
       console.error('恢复日志失败:', error);
       ElMessage.error('恢复日志失败');
     }
+  }
+};
+
+// 清空所有日志
+const clearAllLogs = async () => {
+  try {
+    // 确认操作
+    await ElMessageBox.confirm(
+      '确定要清空所有询盘操作日志吗？此操作不可恢复！',
+      '确认清空',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    // 发送清空日志请求
+    const response = await request.delete('/api/inquiry-logs');
+
+    // 显示返回的消息
+    if (response && response.message) {
+        ElMessage.success(response.message);
+    } else {
+        ElMessage.success('日志清空成功');
+    }
+
+    // 重新加载日志
+    await loadInquiryLogsPage(1);
+    // 重新加载统计数据
+    await loadInquiryLogStatistics();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空日志失败:', error);
+      ElMessage.error('清空日志失败');
+    }
+  }
+};
+
+// 复位统计数字
+const resetStats = async () => {
+  try {
+    // 确认操作
+    await ElMessageBox.confirm(
+      '确定要复位新增数字统计吗？此操作会将新增统计归零并记录复位时间。',
+      '确认复位',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    // 发送复位请求
+    const response = await request.post('/api/reset-stats');
+
+    ElMessage.success(response.data?.message || '统计数字复位成功');
+
+    // 重新加载统计数据
+    await loadInquiryLogStatistics();
+    // 重新加载月度统计数据
+    await getMonthlyStats();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('统计数字复位失败:', error);
+      ElMessage.error('统计数字复位失败');
+    }
+  }
+};
+
+// 加载统计信息
+const loadInquiryLogStatistics = async () => {
+  try {
+    const response = await request.get('/api/inquiry-logs', {
+      params: {
+        page: 1,
+        size: 1  // 只需要获取统计数据，不需要日志详情
+      }
+    });
+
+    // 分离统计数据
+    if (response.statistics) {
+      statistics.value = {
+        total_inquiries: response.statistics.total_inquiries || 0,
+        total_communications: response.statistics.total_communications || 0,
+        new_inquiries: response.statistics.new_inquiries || 0,
+        new_communications: response.statistics.new_communications || 0,
+        last_reset_time: response.statistics.last_reset_time || null,
+        monthly_inquiries: response.statistics.monthly_inquiries || 0,
+        monthly_communications: response.statistics.monthly_communications || 0
+      };
+    }
+  } catch (error) {
+    console.error('加载统计信息失败:', error);
+    ElMessage.error('加载统计信息失败');
   }
 };
 
@@ -1197,6 +1385,26 @@ const closeLogDialog = () => {
   logCurrentPage.value = 1;
   logTotal.value = 0;
 };
+
+// 获取月度统计
+const getMonthlyStats = async () => {
+  try {
+    const response = await request.get('/api/monthly-stats');
+    if (response.code === 200) {
+      // 更新月度统计数据
+      statistics.value = {
+        ...statistics.value,
+        monthly_inquiries: response.data?.monthly_inquiries || 0,
+        monthly_communications: response.data?.monthly_communications || 0
+      };
+    } else {
+      console.error('获取月度统计失败:', response.msg);
+    }
+  } catch (error) {
+    console.error('获取月度统计请求失败:', error);
+  }
+};
+
 
 
 </script>
@@ -1366,8 +1574,92 @@ const closeLogDialog = () => {
   margin-bottom: 10px;
 }
 
+.log-company {
+  display: flex;
+  align-items: center;
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.company-label {
+  font-weight: bold;
+  color: #606266;
+  margin-right: 8px;
+  min-width: 40px;
+}
+
+.company-value {
+  color: #303133;
+  flex: 1;
+}
+
+.company-value:hover {
+  color: #409EFF;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #ebeef5;
+}
+
+
+.stat-item-unified {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 30px;
+  min-width: 80px;
+}
+
+.stat-label-unified {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.stat-value-unified {
+  font-size: 18px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.stat-value-unified.highlight {
+  color: #e6a23c; /* 橙色，用于新增数据 */
+  font-size: 20px;
+}
+
+.stat-value-unified.monthly {
+  color: #909399; /* 灰色，用于月度数据 */
+  font-size: 16px;
+}
+
+.stat-label-time {
+  font-size: 12px;
+  color: #909399;
+  background-color: #f4f4f5;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 10px;
+}
+
+.toggle-monthly-btn {
+  margin-left: 10px;
+  color: #909399;
+}
+
+.toggle-monthly-btn:hover {
+  color: #409EFF;
+}
+
 .log-card {
   padding: 12px;
+}
+
+.log-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 10px;
 }
 
 .log-header {
@@ -1403,15 +1695,12 @@ const closeLogDialog = () => {
   color: #909399;
 }
 
-.delete-log-btn {
+.log-btn {
   cursor: pointer;
-  color: #f56c6c;
+  color:white;
   transition: color 0.2s;
 }
 
-.delete-log-btn:hover {
-  color: #ff0000;
-}
 
 .log-pagination {
   margin-top: 20px;
@@ -1463,4 +1752,27 @@ const closeLogDialog = () => {
   word-break: break-word;
   flex: 1;
 }
+
+.opera-icon{
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: 10px;
+  padding: 5px 12px;
+  border-radius: 5px;
+}
+
+.opera-icon-big{
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: 10px;
+  padding: 5px 12px;
+  border-radius: 5px;
+}
+
+
+
+.el-icon{
+  margin: 0px 5px;
+}
+
 </style>

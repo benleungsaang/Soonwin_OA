@@ -338,6 +338,7 @@ import { Warning, View, Edit, Delete, Position, CircleCheck } from '@element-plu
 import request from '@/utils/request';
 import { Employee } from '@/types';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
 
 // 路由实例
 const router = useRouter();
@@ -346,24 +347,7 @@ const router = useRouter();
 let originalEmpId = '';
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => {
-  const token = localStorage.getItem('oa_token');
-  if (!token) return false;
-  
-  try {
-    // 解码JWT令牌（不验证签名，仅解码）
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(c => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join('')));
-    
-    return payload.user_role === 'admin';
-  } catch (error) {
-    console.error('解析用户角色失败:', error);
-    return false;
-  }
-});
+const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
 
 // 员工数据
 const employees = ref<Employee[]>([]);

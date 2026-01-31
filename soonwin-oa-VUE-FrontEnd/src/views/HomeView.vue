@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="home-container">
     <el-container style="height: 100vh;">
       <!-- 头部区域：标题 + 右上角退出登录 -->
@@ -34,7 +34,7 @@
               <transition name="menu-collapse" duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.resource">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken">
                       <el-icon><Picture /></el-icon>
                       <span>照片管理</span>
                     </el-menu-item>
@@ -42,7 +42,7 @@
                       <el-icon><VideoCamera /></el-icon>
                       <span>视频管理</span>
                     </el-menu-item>
-                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken">
                       <el-icon><Tools /></el-icon>
                       <span>机器零部件管理</span>
                     </el-menu-item>
@@ -75,11 +75,11 @@
                       <el-icon><Document /></el-icon>
                       <span>询盘登记表</span>
                     </el-menu-item>
-                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken">
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
-                    <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
                       <el-icon><Finished /></el-icon>
                       <span>订单验收</span>
                     </el-menu-item>

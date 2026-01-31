@@ -1,6 +1,6 @@
 """add company_name to communication
 
-Revision ID: 015
+Revision ID: 015_add_company_name_to_communication
 Revises: 014_add_statistics_fields_to_inquiry_log
 Create Date: 2026-01-30 15:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers
-revision = '015'
+revision = '015_add_company_name_to_communication'
 down_revision = '014_add_statistics_fields_to_inquiry_log'
 branch_labels = None
 depends_on = None

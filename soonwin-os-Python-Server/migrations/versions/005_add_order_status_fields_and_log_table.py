@@ -1,6 +1,6 @@
 """Add order status fields and log table
 
-Revision ID: 005
+Revision ID: 005_add_order_status_fields_and_log_table
 Revises: 004_remove_display_mode_add_page_count
 Create Date: 2026-01-22 14:00:00.000000
 
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from datetime import datetime
 
 # revision identifiers
-revision = '005'
-down_revision = '004'
+revision = '005_add_order_status_fields_and_log_table'
+down_revision = '004_remove_display_mode_add_page_count'
 branch_labels = None
 depends_on = None
 

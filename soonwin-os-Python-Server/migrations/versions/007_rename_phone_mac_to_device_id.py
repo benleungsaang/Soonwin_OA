@@ -1,7 +1,7 @@
 """rename phone_mac to device_id in Employee and PunchRecord tables
 
-Revision ID: 007
-Revises: 006
+Revision ID: 007_rename_phone_mac_to_device_id
+Revises: 006_remove_status_time_defaults
 Create Date: 2026-01-26 10:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import sqlite
 
 # revision identifiers
-revision = '007'
-down_revision = '006'
+revision = '007_rename_phone_mac_to_device_id'
+down_revision = '006_remove_status_time_defaults'
 branch_labels = None
 depends_on = None
 

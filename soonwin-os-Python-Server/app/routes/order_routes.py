@@ -5,6 +5,8 @@ from app.models.employee import Employee
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
+import jwt
+from config import Config
 
 # 从expense模型导入相关类
 from app.models.expense import AnnualTarget, Expense, ExpenseAllocation, ExpenseCalculationRecord, IndividualExpense
@@ -18,50 +20,41 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
-def serialize_order(order, include_expense_allocations=False):
-    """将订单对象转换为字典格式"""
-    order_dict = {
-        'id': order.id,
-        'is_new': order.is_new,
-        'area': order.area,
-        'customer_name': order.customer_name,
-        'customer_type': order.customer_type,
-        'order_time': order.order_time.strftime('%Y-%m-%d') if order.order_time else None,
-        'ship_time': order.ship_time.strftime('%Y-%m-%d') if order.ship_time else None,
-        'ship_country': order.ship_country,
-        'contract_no': order.contract_no,
-        'order_no': order.order_no,
-        'machine_no': order.machine_no,
-        'machine_name': order.machine_name,
-        'machine_model': order.machine_model,
-        'machine_count': order.machine_count,
-        'unit': order.unit,
-        'contract_amount': float(order.contract_amount) if order.contract_amount else 0.0,
-        'deposit': float(order.deposit) if order.deposit else 0.0,
-        'balance': float(order.balance) if order.balance else 0.0,
-        'tax_rate': float(order.tax_rate) if order.tax_rate else 13.0,
-        'tax_refund_amount': float(order.tax_refund_amount) if order.tax_refund_amount else 0.0,
-        'currency_amount': float(order.currency_amount) if order.currency_amount else 0.0,
-        'payment_received': float(order.payment_received) if order.payment_received else 0.0,
-        'machine_cost': float(order.machine_cost) if order.machine_cost else 0.0,
-        'net_profit': float(order.net_profit) if order.net_profit else 0.0,
-        'proportionate_cost': float(order.proportionate_cost) if order.proportionate_cost else 0.0,
-        'individual_cost': float(order.individual_cost) if order.individual_cost else 0.0,
-        'gross_profit': float(order.gross_profit) if order.gross_profit else 0.0,
-        'pay_type': order.pay_type,
-        'commission': float(order.commission) if order.commission else 0.0,
-        'latest_ship_date': order.latest_ship_date.strftime('%Y-%m-%d') if order.latest_ship_date else None,
-        'expected_delivery': order.expected_delivery.strftime('%Y-%m-%d') if order.expected_delivery else None,
-        'order_dept': order.order_dept,
-        'check_requirement': order.check_requirement,
-        'attachment_imgs': order.attachment_imgs,
-        'attachment_videos': order.attachment_videos,
-        'create_time': order.create_time.strftime('%Y-%m-%d %H:%M:%S') if order.create_time else None,
-        'update_time': order.update_time.strftime('%Y-%m-%d %H:%M:%S') if order.update_time else None
-    }
+def get_current_user():
+    """从JWT token中获取当前用户信息"""
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+    
+    try:
+        # 去掉 "Bearer " 前缀
+        token = token.replace('Bearer ', '')
+        # 解码JWT token获取用户信息
+        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload.get('emp_id')
+        # 查询用户信息
+        return Employee.query.filter_by(emp_id=emp_id).first()
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+def serialize_order(order, include_expense_allocations=False, is_admin=False):
+    """将订单对象转换为字典格式，使用模型的to_dict方法并根据用户权限控制敏感字段"""
+    # 使用模型的to_dict方法获取完整数据
+    order_dict = order.to_dict()
+
+    # 定义敏感字段列表
+    sensitive_fields = ['machine_cost', 'proportionate_cost']
+
+    # 根据用户权限控制敏感字段
+    if not is_admin:
+        for field in sensitive_fields:
+            if field in order_dict:
+                order_dict[field] = 0.0
 
     # 如果需要包含费用分摊信息
-    if include_expense_allocations:
+    if include_expense_allocations and is_admin:
         # 计算该订单的费用分摊总额
         from app.models.expense import ExpenseAllocation
         total_expense_allocation = db.session.query(
@@ -94,28 +87,33 @@ def get_orders():
         pay_type = request.args.get('pay_type')
         customer_type = request.args.get('customer_type')
         order_status = request.args.get('order_status')  # 可以是 'unshipped', 'shipped', 'completed' 等
+        search = request.args.get('search')  # 添加搜索参数
 
         # 构建查询
         query = Order.query
 
+        # 如果有搜索参数，则使用search_field进行全文搜索
+        if search:
+            query = query.filter(Order.search_field.contains(search))
+
         # 应用筛选条件
-        if customer_name:
+        if customer_name and not search:  # 如果已经使用了搜索参数，则不使用单独的筛选，避免重复
             query = query.filter(Order.customer_name.contains(customer_name))
-        if order_no:
+        if order_no and not search:
             query = query.filter(Order.order_no.contains(order_no))
-        if machine_name:
+        if machine_name and not search:
             query = query.filter(Order.machine_name.contains(machine_name))
-        if area:
+        if area and not search:
             query = query.filter(Order.area.contains(area))
         if is_new is not None:
             query = query.filter(Order.is_new == is_new)
-        if ship_country:
+        if ship_country and not search:
             query = query.filter(Order.ship_country.contains(ship_country))
-        if order_dept:
+        if order_dept and not search:
             query = query.filter(Order.order_dept.contains(order_dept))
-        if pay_type:
+        if pay_type and not search:
             query = query.filter(Order.pay_type.contains(pay_type))
-        if customer_type:
+        if customer_type and not search:
             query = query.filter(Order.customer_type.contains(customer_type))
         if start_date:
             start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
@@ -133,8 +131,12 @@ def get_orders():
         # 检查是否需要包含费用分摊信息
         include_expense_allocations = request.args.get('include_expense_allocations', 'false').lower() == 'true'
 
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+        
         # 序列化订单数据
-        orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations) for order in orders]
+        orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations, is_admin=is_admin) for order in orders]
 
         # 返回统一格式的数据，与打卡记录API保持一致
         import json
@@ -211,8 +213,16 @@ def create_order():
         db.session.add(new_order)
         db.session.commit()
 
+        # 更新搜索字段
+        new_order.search_field = new_order.generate_search_field()
+        db.session.commit()
+
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+        
         # 序列化创建的订单
-        order_data = serialize_order(new_order)
+        order_data = serialize_order(new_order, is_admin=is_admin)
 
         import json
         from flask import Response
@@ -237,7 +247,11 @@ def get_order(order_id):
     """获取单个订单详情"""
     try:
         order = Order.query.get_or_404(order_id)
-        order_data = serialize_order(order)
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+        
+        order_data = serialize_order(order, is_admin=is_admin)
 
         import json
         from flask import Response
@@ -305,8 +319,15 @@ def update_order(order_id):
         if 'attachment_imgs' in data: order.attachment_imgs = data['attachment_imgs']
         if 'attachment_videos' in data: order.attachment_videos = data['attachment_videos']
 
+        # 更新搜索字段
+        order.search_field = order.generate_search_field()
         db.session.commit()
-        order_data = serialize_order(order)
+        
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+        
+        order_data = serialize_order(order, is_admin=is_admin)
 
         import json
         from flask import Response
@@ -351,21 +372,31 @@ def delete_order(order_id):
 def get_order_statistics():
     """获取订单统计信息"""
     try:
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+
         # 计算总订单数
         total_orders = db.session.query(db.func.count(Order.id)).scalar()
         # 计算总金额
         total_amount = db.session.query(db.func.sum(Order.contract_amount)).scalar() or 0.0
-        # 计算总毛利
-        total_gross_profit = db.session.query(db.func.sum(Order.gross_profit)).scalar() or 0.0
-        # 计算总净利
-        total_net_profit = db.session.query(db.func.sum(Order.net_profit)).scalar() or 0.0
-
+        
         statistics_data = {
             'total_orders': total_orders,
-            'total_amount': float(total_amount),
-            'total_gross_profit': float(total_gross_profit),
-            'total_net_profit': float(total_net_profit)
+            'total_amount': float(total_amount)
         }
+
+        # 仅对管理员显示敏感统计信息
+        if is_admin:
+            # 计算总毛利
+            total_gross_profit = db.session.query(db.func.sum(Order.gross_profit)).scalar() or 0.0
+            # 计算总净利
+            total_net_profit = db.session.query(db.func.sum(Order.net_profit)).scalar() or 0.0
+            
+            statistics_data.update({
+                'total_gross_profit': float(total_gross_profit),
+                'total_net_profit': float(total_net_profit)
+            })
 
         import json
         from flask import Response
@@ -389,6 +420,18 @@ def get_order_statistics():
 def get_order_expense_summary():
     """获取订单费用分摊汇总信息"""
     try:
+        # 获取当前用户信息以确定是否为管理员
+        current_user = get_current_user()
+        is_admin = current_user and current_user.user_role == 'admin'
+        
+        # 非管理员不能访问费用汇总信息
+        if not is_admin:
+            return jsonify({
+                "code": 403,
+                "msg": "权限不足，无法访问费用汇总信息",
+                "data": None
+            }), 403
+
         # 获取查询参数中的年份
         target_year = request.args.get('year', type=int)
         if not target_year:
