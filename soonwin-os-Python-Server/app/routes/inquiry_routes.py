@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from app.models.inquiry import Inquiry, InquiryCommunication, InquiryLog
+from app.models.inquiry import Inquiry, InquiryCommunication
 from app.models.totp_user import TotpUser
 from app.models.employee import Employee
+from app.models.business_operation_log import BusinessOperationLog, add_inquiry_log
+from app.models.data_change_stats import DataChangeStats
 from datetime import datetime, timedelta
 import json
 from functools import wraps
@@ -19,7 +21,7 @@ def admin_required(f):
         token = request.headers.get('Authorization')
         if not token:
             return jsonify({"code": 401, "msg": "未提供访问令牌", "data": None}), 401
-        
+
         try:
             # 去掉 "Bearer " 前缀
             token = token.replace('Bearer ', '')
@@ -28,7 +30,7 @@ def admin_required(f):
             from config import Config
             payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
             emp_id = payload.get('emp_id')
-            
+
             # 查询用户信息 - 使用Employee表而不是TotpUser表
             user = Employee.query.filter_by(emp_id=emp_id).first()
             if not user or user.user_role != 'admin':
@@ -37,7 +39,7 @@ def admin_required(f):
             return jsonify({"code": 401, "msg": "令牌已过期", "data": None}), 401
         except jwt.InvalidTokenError:
             return jsonify({"code": 401, "msg": "无效的令牌", "data": None}), 401
-        
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -47,7 +49,7 @@ def get_user_from_token():
     token = request.headers.get('Authorization')
     if not token:
         return None
-    
+
     try:
         import jwt
         from config import Config
@@ -61,28 +63,7 @@ def get_user_from_token():
 
 
 def create_inquiry_log(inquiry_id, operation_type, operator_id, details="", inquiry_obj=None, communication_obj=None):
-    """创建询盘操作日志，包含统计信息"""
-    from sqlalchemy import func
-    
-    # 计算统计信息
-    total_inquiries = Inquiry.query.count()
-    total_communications = 0
-    new_inquiries_count = 0
-    new_communications_count = 0
-    
-    # 计算总沟通记录数
-    if inquiry_obj:
-        # 如果有inquiry对象，计算该询盘下的沟通记录数
-        total_communications = InquiryCommunication.query.join(Inquiry).filter(Inquiry.id == inquiry_obj.id).count()
-    else:
-        total_communications = InquiryCommunication.query.count()
-    
-    # 设置新增计数
-    if operation_type == 'create':
-        new_inquiries_count = 1
-    elif operation_type == 'create_communication':
-        new_communications_count = 1
-
+    """创建询盘操作日志，不包含统计信息"""
     # 获取公司名称
     company_name = None
     if inquiry_obj:
@@ -95,19 +76,19 @@ def create_inquiry_log(inquiry_id, operation_type, operator_id, details="", inqu
         if inquiry:
             company_name = inquiry.company_name
 
-    log = InquiryLog(
+    # 将公司名称等操作相关信息整合到 details 中
+    details_dict = json.loads(details) if details else {}
+    details_dict.update({
+        "company_name": company_name
+    })
+
+    # 使用新的通用日志函数
+    add_inquiry_log(
         inquiry_id=inquiry_id,
         operation_type=operation_type,
         operator_id=operator_id,
-        operation_details=details,
-        company_name=company_name,
-        total_inquiries=total_inquiries,
-        total_communications=total_communications,
-        new_inquiries_count=new_inquiries_count,
-        new_communications_count=new_communications_count
+        details=details_dict
     )
-    db.session.add(log)
-    db.session.commit()
 
 
 @inquiry_bp.route('/inquiries', methods=['GET'])
@@ -117,7 +98,7 @@ def get_inquiries():
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
-        
+
         # 获取筛选参数
         search = request.args.get('search')  # 新增的综合搜索参数
         area = request.args.get('area')
@@ -128,7 +109,7 @@ def get_inquiries():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         inquiry_source = request.args.get('inquiry_source')
-        
+
         # 检查用户权限
         current_user = get_user_from_token()
         if not current_user:
@@ -137,14 +118,14 @@ def get_inquiries():
                 "msg": "未授权访问",
                 "data": None
             }), 401
-        
+
         # 构建查询
         query = Inquiry.query
-        
+
         # 检查是否为管理员，如果不是管理员则只允许查看自己创建的数据
         if current_user.user_role != 'admin':
             query = query.filter(Inquiry.creator_id == current_user.emp_id)
-        
+
         # 应用综合搜索条件（使用新的search_field字段）
         if search:
             query = query.filter(Inquiry.search_field.contains(search))
@@ -162,7 +143,7 @@ def get_inquiries():
                 query = query.filter(Inquiry.machine_type.contains(machine_type))
             if inquiry_source:
                 query = query.filter(Inquiry.inquiry_source.contains(inquiry_source))
-        
+
         # 应用日期范围筛选（独立于内容搜索）
         if start_date:
             start_datetime = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -259,6 +240,10 @@ def create_inquiry():
         db.session.add(new_inquiry)
         db.session.commit()
 
+        # 增加询盘新增统计数据
+        DataChangeStats.increment_stats('inquiry', 'new', 1)
+        DataChangeStats.increment_stats('inquiry', 'total', 1)
+
         # 创建操作日志
         # 记录完整的询盘数据
         inquiry_data = new_inquiry.to_dict()
@@ -267,7 +252,7 @@ def create_inquiry():
             "user": current_user.name,
             "inquiry_data": inquiry_data
         }
-        
+
         create_inquiry_log(
             inquiry_id=new_inquiry.id,
             operation_type='create',
@@ -338,7 +323,7 @@ def update_inquiry(inquiry_id):
     """更新询盘信息"""
     try:
         inquiry = Inquiry.query.get_or_404(inquiry_id)
-        
+
         # 获取当前用户
         current_user = get_user_from_token()
         if not current_user:
@@ -377,10 +362,10 @@ def update_inquiry(inquiry_id):
 
         # 记录修改前的数据
         old_data = inquiry.to_dict()
-        
+
         # 更新询盘字段
         if 'area' in data: inquiry.area = data['area']
-        if 'inquiry_date' in data and data['inquiry_date']: 
+        if 'inquiry_date' in data and data['inquiry_date']:
             inquiry.inquiry_date = datetime.strptime(data['inquiry_date'], '%Y-%m-%d').date()
         if 'inquiry_source' in data: inquiry.inquiry_source = data['inquiry_source']
         if 'company_name' in data: inquiry.company_name = data['company_name']
@@ -394,23 +379,23 @@ def update_inquiry(inquiry_id):
         inquiry.update_search_field()
 
         db.session.commit()
-        
+
         # 创建操作日志
         # 记录修改的字段
         updated_fields = {}
-        for field in ['area', 'inquiry_date', 'inquiry_source', 'company_name', 'contact_person', 
+        for field in ['area', 'inquiry_date', 'inquiry_source', 'company_name', 'contact_person',
                      'phone', 'email', 'packaging_product', 'machine_type']:
             if field in data:
                 old_value = old_data.get(field)
                 new_value = data[field] if field != 'inquiry_date' or not data['inquiry_date'] else datetime.strptime(data['inquiry_date'], '%Y-%m-%d').date().strftime('%Y-%m-%d')
                 updated_fields[field] = {'old': old_value, 'new': new_value}
-        
+
         details = {
             "action": "update",
             "user": current_user.name,
             "updated_fields": updated_fields
         }
-        
+
         create_inquiry_log(
             inquiry_id=inquiry.id,
             operation_type='update',
@@ -441,7 +426,7 @@ def delete_inquiry(inquiry_id):
     """删除询盘"""
     try:
         inquiry = Inquiry.query.get_or_404(inquiry_id)
-        
+
         # 获取当前用户
         current_user = get_user_from_token()
         if not current_user:
@@ -461,18 +446,26 @@ def delete_inquiry(inquiry_id):
 
         # 记录完整询盘数据及关联的沟通记录
         inquiry_data = inquiry.to_dict()
-        
+
         # 获取关联的沟通记录
         communications = InquiryCommunication.query.filter_by(inquiry_id=inquiry.id).all()
         communication_data_list = [comm.to_dict() for comm in communications]
-        
+
         details = {
             "action": "delete",
             "user": current_user.name,
             "inquiry_data": inquiry_data,
             "communication_data": communication_data_list  # 包含关联的沟通记录
         }
-        
+
+        # 减少询盘总统计数据
+        DataChangeStats.increment_stats('inquiry', 'total', -1)
+
+        # 减少关联沟通记录的累计统计数据
+        communication_count = len(communications)
+        if communication_count > 0:
+            DataChangeStats.increment_stats('communication', 'total', -1 * communication_count)
+
         db.session.delete(inquiry)
         db.session.commit()
 
@@ -608,6 +601,10 @@ def create_inquiry_communication(inquiry_id):
         db.session.add(new_communication)
         db.session.commit()
 
+        # 增加沟通记录新增统计数据
+        DataChangeStats.increment_stats('communication', 'new', 1)
+        DataChangeStats.increment_stats('communication', 'total', 1)
+
         # 序列化创建的沟通记录
         communication_data = new_communication.to_dict()
 
@@ -617,7 +614,7 @@ def create_inquiry_communication(inquiry_id):
             "user": current_user.name,
             "communication_data": communication_data
         }
-        
+
         create_inquiry_log(
             inquiry_id=inquiry_id,
             operation_type='create_communication',
@@ -656,7 +653,7 @@ def update_inquiry_communication(inquiry_id, comm_id):
 
         # 获取沟通记录
         communication = InquiryCommunication.query.filter_by(
-            id=comm_id, 
+            id=comm_id,
             inquiry_id=inquiry_id
         ).first_or_404()
 
@@ -678,11 +675,11 @@ def update_inquiry_communication(inquiry_id, comm_id):
 
         # 记录修改前的数据
         old_data = communication.to_dict()
-        
+
         # 更新沟通记录字段
         if 'subject' in data: communication.subject = data['subject']
         if 'content' in data: communication.content = data['content']
-        if 'communication_date' in data and data['communication_date']: 
+        if 'communication_date' in data and data['communication_date']:
             communication.communication_date = datetime.strptime(data['communication_date'], '%Y-%m-%d').date()
 
         # 获取关联的询盘，更新公司名称
@@ -692,7 +689,7 @@ def update_inquiry_communication(inquiry_id, comm_id):
         db.session.commit()
 
         communication_data = communication.to_dict()
-        
+
         # 记录修改的字段
         updated_fields = {}
         for field in ['subject', 'content', 'communication_date']:
@@ -700,14 +697,14 @@ def update_inquiry_communication(inquiry_id, comm_id):
                 old_value = old_data.get(field)
                 new_value = data[field] if field != 'communication_date' or not data['communication_date'] else datetime.strptime(data['communication_date'], '%Y-%m-%d').date().strftime('%Y-%m-%d')
                 updated_fields[field] = {'old': old_value, 'new': new_value}
-        
+
         details = {
             "action": "update_communication",
             "user": current_user.name,
             "communication_id": communication.id,  # 添加沟通记录ID，用于恢复
             "updated_fields": updated_fields
         }
-        
+
         # 创建操作日志
         create_inquiry_log(
             inquiry_id=inquiry_id,
@@ -747,7 +744,7 @@ def delete_inquiry_communication(inquiry_id, comm_id):
 
         # 获取沟通记录
         communication = InquiryCommunication.query.filter_by(
-            id=comm_id, 
+            id=comm_id,
             inquiry_id=inquiry_id
         ).first_or_404()
 
@@ -761,10 +758,13 @@ def delete_inquiry_communication(inquiry_id, comm_id):
 
         # 记录完整沟通记录数据
         communication_data = communication.to_dict()
-        
+
         # 在删除前先获取关联的询盘对象，以避免删除后无法访问
         related_inquiry = communication.inquiry
-        
+
+        # 减少沟通记录总统计数据
+        DataChangeStats.increment_stats('communication', 'total', -1)
+
         db.session.delete(communication)
         db.session.commit()
 
@@ -774,7 +774,7 @@ def delete_inquiry_communication(inquiry_id, comm_id):
             "user": current_user.name,
             "communication_data": communication_data
         }
-        
+
         create_inquiry_log(
             inquiry_id=inquiry_id,
             operation_type='delete_communication',
@@ -805,55 +805,48 @@ def get_inquiry_logs():
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
-        
+
         # 获取筛选参数
         operation_type = request.args.get('operation_type')
         operator_name = request.args.get('operator_name')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
 
-        # 构建查询
-        query = InquiryLog.query
-        
+        # 构建查询 - 只查找模块为inquiry的日志
+        query = BusinessOperationLog.query.filter(BusinessOperationLog.module == 'inquiry')
+
         # 应用筛选条件
         if operation_type:
-            query = query.filter(InquiryLog.operation_type.contains(operation_type))
+            query = query.filter(BusinessOperationLog.operation_type.contains(operation_type))
         if operator_name:
             query = query.join(Employee).filter(Employee.name.contains(operator_name))
         if start_date:
             start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(InquiryLog.create_time >= start_datetime)
+            query = query.filter(BusinessOperationLog.create_time >= start_datetime)
         if end_date:
             end_datetime = datetime.strptime(end_date, '%Y-%m-%d') + datetime.timedelta(days=1)
-            query = query.filter(InquiryLog.create_time < end_datetime)
+            query = query.filter(BusinessOperationLog.create_time < end_datetime)
 
         # 计算总数
         total = query.count()
 
         # 应用分页和排序
-        logs = query.order_by(InquiryLog.create_time.desc()).offset((page - 1) * size).limit(size).all()
+        logs = query.order_by(BusinessOperationLog.create_time.desc()).offset((page - 1) * size).limit(size).all()
 
         # 序列化日志数据
         logs_list = [log.to_dict() for log in logs]
 
-        # 计算统计信息
-        total_inquiries = Inquiry.query.count()
-        total_communications = InquiryCommunication.query.count()
+        # 从新的统计数据模型获取统计信息
+        # 获取询盘统计
+        inquiry_total_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='total').first()
+        inquiry_new_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='new').first()
         
-        # 获取最近一次复位时间
-        last_reset_log = InquiryLog.query.filter(InquiryLog.operation_type == 'reset_stats').order_by(InquiryLog.reset_time.desc()).first()
-        reset_time = last_reset_log.reset_time if last_reset_log else None
+        # 获取沟通记录统计
+        communication_total_stats = DataChangeStats.query.filter_by(module='communication', stats_type='total').first()
+        communication_new_stats = DataChangeStats.query.filter_by(module='communication', stats_type='new').first()
         
-        # 计算复位后的新增统计（如果存在复位时间）
-        if reset_time:
-            # 复位后的新增统计
-            new_inquiries_since_reset = Inquiry.query.filter(Inquiry.create_time >= reset_time).count()
-            new_communications_since_reset = InquiryCommunication.query.filter(InquiryCommunication.create_time >= reset_time).count()
-        else:
-            # 如果没有复位过，使用最近30天的统计
-            thirty_days_ago = datetime.now() - timedelta(days=30)
-            new_inquiries_since_reset = Inquiry.query.filter(Inquiry.create_time >= thirty_days_ago).count()
-            new_communications_since_reset = InquiryCommunication.query.filter(InquiryCommunication.create_time >= thirty_days_ago).count()
+        # 复位时间
+        inquiry_reset_time = inquiry_new_stats.reset_time if inquiry_new_stats else None
 
         # 获取特定时间段内的新增统计 (最近30天)
         thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -861,13 +854,20 @@ def get_inquiry_logs():
         new_communications = InquiryCommunication.query.filter(InquiryCommunication.create_time >= thirty_days_ago).count()
 
         statistics = {
-            "total_inquiries": total_inquiries,
-            "total_communications": total_communications,
-            "new_inquiries": new_inquiries_since_reset if reset_time else new_inquiries,  # 使用复位后的新增数或最近30天的数
-            "new_communications": new_communications_since_reset if reset_time else new_communications,  # 使用复位后的新增数或最近30天的数
-            "last_reset_time": reset_time.strftime('%Y-%m-%d %H:%M:%S') if reset_time else None,
+            "total_inquiries": inquiry_total_stats.stats_value if inquiry_total_stats else 0,
+            "total_communications": communication_total_stats.stats_value if communication_total_stats else 0,
+            "new_inquiries": inquiry_new_stats.stats_value if inquiry_new_stats else 0,
+            "new_communications": communication_new_stats.stats_value if communication_new_stats else 0,
+            "last_reset_time": inquiry_reset_time.strftime('%Y-%m-%d') if inquiry_reset_time else None,
             "monthly_inquiries": new_inquiries,  # 最近30天的新增询盘数（作为月度参考）
-            "monthly_communications": new_communications  # 最近30天的新增沟通数（作为月度参考）
+            "monthly_communications": new_communications,  # 最近30天的新增沟通数（作为月度参考）
+            # 为前端添加兼容字段
+            "total_main": inquiry_total_stats.stats_value if inquiry_total_stats else 0,
+            "total_sub": communication_total_stats.stats_value if communication_total_stats else 0,
+            "new_main": inquiry_new_stats.stats_value if inquiry_new_stats else 0,
+            "new_sub": communication_new_stats.stats_value if communication_new_stats else 0,
+            "monthly_main": new_inquiries,
+            "monthly_sub": new_communications
         }
 
         response_data = {
@@ -905,35 +905,35 @@ def get_inquiry_statistics():
 
         # 构建查询
         query = Inquiry.query
-        
+
         # 检查是否为管理员，如果不是管理员则只统计自己创建的数据
         if current_user.user_role != 'admin':
             query = query.filter(Inquiry.creator_id == current_user.emp_id)
 
         # 计算总询盘数
         total_inquiries = query.count()
-        
+
         # 计算按来源统计
         from sqlalchemy import func
         source_stats = db.session.query(
             Inquiry.inquiry_source,
             func.count(Inquiry.id)
         ).filter(Inquiry.inquiry_source.isnot(None))
-        
+
         if current_user.user_role != 'admin':
             source_stats = source_stats.filter(Inquiry.creator_id == current_user.emp_id)
-        
+
         source_stats = source_stats.group_by(Inquiry.inquiry_source).all()
-        
+
         # 计算按地区统计
         area_stats = db.session.query(
             Inquiry.area,
             func.count(Inquiry.id)
         ).filter(Inquiry.area.isnot(None))
-        
+
         if current_user.user_role != 'admin':
             area_stats = area_stats.filter(Inquiry.creator_id == current_user.emp_id)
-        
+
         area_stats = area_stats.group_by(Inquiry.area).all()
 
         stats_data = {
@@ -961,13 +961,16 @@ def get_inquiry_statistics():
 def delete_inquiry_log(log_id):
     """删除询盘操作日志（仅管理员）"""
     try:
-        # 查找日志记录
-        log = InquiryLog.query.get_or_404(log_id)
-        
+        # 查找日志记录 - 从通用日志表中查找特定模块的日志
+        log = BusinessOperationLog.query.filter(
+            BusinessOperationLog.id == log_id,
+            BusinessOperationLog.module == 'inquiry'
+        ).first_or_404()
+
         # 删除日志记录
         db.session.delete(log)
         db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": "日志删除成功",
@@ -987,10 +990,12 @@ def delete_inquiry_log(log_id):
 def clear_all_inquiry_logs():
     """清空所有询盘操作日志（仅管理员）"""
     try:
-        # 删除所有日志记录
-        deleted_count = db.session.query(InquiryLog).delete()
+        # 删除所有询盘模块的日志记录
+        deleted_count = db.session.query(BusinessOperationLog).filter(
+            BusinessOperationLog.module == 'inquiry'
+        ).delete()
         db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": f"成功清空 {deleted_count} 条日志",
@@ -1010,20 +1015,23 @@ def clear_all_inquiry_logs():
 def restore_inquiry_log(log_id):
     """根据日志恢复被删除或修改的数据（仅管理员）"""
     try:
-        # 查找日志记录
-        log = InquiryLog.query.get_or_404(log_id)
-        
+        # 查找日志记录 - 从通用日志表中查找特定模块的日志
+        log = BusinessOperationLog.query.filter(
+            BusinessOperationLog.id == log_id,
+            BusinessOperationLog.module == 'inquiry'
+        ).first_or_404()
+
         # 解析日志详情
-        details = json.loads(log.operation_details)
-        
+        details = log.operation_details if isinstance(log.operation_details, dict) else json.loads(log.operation_details) if log.operation_details else {}
+
         action = details.get('action', '')
         user = details.get('user', '系统')
-        
+
         if action == 'delete':
             # 恢复被删除的询盘
             inquiry_data = details.get('inquiry_data', {})
             communication_data_list = details.get('communication_data', [])
-            
+
             # 创建询盘
             new_inquiry = Inquiry(
                 area=inquiry_data.get('area'),
@@ -1040,7 +1048,7 @@ def restore_inquiry_log(log_id):
             )
             db.session.add(new_inquiry)
             db.session.flush()  # 获取新询盘的ID
-            
+
             # 恢复关联的沟通记录
             for comm_data in communication_data_list:
                 new_communication = InquiryCommunication(
@@ -1052,9 +1060,17 @@ def restore_inquiry_log(log_id):
                     creator_id=comm_data.get('creator_id')
                 )
                 db.session.add(new_communication)
-            
+
             db.session.commit()
-            
+
+            # 增加询盘和沟通记录的累计统计数据
+            # 恢复一个询盘，所以增加1个询盘计数
+            DataChangeStats.increment_stats('inquiry', 'total', 1)
+            # 恢复的沟通记录数量
+            communication_count = len(communication_data_list)
+            if communication_count > 0:
+                DataChangeStats.increment_stats('communication', 'total', communication_count)
+
             # 创建恢复操作日志
             restore_details = {
                 "action": "restore",
@@ -1062,36 +1078,43 @@ def restore_inquiry_log(log_id):
                 "restored_data_type": "inquiry",
                 "restored_inquiry_id": new_inquiry.id,
                 "original_log_id": log_id,
-                "inquiry_data": inquiry_data  # 包含原始询盘数据用于日志显示
+                "inquiry_data": inquiry_data,  # 包含原始询盘数据用于日志显示
+                "restored_communication_count": communication_count  # 恢复的沟通记录数量
             }
-            
-            create_inquiry_log(
+
+            add_inquiry_log(
                 inquiry_id=new_inquiry.id,
                 operation_type='restore',
                 operator_id=get_user_from_token().emp_id,
-                details=json.dumps(restore_details, ensure_ascii=False),
-                inquiry_obj=new_inquiry
+                details=restore_details
             )
-            
+
             return jsonify({
                 "code": 200,
                 "msg": "询盘及沟通记录恢复成功",
                 "data": {"inquiry_id": new_inquiry.id}
             })
-            
+
         elif action == 'update':
             # 恢复被修改的询盘（使用旧数据）
             updated_fields = details.get('updated_fields', {})
-            
+
             # 从更新字段中提取原始数据
             original_data = {}
             for field, values in updated_fields.items():
                 original_data[field] = values.get('old')  # 使用旧值
-            
-            # 查找需要恢复的询盘
-            inquiry_id = log.inquiry_id
+
+            # 查找需要恢复的询盘 - 使用biz_id字段
+            inquiry_id = int(log.biz_id) if log.biz_id and log.biz_id != '0' else None
+            if not inquiry_id:
+                return jsonify({
+                    "code": 400,
+                    "msg": "无法确定要恢复的询盘ID",
+                    "data": None
+                }), 400
+
             inquiry = Inquiry.query.get_or_404(inquiry_id)
-            
+
             # 恢复原始数据
             for field, value in original_data.items():
                 if hasattr(inquiry, field):
@@ -1099,11 +1122,11 @@ def restore_inquiry_log(log_id):
                         setattr(inquiry, field, datetime.strptime(value, '%Y-%m-%d').date())
                     else:
                         setattr(inquiry, field, value)
-            
+
             # 更新搜索字段
             inquiry.update_search_field()
             db.session.commit()
-            
+
             # 创建恢复操作日志
             restore_details = {
                 "action": "restore",
@@ -1114,28 +1137,37 @@ def restore_inquiry_log(log_id):
                 "restored_fields": list(original_data.keys()),
                 "inquiry_data": inquiry.to_dict()  # 包含询盘当前数据用于日志显示
             }
-            
-            create_inquiry_log(
+
+            add_inquiry_log(
                 inquiry_id=inquiry.id,
                 operation_type='restore',
                 operator_id=get_user_from_token().emp_id,
-                details=json.dumps(restore_details, ensure_ascii=False),
-                inquiry_obj=inquiry
+                details=restore_details
             )
-            
+
             return jsonify({
                 "code": 200,
                 "msg": "询盘修改恢复成功",
                 "data": {"inquiry_id": inquiry.id}
             })
-            
+
         elif action == 'delete_communication':
             # 恢复被删除的沟通记录
             communication_data = details.get('communication_data', {})
-            
+            inquiry_id = communication_data.get('inquiry_id')
+
+            # 验证询盘ID是否存在
+            inquiry = Inquiry.query.get(inquiry_id)
+            if not inquiry:
+                return jsonify({
+                    "code": 400,
+                    "msg": f"询盘ID {inquiry_id} 不存在，无法恢复沟通记录",
+                    "data": None
+                }), 400
+
             # 创建沟通记录
             new_communication = InquiryCommunication(
-                inquiry_id=communication_data.get('inquiry_id'),
+                inquiry_id=inquiry_id,
                 subject=communication_data.get('subject'),
                 content=communication_data.get('content'),
                 communication_date=datetime.strptime(communication_data['communication_date'], '%Y-%m-%d').date() if communication_data.get('communication_date') else None,
@@ -1144,7 +1176,10 @@ def restore_inquiry_log(log_id):
             )
             db.session.add(new_communication)
             db.session.commit()
-            
+
+            # 增加沟通记录的累计统计数据（因为恢复了一个被删除的沟通记录）
+            DataChangeStats.increment_stats('communication', 'total', 1)
+
             # 创建恢复操作日志
             restore_details = {
                 "action": "restore",
@@ -1153,40 +1188,54 @@ def restore_inquiry_log(log_id):
                 "restored_communication_data": communication_data,
                 "original_log_id": log_id
             }
-            
-            # 获取关联的询盘对象用于记录日志
-            inquiry = Inquiry.query.get(communication_data.get('inquiry_id'))
-            
-            create_inquiry_log(
-                inquiry_id=communication_data.get('inquiry_id'),
+
+            add_inquiry_log(
+                inquiry_id=inquiry_id,
                 operation_type='restore',
                 operator_id=get_user_from_token().emp_id,
-                details=json.dumps(restore_details, ensure_ascii=False),
-                inquiry_obj=inquiry
+                details=restore_details
             )
-            
+
             return jsonify({
                 "code": 200,
                 "msg": "沟通记录恢复成功",
                 "data": {"communication_id": new_communication.id}
             })
-            
+
         elif action == 'update_communication':
             # 恢复被修改的沟通记录（使用旧数据）
             updated_fields = details.get('updated_fields', {})
-            
+
             # 从更新字段中提取原始数据
             original_data = {}
             for field, values in updated_fields.items():
                 original_data[field] = values.get('old')  # 使用旧值
-            
+
             # 查找需要恢复的沟通记录
-            log_inquiry_id = log.inquiry_id
+            log_inquiry_id = int(log.biz_id) if log.biz_id else None
             communication_id = details.get('communication_id')  # 需要从日志详情中获取沟通记录ID
+            
+            # 检查询盘是否存在
+            inquiry = Inquiry.query.get(log_inquiry_id)
+            if not inquiry:
+                return jsonify({
+                    "code": 400,
+                    "msg": f"询盘ID {log_inquiry_id} 不存在，无法恢复沟通记录",
+                    "data": None
+                }), 400
+            
+            # 查找沟通记录
             communication = InquiryCommunication.query.filter_by(
                 id=communication_id,
                 inquiry_id=log_inquiry_id
-            ).first_or_404()
+            ).first()
+            
+            if not communication:
+                return jsonify({
+                    "code": 400,
+                    "msg": f"沟通记录ID {communication_id} 不存在或不隶属于询盘ID {log_inquiry_id}，无法恢复",
+                    "data": None
+                }), 400
 
             # 恢复原始数据
             for field, value in original_data.items():
@@ -1197,7 +1246,7 @@ def restore_inquiry_log(log_id):
                         setattr(communication, field, value)
 
             db.session.commit()
-            
+
             # 创建恢复操作日志
             restore_details = {
                 "action": "restore",
@@ -1207,28 +1256,27 @@ def restore_inquiry_log(log_id):
                 "original_log_id": log_id,
                 "restored_fields": list(original_data.keys())
             }
-            
-            create_inquiry_log(
+
+            add_inquiry_log(
                 inquiry_id=log_inquiry_id,
                 operation_type='restore',
                 operator_id=get_user_from_token().emp_id,
-                details=json.dumps(restore_details, ensure_ascii=False),
-                inquiry_obj=communication.inquiry
+                details=restore_details
             )
-            
+
             return jsonify({
                 "code": 200,
                 "msg": "沟通记录修改恢复成功",
                 "data": {"communication_id": communication.id}
             })
-            
+
         else:
             return jsonify({
                 "code": 400,
                 "msg": "该日志类型不支持恢复操作",
                 "data": None
             }), 400
-            
+
     except Exception as e:
         db.session.rollback()
         return jsonify({
@@ -1241,51 +1289,58 @@ def restore_inquiry_log(log_id):
 @inquiry_bp.route('/reset-stats', methods=['POST'])
 @admin_required
 def reset_statistics():
-    """复位统计数字（仅管理员）"""
+    """复位统计数字（仅管理员）- 基于新统计模型实现"""
     try:
-        # 获取当前统计数字
-        from sqlalchemy import func
-        current_new_inquiries = Inquiry.query.count()
-        current_new_communications = InquiryCommunication.query.count()
-        
-        # 获取当前用户
+        reset_time = datetime.now()
+        reset_time_str = reset_time.strftime('%Y-%m-%d %H:%M:%S')
         current_user = get_user_from_token()
+
+        # 1. 获取复位前的统计数值
+        inquiry_new_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='new').first()
+        communication_new_stats = DataChangeStats.query.filter_by(module='communication', stats_type='new').first()
         
-        # 记录复位前的统计数字到日志
+        previous_new_inquiries = inquiry_new_stats.stats_value if inquiry_new_stats else 0
+        previous_new_communications = communication_new_stats.stats_value if communication_new_stats else 0
+
+        # 2. 复位询盘和沟通的新增统计数（真正的归零操作）
+        DataChangeStats.reset_stats(
+            module='inquiry',
+            stats_type_list=['new']
+        )
+        DataChangeStats.reset_stats(
+            module='communication',
+            stats_type_list=['new']
+        )
+
+        # 3. 记录复位操作日志（仅记录行为，不存储统计值）
         details = {
             "action": "reset_stats",
             "user": current_user.name,
-            "reset_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "previous_new_inquiries": current_new_inquiries,
-            "previous_new_communications": current_new_communications
+            "reset_time": reset_time_str,
+            "reset_modules": ["inquiry", "communication"],
+            "reset_types": ["new"],
+            "previous_new_inquiries": previous_new_inquiries,
+            "previous_new_communications": previous_new_communications
         }
-        
-        # 创建复位操作日志
-        reset_log = InquiryLog(
-            inquiry_id=0,  # 复位操作不关联特定询盘
+        add_inquiry_log(
+            inquiry_id=0,
             operation_type='reset_stats',
             operator_id=current_user.emp_id,
-            operation_details=json.dumps(details, ensure_ascii=False),
-            company_name="System",  # 系统操作
-            total_inquiries=current_new_inquiries,
-            total_communications=current_new_communications,
-            new_inquiries_count=current_new_inquiries,  # 复位前的累计数
-            new_communications_count=current_new_communications,  # 复位前的累计数
-            reset_time=datetime.now()  # 记录复位时间
+            details=details
         )
-        
-        db.session.add(reset_log)
-        db.session.commit()
-        
+
         return jsonify({
             "code": 200,
             "msg": "统计数字复位成功",
             "data": {
-                "reset_time": reset_log.reset_time.strftime('%Y-%m-%d %H:%M:%S'),
-                "previous_new_inquiries": current_new_inquiries,
-                "previous_new_communications": current_new_communications
+                "reset_time": reset_time_str,
+                "previous_new_inquiries": previous_new_inquiries,
+                "previous_new_communications": previous_new_communications,
+                "reset_modules": ["inquiry", "communication"],
+                "tips": "新增统计数已归零，累计数保持不变"
             }
         })
+
     except Exception as e:
         db.session.rollback()
         return jsonify({
@@ -1293,6 +1348,13 @@ def reset_statistics():
             "msg": f"统计数字复位失败: {str(e)}",
             "data": None
         }), 500
+
+
+@inquiry_bp.route('/reset-inquiry-stats', methods=['POST'])
+@admin_required
+def reset_inquiry_stats():
+    """复位询盘统计数字（适配前端调用）"""
+    return reset_statistics()
 
 
 @inquiry_bp.route('/monthly-stats', methods=['GET'])
@@ -1303,25 +1365,25 @@ def get_monthly_stats():
         # 计算本月的开始和结束时间
         now = datetime.now()
         start_of_month = datetime(now.year, now.month, 1)
-        
+
         # 如果是12月，则下个月是下一年的1月
         if now.month == 12:
             end_of_month = datetime(now.year + 1, 1, 1)
         else:
             end_of_month = datetime(now.year, now.month + 1, 1)
-        
+
         # 查询本月新增的询盘数量
         monthly_inquiries = Inquiry.query.filter(
             Inquiry.create_time >= start_of_month,
             Inquiry.create_time < end_of_month
         ).count()
-        
+
         # 查询本月新增的沟通记录数量
         monthly_communications = InquiryCommunication.query.filter(
             InquiryCommunication.create_time >= start_of_month,
             InquiryCommunication.create_time < end_of_month
         ).count()
-        
+
         return jsonify({
             "code": 200,
             "msg": "本月统计查询成功",
@@ -1335,5 +1397,62 @@ def get_monthly_stats():
         return jsonify({
             "code": 500,
             "msg": f"本月统计查询失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@inquiry_bp.route('/recalculate-stats', methods=['POST'])
+@admin_required
+def recalculate_statistics():
+    """重新计算统计数字（仅管理员）- 用于开发阶段数据校正"""
+    try:
+        current_user = get_user_from_token()
+        
+        # 重新计算询盘统计
+        total_inquiries = Inquiry.query.count()
+        
+        # 重置并重新计算询盘统计数据
+        DataChangeStats.increment_stats('inquiry', 'total', total_inquiries)
+        # 由于无法确定新增数量，这里暂时设置为0，或使用其他逻辑
+        # 我们将根据实际数据重新设置
+        DataChangeStats.reset_stats('inquiry', ['new', 'total'])
+        
+        # 重新计算并设置总数
+        total_inquiries = Inquiry.query.count()
+        DataChangeStats.query.filter_by(module='inquiry', stats_type='total').update({'stats_value': total_inquiries})
+        # 新增数暂时设置为当前总数（因为开发阶段无法确定历史新增）
+        DataChangeStats.query.filter_by(module='inquiry', stats_type='new').update({'stats_value': total_inquiries})
+        
+        # 重新计算沟通记录统计
+        total_communications = InquiryCommunication.query.count()
+        DataChangeStats.reset_stats('communication', ['new', 'total'])
+        
+        # 重新设置总数
+        total_communications = InquiryCommunication.query.count()
+        DataChangeStats.query.filter_by(module='communication', stats_type='total').update({'stats_value': total_communications})
+        DataChangeStats.query.filter_by(module='communication', stats_type='new').update({'stats_value': total_communications})
+        
+        # 提交更改
+        db.session.commit()
+
+        # 不再记录重新计算操作日志（按要求）
+
+        return jsonify({
+            "code": 200,
+            "msg": "统计数字重新计算成功",
+            "data": {
+                "recalculated_modules": ["inquiry", "communication"],
+                "new_totals": {
+                    "inquiry_total": total_inquiries,
+                    "communication_total": total_communications
+                }
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"统计数字重新计算失败: {str(e)}",
             "data": None
         }), 500

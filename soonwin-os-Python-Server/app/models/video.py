@@ -11,7 +11,7 @@ class Video(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String(255), nullable=False, default='')  # 标题
     tags = db.Column(db.String(500), nullable=False, default='')  # 标签，多个标签用逗号分隔
-    machine_id = db.Column(db.Integer, nullable=True, default=0)  # 关联的机器ID
+    machine_id = db.Column(db.String(255), nullable=True, default='')  # 关联的机器型号
     remark = db.Column(db.Text, nullable=False, default='')  # 备注
     search_field = db.Column(db.Text, nullable=False, default='')  # 搜索字段（标题+标签+备注+机器型号等）
     uploader = db.Column(db.String(100), nullable=False)  # 上传者
@@ -25,6 +25,8 @@ class Video(db.Model):
     compress_status = db.Column(db.String(50), nullable=False, default='pending')  # 压缩状态：pending, processing, success, failed
     upload_time = db.Column(db.DateTime, nullable=False, default=datetime.now)  # 上传时间
     is_deleted = db.Column(db.Integer, nullable=False, default=0)  # 是否删除：0-正常，1-已删除
+    delete_time = db.Column(db.DateTime, nullable=True)  # 删除时间
+    delete_operator = db.Column(db.String(100), nullable=True)  # 删除操作人
 
     def to_dict(self, include_stats=False):
         """
@@ -47,7 +49,9 @@ class Video(db.Model):
             'file_size': self.file_size,
             'compress_status': self.compress_status,
             'upload_time': self.upload_time.strftime('%Y-%m-%d %H:%M:%S') if self.upload_time else None,
-            'is_deleted': self.is_deleted
+            'is_deleted': self.is_deleted,
+            'delete_time': self.delete_time.strftime('%Y-%m-%d %H:%M:%S') if self.delete_time else None,
+            'delete_operator': self.delete_operator
         }
         
         if include_stats:
@@ -70,23 +74,19 @@ class Video(db.Model):
         """
         query = Video.query.filter_by(is_deleted=0)
 
-        # 非管理员只能查看自己上传的视频
-        if not is_admin and uploader:
-            query = query.filter_by(uploader=uploader)
-
         # 搜索功能
         if search:
             query = query.filter(Video.search_field.like(f'%{search}%'))
         
         # 机器ID筛选
         if machine_id is not None:
-            if machine_id == -1:  # 特殊情况：型号不存在，返回空结果
+            if machine_id == -1 or str(machine_id) == '-1':  # 特殊情况：型号不存在，返回空结果
                 query = query.filter(Video.id == -1)  # 不存在的ID，确保空结果
-            elif machine_id != 0 and machine_id != '0':
+            elif machine_id != '' and str(machine_id) != '0' and str(machine_id) != '':  # 机器型号不为空
                 # machine_id现在是机器型号字符串，直接匹配
-                query = query.filter(Video.machine_id == machine_id)
-            else:  # machine_id == 0 或 '0'，表示查找没有关联机器的项目
-                query = query.filter((Video.machine_id == 0) | (Video.machine_id.is_(None)))
+                query = query.filter(Video.machine_id == str(machine_id))
+            else:  # machine_id为空字符串或'0'，表示查找没有关联机器的项目
+                query = query.filter((Video.machine_id == '') | (Video.machine_id.is_(None)))
 
         # 按上传时间倒序排列
         query = query.order_by(Video.upload_time.desc())
@@ -106,7 +106,28 @@ class Video(db.Model):
         """
         query = Video.query.filter_by(id=video_id, is_deleted=0)
 
-        if not is_admin and uploader:
-            query = query.filter_by(uploader=uploader)
-
         return query.first()
+
+    @staticmethod
+    def get_deleted_videos_paginated(page=1, per_page=10, search='', is_admin=False, uploader=None):
+        """
+        分页获取已删除的视频列表
+        :param page: 页码
+        :param per_page: 每页数量
+        :param search: 搜索关键词
+        :param is_admin: 是否为管理员
+        :param uploader: 上传者
+        :return: 分页对象
+        """
+        query = Video.query.filter_by(is_deleted=1)  # 只获取已删除的视频
+
+        # 搜索功能
+        if search:
+            query = query.filter(Video.search_field.like(f'%{search}%'))
+        
+        # 按删除时间倒序排列（如果有的话）或按上传时间
+        query = query.order_by(Video.delete_time.desc().nulls_last(), Video.upload_time.desc())
+
+        return query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )

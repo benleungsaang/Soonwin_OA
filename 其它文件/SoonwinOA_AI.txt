@@ -12,6 +12,10 @@
 3、文件修改后不执行Validate with frontend-tester；
 4、注意前端代码要符合TypeScript要求；
 5、后续开发的页面中的常规按钮，如添加Plus、删除Delete、修改Edit、查询Search等用常规图标按钮，不用文字按钮，有同级多按钮再以图标加简单文字表述，如：<el-icon><Search /></el-icon>
+6、测试前端功能时启动的测试服务，请使用后关闭，避免占用资源，不用终止我使用的5173端口；
+
+
+
 
 
 

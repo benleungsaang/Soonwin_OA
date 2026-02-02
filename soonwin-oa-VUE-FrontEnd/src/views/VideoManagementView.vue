@@ -3,10 +3,82 @@
     <CommonHeader title="视频管理" />
     <div class="header">
       <div class="title-with-count">
-        <h2>视频管理</h2>
-        <span v-if="showResultCount" class="result-count">找到 {{ totalVideos }} 条视频</span>
+        <h2>
+          <template v-if="showingRecycleBin">
+            回收站
+            <span v-if="showingRecycleBin" class="recycle-statistics">
+              ({{ totalVideos }} 个文件, {{ formatFileSize(totalDeletedSize) }})
+            </span>
+          </template>
+          <template v-else>视频管理</template>
+        </h2>
+        <div v-if="showResultCount && !showingRecycleBin" class="result-count-container">
+          <span class="result-count">
+            找到 {{ totalVideos }} 条视频
+          </span>
+          <el-icon
+            @click="clearSearch"
+            class="result-refresh-btn"
+          ><RefreshLeft /></el-icon>
+        </div>
       </div>
-      <el-button type="primary" @click="showUploadDialog = true">上传视频</el-button>
+      <div class="header-buttons">
+                <el-button
+                  v-if="!showingRecycleBin"
+                  type="primary"
+                  @click="showUploadDialog = true"
+                >
+                  <el-icon><UploadFilled /></el-icon>
+                  上传视频
+                </el-button>        <el-button
+          v-if="!showingRecycleBin && isAdmin"
+        @click="showVideoLogs" >
+          <el-icon><Document /></el-icon>
+          查看日志
+        </el-button>
+        <el-button
+          v-if="showingRecycleBin"
+          type="primary"
+          @click="confirmRestore"
+          style="margin-right: 10px;"
+        >
+          <el-icon><Refresh /></el-icon>
+          恢复 ({{ selectedVideos.length }})
+        </el-button>
+        <el-button
+          v-if="showingRecycleBin"
+          type="danger"
+          @click="confirmPhysicalDelete"
+          style="margin-right: 10px;"
+        >
+          <el-icon><Delete /></el-icon>
+          彻底删除 ({{ selectedVideos.length }})
+        </el-button>
+        <el-button
+          v-if="!showingRecycleBin && isAdmin"
+          @click="enterRecycleBin"
+          style="margin-right: 10px;"
+        >
+          <el-icon><Delete /></el-icon>
+          回收站
+        </el-button>
+        <el-button
+          v-if="showingRecycleBin && isAdmin"
+          @click="toggleSelectAll"
+          style="margin-right: 10px;"
+        >
+          <el-icon><CircleCheck /></el-icon>
+          {{ selectedVideos.length === videos.length ? '取消' : '全选' }}
+        </el-button>
+        <el-button
+          v-if="showingRecycleBin"
+          @click="exitRecycleBin"
+          style="margin-right: 10px;"
+        >
+          <el-icon><Back /></el-icon>
+          返回
+        </el-button>
+      </div>
     </div>
 
     <!-- 搜索和筛选 -->
@@ -42,11 +114,25 @@
         v-for="video in videos"
         :key="video.id"
         class="video-card"
-        @click="viewVideoDetails(video)"
+        :class="{ 'selected': showingRecycleBin && selectedVideos.includes(video.id) }"
+        :data-video-id="video.id"
+        @click="showingRecycleBin ? toggleVideoSelection(video) : viewVideoDetails(video)"
       >
-        <!-- 删除按钮 - 右上角圆形X按钮 -->
-        <div class="delete-btn" @click.stop="deleteVideo(video.id)">
-          <el-icon><Delete /></el-icon>
+        <!-- 多选复选框（仅在回收站模式下显示） -->
+        <div
+          v-if="showingRecycleBin"
+          class="select-checkbox"
+          @click.stop="toggleVideoSelection(video)"
+        >
+          <el-checkbox
+            :model-value="selectedVideos.includes(video.id)"
+            @click.stop="toggleVideoSelection(video)"
+          />
+        </div>
+
+        <!-- 删除按钮（仅在非回收站模式下显示） -->
+        <div v-else class="delete-btn" @click.stop="deleteVideo(video.id)">
+          <el-icon style="margin: 0;"><Delete /></el-icon>
         </div>
 
         <!-- 视频区域 - 包含标题、分辨率、点击触发详情 -->
@@ -72,8 +158,28 @@
 
         <div class="video-info">
           <div class="video-title">{{ video.title }}</div>
-          <div class="video-upload-time">{{ video.upload_time }}</div>
-          <div class="card-tags-container" v-if="video.tags">
+          <div class="video-upload-time">
+            <template v-if="!showingRecycleBin">
+              <span class="time-label">上传:</span> {{ video.upload_time }}
+            </template>
+            <template v-else>
+              <div class="recycle-info">
+                <div class="info-item">
+                  <span class="time-label">上传:</span> {{ video.upload_time }}
+                </div>
+                <div class="info-item">
+                  <span class="time-label">上传人:</span> {{ video.uploader }}
+                </div>
+                <div class="info-item">
+                  <span class="time-label">删除:</span> {{ video.delete_time || 'N/A' }}
+                </div>
+                <div class="info-item">
+                  <span class="time-label">删除人:</span> {{ video.delete_operator || 'N/A' }}
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="card-tags-container" v-if="video.tags && !showingRecycleBin">
             <div
               v-for="tag in video.tags.split(',')"
               :key="tag"
@@ -135,16 +241,19 @@
             <el-option
               v-for="machine in machineList"
               :key="machine.model"
-              :label="`${machine.model} - ${machine.original_model}`"
+              :label="`${machine.model}`"
               :value="machine.model"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="标签" prop="tags">
-          <el-input
-            v-model="uploadForm.tags"
-            placeholder="多个标签用逗号分隔，例如：故障,检修,2024"
-            @keyup.enter="addTag"
+          <!-- 使用 el-input-tag 替换原有自定义标签结构 -->
+          <el-input-tag
+            v-model="uploadFormTags"
+            placeholder="请输入标签，多个标签用逗号分隔"
+            delimiter=","
+            class="tag-input-wrapper"
+            size="small"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -216,7 +325,7 @@
             <div class="preview-actions">
               <el-button
                 v-if="selectedVideo.original_path"
-                type="text"
+                :link="true"
                 @click="downloadVideo"
                 size="small"
               >
@@ -353,18 +462,35 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 引入通用日志对话框组件 -->
+    <CommonLogDialog
+      v-model="logDialogVisible"
+      log-type="video"
+      :handle-jump="handleLogJump"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, Download, VideoPlay } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
+import CommonLogDialog from '@/components/CommonLogDialog.vue';
+import InputTag from '@/components/InputTag.vue';
 import { uploadFile } from '@/utils/upload';
-import request, { getMachinesForVideos, createVideo, updateVideo, deleteVideo as deleteVideoAPI } from '@/utils/request';
-
+import { isCurrentUserAdmin } from '@/utils/authUtils';
+import request, {
+  getMachinesForVideos,
+  createVideo,
+  updateVideo,
+  deleteVideo as deleteVideoAPI,
+  getDeletedVideos,
+  physicalDeleteVideos,
+  restoreVideos
+} from '@/utils/request';
 // 响应式数据
 const videos = ref<any[]>([]);
 const currentPage = ref(1);
@@ -388,6 +514,43 @@ const uploadForm = ref({
   file: null as File | null
 });
 
+const uploadFormTags = ref<string[]>([]);
+const inputValueString = ref('');
+const inputVisible = ref(false);
+const inputValue = ref('');
+const tagInputRef = ref();
+
+// 监听uploadFormTags变化并更新uploadForm中的tags字段
+watch(uploadFormTags, (newTags) => {
+  uploadForm.value.tags = newTags.join(',');
+  // 同时更新inputValueString以保持UI同步
+  inputValueString.value = newTags.join(',');
+}, { deep: true });
+
+// 监听uploadForm中的tags变化并更新uploadFormTags
+watch(() => uploadForm.value.tags, (newTags) => {
+  if (newTags) {
+    const tagsArray = newTags.split(',').filter(tag => tag.trim() !== '');
+    uploadFormTags.value = tagsArray;
+    inputValueString.value = newTags;
+  } else {
+    uploadFormTags.value = [];
+    inputValueString.value = '';
+  }
+});
+
+// 监听inputValueString的变化并更新uploadFormTags
+watch(inputValueString, (newVal) => {
+  if (newVal) {
+    const tagsArray = newVal.split(',').filter(tag => tag.trim() !== '');
+    uploadFormTags.value = tagsArray;
+    uploadForm.value.tags = newVal;
+  } else {
+    uploadFormTags.value = [];
+    uploadForm.value.tags = '';
+  }
+});
+
 // 表单引用
 const uploadFormRef = ref();
 
@@ -407,6 +570,22 @@ const editTagsInput = ref('');
 const editRemark = ref('');
 const currentTags = ref<string[]>([]);
 const savingAll = ref(false);
+
+// 回收站相关变量
+const showingRecycleBin = ref(false);  // 是否显示回收站
+const selectedVideos = ref<number[]>([]);  // 选中的视频ID数组
+const totalDeletedSize = ref(0);  // 回收站中文件的总大小
+
+// 权限相关
+const isAdmin = computed(() => isCurrentUserAdmin());
+
+// 通用日志组件相关
+const logDialogVisible = ref(false);
+
+// 计算属性：检查当前用户是否为管理员
+const isCurrentUserAdminComputed = computed(() => {
+  return isCurrentUserAdmin();
+});
 
 // 表单验证规则
 const uploadRules = {
@@ -481,17 +660,30 @@ const onVideoError = (event: Event) => {
 // 获取视频列表
 const fetchVideos = async () => {
   try {
-    const response = await request.get('/api/videos', {
-      params: {
+    if (showingRecycleBin.value) {
+      // 如果显示回收站，则获取已删除的视频
+      const response = await getDeletedVideos({
         page: currentPage.value,
         per_page: pageSize.value,
-        search: searchQuery.value,
-        machine_id: selectedMachine.value
-      }
-    });
+        search: searchQuery.value
+      });
 
-    videos.value = response.videos;
-    totalVideos.value = response.total;
+      videos.value = response.videos;
+      totalVideos.value = response.total;
+    } else {
+      // 否则获取正常的视频列表
+      const response = await request.get('/api/videos', {
+        params: {
+          page: currentPage.value,
+          per_page: pageSize.value,
+          search: searchQuery.value,
+          machine_id: selectedMachine.value
+        }
+      });
+
+      videos.value = response.videos;
+      totalVideos.value = response.total;
+    }
   } catch (error) {
     console.error('获取视频列表失败:', error);
     ElMessage.error('获取视频列表失败');
@@ -555,11 +747,45 @@ const handleUploadDialogClose = (done: () => void) => {
 };
 
 // 添加标签函数
-const addTag = () => {
-  // 这个函数可以用于添加标签，但目前我们只需要让输入框响应回车键
-  console.log('addTag called');
+// 标签处理函数
+const handleTagClose = (tag: string) => {
+  const index = uploadFormTags.value.indexOf(tag);
+  if (index > -1) {
+    uploadFormTags.value.splice(index, 1);
+  }
 };
 
+const showInput = () => {
+  inputVisible.value = true;
+  nextTick(() => {
+    tagInputRef.value?.focus();
+  });
+};
+
+const handleInputConfirm = () => {
+  if (inputValue.value) {
+    // 按逗号分割输入的标签
+    const newTags = inputValue.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+    newTags.forEach(tag => {
+      if (!uploadFormTags.value.includes(tag)) {
+        uploadFormTags.value.push(tag);
+      }
+    });
+  }
+  inputVisible.value = false;
+  inputValue.value = '';
+};
+
+// 标签输入框失焦处理函数
+const handleTagInputBlur = () => {
+  if (inputValueString.value) {
+    const newTags = inputValueString.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+    // 去重并更新标签数组
+    const uniqueTags = Array.from(new Set(newTags));
+    uploadFormTags.value = uniqueTags;
+  }
+};
 // 提交上传
 const submitUpload = async () => {
   // @ts-ignore
@@ -832,6 +1058,196 @@ const handleCurrentChange = (page: number) => {
   fetchVideos();
 };
 
+// 进入回收站
+const enterRecycleBin = async () => {
+  showingRecycleBin.value = true;
+  currentPage.value = 1;
+  selectedVideos.value = []; // 清空选中的视频
+  await fetchDeletedVideos();
+};
+
+// 退出回收站
+const exitRecycleBin = () => {
+  showingRecycleBin.value = false;
+  currentPage.value = 1;
+  selectedVideos.value = []; // 清空选中的视频
+  fetchVideos(); // 重新获取正常视频列表
+};
+
+// 获取已删除的视频列表
+const fetchDeletedVideos = async () => {
+  try {
+    const response = await getDeletedVideos({
+      page: currentPage.value,
+      per_page: pageSize.value,
+      search: searchQuery.value
+    });
+
+    videos.value = response.videos;
+    totalVideos.value = response.total;
+
+    // 计算回收站中所有视频的总大小
+    totalDeletedSize.value = response.videos.reduce((total, video) => {
+      return total + (video.file_size || 0);
+    }, 0);
+  } catch (error) {
+    console.error('获取已删除视频列表失败:', error);
+    ElMessage.error('获取已删除视频列表失败');
+  }
+};
+
+// 恢复视频确认
+const confirmRestore = async () => {
+  if (selectedVideos.value.length === 0) {
+    ElMessage.warning('请先选择要恢复的视频');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要恢复选中的 ${selectedVideos.value.length} 个视频吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    );
+
+    await restoreVideos(selectedVideos.value);
+    ElMessage.success(`成功恢复 ${selectedVideos.value.length} 个视频`);
+
+    // 清空选中项并刷新列表
+    selectedVideos.value = [];
+    await fetchDeletedVideos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('恢复视频失败:', error);
+      ElMessage.error('恢复失败');
+    }
+  }
+};
+
+// 物理删除确认
+const confirmPhysicalDelete = async () => {
+  if (selectedVideos.value.length === 0) {
+    ElMessage.warning('请先选择要物理删除的视频');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除选中的 ${selectedVideos.value.length} 个视频吗？此操作不可恢复！`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await physicalDeleteVideos(selectedVideos.value);
+    ElMessage.success(`成功物理删除 ${selectedVideos.value.length} 个视频`);
+
+    // 清空选中项并刷新列表
+    selectedVideos.value = [];
+    await fetchDeletedVideos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('物理删除视频失败:', error);
+      ElMessage.error('物理删除失败');
+    }
+  }
+};
+
+// 切换视频选择状态
+const toggleVideoSelection = (video: any) => {
+  const index = selectedVideos.value.indexOf(video.id);
+  if (index > -1) {
+    // 如果已选中，则取消选中
+    selectedVideos.value.splice(index, 1);
+  } else {
+    // 如果未选中，则添加到选中列表
+    selectedVideos.value.push(video.id);
+  }
+};
+
+// 全选/取消全选功能
+const toggleSelectAll = () => {
+  if (selectedVideos.value.length === videos.value.length) {
+    // 如果当前已全选，则取消全选
+    selectedVideos.value = [];
+  } else {
+    // 如果未全选，则全选
+    selectedVideos.value = videos.value.map(video => video.id);
+  }
+};
+
+// 处理视频选择变化（保留原来的，以兼容其他可能的用法）
+const handleSelectionChange = (selected: any[]) => {
+  selectedVideos.value = selected.map(video => video.id);
+};
+
+// 添加专门的日志跳转处理函数
+const handleLogJump = async (id: number) => {
+  console.log(`跳转到视频ID: ${id}`);
+
+  // 首先检查当前页面的视频列表中是否包含该视频
+  const currentVideo = videos.value.find(video => video.id === id);
+
+  if (currentVideo) {
+    // 如果在当前页面找到视频，直接打开详情
+    viewVideoDetails(currentVideo);
+  } else {
+    // 如果当前页面没有找到，需要从服务器获取该视频信息
+    try {
+      const response = await request.get(`/api/videos/${id}`);
+
+      // 检查响应是否成功
+      if (response && response.code === 200) {
+        const responseData = response.data; // 获取实际数据
+        // 打开视频详情
+        viewVideoDetails(responseData);
+      } else {
+        // 如果后端返回了错误格式的响应
+        if (response && response.code !== 200 &&
+            response.msg && (response.msg.includes('404') || response.msg.toLowerCase().includes('not found'))) {
+          ElMessage.error('该视频已删除或不存在');
+        } else {
+          ElMessage.error('加载视频详情失败');
+        }
+      }
+    } catch (error: any) {
+      console.error('加载视频详情失败:', error);
+      // 检查错误是否为404相关的错误
+      if (error && error.response) {
+        const responseData = error.response.data;
+        if (responseData && typeof responseData === 'object' &&
+            responseData.msg && (responseData.msg.includes('404') || responseData.msg.toLowerCase().includes('not found'))) {
+          ElMessage.error('该视频已删除或不存在');
+        } else {
+          ElMessage.error('加载视频详情失败');
+        }
+      } else {
+        ElMessage.error('加载视频详情失败');
+      }
+    }
+  }
+};
+// 显示视频日志
+const showVideoLogs = () => {
+  if (!isCurrentUserAdminComputed.value) {
+    ElMessage.error('您没有权限查看日志');
+    return;
+  }
+  // 先重置日志组件的状态，再显示对话框
+  logDialogVisible.value = false;
+  // 使用nextTick确保状态更新后再显示
+  nextTick(() => {
+    logDialogVisible.value = true;
+  });
+};
+
 // 初始化
 onMounted(() => {
   fetchVideos();
@@ -937,7 +1353,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f5f5f5;
+  background-color: #202020;
 }
 
 .video-image img {
@@ -1070,10 +1486,13 @@ onMounted(() => {
   min-width: 300px;
   display: flex;
   align-items: center;
+  justify-content: center;
   min-height: 100px;
   background-color: #363636;
   border-radius: 5px;
-
+  /* 关键：给父容器添加内边距，避免子元素圆角被裁切，同时限制溢出 */
+  padding: 2px; /* 可选：留一点边距，视觉更友好 */
+  overflow: hidden;
 }
 
 .video-preview-wrapper {
@@ -1082,6 +1501,18 @@ onMounted(() => {
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   background: #000;
+  /* 核心：自适应填满父容器且不超出 */
+  width: 100%;
+  height: 100%;
+  /* 关键：维持视频比例（16:9），避免拉伸变形 */
+  aspect-ratio: 16/9;
+  /* 自适应缩放：优先占满宽度，高度自动适配；高度超了则占满高度，宽度自动适配 */
+  max-width: 100%;
+  max-height: 100%;
+  /* 确保内容居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .video-preview {
@@ -1188,6 +1619,85 @@ onMounted(() => {
 
 .tag-input {
   width: 140px;
+}
+
+/* 上传表单标签输入样式（适配el-input） */
+.tag-input-wrapper {
+  width: 100%;
+}
+
+.tag-input-wrapper :deep(.el-input__wrapper) {
+  padding: 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 34px;
+}
+
+/* 保留并适配原有标签样式，确保视觉一致 */
+.tag-input-wrapper {
+  /* 继承原有容器样式 */
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  min-height: 32px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 适配 el-input-tag 内部标签样式 */
+:deep(.el-input-tag__content) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+/* 标签项样式（对齐原有 tag-item 样式） */
+:deep(.el-tag) {
+  height: 24px;
+  line-height: 24px;
+  padding: 0 8px;
+  background-color: #ecf5ff;
+  border-color: #d9ecff;
+  color: #409eff;
+  border-radius: 4px;
+}
+
+/* 标签关闭按钮样式 */
+:deep(.el-tag__close) {
+  font-size: 12px;
+  margin-left: 4px;
+  color: #409eff;
+  opacity: 0.7;
+}
+
+:deep(.el-tag__close:hover) {
+  opacity: 1;
+}
+
+/* 输入框部分样式 */
+:deep(.el-input__inner) {
+  border: none;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  box-shadow: none;
+  flex: 1;
+  min-width: 80px;
+  height: 24px;
+  line-height: 24px;
+}
+
+/* 去除输入框聚焦时的边框 */
+:deep(.el-input__inner:focus) {
+  border: none;
+  box-shadow: none;
 }
 
 /* 备注样式 */
@@ -1391,8 +1901,13 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-.result-count {
+.result-count-container {
+  display: flex;
+  align-items: center;
   margin-bottom: 10px;
+}
+
+.result-count {
   color: #606266;
   font-size: 14px;
 }
@@ -1408,5 +1923,66 @@ onMounted(() => {
 .icon-download {
   margin-right: 5px;
   font-size: 18px;
+}
+
+/* 回收站相关样式 */
+.video-card.selected {
+  border: 2px solid #409eff; /* 选中时的边框颜色 */
+  box-shadow: 0 0 10px rgba(64, 158, 255, 0.5); /* 选中时的阴影效果 */
+}
+
+.select-checkbox {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+.header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 回收站信息样式 */
+.recycle-info {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.info-item {
+  margin: 2px 0;
+}
+
+.time-label {
+  font-weight: bold;
+  color: #606266;
+}
+
+/* 回收站统计信息样式 */
+.recycle-statistics {
+  font-size: 14px;
+  color: #909399;
+  font-weight: normal;
+}
+.el-icon{
+  margin-right: 5px;
+}
+
+.result-refresh-btn{
+  cursor: pointer;
+  margin-left: 5px;
+  font-size: 20px;
+}
+
+/* 日志跳转高亮样式 */
+.video-card.log-highlight {
+  border: 2px solid #e6a23c !important; /* 橙色边框 */
+  box-shadow: 0 0 15px rgba(230, 162, 60, 0.5) !important; /* 发光效果 */
+  transform: scale(1.02); /* 稍微放大 */
+  transition: all 0.3s ease; /* 平滑过渡 */
 }
 </style>

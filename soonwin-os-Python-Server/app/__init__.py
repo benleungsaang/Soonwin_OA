@@ -6,7 +6,7 @@ from extensions import db, migrate
 
 def create_app(port=5000):
     app = Flask(__name__, static_folder='../assets', static_url_path='/assets')
-    
+
     # 根据端口动态设置数据库URI
     app.config['SQLALCHEMY_DATABASE_URI'] = config.get_database_uri(port)
     app.config.from_object(config.Config)
@@ -29,10 +29,12 @@ def create_app(port=5000):
         from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
         from .models.order_inspection import OrderInspection, InspectionItem
         from .models.display_file import DisplayFile
-        from .models.inquiry import Inquiry, InquiryCommunication, InquiryLog
+        from .models.inquiry import Inquiry, InquiryCommunication
         from .models.machine import Machine, PartType
         from .models.photo import Photo
         from .models.video import Video
+        from .models.business_operation_log import BusinessOperationLog
+        from .models.data_change_stats import DataChangeStats
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -56,7 +58,7 @@ def create_app(port=5000):
         # 注册认证相关路由蓝图
         from .routes.auth_routes import auth_bp
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
-        
+
         # 注册上传相关路由蓝图
         from .routes.upload_routes import upload_bp
         app.register_blueprint(upload_bp, url_prefix='/api')
@@ -76,19 +78,23 @@ def create_app(port=5000):
         # 注册照片管理相关路由蓝图
         from .routes.photo_routes import photo_bp
         app.register_blueprint(photo_bp, url_prefix='/api')
-        
+
         # 注册视频管理相关路由蓝图
         from .routes.video_routes import video_bp
         app.register_blueprint(video_bp, url_prefix='/api')
-        
+
+        # 注册通用日志管理相关路由蓝图
+        from .routes.log_routes import log_bp
+        app.register_blueprint(log_bp, url_prefix='/api')
+
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance
         set_app_instance(app)
-        
+
         # 设置视频处理功能的应用实例
         from .routes.video_routes import set_app_instance as set_video_app_instance
         set_video_app_instance(app)
-        
+
         # 设置通用上传队列的应用实例
         from .routes.upload_routes import set_app_instance as set_upload_app_instance
         set_upload_app_instance(app)

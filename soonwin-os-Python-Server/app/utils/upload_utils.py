@@ -22,7 +22,10 @@ UPLOAD_CONFIG = {
     'VIDEO_UPLOAD_FOLDER': 'assets/Media/Videos',
     'IMAGE_ALLOWED_EXTENSIONS': {'png', 'jpg', 'jpeg', 'webp'},
     'VIDEO_ALLOWED_EXTENSIONS': {'mp4', 'avi', 'mov', 'mkv', 'wmv'},
-    'ALL_ALLOWED_EXTENSIONS': {'png', 'jpg', 'jpeg', 'webp', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'pdf', 'doc', 'docx', 'xls', 'xlsx'}
+    'ALL_ALLOWED_EXTENSIONS': {'png', 'jpg', 'jpeg', 'webp', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'pdf', 'doc', 'docx', 'xls', 'xlsx'},
+    'VIDEO_SIZE_THRESHOLD': 100,  # 视频大小阈值，单位MB
+    'VIDEO_MAX_WIDTH': 1920,      # 视频最大宽度
+    'VIDEO_MAX_HEIGHT': 1080      # 视频最大高度
 }
 
 def create_upload_directories():
@@ -41,7 +44,7 @@ def get_video_info(video_path):
     try:
         result = subprocess.check_output(cmd, encoding='utf-8', stderr=subprocess.PIPE)
         info = json.loads(result)
-        
+
         # 提取核心信息（仅基于原始文件）
         file_size = int(info['format']['size']) / 1024 / 1024  # 转换为MB
         stream = info['streams'][0] if info['streams'] else {}
@@ -49,7 +52,7 @@ def get_video_info(video_path):
         height = int(stream.get('height', 0))
         fps = eval(stream.get('r_frame_rate', '30/1')) if 'r_frame_rate' in stream else 30
         format_name = info['format']['format_name'].split(',')[0].lower()  # 原始格式
-        
+
         return {
             'size_mb': round(file_size, 2),
             'width': width,
@@ -74,12 +77,12 @@ def compress_video(input_path, output_path, size_threshold=100):
     if not video_info:
         print("视频信息获取失败，处理终止")
         return None
-    
+
     size_mb = video_info['size_mb']
     width = video_info['width']
     fps = video_info['fps']
     is_mp4 = (video_info['format'] == 'mp4')
-    
+
     # 2. 分场景执行一步式命令
     if size_mb > size_threshold:
         # 场景1：原始文件>100MB → 同步转MP4+标准压缩（适配机器视频）
@@ -96,7 +99,7 @@ def compress_video(input_path, output_path, size_threshold=100):
             '-f', 'mp4', '-y', output_path
         ]
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
     elif width > 1920 or fps > 30:
         # 场景2：原始文件≤100MB但分辨率/帧率过高 → 同步转MP4+轻度压缩
         print(f"原始文件{size_mb}MB≤100MB，分辨率/帧率过高，同步转MP4+轻度压缩...")
@@ -108,7 +111,7 @@ def compress_video(input_path, output_path, size_threshold=100):
             '-f', 'mp4', '-y', output_path
         ]
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
     else:
         # 场景3：原始文件≤100MB且画质达标 → 仅转MP4（优先无损复制）
         print(f"原始文件{size_mb}MB≤100MB且画质达标，仅同步转MP4（无损）...")
@@ -129,7 +132,7 @@ def compress_video(input_path, output_path, size_threshold=100):
                 '-f', 'mp4', '-y', output_path
             ]
             subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
     # 3. 验证输出文件
     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
         print(f"视频处理完成，输出文件：{output_path}")
@@ -167,6 +170,27 @@ def sanitize_filename(filename):
     sanitized = name + ext
     return sanitized
 
+def generate_title_based_filename(title, original_filename):
+    """根据标题生成文件名，格式：标题_年月日时分秒"""
+    # 获取文件扩展名
+    ext = original_filename.split('.')[-1].lower()
+    
+    # 清理标题，移除Windows不支持的字符
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        title = title.replace(char, '_')
+    
+    # 限制标题长度，避免文件名过长
+    if len(title) > 80:
+        title = title[:80]
+    
+    # 添加时间戳
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    
+    # 生成文件名
+    filename = f"{title}_{timestamp}.{ext}"
+    return filename
+
 def generate_unique_filename(original_filename):
     """生成唯一文件名"""
     ext = original_filename.split('.')[-1].lower()
@@ -201,16 +225,20 @@ def validate_file_type(file, allowed_extensions=None):
 
     return True, "验证通过"
 
-def save_uploaded_file(file, base_save_dir, use_date_subdir=True):
+def save_uploaded_file(file, base_save_dir, use_date_subdir=True, custom_filename=None):
     """
     保存上传的文件到指定目录
     :param file: Flask上传的File对象
     :param base_save_dir: 基础存储目录
     :param use_date_subdir: 是否使用日期子目录
+    :param custom_filename: 自定义文件名（可选）
     :return: 保存的文件路径
     """
-    # 获取或生成唯一的文件名
-    original_filename = generate_unique_filename(file.filename)
+    # 获取或生成文件名
+    if custom_filename:
+        original_filename = sanitize_filename(custom_filename)
+    else:
+        original_filename = generate_unique_filename(file.filename)
 
     # 确定保存路径
     if use_date_subdir:
@@ -278,225 +306,79 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
     }
 
 def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
-
     """
-
     处理视频，生成缩略图等变体（需要ffmpeg支持）
-
     :param file_path: 原视频路径
-
     :param base_save_dir: 基础存储目录
-
     :param file_prefix: 文件前缀
-
-    :param ext: 文件扩展名
-
-    :return: 各变体的路径
-
+    :param ext: 文件扩展名（兼容原参数，实际未使用，可后续按需删除）
+    :return: 各变体路径+视频元信息+是否需要压缩
     """
-
-    import subprocess
-
-    import json
-
-    import sys
-
+    # 简化：直接初始化返回路径，减少冗余赋值
     result_paths = {'thumbnail': ''}
+    duration, width, height = 0.0, 0, 0
 
-    duration = 0.0
-
-    width = 0
-
-    height = 0
-
+    # 核心：ffprobe获取视频元信息（不能简化，必要性见上文）
     try:
-
-        # 使用ffprobe获取视频信息（时长、分辨率等）
-
         ffprobe_cmd = [
-
-            'ffprobe',
-
-            '-v', 'quiet',
-
-            '-show_format',
-
-            '-show_streams',
-
-            '-print_format', 'json',
-
-            file_path
-
+            'ffprobe', '-v', 'quiet', '-show_format', '-show_streams',
+            '-print_format', 'json', file_path
         ]
-
-        result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        if result.returncode == 0:
-
-            try:
-
-                video_info = json.loads(result.stdout)
-
-                # 获取视频流信息
-
-                for stream in video_info.get('streams', []):
-
-                    if stream.get('codec_type') == 'video':
-
-                        # 获取分辨率
-
-                        width = stream.get('width', 0)
-
-                        height = stream.get('height', 0)
-
-                        # 获取时长
-
-                        duration_str = stream.get('duration')
-
-                        if duration_str:
-
-                            try:
-
-                                duration = float(duration_str)
-
-                            except ValueError:
-
-                                pass
-
-                        break
-
-                # 如果没有通过视频流获取到时长，尝试从format获取
-
-                if duration <= 0:
-
-                    format_info = video_info.get('format', {})
-
-                    duration_str = format_info.get('duration')
-
-                    if duration_str:
-
-                        try:
-
-                            duration = float(duration_str)
-
-                        except ValueError:
-
-                            pass
-
-            except json.JSONDecodeError:
-
-                print("无法解析视频信息JSON")
-
-        else:
-
-            print(f"ffprobe获取视频信息失败: {result.stderr}")
-
-    except FileNotFoundError:
-
-        print("ffprobe未找到，请安装ffmpeg以支持视频信息提取")
-
+        # 简化：合并stdout/stderr捕获，减少代码量
+        res = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0:
+            video_info = json.loads(res.stdout)
+            # 简化：合并时长/宽高获取逻辑，减少嵌套
+            for stream in video_info.get('streams', []):
+                if stream.get('codec_type') == 'video':
+                    width, height = stream.get('width', 0), stream.get('height', 0)
+                    duration = float(stream.get('duration', 0)) or float(video_info.get('format', {}).get('duration', 0))
+                    break
+    except json.JSONDecodeError:
+        print("无法解析视频元信息JSON")
     except Exception as e:
+        print(f"获取视频信息失败: {str(e)}")
 
-        print(f"获取视频信息时出错: {str(e)}")
-
+    # 核心：ffmpeg生成缩略图（核心参数不能简化，冗余逻辑已删除）
     try:
+        # 修改：将缩略图保存在与视频文件相同的目录中
+        video_dir = os.path.dirname(file_path)
+        thumbnail_path = os.path.join(video_dir, f"{file_prefix}_thumbnail.jpg")
+        # 简化：一行逻辑覆盖所有截取场景（优先10秒，不足则取中间点，至少1秒）
+        safe_ss = min(10.0, max(1.0, duration * 0.5)) if duration > 0 else 1.0
 
-        # 生成视频缩略图（取第1秒的画面）
-
-        thumbnail_path = os.path.join(os.path.dirname(file_path), f"{file_prefix}_thumbnail.jpg")
-
-        # 使用ffmpeg生成缩略图，按最长边比例缩放，宽最大400，高最大300
-
-        cmd = [
-
-            'ffmpeg',
-
-            '-i', file_path,      # 输入视频
-
-            '-ss', '00:00:01',    # 截取第1秒的画面
-
-            '-vframes', '1',      # 只截取1帧
-
-            '-vf', 'scale=min(iw*min(400/iw,300/ih),400):min(ih*min(400/iw,300/ih),300)', # 按比例缩放，最大400x300
-
-            '-y',                 # 覆盖已存在的文件
-
-            thumbnail_path
-
+        # 核心参数（不能简化）：-ss(时间点)、-vframes(1帧)、-vf(缩放)、-y(覆盖)
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', file_path, '-ss', str(safe_ss), '-vframes', '1',
+            '-vf', 'scale=400:300:force_original_aspect_ratio=decrease',
+            '-y', thumbnail_path
         ]
-
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        if result.returncode == 0:
-
+        res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0:
+            # 核心：相对路径返回（现在相对于base_save_dir，但指向正确的缩略图位置）
             result_paths['thumbnail'] = os.path.relpath(thumbnail_path, base_save_dir)
-
         else:
-
-            print(f"生成视频缩略图失败: {result.stderr}")
-
-            # 如果缩放失败，尝试使用更简单的缩放命令
-
-            try:
-
-                cmd_simple = [
-
-                    'ffmpeg',
-
-                    '-i', file_path,
-
-                    '-ss', '00:00:01',
-
-                    '-vframes', '1',
-
-                    '-vf', 'scale=400:300:force_original_aspect_ratio=decrease', # 按比例缩放，保持宽高比
-
-                    '-y',
-
-                    thumbnail_path
-
-                ]
-
-                result_simple = subprocess.run(cmd_simple, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-                if result_simple.returncode == 0:
-
-                    result_paths['thumbnail'] = os.path.relpath(thumbnail_path, base_save_dir)
-
-            except Exception as e2:
-
-                print(f"备用缩略图生成也失败: {str(e2)}")
-
+            print(f"生成缩略图失败: {res.stderr}")
+    # 简化：合并同类异常，减少重复提示
     except FileNotFoundError:
-
-        print("ffmpeg未找到，请安装ffmpeg以支持视频缩略图生成")
-
+        print("ffmpeg/ffprobe未安装，无法处理视频缩略图")
     except Exception as e:
+        print(f"生成缩略图异常: {str(e)}")
 
-        print(f"处理视频缩略图时出错: {str(e)}")
+    # 核心：是否需要压缩的判断（不能简化，双维度判断缺一不可）
+    try:
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        needs_processing = (file_size_mb > UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'] or
+                            width > UPLOAD_CONFIG['VIDEO_MAX_WIDTH'] or
+                            height > UPLOAD_CONFIG['VIDEO_MAX_HEIGHT'])
+    except Exception as e:
+        print(f"判断视频是否需要压缩失败: {str(e)}")
+        needs_processing = False
 
-    # 检查是否需要压缩 - 根据文件大小和分辨率判断
-
-    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)  # 转换为MB
-
-    needs_processing = (file_size_mb > UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'] or 
-
-                        width > UPLOAD_CONFIG['VIDEO_MAX_WIDTH'] or 
-
-                        height > UPLOAD_CONFIG['VIDEO_MAX_HEIGHT'])
-
+    # 简化：返回值无冗余，直接返回核心信息
     return {
-
-        'paths': result_paths,
-
-        'duration': duration,
-
-        'width': width,
-
-        'height': height,
-
-        'needs_processing': needs_processing  # 根据文件大小和分辨率决定是否需要处理
-
+        'paths': result_paths, 'duration': round(duration, 2),  # 保留2位小数更整洁
+        'width': width, 'height': height, 'needs_processing': needs_processing
     }
 
 class ProcessingQueue:
@@ -709,7 +591,7 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
                         update_video_after_compress(video_id, result_path, original_file_path)
                 else:
                     update_video_after_compress(video_id, result_path, original_file_path)
-                
+
                 # 压缩成功后，安全地删除原始文件
                 try:
                     os.remove(original_file_path)

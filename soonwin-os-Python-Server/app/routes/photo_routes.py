@@ -6,7 +6,8 @@ from PIL import Image
 from .. import db
 from ..models.photo import Photo
 from ..models.machine import Machine
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user
+from ..models.business_operation_log import add_photo_log
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token
 from ..utils.upload_utils import (
     generate_unique_filename,
     get_date_dir,
@@ -33,12 +34,85 @@ def update_photo_compress_result_wrapper(photo_id, status, paths=None, error_msg
     except Exception as e:
         print(f"更新照片压缩结果失败: {str(e)}")
 
+def validate_file_type_from_path(file_path, allowed_extensions):
+    """
+    从文件路径验证文件类型
+    :param file_path: 文件路径
+    :param allowed_extensions: 允许的扩展名列表
+    :return: (是否有效, 消息)
+    """
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type and mime_type.startswith('image/'):
+        # 进一步验证扩展名
+        import os
+        _, ext = os.path.splitext(file_path)
+        if ext.lower() in allowed_extensions:
+            return True, "文件类型有效"
+    return False, "文件类型不允许，仅支持图片文件"
+
+
+def process_image_from_path(file_path, base_save_dir):
+    """
+    从文件路径处理图片，生成不同规格
+    :param file_path: 文件路径
+    :param base_save_dir: 基础存储目录
+    :return: 各个规格图片路径、原图宽高、是否需要后台压缩标记
+    """
+    import os
+    import uuid
+    from PIL import Image
+    from ..utils.upload_utils import process_image_with_variants
+
+    # 获取文件信息
+    ext = os.path.splitext(file_path)[1].lower()[1:]  # 去掉点号
+    file_prefix = os.path.splitext(os.path.basename(file_path))[0]
+
+    # 打开原图并获取基础信息
+    img = Image.open(file_path)
+    original_width, original_height = img.size
+    max_original_side = max(original_width, original_height)
+    print(f'Compress_Img Original image size: {original_width}x{original_height}')
+
+    # 生成图片变体（仅生成缩略图用于立即显示）
+    max_sizes = {'thumbnail': 400}  # 立即生成缩略图
+    result = process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_sizes)
+
+    # 初始化返回结果
+    result_paths = {
+        "thumbnail": result['paths'].get('thumbnail', os.path.relpath(file_path, "./assets/Media/Photos")),
+        "normal": os.path.relpath(file_path, "./assets/Media/Photos"),  # 先存原图路径供前端使用
+        "original": ""
+    }
+
+    need_compress = False  # 是否需要后台压缩标记
+
+    # 判断是否需要后台压缩
+    if max_original_side > 1280:
+        need_compress = True
+        # 仅标记需要压缩，不立即执行，由后台线程处理
+
+    return {
+        "paths": result_paths,
+        "original_width": original_width,
+        "original_height": original_height,
+        "need_compress": need_compress,
+        "original_file_path": file_path,  # 原图物理路径，供后台压缩使用
+        "file_prefix": file_prefix,
+        "ext": ext,
+        "save_dir": os.path.dirname(file_path),
+        "base_save_dir": base_save_dir,
+        "file_size": os.path.getsize(file_path),
+        "compress_status": "pending"
+    }
+
+
 def process_image(original_file, base_save_dir="./assets/Media/Photos"):
     """
     处理上传图片，生成不同规格
     :param original_file: Flask上传的File对象
     :param base_save_dir: 基础存储目录
-    :return: 各规格图片路径、原图宽高、是否需要后台压缩标记
+    :return: 各个规格图片路径、原图宽高、是否需要后台压缩标记
     """
     # 1. 保存原图
     original_save_path, relative_path, unique_filename = save_uploaded_file(original_file, base_save_dir)
@@ -230,12 +304,7 @@ def get_photos():
         # 构建查询
         query = Photo.query
 
-        # 如果是非管理员用户，限制只能看到自己上传的照片
-        if not is_admin:
-            # 从请求中获取当前用户信息
-            user_role = get_user_role_from_token()
-            if user_role:
-                query = query.filter(Photo.uploader == user_role)
+
 
         # 如果有搜索词，添加搜索过滤条件
         if search:
@@ -280,6 +349,160 @@ def get_photos():
     except Exception as e:
         print(f"获取照片列表失败: {str(e)}")  # 使用print替代current_app.logger
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@photo_bp.route('/photos/batch-upload', methods=['POST'])
+def batch_upload_photos():
+    """批量图片上传接口"""
+    try:
+        # 获取JSON数据
+        data = request.get_json()
+        if not data or 'files_data' not in data:
+            return jsonify({'success': False, 'message': '未提供批量上传数据'}), 400
+
+        files_data = data['files_data']
+        if not isinstance(files_data, list):
+            return jsonify({'success': False, 'message': 'files_data必须是数组'}), 400
+
+        results = []
+        for file_data in files_data:
+            try:
+                # 提取文件信息
+                file_content = file_data.get('file_content')  # Base64编码的文件内容
+                title = file_data.get('title', '')
+                tags = file_data.get('tags', '')
+                machine_id = file_data.get('machine_id', '')
+                remark = file_data.get('remark', '')
+
+                if not file_content:
+                    results.append({'success': False, 'message': '缺少文件内容', 'title': title})
+                    continue
+
+                # 解码Base64文件内容
+                import base64
+                file_bytes = base64.b64decode(file_content)
+                
+                # 创建类似File对象的结构
+                from io import BytesIO
+                file_stream = BytesIO(file_bytes)
+                
+                # 获取当前用户信息，作为上传者
+                user_role = get_user_role_from_token()
+                uploader = file_data.get('uploader', user_role or 'system')
+
+                # 验证图片文件
+                import mimetypes
+                # 临时保存文件以进行类型验证
+                import tempfile
+                import os
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_file.write(file_bytes)
+                    temp_filename = temp_file.name
+                
+                # 验证文件类型
+                is_valid, msg = validate_file_type_from_path(temp_filename, UPLOAD_CONFIG['IMAGE_ALLOWED_EXTENSIONS'])
+                if not is_valid:
+                    os.unlink(temp_filename)  # 删除临时文件
+                    results.append({'success': False, 'message': msg, 'title': title})
+                    continue
+
+                # 生成文件名
+                import uuid
+                ext = mimetypes.guess_extension(mimetypes.guess_type(temp_filename)[0]) or '.jpg'
+                unique_filename = f"{uuid.uuid4().hex}{ext}"
+                
+                # 保存文件
+                base_save_dir = UPLOAD_CONFIG['IMAGE_UPLOAD_FOLDER']
+                date_dir = get_date_dir()
+                save_dir = os.path.join(base_save_dir, date_dir)
+                os.makedirs(save_dir, exist_ok=True)
+                
+                save_path = os.path.join(save_dir, unique_filename)
+                with open(save_path, 'wb') as f:
+                    f.write(file_bytes)
+                
+                # 处理图片
+                process_result = process_image_from_path(save_path, save_dir)
+                
+                # 构建搜索字段
+                search_field = f"{title} {tags} {remark}"
+                if machine_id:
+                    from app.models.machine import Machine
+                    machine = Machine.query.filter_by(model=machine_id).first()
+                    if machine:
+                        search_field += f" {machine.model} {machine.original_model}"
+
+                # 创建照片记录
+                from app.models.photo import Photo
+                photo = Photo(
+                    title=title,
+                    tags=tags,
+                    machine_id=machine_id,
+                    remark=remark,
+                    search_field=search_field,
+                    uploader=uploader,
+                    original_path=process_result["paths"]["original"] if process_result["paths"]["original"] else None,
+                    thumbnail_path=process_result["paths"]["thumbnail"],
+                    normal_path=process_result["paths"]["normal"],
+                    original_width=process_result["original_width"],
+                    original_height=process_result["original_height"],
+                    file_size=process_result["file_size"],
+                    compress_status=process_result["compress_status"]
+                )
+
+                from .. import db
+                db.session.add(photo)
+                db.session.commit()
+
+                # 记录照片创建日志
+                try:
+                    from app.models.business_operation_log import add_photo_log
+                    from ..utils.auth_utils import get_user_id_from_token
+                    user_id = get_user_id_from_token()
+                    add_photo_log(
+                        photo_id=photo.id,
+                        operation_type='create',
+                        operator_id=user_id,
+                        details={
+                            "action": "create",
+                            "user": user_role,
+                            "photo_data": {
+                                "title": title,
+                                "tags": tags,
+                                "machine_id": machine_id,
+                                "remark": remark,
+                                "file_size": process_result["file_size"],
+                                "original_path": process_result["paths"]["original"],
+                                "thumbnail_path": process_result["paths"]["thumbnail"]
+                            }
+                        }
+                    )
+                except Exception as log_error:
+                    print(f"记录照片创建日志失败: {str(log_error)}")
+
+                results.append({
+                    'success': True,
+                    'message': '上传成功',
+                    'photo_id': photo.id,
+                    'title': title
+                })
+                
+            except Exception as e:
+                results.append({
+                    'success': False, 
+                    'message': f'上传失败: {str(e)}', 
+                    'title': file_data.get('title', '未知文件')
+                })
+
+        return jsonify({
+            'success': True,
+            'message': f'批量上传完成',
+            'results': results
+        })
+
+    except Exception as e:
+        print(f"批量上传照片失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'批量上传失败：{str(e)}'}), 500
+
 
 @photo_bp.route('/photos', methods=['POST'])
 def upload_photo():
@@ -338,6 +561,30 @@ def upload_photo():
         db.session.add(photo)
         db.session.commit()
 
+        # 记录照片创建日志
+        try:
+            user_id = get_user_id_from_token()
+            add_photo_log(
+                photo_id=photo.id,
+                operation_type='create',
+                operator_id=user_id,
+                details={
+                    "action": "create",
+                    "user": user_role,
+                    "photo_data": {
+                        "title": title,
+                        "tags": tags,
+                        "machine_id": machine_id,
+                        "remark": remark,
+                        "file_size": process_result["original_file_path"] and os.path.getsize(process_result["original_file_path"]),
+                        "original_path": process_result["paths"]["original"],
+                        "thumbnail_path": process_result["paths"]["thumbnail"]
+                    }
+                }
+            )
+        except Exception as log_error:
+            print(f"记录照片创建日志失败: {str(log_error)}")
+
         # 判断是否需要压缩，若是则放入队列
         if process_result["need_compress"]:
             add_image_compress_task(
@@ -378,13 +625,8 @@ def get_photo(photo_id):
         if not photo:
             return jsonify({'success': False, 'message': '照片不存在'}), 404
 
-        # 根据用户权限处理数据
+        # 移除权限限制，允许所有用户查看照片
         photo_dict = photo.to_dict()
-        if not is_admin:
-            # 非管理员用户检查是否有权限查看此照片
-            user_role = get_user_role_from_token()
-            if user_role and photo.uploader != user_role:
-                return jsonify({'success': False, 'message': '权限不足，无法查看此照片'}), 403
 
         return jsonify({
             'success': True,
@@ -406,20 +648,32 @@ def update_photo(photo_id):
         user_role = get_user_role_from_token()
         is_admin = is_admin_user()
 
-        # 普通用户只能更新自己上传的照片，管理员可以更新任意照片
-        if not is_admin and user_role and photo.uploader != user_role:
-            return jsonify({'success': False, 'message': '权限不足，无法更新此照片'}), 403
+        # 移除普通用户的权限限制，允许所有用户更新照片
+        # 如果需要保留权限控制，可以在这里添加特定逻辑
 
         data = request.get_json()
 
+        # 记录更新前的数据
+        old_data = {
+            "title": photo.title,
+            "tags": photo.tags,
+            "machine_id": photo.machine_id,
+            "remark": photo.remark
+        }
+
         # 更新字段
-        if 'title' in data:
+        updated_fields = {}
+        if 'title' in data and photo.title != data['title']:
+            updated_fields['title'] = {"old": photo.title, "new": data['title']}
             photo.title = data['title']
-        if 'tags' in data:
+        if 'tags' in data and photo.tags != data['tags']:
+            updated_fields['tags'] = {"old": photo.tags, "new": data['tags']}
             photo.tags = data['tags']
-        if 'machine_id' in data:
+        if 'machine_id' in data and photo.machine_id != data['machine_id']:
+            updated_fields['machine_id'] = {"old": photo.machine_id, "new": data['machine_id']}
             photo.machine_id = data['machine_id']
-        if 'remark' in data:
+        if 'remark' in data and photo.remark != data['remark']:
+            updated_fields['remark'] = {"old": photo.remark, "new": data['remark']}
             photo.remark = data['remark']
 
         # 重新构建搜索字段
@@ -431,6 +685,30 @@ def update_photo(photo_id):
         photo.search_field = search_field
 
         db.session.commit()
+
+        # 如果有字段被更新，则记录日志
+        if updated_fields:
+            try:
+                user_id = get_user_id_from_token()
+                add_photo_log(
+                    photo_id=photo.id,
+                    operation_type='update',
+                    operator_id=user_id,
+                    details={
+                        "action": "update",
+                        "user": user_role,
+                        "updated_fields": updated_fields,
+                        "photo_data": {
+                            "id": photo.id,
+                            "title": photo.title,
+                            "tags": photo.tags,
+                            "machine_id": photo.machine_id,
+                            "remark": photo.remark
+                        }
+                    }
+                )
+            except Exception as log_error:
+                print(f"记录照片更新日志失败: {str(log_error)}")
 
         return jsonify({
             'success': True,
@@ -454,9 +732,8 @@ def delete_photo(photo_id):
         user_role = get_user_role_from_token()
         is_admin = is_admin_user()
 
-        # 普通用户只能删除自己上传的照片，管理员可以删除任意照片
-        if not is_admin and user_role and photo.uploader != user_role:
-            return jsonify({'success': False, 'message': '权限不足，无法删除此照片'}), 403
+        # 移除普通用户的权限限制，允许所有用户删除照片
+        # 如果需要保留权限控制，可以在这里添加特定逻辑
 
         # 删除物理文件
         if photo.thumbnail_path:
@@ -483,9 +760,40 @@ def delete_photo(photo_id):
             except Exception as e:
                 print(f"删除原图文件失败: {str(e)}")  # 使用print替代current_app.logger
 
+        # 记录删除前的详细信息
+        photo_data = {
+            "id": photo.id,
+            "title": photo.title,
+            "tags": photo.tags,
+            "machine_id": photo.machine_id,
+            "remark": photo.remark,
+            "thumbnail_path": photo.thumbnail_path,
+            "normal_path": photo.normal_path,
+            "original_path": photo.original_path,
+            "file_size": photo.file_size,
+            "uploader": photo.uploader,
+            "upload_time": photo.upload_time.isoformat() if photo.upload_time else None
+        }
+
         # 从数据库删除记录
         db.session.delete(photo)
         db.session.commit()
+
+        # 记录照片删除日志
+        try:
+            user_id = get_user_id_from_token()
+            add_photo_log(
+                photo_id=photo.id,
+                operation_type='delete',
+                operator_id=user_id,
+                details={
+                    "action": "delete",
+                    "user": user_role,
+                    "photo_data": photo_data
+                }
+            )
+        except Exception as log_error:
+            print(f"记录照片删除日志失败: {str(log_error)}")
 
         return jsonify({
             'success': True,

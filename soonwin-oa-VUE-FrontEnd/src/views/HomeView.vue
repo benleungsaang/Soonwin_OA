@@ -195,7 +195,6 @@ const goToMachinePartsManagement = () => {
   router.push('/machine-parts-management');
 };
 const goToPhotoManagement = () => {
-  if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问照片管理页面！');
   router.push('/photo-management');
 };
 const goToVideoManagement = () => router.push('/video-management');

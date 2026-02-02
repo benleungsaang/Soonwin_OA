@@ -429,7 +429,14 @@ multipartRequest.interceptors.response.use(
   }
 );
 
-export const createPhoto = (data: FormData) => multipartRequest.post('/api/photos', data);
+export const createPhoto = (
+  data: FormData, 
+  onUploadProgress?: (progressEvent: ProgressEvent) => void
+) => {
+  return multipartRequest.post('/api/photos', data, {
+    onUploadProgress
+  });
+};
 
 export const updatePhoto = (photoId: number, data: any) => request.put(`/api/photos/${photoId}`, data);
 
@@ -454,5 +461,14 @@ export const updateVideo = (videoId: number, data: any) => request.put(`/api/vid
 export const deleteVideo = (videoId: number) => request.delete(`/api/videos/${videoId}`);
 
 export const getMachinesForVideos = () => request.get('/api/videos/machines');
+
+// 回收站相关API
+export const getDeletedVideos = (params?: any) => request.get('/api/videos/deleted', { params });
+
+export const physicalDeleteVideos = (videoIds: number[]) => 
+  request.delete('/api/videos/physical_delete', { data: { video_ids: videoIds } });
+
+export const restoreVideos = (videoIds: number[]) => 
+  request.post('/api/videos/restore', { video_ids: videoIds });
 
 export default request;

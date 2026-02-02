@@ -85,3 +85,32 @@ export function getCurrentUserName(): string | null {
     return null;
   }
 }
+
+/**
+ * 获取当前用户的完整信息
+ * @returns object | null - 包含emp_id、user_name、user_role的用户信息对象，如果无法获取则返回null
+ */
+export interface CurrentUserInfo {
+  emp_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+}
+
+export function getCurrentUserInfo(): CurrentUserInfo | null {
+  const token = localStorage.getItem('oa_token');
+  if (!token) {
+    return null;
+  }
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return {
+      emp_id: payload.emp_id || null,
+      user_name: payload.user_name || null,
+      user_role: payload.user_role || null
+    };
+  } catch (error) {
+    console.error('解析用户信息失败:', error);
+    return null;
+  }
+}

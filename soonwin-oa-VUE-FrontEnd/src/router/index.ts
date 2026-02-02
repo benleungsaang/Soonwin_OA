@@ -12,11 +12,11 @@ const OrderInspectionView = () => import('@/views/OrderInspectionView.vue');
 const InspectionReportView = () => import('@/views/InspectionReportView.vue');
 const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
 const DisplayFileView = () => import('@/views/DisplayFileView.vue');
-const InquiryListView = () => import('@/views/InquiryListView.vue');
 const InquiryView = () => import('@/views/InquiryView.vue');
 const MachinePartsManagementView = () => import('@/views/MachinePartsManagementView.vue');
 const PhotoManagementView = () => import('@/views/PhotoManagementView.vue');
 const VideoManagementView = () => import('@/views/VideoManagementView.vue');
+const LogManagementView = () => import('@/views/LogManagement.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -97,19 +97,20 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/inquiries',
     name: 'inquiries',
-    component: InquiryListView,
+    component: InquiryView,
     meta: { title: '询盘管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
     path: '/inquiry',
     name: 'inquiryCreate',
-    redirect: '/inquiries',
+    component: InquiryView,
     meta: { title: '新增询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
     path: '/inquiry/:id',
     name: 'inquiryEdit',
-    redirect: '/inquiries',
+    component: InquiryView,
+    props: true,
     meta: { title: '编辑询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
@@ -129,6 +130,12 @@ const routes: RouteRecordRaw[] = [
     name: 'videoManagement',
     component: VideoManagementView,
     meta: { title: '视频管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/log-management',
+    name: 'logManagement',
+    component: LogManagementView,
+    meta: { title: '日志管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
 ];
 

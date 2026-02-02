@@ -219,3 +219,28 @@ def is_admin_user():
     """检查当前用户是否为管理员"""
     user_role = get_user_role_from_token()
     return user_role == 'admin'
+
+
+def get_user_id_from_token():
+    """从JWT token中获取用户emp_id"""
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+
+        return emp_id
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None

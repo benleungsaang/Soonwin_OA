@@ -5,7 +5,8 @@ from datetime import datetime
 from .. import db
 from ..models.video import Video
 from ..models.machine import Machine
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user
+from ..models.business_operation_log import add_video_log
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token
 from ..utils.upload_utils import (
     validate_file_type,
     save_uploaded_file,
@@ -14,7 +15,8 @@ from ..utils.upload_utils import (
     add_video_compress_task,
     UPLOAD_CONFIG,
     get_video_info,
-    compress_video
+    compress_video,
+    generate_title_based_filename
 )
 
 video_bp = Blueprint('video_bp', __name__, url_prefix='/api')
@@ -85,7 +87,7 @@ def update_video_after_compress(video_id, compressed_path, original_file_path):
 
     import os
 
-    
+
 
     try:
 
@@ -99,7 +101,7 @@ def update_video_after_compress(video_id, compressed_path, original_file_path):
 
             video_info = get_video_info(compressed_path)
 
-            
+
 
             # 保存压缩后文件的相对路径到compressed_path字段
 
@@ -115,23 +117,23 @@ def update_video_after_compress(video_id, compressed_path, original_file_path):
 
                 video.duration = video_info.get('fps', 0)  # 暂时用fps字段存储帧率信息
 
-            
+
 
             # 设置压缩状态为完成
 
             video.compress_status = 'success'
 
-            
+
 
             # 保存更改
 
             db.session.commit()
 
-            
+
 
             print(f"视频 {video_id} 压缩完成，已更新相关信息")
 
-            
+
 
     except Exception as e:
 
@@ -170,15 +172,21 @@ def update_video_process_result(video_id, paths, status, duration=None):
     except Exception as e:
         print(f"更新视频处理结果失败: {str(e)}")
 
-def process_video(original_file, base_save_dir="./assets/Media/Videos"):
+def process_video(original_file, base_save_dir="./assets/Media/Videos", title=""):
     """
     处理上传视频，生成缩略图等
     :param original_file: Flask上传的File对象
     :param base_save_dir: 基础存储目录
+    :param title: 视频标题，用于生成文件名
     :return: 视频路径、缩略图路径等信息
     """
+    # 生成自定义文件名，如果提供了标题
+    custom_filename = None
+    if title:
+        custom_filename = generate_title_based_filename(title, original_file.filename)
+
     # 保存原视频
-    original_save_path, relative_path, unique_filename = save_uploaded_file(original_file, base_save_dir)
+    original_save_path, relative_path, unique_filename = save_uploaded_file(original_file, base_save_dir, custom_filename=custom_filename)
 
     # 获取文件信息
     ext = unique_filename.split('.')[-1].lower()
@@ -217,7 +225,7 @@ def get_videos():
         search = request.args.get('search', '')
         # 获取machine_id参数
         machine_id_raw = request.args.get('machine_id')
-        
+
         # 只有在machine_id_raw不为空字符串且不为None时才处理
         if machine_id_raw is not None and machine_id_raw != '':
             try:
@@ -247,7 +255,7 @@ def get_videos():
             search=search,
             machine_id=machine_id,
             is_admin=is_admin,
-            uploader=get_user_role_from_token() if not is_admin else None
+            uploader=None  # 移除权限限制，所有用户都能看到所有视频
         )
 
         videos = pagination.items
@@ -292,7 +300,7 @@ def upload_video():
         # 获取其他字段
         title = request.form.get('title', '')
         tags = request.form.get('tags', '')
-        machine_id = request.form.get('machine_id', type=int)
+        machine_id = request.form.get('machine_id', '')  # 机器ID是型号字符串，不是整数
         remark = request.form.get('remark', '')
         print(f'Uploader: {uploader}, Title: {title}, Tags: {tags}, Machine ID: {machine_id}, Remark: {remark}')
 
@@ -302,11 +310,11 @@ def upload_video():
             return jsonify({'success': False, 'message': msg}), 400
 
         # 处理视频
-        process_result = process_video(file, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'])
+        process_result = process_video(file, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'], title=title)
 
         # 构建搜索字段
         search_field = f"{title} {tags} {remark}"
-        if machine_id:
+        if machine_id:  # 检查machine_id是否不为空字符串
             machine = Machine.query.filter_by(model=machine_id).first()
             if machine:
                 search_field += f" {machine.model} {machine.original_model}"
@@ -332,10 +340,34 @@ def upload_video():
         db.session.add(video)
         db.session.commit()
 
+        # 记录视频创建日志
+        try:
+            user_id = get_user_id_from_token()
+            add_video_log(
+                video_id=video.id,
+                operation_type='create',
+                operator_id=user_id,
+                details={
+                    "action": "create",
+                    "user": user_role,
+                    "video_data": {
+                        "title": title,
+                        "tags": tags,
+                        "machine_id": machine_id,
+                        "remark": remark,
+                        "file_size": process_result["file_size"],
+                        "original_path": process_result["paths"]["original"],
+                        "thumbnail_path": process_result["paths"]["thumbnail"]
+                    }
+                }
+            )
+        except Exception as log_error:
+            print(f"记录视频创建日志失败: {str(log_error)}")
+
         # 判断是否需要后台处理，若是则放入队列
         file_size_mb = process_result["file_size"] / (1024 * 1024)  # 转换为MB
-        needs_compress = (file_size_mb > UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'] or 
-                         process_result["original_width"] > UPLOAD_CONFIG['VIDEO_MAX_WIDTH'] or 
+        needs_compress = (file_size_mb > UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'] or
+                         process_result["original_width"] > UPLOAD_CONFIG['VIDEO_MAX_WIDTH'] or
                          process_result["original_height"] > UPLOAD_CONFIG['VIDEO_MAX_HEIGHT'])
 
         if needs_compress:
@@ -381,7 +413,7 @@ def get_video(video_id):
         # 使用通用函数检查用户权限
         is_admin = is_admin_user()
 
-        video = Video.get_video_by_id(video_id, is_admin, get_user_role_from_token())
+        video = Video.get_video_by_id(video_id, is_admin, None)  # 移除权限限制
         if not video:
             return jsonify({'success': False, 'message': '视频不存在'}), 404
 
@@ -405,20 +437,29 @@ def update_video(video_id):
         user_role = get_user_role_from_token()
         is_admin = is_admin_user()
 
-        # 普通用户只能更新自己上传的视频，管理员可以更新任意视频
-        if not is_admin and user_role and video.uploader != user_role:
-            return jsonify({'success': False, 'message': '权限不足，无法更新此视频'}), 403
+        # 记录更新前的数据
+        old_data = {
+            "title": video.title,
+            "tags": video.tags,
+            "machine_id": video.machine_id,
+            "remark": video.remark
+        }
 
         data = request.get_json()
 
         # 更新字段
-        if 'title' in data:
+        updated_fields = {}
+        if 'title' in data and video.title != data['title']:
+            updated_fields['title'] = {"old": video.title, "new": data['title']}
             video.title = data['title']
-        if 'tags' in data:
+        if 'tags' in data and video.tags != data['tags']:
+            updated_fields['tags'] = {"old": video.tags, "new": data['tags']}
             video.tags = data['tags']
-        if 'machine_id' in data:
+        if 'machine_id' in data and video.machine_id != data['machine_id']:
+            updated_fields['machine_id'] = {"old": video.machine_id, "new": data['machine_id']}
             video.machine_id = data['machine_id']
-        if 'remark' in data:
+        if 'remark' in data and video.remark != data['remark']:
+            updated_fields['remark'] = {"old": video.remark, "new": data['remark']}
             video.remark = data['remark']
 
         # 重新构建搜索字段
@@ -430,6 +471,30 @@ def update_video(video_id):
         video.search_field = search_field
 
         db.session.commit()
+
+        # 如果有字段被更新，则记录日志
+        if updated_fields:
+            try:
+                user_id = get_user_id_from_token()
+                add_video_log(
+                    video_id=video.id,
+                    operation_type='update',
+                    operator_id=user_id,
+                    details={
+                        "action": "update",
+                        "user": user_role,
+                        "updated_fields": updated_fields,
+                        "video_data": {
+                            "id": video.id,
+                            "title": video.title,
+                            "tags": video.tags,
+                            "machine_id": video.machine_id,
+                            "remark": video.remark
+                        }
+                    }
+                )
+            except Exception as log_error:
+                print(f"记录视频更新日志失败: {str(log_error)}")
 
         return jsonify({
             'success': True,
@@ -453,38 +518,40 @@ def delete_video(video_id):
         user_role = get_user_role_from_token()
         is_admin = is_admin_user()
 
-        # 普通用户只能删除自己上传的视频，管理员可以删除任意视频
-        if not is_admin and user_role and video.uploader != user_role:
-            return jsonify({'success': False, 'message': '权限不足，无法删除此视频'}), 403
+        # 记录删除前的视频数据
+        video_data = {
+            "title": video.title,
+            "tags": video.tags,
+            "machine_id": video.machine_id,
+            "remark": video.remark,
+            "original_path": video.original_path,
+            "thumbnail_path": video.thumbnail_path,
+            "compressed_path": video.compressed_path,
+            "file_size": video.file_size,
+            "uploader": video.uploader
+        }
 
-        # 删除物理文件
-        if video.thumbnail_path:
-            try:
-                full_thumbnail_path = os.path.join(".", "assets","Media", "Videos", video.thumbnail_path)
-                if os.path.exists(full_thumbnail_path):
-                    os.remove(full_thumbnail_path)
-            except Exception as e:
-                print(f"删除缩略图文件失败: {str(e)}")
-
-        if video.original_path:
-            try:
-                full_original_path = os.path.join(".", "assets","Media", "Videos", video.original_path)
-                if os.path.exists(full_original_path):
-                    os.remove(full_original_path)
-            except Exception as e:
-                print(f"删除原视频文件失败: {str(e)}")
-
-        if video.compressed_path:
-            try:
-                full_compressed_path = os.path.join(".", "assets","Media", "Videos", video.compressed_path)
-                if os.path.exists(full_compressed_path):
-                    os.remove(full_compressed_path)
-            except Exception as e:
-                print(f"删除压缩视频文件失败: {str(e)}")
-
-        # 从数据库删除记录（软删除）
+        # 设置软删除标记及相关信息，不删除物理文件
         video.is_deleted = 1
+        video.delete_time = datetime.now()  # 记录删除时间
+        video.delete_operator = user_role or 'system'  # 记录删除操作人
         db.session.commit()
+
+        # 记录视频删除日志
+        try:
+            user_id = get_user_id_from_token()
+            add_video_log(
+                video_id=video.id,
+                operation_type='delete',
+                operator_id=user_id,
+                details={
+                    "action": "delete",
+                    "user": user_role,
+                    "video_data": video_data
+                }
+            )
+        except Exception as log_error:
+            print(f"记录视频删除日志失败: {str(log_error)}")
 
         return jsonify({
             'success': True,
@@ -505,7 +572,7 @@ def get_machines_for_videos():
         machine_list = []
         for machine in machines:
             machine_list.append({
-                'model': machine.model,
+                'model': machine.model,  # 机器型号作为ID
                 'original_model': machine.original_model
             })
 
@@ -515,6 +582,201 @@ def get_machines_for_videos():
         })
     except Exception as e:
         print(f"获取机器列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# 获取已删除视频（回收站功能）
+@video_bp.route('/videos/deleted', methods=['GET'])
+def get_deleted_videos():
+    """获取已删除的视频列表（回收站）"""
+    try:
+        # 检查管理员权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可访问回收站'}), 403
+
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '')
+
+        # 构建查询
+        pagination = Video.get_deleted_videos_paginated(
+            page=page,
+            per_page=per_page,
+            search=search,
+            is_admin=is_admin,
+            uploader=get_user_role_from_token()
+        )
+
+        videos = pagination.items
+
+        # 根据用户权限处理数据
+        videos_data = []
+        for video in videos:
+            video_dict = video.to_dict()
+            videos_data.append(video_dict)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'videos': videos_data,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'current_page': page
+            }
+        })
+    except Exception as e:
+        print(f"获取已删除视频列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# 物理删除视频（从回收站彻底删除）
+@video_bp.route('/videos/physical_delete', methods=['DELETE'])
+def physical_delete_videos():
+    """物理删除视频（从回收站彻底删除）"""
+    try:
+        # 检查管理员权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可执行物理删除'}), 403
+
+        data = request.get_json()
+        video_ids = data.get('video_ids', [])
+
+        if not video_ids:
+            return jsonify({'success': False, 'message': '未选择要删除的视频'}), 400
+
+        # 查询要删除的视频
+        videos = Video.query.filter(Video.id.in_(video_ids)).all()
+
+        # 获取视频详细信息用于日志记录（在删除前保存）
+        video_details_for_logs = {}
+        for video in videos:
+            video_details_for_logs[video.id] = {
+                "id": video.id,
+                "title": video.title,
+                "tags": video.tags,
+                "machine_id": video.machine_id,
+                "remark": video.remark,
+                "original_path": video.original_path,
+                "thumbnail_path": video.thumbnail_path,
+                "compressed_path": video.compressed_path
+            }
+
+        for video in videos:
+            # 删除物理文件
+            if video.thumbnail_path:
+                try:
+                    full_thumbnail_path = os.path.join(".", "assets", "Media", "Videos", video.thumbnail_path)
+                    if os.path.exists(full_thumbnail_path):
+                        os.remove(full_thumbnail_path)
+                except Exception as e:
+                    print(f"删除缩略图文件失败: {str(e)}")
+
+            if video.original_path:
+                try:
+                    full_original_path = os.path.join(".", "assets", "Media", "Videos", video.original_path)
+                    if os.path.exists(full_original_path):
+                        os.remove(full_original_path)
+                except Exception as e:
+                    print(f"删除原视频文件失败: {str(e)}")
+
+            if video.compressed_path:
+                try:
+                    full_compressed_path = os.path.join(".", "assets", "Media", "Videos", video.compressed_path)
+                    if os.path.exists(full_compressed_path):
+                        os.remove(full_compressed_path)
+                except Exception as e:
+                    print(f"删除压缩视频文件失败: {str(e)}")
+
+        # 从数据库彻底删除记录
+        Video.query.filter(Video.id.in_(video_ids)).delete(synchronize_session=False)
+        
+        # 记录物理删除日志（必须在提交之前完成）
+        try:
+            user_id = get_user_id_from_token()
+            user_role = get_user_role_from_token()
+            # 使用之前保存的视频数据，而不是数据库对象（因为数据库对象会被删除）
+            for video_id in video_ids:
+                add_video_log(
+                    video_id=video_id,
+                    operation_type='physical_delete',
+                    operator_id=user_id,
+                    details={
+                        "action": "physical_delete",
+                        "user": user_role,
+                        "title": video_details_for_logs[video_id]["title"],  # 使用保存的标题
+                        "video_data": video_details_for_logs[video_id]  # 使用保存的完整视频数据
+                    }
+                )
+        except Exception as log_error:
+            print(f"记录视频物理删除日志失败: {str(log_error)}")
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'成功物理删除 {len(video_ids)} 个视频'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"物理删除视频失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# 恢复已删除的视频
+@video_bp.route('/videos/restore', methods=['POST'])
+def restore_videos():
+    """恢复已删除的视频"""
+    try:
+        # 检查管理员权限
+        is_admin = is_admin_user()
+        if not is_admin:
+            return jsonify({'success': False, 'message': '权限不足，仅管理员可执行恢复操作'}), 403
+
+        data = request.get_json()
+        video_ids = data.get('video_ids', [])
+
+        if not video_ids:
+            return jsonify({'success': False, 'message': '未选择要恢复的视频'}), 400
+
+        # 查询要恢复的视频
+        videos = Video.query.filter(Video.id.in_(video_ids), Video.is_deleted == 1).all()
+
+        # 更新视频记录，清除删除标记和删除信息
+        for video in videos:
+            video.is_deleted = 0  # 取消删除标记
+            video.delete_time = None  # 清除删除日期
+            video.delete_operator = None  # 清除删除操作人
+
+        db.session.commit()
+
+        # 记录恢复视频日志
+        try:
+            user_id = get_user_id_from_token()
+            user_role = get_user_role_from_token()
+            for video in videos:
+                add_video_log(
+                    video_id=video.id,
+                    operation_type='restore',
+                    operator_id=user_id,
+                    details={
+                        "action": "restore",
+                        "user": user_role,
+                        "video_data": {
+                            "id": video.id,
+                            "title": video.title,
+                            "restore_message": f"恢复视频ID: {video.id}"
+                        }
+                    }
+                )
+        except Exception as log_error:
+            print(f"记录视频恢复日志失败: {str(log_error)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'成功恢复 {len(videos)} 个视频'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"恢复视频失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # 全局变量来存储应用实例
