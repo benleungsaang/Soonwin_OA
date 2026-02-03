@@ -446,6 +446,30 @@ export const getPhotos = (params?: any) => request.get('/api/photos', { params }
 
 export const getMachinesForPhotos = () => request.get('/api/photos/machines');
 
+
+
+// 注释：当后端实现批量上传接口后，取消下面函数的注释
+
+// 批量上传照片（新增）
+
+// export const createPhotoBatch = (
+
+//   data: FormData, 
+
+//   onUploadProgress?: (progressEvent: ProgressEvent) => void
+
+// ) => {
+
+//   return multipartRequest.post('/api/photos/batch', data, {
+
+//     onUploadProgress
+
+//   });
+
+// };
+
+
+
 // 视频管理相关API - 使用特殊处理FormData的函数
 export const createVideo = (
   data: FormData, 

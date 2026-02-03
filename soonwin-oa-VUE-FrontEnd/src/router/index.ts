@@ -17,6 +17,8 @@ const MachinePartsManagementView = () => import('@/views/MachinePartsManagementV
 const PhotoManagementView = () => import('@/views/PhotoManagementView.vue');
 const VideoManagementView = () => import('@/views/VideoManagementView.vue');
 const LogManagementView = () => import('@/views/LogManagement.vue');
+const OrderProgressView = () => import('@/views/OrderProgressView.vue');
+const OrderProgressDetailView = () => import('@/views/OrderProgressDetailView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -136,6 +138,19 @@ const routes: RouteRecordRaw[] = [
     name: 'logManagement',
     component: LogManagementView,
     meta: { title: '日志管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  },
+  {
+    path: '/order-progress',
+    name: 'orderProgress',
+    component: OrderProgressView,
+    meta: { title: '订单进度跟踪', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/order-progress/:id',
+    name: 'orderProgressDetail',
+    component: OrderProgressDetailView,
+    props: true,
+    meta: { title: '订单进度详情', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 ];
 

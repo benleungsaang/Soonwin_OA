@@ -97,50 +97,7 @@
 
             <!-- 订单状态和时间选择器 -->
             <div class="status-controls">
-              <div class="status-selector">
-                <span class="status-label">状态：</span>
-                <el-select 
-                  v-model="selectedStatusValue" 
-                  placeholder="选择状态" 
-                  style="width: 240px"
-                >
-                  <el-option
-                    v-for="item in statusOptions"
-                    :key="item.value"
-                    :label="item.label"
-                    :value="item.combinedValue"
-                  >
-                    <span style="float: left">{{ item.label }}</span>
-                    <span
-                      style="
-                        float: right;
-                        color: var(--el-text-color-secondary);
-                        font-size: 13px;
-                      "
-                    >
-                      {{ item.timeDisplay }}
-                    </span>
-                  </el-option>
-                </el-select>
-              </div>
-              <div class="date-picker-container">
-                <span class="date-label">时间：</span>
-                <el-date-picker
-                  v-model="localCurrentStatusTime"
-                  type="date"
-                  placeholder="选择日期"
-                  :disabled-date="disabledDate"
-                  :shortcuts="shortcuts"
-                  :size="size"
-                />
-              </div>
-              <el-button
-                type="primary"
-                @click="updateOrderStatus"
-                :disabled="!selectedInspection || !localCurrentStatus"
-              >
-                保存状态
-              </el-button>
+                <span>订单当前状态</span>
             </div>
           </div>
         </el-card>
@@ -595,7 +552,7 @@ const selectedStatusValue = computed({
 
 
 
-        
+
 
 
 

@@ -50,30 +50,30 @@ def move_photos_if_needed(item, contract_no, token):
     parent_item = None
     if item.parent_id:
         parent_item = InspectionItem.query.get(item.parent_id)
-    
+
     item_category = sanitize_filename(parent_item.item_category if parent_item and parent_item.item_category else item.item_category or 'default_category')
     item_name = sanitize_filename(item.item_name or 'default_item')
-    
+
     # 分割多个图片路径
     photo_paths = [path.strip() for path in item.photo_path.split(',') if path.strip()]
     updated_paths = []
-    
+
     # 调用移动API处理每个图片
     for photo_path in photo_paths:
         if not photo_path:
             continue
-            
+
         # 生成目标路径
         import time
         timestamp = int(time.time() * 1000)  # 毫秒时间戳
         unique_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=8))
-        
+
         # 获取文件扩展名
         file_extension = os.path.splitext(photo_path)[1] if os.path.splitext(photo_path)[1] else '.jpg'
-        
+
         target_filename = f"{contract_no}_{item_category}_{item_name}_{unique_id}_{timestamp}{file_extension}"
         target_path = f"assets/OrderInspection/{contract_no}/{target_filename}"
-        
+
         # 调用移动API
         try:
             move_url = f"http://192.168.30.70:5000/api/upload/move"
@@ -85,7 +85,7 @@ def move_photos_if_needed(item, contract_no, token):
                 'source_path': photo_path,
                 'target_path': target_path
             }
-            
+
             response = requests.post(move_url, json=payload, headers=headers)
             if response.status_code == 200:
                 result = response.json()
@@ -106,7 +106,7 @@ def move_photos_if_needed(item, contract_no, token):
             print(f"移动图片异常 {photo_path}: {str(e)}")
             # 移动失败，保留原路径
             updated_paths.append(photo_path)
-    
+
     return ','.join(updated_paths) if updated_paths else None
 
 
@@ -122,7 +122,7 @@ def calculate_inspection_progress(inspection_id):
         InspectionItem.inspection_id == inspection_id,
         InspectionItem.item_type == 'sub'
     ).all()
-    
+
     completed_items = 0
     for item in all_sub_items:
         if item.inspection_result == 'normal' and item.photo_path:
@@ -174,7 +174,7 @@ def get_inspection_orders():
 
         # 构建基础查询
         base_query = db.session.query(Order)
-        
+
         # 应用筛选条件
         if order_no:
             base_query = base_query.filter(Order.order_no.contains(order_no))
@@ -196,7 +196,7 @@ def get_inspection_orders():
         for order in orders:
             # 获取该订单的验收记录
             inspection = OrderInspection.query.filter_by(order_id=order.id).first()
-            
+
             order_dict = {
                 "id": order.id,
                 "contract_no": order.contract_no,
@@ -322,8 +322,14 @@ def get_inspection_detail(inspection_id):
         # 获取检查项
         items = InspectionItem.query.filter_by(inspection_id=inspection_id).order_by(InspectionItem.sort_order, InspectionItem.create_time).all()
 
+        # 获取状态日志
+        status_logs = OrderInspectionStatusLog.query.filter_by(inspection_id=inspection_id).order_by(OrderInspectionStatusLog.start_time).all()
+
         # 序列化数据
         inspection_dict = inspection.to_dict()
+
+        # 序列化状态日志数据
+        status_logs_list = [log.to_dict() for log in status_logs]
 
         # 按层级组织检查项
         parent_items = [item for item in items if item.item_type == 'parent']
@@ -347,6 +353,7 @@ def get_inspection_detail(inspection_id):
                 items_list.append(child.to_dict())
 
         inspection_dict['items'] = items_list
+        inspection_dict['status_logs'] = status_logs_list  # 添加状态日志数据
 
         import json
         from flask import Response
@@ -733,15 +740,15 @@ def batch_update_inspection_items(inspection_id):
         created_items = []
         updated_items = []
         deleted_items = []
-        
+
         # 分离各种操作类型
         items_to_delete = []
         items_to_create = []
         items_to_update = []
-        
+
         for item_data in items_data:
             item_id = item_data.get('id')
-            
+
             if item_data.get('_toBeDeleted'):
                 # 检查是否是本地新建的项目，这种项目不应该发送删除请求
                 if item_data.get('is_local_new'):
@@ -753,7 +760,7 @@ def batch_update_inspection_items(inspection_id):
                 items_to_create.append(item_data)
             else:
                 items_to_update.append(item_data)
-        
+
         # 首先，处理删除操作
         for item_data in items_to_delete:
             item_id = item_data.get('id')
@@ -763,24 +770,24 @@ def batch_update_inspection_items(inspection_id):
                 if item.photo_path and (item_data.get('_photo_needs_delete', False) or item.photo_path):
                     # 分割多个图片路径
                     photo_paths = [path.strip() for path in item.photo_path.split(',') if path.strip()]
-                    
+
                     # 获取授权令牌用于调用移动API
                     auth_header = request.headers.get('Authorization', '')
                     token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else ''
-                    
+
                     # 移动每个图片文件到DeleteFiles文件夹
                     for photo_path in photo_paths:
                         try:
                             import os
                             filename = os.path.basename(photo_path)
                             delete_folder = "assets/DeleteFiles"
-                            
+
                             # 创建DeleteFiles文件夹如果不存在
                             os.makedirs(delete_folder, exist_ok=True)
-                            
+
                             # 目标路径
                             target_path = f"{delete_folder}/{filename}"
-                            
+
                             # 调用移动API将文件移动到DeleteFiles文件夹
                             move_url = f"http://192.168.30.70:5000/api/upload/move"
                             headers = {
@@ -791,7 +798,7 @@ def batch_update_inspection_items(inspection_id):
                                 'source_path': photo_path,
                                 'target_path': target_path
                             }
-                            
+
                             response = requests.post(move_url, json=payload, headers=headers)
                             if response.status_code == 200:
                                 result = response.json()
@@ -822,7 +829,7 @@ def batch_update_inspection_items(inspection_id):
                                 print(f"图片移动API调用失败: {photo_path}, HTTP状态码: {response.status_code}")
                         except Exception as e:
                             print(f"处理图片文件异常 {photo_path}: {str(e)}")
-                
+
                 # 如果是父项，还需删除其所有子项
                 if item.item_type == 'parent':
                     child_items = InspectionItem.query.filter_by(parent_id=item.id, inspection_id=inspection_id).all()
@@ -831,24 +838,24 @@ def batch_update_inspection_items(inspection_id):
                         if child.photo_path:
                             # 分割多个图片路径
                             child_photo_paths = [path.strip() for path in child.photo_path.split(',') if path.strip()]
-                            
+
                             # 获取授权令牌用于调用移动API
                             auth_header = request.headers.get('Authorization', '')
                             token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else ''
-                            
+
                             # 移动每个图片文件到DeleteFiles文件夹
                             for photo_path in child_photo_paths:
                                 try:
                                     import os
                                     filename = os.path.basename(photo_path)
                                     delete_folder = "assets/DeleteFiles"
-                                    
+
                                     # 创建DeleteFiles文件夹如果不存在
                                     os.makedirs(delete_folder, exist_ok=True)
-                                    
+
                                     # 目标路径
                                     target_path = f"{delete_folder}/{filename}"
-                                    
+
                                     # 调用移动API将文件移动到DeleteFiles文件夹
                                     move_url = f"http://192.168.30.70:5000/api/upload/move"
                                     headers = {
@@ -859,7 +866,7 @@ def batch_update_inspection_items(inspection_id):
                                         'source_path': photo_path,
                                         'target_path': target_path
                                     }
-                                    
+
                                     response = requests.post(move_url, json=payload, headers=headers)
                                     if response.status_code == 200:
                                         result = response.json()
@@ -883,21 +890,21 @@ def batch_update_inspection_items(inspection_id):
                                         print(f"子项图片移动API调用失败: {photo_path}, HTTP状态码: {response.status_code}")
                                 except Exception as e:
                                     print(f"处理子项图片文件异常 {photo_path}: {str(e)}")
-                        
+
                         db.session.delete(child)
                         deleted_items.append(child)
-                
+
                 db.session.delete(item)
                 deleted_items.append(item)
-        
+
         # 然后，创建所有新项目并获取它们的ID
         temp_to_real_id_map = {}  # 临时ID到真实ID的映射
         created_item_objects = []  # 保存新创建的项目对象及其原始数据
-        
+
         # 先创建所有新项目（不设置parent_id，暂时设置为null）
         for item_data in items_to_create:
             item_id = item_data.get('id')
-            
+
             new_item = InspectionItem(
                 inspection_id=inspection_id,
                 parent_id=None,  # 暂时设置为null
@@ -914,23 +921,23 @@ def batch_update_inspection_items(inspection_id):
             db.session.add(new_item)
             db.session.flush()  # 获取新创建项目的ID
             created_items.append(new_item)
-            
+
             # 记录临时ID到真实ID的映射（如果原ID不是None，即为前端生成的临时ID）
             if item_id is not None:
                 temp_to_real_id_map[item_id] = new_item.id
-            
+
             # 保存项目对象和原始数据的映射，用于后续设置parent_id
             created_item_objects.append({
                 'original_data': item_data,
                 'item_object': new_item
             })
-        
+
         # 更新项目的parent_id关系（对于新建项目）
         # 使用之前保存的对象引用，而不是通过名称等属性查找
         for item_info in created_item_objects:
             item_data = item_info['original_data']
             created_item = item_info['item_object']
-            
+
             parent_id = item_data.get('parent_id')
             if parent_id is not None:
                 if parent_id in temp_to_real_id_map:
@@ -938,7 +945,7 @@ def batch_update_inspection_items(inspection_id):
                     created_item.parent_id = temp_to_real_id_map[parent_id]
                 else:
                     # 如果parent_id不是临时ID，直接使用（可能是已存在的项目）
-                    created_item.parent_id = parent_id        
+                    created_item.parent_id = parent_id
         # 处理更新现有项目
         for item_data in items_to_update:
             item_id = item_data.get('id')
@@ -954,7 +961,7 @@ def batch_update_inspection_items(inspection_id):
                         item.parent_id = parent_id
                 else:
                     item.parent_id = item_data.get('parent_id', item.parent_id)
-                
+
                 item.item_category = item_data.get('item_category', item.item_category)
                 item.item_name = item_data.get('item_name', item.item_name)
                 item.item_type = item_data.get('item_type', item.item_type)
@@ -967,11 +974,11 @@ def batch_update_inspection_items(inspection_id):
                 updated_items.append(item)
 
         db.session.commit()
-        
+
         # 获取授权令牌用于调用移动API和删除API
         auth_header = request.headers.get('Authorization', '')
         token = auth_header.replace('Bearer ', '') if auth_header.startswith('Bearer ') else ''
-        
+
         # 处理需要删除的照片文件
         for item_data in items_to_update:
             item_id = item_data.get('id')
@@ -985,13 +992,13 @@ def batch_update_inspection_items(inspection_id):
                         import os
                         filename = os.path.basename(photo_path)
                         delete_folder = "assets/DeleteFiles"
-                        
+
                         # 创建DeleteFiles文件夹如果不存在
                         os.makedirs(delete_folder, exist_ok=True)
-                        
+
                         # 目标路径
                         target_path = f"{delete_folder}/{filename}"
-                        
+
                         # 调用移动API将文件移动到DeleteFiles文件夹
                         move_url = f"http://192.168.30.70:5000/api/upload/move"
                         headers = {
@@ -1002,7 +1009,7 @@ def batch_update_inspection_items(inspection_id):
                             'source_path': photo_path,
                             'target_path': target_path
                         }
-                        
+
                         response = requests.post(move_url, json=payload, headers=headers)
                         if response.status_code == 200:
                             result = response.json()
@@ -1118,24 +1125,24 @@ def clear_inspection_items(inspection_id):
             if item.photo_path:
                 # 分割多个图片路径
                 photo_paths = [path.strip() for path in item.photo_path.split(',') if path.strip()]
-                
+
                 # 删除每个图片文件到DeleteFiles文件夹
                 for photo_path in photo_paths:
                     try:
                         # 构建移动到DeleteFiles的路径
                         filename = os.path.basename(photo_path)
                         delete_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(photo_path))), 'DeleteFiles')
-                        
+
                         # 确保DeleteFiles文件夹存在
                         os.makedirs(delete_folder, exist_ok=True)
-                        
+
                         # 移动文件到DeleteFiles文件夹
                         source_path = os.path.join('..', '..', photo_path)
                         target_path = os.path.join(delete_folder, filename)
-                        
+
                         # 确保目标目录存在
                         os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                        
+
                         if os.path.exists(source_path):
                             import shutil
                             shutil.move(source_path, target_path)
@@ -1151,7 +1158,7 @@ def clear_inspection_items(inspection_id):
                             payload = {
                                 'path': photo_path
                             }
-                            
+
                             response = requests.post(delete_url, json=payload, headers=headers)
                     except Exception as e:
                         print(f"移动或删除图片文件异常 {photo_path}: {str(e)}")

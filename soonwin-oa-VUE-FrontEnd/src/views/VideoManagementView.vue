@@ -23,14 +23,47 @@
         </div>
       </div>
       <div class="header-buttons">
-                <el-button
-                  v-if="!showingRecycleBin"
-                  type="primary"
-                  @click="showUploadDialog = true"
-                >
-                  <el-icon><UploadFilled /></el-icon>
-                  上传视频
-                </el-button>        <el-button
+
+        <el-button
+          v-if="!showingRecycleBin && !isMultiSelectMode"
+          type="primary"
+          @click="showUploadDialog = true"
+        >
+          <el-icon><UploadFilled /></el-icon>
+          上传视频
+        </el-button>
+
+        <!-- 普通视频列表多选模式按钮组 -->
+        <div v-if="!showingRecycleBin && isMultiSelectMode" class="multi-select-buttons">
+          <el-button @click="toggleSelectAllNormal">
+            {{ selectedNormalVideos.length === videos.length ? '取消全选' : '全选' }}
+          </el-button>
+          <el-button
+          type="danger"
+          @click="batchDeleteNormalVideos"
+          :disabled="selectedNormalVideos.length === 0">
+            <el-icon><Delete /></el-icon>
+            批量删除 ({{ selectedNormalVideos.length }})
+          </el-button>
+          <el-button
+          type="warning"
+          @click="toggleMultiSelectMode"
+          >
+            取消
+          </el-button>
+        </div>
+
+        <!-- 非多选模式且非回收站模式下的多选按钮 -->
+        <el-button
+          v-if="!showingRecycleBin && !isMultiSelectMode && videos.length > 0"
+          @click="toggleMultiSelectMode"
+          type="success"
+        >
+          <el-icon><CircleCheck /></el-icon>
+          多选
+        </el-button>
+
+        <el-button
           v-if="!showingRecycleBin && isAdmin"
         @click="showVideoLogs" >
           <el-icon><Document /></el-icon>
@@ -114,13 +147,30 @@
         v-for="video in videos"
         :key="video.id"
         class="video-card"
-        :class="{ 'selected': showingRecycleBin && selectedVideos.includes(video.id) }"
+        :class="{
+          // 'selected': showingRecycleBin && selectedVideos.includes(video.id),
+          'selected': !showingRecycleBin && isMultiSelectMode && isNormalVideoSelected(video.id)
+        }"
         :data-video-id="video.id"
-        @click="showingRecycleBin ? toggleVideoSelection(video) : viewVideoDetails(video)"
+        @click="showingRecycleBin ? toggleVideoSelection(video) :
+                 isMultiSelectMode ? selectNormalVideo(video.id) :
+                 viewVideoDetails(video)"
       >
+        <!-- 多选复选框（在普通视频列表的多选模式下显示） -->
+        <div
+          v-if="!showingRecycleBin && isMultiSelectMode"
+          class="select-checkbox"
+          @click.stop="selectNormalVideo(video.id)"
+        >
+          <el-checkbox
+            :model-value="isNormalVideoSelected(video.id)"
+            @click.stop="selectNormalVideo(video.id)"
+          />
+        </div>
+
         <!-- 多选复选框（仅在回收站模式下显示） -->
         <div
-          v-if="showingRecycleBin"
+          v-else-if="showingRecycleBin"
           class="select-checkbox"
           @click.stop="toggleVideoSelection(video)"
         >
@@ -130,8 +180,8 @@
           />
         </div>
 
-        <!-- 删除按钮（仅在非回收站模式下显示） -->
-        <div v-else class="delete-btn" @click.stop="deleteVideo(video.id)">
+        <!-- 删除按钮（仅在非多选模式且非回收站模式下显示） -->
+        <div v-else-if="!showingRecycleBin && !isMultiSelectMode" class="delete-btn" @click.stop="deleteVideo(video.id)">
           <el-icon style="margin: 0;"><Delete /></el-icon>
         </div>
 
@@ -479,7 +529,6 @@ import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, 
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
-import InputTag from '@/components/InputTag.vue';
 import { uploadFile } from '@/utils/upload';
 import { isCurrentUserAdmin } from '@/utils/authUtils';
 import request, {
@@ -573,8 +622,12 @@ const savingAll = ref(false);
 
 // 回收站相关变量
 const showingRecycleBin = ref(false);  // 是否显示回收站
-const selectedVideos = ref<number[]>([]);  // 选中的视频ID数组
+const selectedVideos = ref<number[]>([]);  // 选中的视频ID数组（回收站模式下使用）
 const totalDeletedSize = ref(0);  // 回收站中文件的总大小
+
+// 普通视频列表多选相关状态
+const isMultiSelectMode = ref(false); // 是否处于普通视频列表的多选模式
+const selectedNormalVideos = ref<number[]>([]); // 选中的普通视频ID列表
 
 // 权限相关
 const isAdmin = computed(() => isCurrentUserAdmin());
@@ -1061,6 +1114,7 @@ const handleCurrentChange = (page: number) => {
 // 进入回收站
 const enterRecycleBin = async () => {
   showingRecycleBin.value = true;
+  isMultiSelectMode.value = false;
   currentPage.value = 1;
   selectedVideos.value = []; // 清空选中的视频
   await fetchDeletedVideos();
@@ -1246,6 +1300,93 @@ const showVideoLogs = () => {
   nextTick(() => {
     logDialogVisible.value = true;
   });
+};
+
+// 切换普通视频列表多选模式
+const toggleMultiSelectMode = () => {
+  isMultiSelectMode.value = !isMultiSelectMode.value;
+  if (!isMultiSelectMode.value) {
+    // 退出多选模式时清空选中项
+    selectedNormalVideos.value = [];
+  }
+};
+
+// 选择单个普通视频
+const selectNormalVideo = (videoId: number) => {
+  const index = selectedNormalVideos.value.indexOf(videoId);
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedNormalVideos.value.splice(index, 1);
+  } else {
+    // 未选中，添加选择
+    selectedNormalVideos.value.push(videoId);
+  }
+};
+
+// 普通视频列表全选/取消全选
+const toggleSelectAllNormal = () => {
+  if (selectedNormalVideos.value.length === videos.value.length) {
+    // 当前已全选，取消全选
+    selectedNormalVideos.value = [];
+  } else {
+    // 未全选，进行全选
+    selectedNormalVideos.value = videos.value.map(video => video.id);
+  }
+};
+
+// 批量删除选中的普通视频
+const batchDeleteNormalVideos = async () => {
+  if (selectedNormalVideos.value.length === 0) {
+    ElMessage.warning('请先选择要删除的视频');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedNormalVideos.value.length} 个视频吗？`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 批量删除视频
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const videoId of selectedNormalVideos.value) {
+      try {
+        await deleteVideoAPI(videoId);
+        successCount++;
+      } catch (error) {
+        console.error(`删除视频 ${videoId} 失败:`, error);
+        errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      ElMessage.warning(`批量删除完成: ${successCount} 个成功, ${errorCount} 个失败`);
+    } else {
+      ElMessage.success(`成功删除 ${successCount} 个视频`);
+    }
+
+    // 重置选择状态并刷新列表
+    selectedNormalVideos.value = [];
+    isMultiSelectMode.value = false;
+    fetchVideos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除视频失败:', error);
+      ElMessage.error('批量删除失败');
+    }
+  }
+};
+
+// 检查普通视频是否被选中
+const isNormalVideoSelected = (videoId: number) => {
+  return selectedNormalVideos.value.includes(videoId);
 };
 
 // 初始化
@@ -1934,12 +2075,18 @@ onMounted(() => {
 .select-checkbox {
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.8);
   border-radius: 50%;
   padding: 2px;
 }
+
+.el-checkbox{
+  width: 32px;
+  height: 32px;
+}
+
 
 .header-buttons {
   display: flex;
@@ -1984,5 +2131,32 @@ onMounted(() => {
   box-shadow: 0 0 15px rgba(230, 162, 60, 0.5) !important; /* 发光效果 */
   transform: scale(1.02); /* 稍微放大 */
   transition: all 0.3s ease; /* 平滑过渡 */
+}
+
+/* 多选模式按钮样式 */
+.multi-select-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 视频卡片多选样式 */
+.video-card.selected {
+  border: 2px solid #409eff; /* 选中时边框为蓝色 */
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3);
+}
+
+.video-card .select-checkbox {
+  position: absolute;
+  z-index: 10;
+  background-color: white;
+  border-radius: 50%;
+  padding: 2px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.video-card .select-checkbox .el-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

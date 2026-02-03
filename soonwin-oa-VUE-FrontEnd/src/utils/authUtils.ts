@@ -3,11 +3,19 @@
  */
 
 /**
+ * 获取当前用户的认证令牌
+ * @returns string | null - 认证令牌，如果不存在则返回null
+ */
+export function getToken(): string | null {
+  return localStorage.getItem('oa_token');
+}
+
+/**
  * 检查当前用户是否为管理员
  * @returns boolean - 是否为管理员
  */
 export function isCurrentUserAdmin(): boolean {
-  const token = localStorage.getItem('oa_token');
+  const token = getToken();
   if (!token) {
     return false;
   }
@@ -26,7 +34,7 @@ export function isCurrentUserAdmin(): boolean {
  * @returns boolean - 是否已登录
  */
 export function hasToken(): boolean {
-  return !!localStorage.getItem('oa_token');
+  return !!getToken();
 }
 
 /**
@@ -34,7 +42,7 @@ export function hasToken(): boolean {
  * @returns string | null - 用户角色，如果无法获取则返回null
  */
 export function getCurrentUserRole(): string | null {
-  const token = localStorage.getItem('oa_token');
+  const token = getToken();
   if (!token) {
     return null;
   }
@@ -53,7 +61,7 @@ export function getCurrentUserRole(): string | null {
  * @returns string | null - 员工ID，如果无法获取则返回null
  */
 export function getCurrentUserEmpId(): string | null {
-  const token = localStorage.getItem('oa_token');
+  const token = getToken();
   if (!token) {
     return null;
   }
@@ -72,7 +80,7 @@ export function getCurrentUserEmpId(): string | null {
  * @returns string | null - 用户姓名，如果无法获取则返回null
  */
 export function getCurrentUserName(): string | null {
-  const token = localStorage.getItem('oa_token');
+  const token = getToken();
   if (!token) {
     return null;
   }
@@ -97,7 +105,7 @@ export interface CurrentUserInfo {
 }
 
 export function getCurrentUserInfo(): CurrentUserInfo | null {
-  const token = localStorage.getItem('oa_token');
+  const token = getToken();
   if (!token) {
     return null;
   }

@@ -225,6 +225,23 @@ def validate_file_type(file, allowed_extensions=None):
 
     return True, "验证通过"
 
+
+def allowed_file(filename):
+    """验证上传的文件类型"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in UPLOAD_CONFIG['ALL_ALLOWED_EXTENSIONS']
+
+
+def get_file_type(filename):
+    """根据文件扩展名确定文件类型"""
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext in UPLOAD_CONFIG['IMAGE_ALLOWED_EXTENSIONS']:
+        return 'image'
+    elif ext in UPLOAD_CONFIG['VIDEO_ALLOWED_EXTENSIONS']:
+        return 'video'
+    else:
+        return 'other'
+
 def save_uploaded_file(file, base_save_dir, use_date_subdir=True, custom_filename=None):
     """
     保存上传的文件到指定目录

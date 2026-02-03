@@ -61,9 +61,10 @@ class OrderInspectionStatusLog(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     inspection_id = db.Column(db.Integer, db.ForeignKey('OrderInspection.id'), nullable=False, comment="关联验收ID")
-    status = db.Column(db.Integer, nullable=False, comment="状态值: 1-下单, 2-排产, 3-完成生产, 4-验收阶段, 5-发货")
-    status_time = db.Column(db.DateTime, comment="状态变更时间")
-    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    status = db.Column(db.String(50), nullable=False, comment="状态值: 下单、采购、排产、完成生产、验收、发货")
+    start_time = db.Column(db.DateTime, comment="开始时间")
+    expected_completion_time = db.Column(db.DateTime, comment="预计完成时间")
+    actual_completion_time = db.Column(db.DateTime, comment="实际完成时间")
     
     # 关联验收记录
     inspection = db.relationship('OrderInspection', backref=db.backref('status_logs', lazy=True))
@@ -73,8 +74,9 @@ class OrderInspectionStatusLog(db.Model):
             "id": self.id,
             "inspection_id": self.inspection_id,
             "status": self.status,
-            "status_time": self.status_time.strftime('%Y-%m-%d') if self.status_time else None,
-            "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
+            "start_time": self.start_time.strftime('%Y-%m-%d %H:%M:%S') if self.start_time else None,
+            "expected_completion_time": self.expected_completion_time.strftime('%Y-%m-%d %H:%M:%S') if self.expected_completion_time else None,
+            "actual_completion_time": self.actual_completion_time.strftime('%Y-%m-%d %H:%M:%S') if self.actual_completion_time else None,
         }
 
 

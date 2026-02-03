@@ -1,33 +1,61 @@
 <template>
   <div class="photo-management">
     <CommonHeader title="照片管理" />
-    <div class="header">
-      <div class="title-with-count">
-        <h2>照片管理</h2>
-        <span v-if="showResultCount" class="result-count">
-          找到 {{ totalPhotos }} 张照片
+        <div class="header">
+          <div class="title-with-count">
+            <h2>照片管理</h2>
+            <span v-if="showResultCount" class="result-count">
+              找到 {{ totalPhotos }} 张照片
 
-        </span>
-        <el-icon
-          v-if="showResultCount"
-          @click="clearSearch"
-          class="result-refresh-btn"
-        ><RefreshLeft /></el-icon>
-      </div>
-      <div class="header-buttons">
-        <el-button type="primary" @click="showUploadDialog = true">
-          <el-icon><UploadFilled /></el-icon>
-          上传照片
-        </el-button>
-        <el-button
-          v-if="isAdmin"
-          @click="showPhotoLogs"
-        >
-          <el-icon><Document /></el-icon>
-          查看日志
-        </el-button>
-      </div>
-    </div>
+            </span>
+            <el-icon
+              v-if="showResultCount"
+              @click="clearSearch"
+              class="result-refresh-btn"
+            ><RefreshLeft /></el-icon>
+          </div>
+          <div class="header-buttons">
+            <el-button
+              v-if="!isMultiSelectMode"
+              type="primary"
+              @click="showUploadDialog = true"
+            >
+              <el-icon><UploadFilled /></el-icon>
+              上传照片
+            </el-button>
+
+            <el-button
+              v-if="isAdmin && !isMultiSelectMode"
+              @click="showPhotoLogs"
+            >
+              <el-icon><Document /></el-icon>
+              查看日志
+            </el-button>
+
+            <!-- 多选模式按钮组 -->
+            <div v-else class="multi-select-buttons">
+              <el-button @click="batchDeletePhotos" :disabled="selectedPhotoIds.length === 0">
+                <el-icon><Delete /></el-icon>
+                批量删除 ({{ selectedPhotoIds.length }})
+              </el-button>
+              <el-button @click="toggleSelectAll">
+                {{ selectedPhotoIds.length === photos.length ? '取消全选' : '全选' }}
+              </el-button>
+              <el-button @click="toggleMultiSelectMode">
+                取消
+              </el-button>
+            </div>
+
+            <!-- 非多选模式下的多选按钮 -->
+            <el-button
+              v-if="!isMultiSelectMode && photos.length > 0"
+              @click="toggleMultiSelectMode"
+            >
+              <el-icon><CircleCheck /></el-icon>
+              多选
+            </el-button>
+          </div>
+        </div>
 
     <!-- 搜索和筛选 -->
     <div class="search-section">
@@ -56,56 +84,139 @@
       <el-button type="primary" @click="searchByMachine">机器搜索</el-button>
     </div>
 
-    <!-- 照片列表 -->
-    <div v-if="photos.length > 0" class="photo-grid">
-      <div
-    v-for="photo in photos"
-    :key="photo.id"
-    class="photo-card"
-    @click="viewPhotoDetails(photo)"
-  >
-    <!-- 删除按钮 - 右上角圆形X按钮 -->
-    <div class="delete-btn" @click.stop="deletePhoto(photo.id)">
-      <el-icon><Delete /></el-icon>
-    </div>
+        <!-- 照片列表 -->
 
-    <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
-    <div class="photo-image" >
+        <div v-if="photos.length > 0" class="photo-grid">
 
-      <img
-        :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
-        :alt="photo.title"
-        @error="onImageError"
-      />
+          <div
 
-      <!-- 右下角分辨率 -->
-      <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
-        {{ photo.original_width }} x {{ photo.original_height }}
-      </div>
-    </div>
+        v-for="photo in photos"
 
-    <div class="photo-info">
+        :key="photo.id"
 
-      <div class="photo-title">{{ photo.title }}</div>
-      <div class="photo-upload-time">{{ photo.upload_time }}</div>
-      <div class="card-tags-container" v-if="photo.tags">
+        class="photo-card"
+
+        :class="{ 'selected': isPhotoSelected(photo.id) }"
+
+        @click="isMultiSelectMode ? selectPhoto(photo.id) : viewPhotoDetails(photo)"
+
+      >
+
+        <!-- 多选模式下的选择框 -->
+
         <div
-          v-for="tag in photo.tags.split(',')"
-          :key="tag"
-          class="card-tags"
+
+          v-if="isMultiSelectMode"
+
+          class="select-checkbox"
+
+          @click.stop="selectPhoto(photo.id)"
+
         >
-          {{ tag.trim() }}
+
+          <el-checkbox
+
+            :model-value="isPhotoSelected(photo.id)"
+
+            @change="selectPhoto(photo.id)"
+
+          />
+
         </div>
+
+
+
+        <!-- 删除按钮 - 右上角圆形X按钮 -->
+
+        <div
+
+          v-if="!isMultiSelectMode"
+
+          class="delete-btn"
+
+          @click.stop="deletePhoto(photo.id)"
+
+        >
+
+          <el-icon style="margin-right: 0;"><Delete /></el-icon>
+
+        </div>
+
+
+
+        <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
+
+        <div class="photo-image" >
+
+
+
+          <img
+
+            :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
+
+            :alt="photo.title"
+
+            @error="onImageError"
+
+          />
+
+
+
+          <!-- 右下角分辨率 -->
+
+          <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
+
+            {{ photo.original_width }} x {{ photo.original_height }}
+
+          </div>
+
+        </div>
+
+
+
+        <div class="photo-info">
+
+
+
+          <div class="photo-title">{{ photo.title }}</div>
+
+          <div class="photo-upload-time">{{ photo.upload_time }}</div>
+
+          <div class="card-tags-container" v-if="photo.tags">
+
+            <div
+
+              v-for="tag in photo.tags.split(',')"
+
+              :key="tag"
+
+              class="card-tags"
+
+            >
+
+              {{ tag.trim() }}
+
+            </div>
+
+          </div>
+
+          <p class="machine" v-if="photo.machine_info">
+
+            机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
+
+          </p>
+
+          <div class="photo-actions">
+
+            <!-- 编辑功能已整合到详情对话框中 -->
+
+          </div>
+
+        </div>
+
       </div>
-      <p class="machine" v-if="photo.machine_info">
-        机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
-      </p>
-      <div class="photo-actions">
-        <!-- 编辑功能已整合到详情对话框中 -->
-      </div>
-    </div>
-  </div>
-    </div>
+
+        </div>
 
     <!-- 无搜索结果提示 -->
     <div v-else class="no-results">
@@ -120,9 +231,6 @@
 
     <!-- 搜索结果统计和分页 -->
     <div class="result-info" v-if="photos.length > 0">
-      <!-- <div class="result-count">
-        共找到 {{ totalPhotos }} 张照片
-      </div> -->
       <div class="pagination">
         <el-pagination
           v-model:current-page="currentPage"
@@ -184,6 +292,7 @@
             multiple
             :auto-upload="false"
             :on-change="handleFileChange"
+            :file-list="fileList"
             :show-file-list="true"
             :on-remove="handleFileRemove"
           >
@@ -198,6 +307,18 @@
             </template>
           </el-upload>
         </el-form-item>
+
+        <!-- 匹配文件按钮 -->
+        <el-form-item v-if="fileList.length > 0">
+          <el-button
+            @click="showJsonInputDialog = true"
+            type="info"
+            :icon="Search"
+          >
+            匹配文件
+          </el-button>
+        </el-form-item>
+
         <!-- 上传进度条 -->
         <el-form-item v-if="uploadProgress > 0" label="上传进度">
           <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
@@ -208,14 +329,11 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="showJsonInputDialog = true">JSON匹配多文件</el-button>
           <el-button @click="showUploadDialog = false">取消</el-button>
           <el-button type="primary" @click="submitUpload" :loading="uploading">上传</el-button>
         </span>
       </template>
     </el-dialog>
-
-
 
     <!-- 照片详情对话框 -->
     <el-dialog
@@ -314,21 +432,12 @@
               <div class="detail-value remark-value" style="width: 90%;">
                 {{ selectedPhoto.remark || '无备注' }}
               </div>
-              <!-- <el-input
-                v-model="editRemark"
-                type="input"
-                :rows="4"
-                placeholder="请输入备注信息"
-                class="detail-value remark-value"
-                :value="selectedPhoto.remark || '无备注'"
-                disabled
-              /> -->
             </div>
             <div v-else>
               <label class="detail-label">备注:</label>
               <el-input
                 v-model="editRemark"
-                type="input"
+                type="textarea"
                 :rows="4"
                 placeholder="请输入备注信息"
                 class="remark-input"
@@ -355,14 +464,6 @@
                 <label class="detail-label small">原始尺寸:</label>
                 <span class="detail-value small">{{ selectedPhoto.original_width }} x {{ selectedPhoto.original_height }}</span>
               </div>
-              <!-- <div class="info-item">
-                <label class="detail-label small">压缩状态:</label>
-                <span class="detail-value small">
-                  <el-tag :type="getCompressStatusType(selectedPhoto.compress_status)" size="small">
-                    {{ getCompressStatusText(selectedPhoto.compress_status) }}
-                  </el-tag>
-                </span>
-              </div> -->
             </div>
           </div>
 
@@ -395,7 +496,7 @@
       v-model="showJsonInputDialog"
       title="JSON匹配多文件"
       width="800px"
-      :before-close="() => { showJsonInputDialog = false; jsonInputText = ''; }"
+      :before-close="handleJsonInputDialogClose"
       class="mobile-dialog"
     >
       <div>
@@ -411,11 +512,51 @@
           type="textarea"
           placeholder="请按上述格式输入匹配信息"
         />
+
+        <!-- 匹配结果展示 -->
+        <div v-if="isMatched" class="match-results-section" style="margin-top: 20px;">
+          <h4>匹配结果：</h4>
+
+          <!-- 已匹配文件 -->
+          <div v-if="matchedFiles.length > 0" class="matched-files-section">
+            <h5 style="color: #67c23a;">已匹配文件 ({{ matchedFiles.length }}个)：</h5>
+            <el-table :data="matchedFiles" style="width: 100%; margin-top: 8px;">
+              <el-table-column prop="file.name" label="文件名" width="200"></el-table-column>
+              <el-table-column prop="data.title" label="标题" width="150"></el-table-column>
+              <el-table-column prop="data.machineId" label="关联机器" width="150"></el-table-column>
+              <el-table-column prop="data.tags" label="标签" width="150"></el-table-column>
+              <el-table-column prop="data.remark" label="备注" show-overflow-tooltip></el-table-column>
+            </el-table>
+          </div>
+
+          <!-- 未匹配文件 -->
+          <div v-if="unmatchedFiles.length > 0" class="unmatched-files-section" style="margin-top: 15px;">
+            <h5 style="color: #e6a23c;">未匹配文件 ({{ unmatchedFiles.length }}个)：</h5>
+            <div style="background: #fdf6ec; border: 1px solid #faecd8; border-radius: 4px; padding: 10px; margin-top: 8px;">
+              <span v-for="(file, index) in unmatchedFiles" :key="index" class="unmatched-file">
+                {{ file }}{{ index < unmatchedFiles.length - 1 ? ', ' : '' }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showJsonInputDialog = false">取消</el-button>
-          <el-button type="primary" @click="matchJsonToFiles">匹配并上传</el-button>
+          <el-button
+            type="warning"
+            @click="matchJsonToFiles"
+          >
+            匹配文件
+          </el-button>
+          <el-button
+            :disabled="!isMatched"
+            type="primary"
+            @click="uploadMatchedFiles"
+            :loading="uploading"
+          >
+            上传匹配文件
+          </el-button>
         </span>
       </template>
     </el-dialog>
@@ -432,7 +573,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, ZoomIn, Document, RefreshLeft } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, ZoomIn, Document, RefreshLeft, Search, CircleCheck } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
@@ -460,21 +601,25 @@ const uploadForm = ref({
   tags: '',
   machineId: '',
   remark: '',
-  file: null as File | null
+  file: null as File | File[] | null, // 支持单/多文件
 });
 
 const uploadFormTags = ref<string[]>([]);
 const inputValueString = ref('');
-const inputVisible = ref(false);
-const inputValue = ref('');
-const tagInputRef = ref();
 const showJsonInputDialog = ref(false);
 const jsonInputText = ref('');
+// JSON匹配相关状态
+const matchedFiles = ref<any[]>([]);
+const unmatchedFiles = ref<string[]>([]);
+const isMatched = ref(false); // 是否已匹配成功
+
+// 多选相关状态
+const isMultiSelectMode = ref(false); // 是否处于多选模式
+const selectedPhotoIds = ref<number[]>([]); // 选中的照片ID列表
 
 // 监听uploadFormTags变化并更新uploadForm中的tags字段
 watch(uploadFormTags, (newTags) => {
   uploadForm.value.tags = newTags.join(',');
-  // 同时更新inputValueString以保持UI同步
   inputValueString.value = newTags.join(',');
 }, { deep: true });
 
@@ -504,16 +649,13 @@ watch(inputValueString, (newVal) => {
 
 // 表单引用
 const uploadFormRef = ref();
-
 const selectedPhoto = ref<any>(null);
 
 // 通用日志组件相关
 const logDialogVisible = ref(false);
 const previewPhotoData = ref<any>(null);
-const fileList = ref<any[]>([]);
+const fileList = ref<any[]>([]); // Element Upload组件的文件列表
 const machineList = ref<any[]>([]);
-
-
 
 // 预览相关变量
 const isShowingOriginal = ref(false);
@@ -527,24 +669,30 @@ const editRemark = ref('');
 const currentTags = ref<string[]>([]);
 const savingAll = ref(false);
 
-// 表单验证规则
+// 表单验证规则（适配多文件）
 const uploadRules = {
   title: [{ required: true, message: '请输入照片标题', trigger: 'blur' }],
-  file: [{ required: true, message: '请选择照片文件', trigger: 'change' }]
+  file: [{
+    required: true,
+    validator: (rule: any, value: any, callback: any) => {
+      if (fileList.value.length === 0) {
+        callback(new Error('请选择照片文件'));
+      } else {
+        callback();
+      }
+    },
+    trigger: 'change'
+  }]
 };
-
-
 
 // 获取router
 const router = useRouter();
 
 // API基础URL
 const apiBaseUrl = computed(() => {
-  // 根据环境变量确定API基础URL
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  // 开发环境默认使用开发服务器代理
   return '';
 });
 
@@ -567,39 +715,15 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-
 // 定义行点击处理函数
-const showPhotoDetails = (photo) => {
-  viewPhotoDetails(photo)
-};
-
-// 获取压缩状态类型
-const getCompressStatusType = (status: string) => {
-  switch (status) {
-    case 'success': return 'success';
-    case 'processing': return 'warning';
-    case 'failed': return 'danger';
-    default: return 'info';
-  }
-};
-
-// 获取压缩状态文本
-const getCompressStatusText = (status: string) => {
-  switch (status) {
-    case 'pending': return '待处理';
-    case 'processing': return '处理中';
-    case 'success': return '已完成';
-    case 'failed': return '失败';
-    default: return status;
-  }
+const showPhotoDetails = (photo: any) => {
+  viewPhotoDetails(photo);
 };
 
 // 图片加载错误处理
 const onImageError = (event: Event) => {
   const target = event.target as HTMLImageElement;
-  // 检查是否已经是默认图片，防止死循环
   if (!target.src.includes("default-image") && !target.src.startsWith("data:image")) {
-    // 使用一个base64编码的默认图片
     target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+";
   }
 };
@@ -635,41 +759,52 @@ const fetchMachines = async () => {
   }
 };
 
-// 文件选择处理
-const handleFileChange = (file: any) => {
+// 文件选择处理（核心修复：正确更新文件列表）
+const handleFileChange = (file: any, newFileList: any[]) => {
   // 检查文件类型
   const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+  let isValid = true;
+
+  // 校验当前文件
   if (!allowedTypes.includes(file.raw.type)) {
-    ElMessage.error('仅支持png/jpg/jpeg/webp格式的图片');
-    return;
+    ElMessage.error(`文件 ${file.name} 格式错误，仅支持png/jpg/jpeg/webp格式`);
+    isValid = false;
   }
 
   // 检查文件大小
   const maxSize = 50 * 1024 * 1024; // 50MB
   if (file.raw.size > maxSize) {
-    ElMessage.error('文件大小不能超过50MB');
-    return;
+    ElMessage.error(`文件 ${file.name} 大小超过50MB限制`);
+    isValid = false;
   }
 
-  uploadForm.value.file = file.raw;
-  fileList.value = [file];
+  // 过滤非法文件并更新列表
+  if (isValid) {
+    fileList.value = newFileList; // 使用组件返回的完整列表
+  } else {
+    // 过滤掉当前非法文件
+    fileList.value = newFileList.filter(item => item.uid !== file.uid);
+  }
 
-  // 如果标题为空，自动填充文件名（不含扩展名）
-  if (!uploadForm.value.title) {
-    const fileName = file.raw.name;
+  // 更新表单中的文件（转为原生File数组）
+  uploadForm.value.file = fileList.value.map(item => item.raw);
+
+  // 自动填充标题（仅第一个文件）
+  if (!uploadForm.value.title && fileList.value.length > 0) {
+    const fileName = fileList.value[0].raw.name;
     const lastDotIndex = fileName.lastIndexOf('.');
-    if (lastDotIndex > 0) {
-      uploadForm.value.title = fileName.substring(0, lastDotIndex);
-    } else {
-      uploadForm.value.title = fileName;
-    }
+    uploadForm.value.title = lastDotIndex > 0
+      ? fileName.substring(0, lastDotIndex)
+      : fileName;
   }
 };
 
 // 文件移除处理
-const handleFileRemove = () => {
-  uploadForm.value.file = null;
-  fileList.value = [];
+const handleFileRemove = (file: any, newFileList: any[]) => {
+  // 同步更新文件列表
+  fileList.value = newFileList;
+  // 同步更新表单文件
+  uploadForm.value.file = fileList.value.map(item => item.raw);
 };
 
 // 关闭上传对话框
@@ -680,65 +815,74 @@ const handleUploadDialogClose = (done: () => void) => {
   done();
 };
 
-
-
-// 提交上传
+// 提交上传（逐个上传，等待后端支持批量接口）
 const submitUpload = async () => {
-  // @ts-ignore
-  if (uploadFormRef?.value) {
-    // @ts-ignore
+  // 表单验证
+  if (uploadFormRef.value) {
     const valid = await uploadFormRef.value.validate().catch(() => false);
     if (!valid) {
       return;
     }
   }
 
-  if (!uploadForm.value.file) {
+  if (fileList.value.length === 0) {
     ElMessage.error('请选择照片文件');
     return;
   }
 
   uploading.value = true;
-  uploadProgress.value = 0; // 重置进度
+  uploadProgress.value = 0;
+  let successCount = 0;
+  let errorCount = 0;
+
   try {
-    const formData = new FormData();
-    formData.append('file', uploadForm.value.file);
-    formData.append('title', uploadForm.value.title);
-    formData.append('tags', uploadForm.value.tags);
-    formData.append('machine_id', uploadForm.value.machineId);
-    formData.append('remark', uploadForm.value.remark);
-    // 从token中解析用户信息作为上传者
+    // 从token解析上传者
     const token = localStorage.getItem('oa_token');
     let uploader = 'system';
     if (token) {
       try {
-        // 解码JWT token获取用户名
         const payload = JSON.parse(atob(token.split('.')[1]));
-        // 优先使用员工的emp_id，如果不存在则使用其他字段
         uploader = payload.emp_id || payload.employee_id || payload.username || payload.user || 'system';
       } catch (error) {
         console.error('解析用户信息失败:', error);
       }
     }
-    formData.append('uploader', uploader);
 
-    const response = await createPhoto(formData, (progressEvent) => {
-      // 上传进度回调
-      if (progressEvent.total) {
-        uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+    // 批量上传每个文件
+    for (let i = 0; i < fileList.value.length; i++) {
+      const fileItem = fileList.value[i];
+      try {
+        const formData = new FormData();
+        formData.append('file', fileItem.raw);
+        formData.append('title', uploadForm.value.title || fileItem.name.replace(/\.\w+$/, ''));
+        formData.append('tags', uploadForm.value.tags);
+        formData.append('machine_id', uploadForm.value.machineId);
+        formData.append('remark', uploadForm.value.remark);
+        formData.append('uploader', uploader);
+
+        await createPhoto(formData, (progressEvent) => {
+          if (progressEvent.total) {
+            const fileProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            uploadProgress.value = Math.round(((i * 100) + fileProgress) / fileList.value.length);
+          }
+        });
+        successCount++;
+      } catch (uploadError) {
+        console.error(`上传文件 ${fileItem.name} 失败:`, uploadError);
+        errorCount++;
       }
-    });
+    }
 
-    ElMessage.success('照片上传成功');
+    ElMessage.success(`上传完成: ${successCount} 个成功, ${errorCount} 个失败`);
     showUploadDialog.value = false;
     resetUploadForm();
-    fetchPhotos(); // 刷新列表
-  } catch (uploadError) {
-    console.error('上传照片失败:', uploadError);
-    ElMessage.error('上传失败');
+    fetchPhotos();
+  } catch (error) {
+    console.error('上传失败:', error);
+    ElMessage.error('上传过程中发生错误');
   } finally {
     uploading.value = false;
-    uploadProgress.value = 0; // 重置进度条
+    uploadProgress.value = 0;
   }
 };
 
@@ -752,85 +896,169 @@ const resetUploadForm = () => {
     file: null
   };
   fileList.value = [];
+  uploadFormTags.value = [];
   uploadProgress.value = 0;
 };
 
-// JSON匹配多文件相关函数
+// JSON匹配多文件相关函数（核心修复：换行符兼容）
 const matchJsonToFiles = () => {
   try {
-    // 解析JSON输入
-    const lines = jsonInputText.value.trim().split('\n').filter(line => line.trim() !== '');
+    // 解析JSON输入 - 核心优化：兼容制表符和多个空格分隔
+    const inputText = jsonInputText.value.trim();
+    if (!inputText) {
+      ElMessage.error('请输入匹配信息');
+      return;
+    }
+
+    // 第一步：将所有连续空白（制表符、多个空格、全角空格）统一替换为单个制表符
+    const normalizedText = inputText.replace(/[\s\u00A0]+/g, '\t');
+    // 第二步：按换行符分割行（兼容\r\n和\n）
+    let lines = normalizedText.split(/\r?\n/).filter(line => line.trim() !== '');
+
+    // 核心修复：处理无换行符的场景（所有内容在一行）
+    if (lines.length === 1) {
+      const allFields = lines[0].split('\t').map(field => field.trim()).filter(field => field);
+      // 检查是否是表头+多行数据混在一起的情况（表头5个字段，总字段数>5且能被5整除）
+      if (allFields.length >= 5 && allFields.slice(0,5).join(',') === '照片文件名,照片标题,关联机器,标签,备注') {
+        // 分离表头和数据
+        const headerFields = allFields.slice(0,5); // 前5个是表头
+        const dataFields = allFields.slice(5);     // 后面的是数据
+
+        // 按每5个字段为一行拆分数据
+        const newLines = [headerFields.join('\t')]; // 重新构建表头行
+        for (let i = 0; i < dataFields.length; i += 5) {
+          const rowFields = dataFields.slice(i, i+5);
+          if (rowFields.length >= 1) { // 至少有文件名字段
+            newLines.push(rowFields.join('\t'));
+          }
+        }
+        lines = newLines; // 使用重构后的行数据
+      }
+    }
+
     if (lines.length === 0) {
       ElMessage.error('请输入匹配信息');
       return;
     }
 
     // 解析表头
-    const headers = lines[0].split('\t');
-    if (headers.length < 5 || headers[0] !== '照片文件名' || headers[1] !== '照片标题' || 
-        headers[2] !== '关联机器' || headers[3] !== '标签' || headers[4] !== '备注') {
+    const headers = lines[0].split('\t').map(header => header.trim());
+
+    // 校验表头（增加容错性，处理大小写和空白问题）
+    if (headers.length < 5 ||
+        headers[0].toLowerCase().trim() !== '照片文件名' ||
+        headers[1].toLowerCase().trim() !== '照片标题' ||
+        headers[2].toLowerCase().trim() !== '关联机器' ||
+        headers[3].toLowerCase().trim() !== '标签' ||
+        headers[4].toLowerCase().trim() !== '备注') {
       ElMessage.error('表头格式不正确，请使用：照片文件名\t照片标题\t关联机器\t标签\t备注');
       return;
     }
 
     // 解析数据行
     const dataRows = lines.slice(1).map(line => {
-      const fields = line.split('\t');
-      if (fields.length >= 5) {
+      const fields = line.split('\t').map(field => field.trim());
+      // 确保至少有文件名字段，其他字段可选（补空）
+      if (fields.length >= 1 && fields[0]) {
         return {
-          filename: fields[0],
-          title: fields[1],
-          machineId: fields[2],
-          tags: fields[3],
-          remark: fields[4]
+          filename: fields[0] || '',
+          title: fields[1] || '',
+          machineId: fields[2] || '',
+          tags: fields[3] || '',
+          remark: fields[4] || ''
         };
       }
       return null;
     }).filter(row => row !== null);
 
     // 匹配文件与数据
-    const matchedFiles = [];
-    const unmatchedFiles = [];
+    const matchedFilesTemp = [];
+    const unmatchedFilesTemp = [];
 
     fileList.value.forEach(fileObj => {
       const originalFilename = fileObj.name;
-      const baseFilename = originalFilename.substring(0, originalFilename.lastIndexOf('.')); // 去掉扩展名
-      
-      const matchedData = dataRows.find(data => data.filename === baseFilename);
+      // 安全地提取文件名（去掉扩展名）
+      const lastDotIndex = originalFilename.lastIndexOf('.');
+      let baseFilename;
+      if (lastDotIndex > 0) {
+        baseFilename = originalFilename.substring(0, lastDotIndex);
+      } else {
+        // 如果没有扩展名，使用完整文件名
+        baseFilename = originalFilename;
+      }
+
+      // 统一小写进行匹配，增加匹配的健壮性
+      const targetFilename = baseFilename.toLowerCase().trim();
+      const matchedData = dataRows.find(data =>
+        data.filename.toLowerCase().trim() === targetFilename
+      );
+
       if (matchedData) {
-        matchedFiles.push({
+        matchedFilesTemp.push({
           file: fileObj,
           data: matchedData
         });
       } else {
-        unmatchedFiles.push(originalFilename);
+        unmatchedFilesTemp.push(originalFilename);
       }
     });
 
-    if (unmatchedFiles.length > 0) {
-      ElMessage.warning(`以下文件未找到匹配数据: ${unmatchedFiles.join(', ')}`);
+    // 更新匹配结果
+    matchedFiles.value = matchedFilesTemp;
+    unmatchedFiles.value = unmatchedFilesTemp;
+    isMatched.value = matchedFilesTemp.length > 0;
+
+    // 提示信息
+    if (unmatchedFilesTemp.length > 0) {
+      ElMessage.warning(`以下文件未找到匹配数据: ${unmatchedFilesTemp.join(', ')}`);
     }
 
-    if (matchedFiles.length === 0) {
+    if (matchedFilesTemp.length === 0) {
       ElMessage.warning('没有找到匹配的文件');
-      return;
+      isMatched.value = false;
+    } else {
+      ElMessage.success(`匹配成功: ${matchedFilesTemp.length} 个文件已匹配`);
     }
-
-    // 上传匹配的文件
-    uploadMatchedFiles(matchedFiles);
-    
-    // 重置并关闭对话框
-    jsonInputText.value = '';
-    showJsonInputDialog.value = false;
   } catch (error) {
     console.error('匹配JSON数据失败:', error);
     ElMessage.error('解析JSON数据失败，请检查格式');
+    isMatched.value = false;
   }
 };
 
-// 批量上传匹配的文件
-const uploadMatchedFiles = async (matchedFiles) => {
-  if (matchedFiles.length === 0) {
+// 重置匹配状态
+const resetMatchState = () => {
+  jsonInputText.value = '';
+  matchedFiles.value = [];
+  unmatchedFiles.value = [];
+  isMatched.value = false;
+};
+
+// 处理JSON匹配对话框关闭
+const handleJsonInputDialogClose = (done: () => void) => {
+  if (isMatched.value && matchedFiles.value.length > 0) {
+    ElMessageBox.confirm('您有已匹配但未上传的文件，确定要关闭吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).then(() => {
+      // 用户确认关闭，重置状态
+      resetMatchState();
+      done();
+    }).catch(() => {
+      // 用户取消关闭
+    });
+  } else {
+    // 没有匹配的文件，直接关闭
+    resetMatchState();
+    done();
+  }
+};
+
+// 上传已匹配的文件（逐个上传，等待后端支持批量接口）
+const uploadMatchedFiles = async () => {
+  if (matchedFiles.value.length === 0) {
+    ElMessage.warning('没有匹配的文件可上传');
     return;
   }
 
@@ -840,8 +1068,8 @@ const uploadMatchedFiles = async (matchedFiles) => {
 
   try {
     // 逐个上传匹配的文件
-    for (let i = 0; i < matchedFiles.length; i++) {
-      const matchedFile = matchedFiles[i];
+    for (let i = 0; i < matchedFiles.value.length; i++) {
+      const matchedFile = matchedFiles.value[i];
       try {
         const { file, data } = matchedFile;
         const formData = new FormData();
@@ -868,10 +1096,9 @@ const uploadMatchedFiles = async (matchedFiles) => {
           // 上传进度回调 - 为了显示整体进度，需要计算每个文件的进度
           const fileProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           // 大略计算整体进度
-          const overallProgress = Math.round(((i * 100) + fileProgress) / matchedFiles.length);
+          const overallProgress = Math.round(((i * 100) + fileProgress) / matchedFiles.value.length);
           uploadProgress.value = overallProgress;
         });
-
         successCount++;
       } catch (uploadError) {
         console.error(`上传文件 ${matchedFile.data.title} 失败:`, uploadError);
@@ -880,18 +1107,20 @@ const uploadMatchedFiles = async (matchedFiles) => {
     }
 
     ElMessage.success(`批量上传完成: ${successCount} 个成功, ${errorCount} 个失败`);
-    showUploadDialog.value = false;
+    showJsonInputDialog.value = false;
+    showUploadDialog.value = false; // 同时关闭主上传对话框
     resetUploadForm();
     fetchPhotos(); // 刷新列表
   } catch (error) {
-    ElMessage.error(`批量上传过程中发生错误: ${error.message}`);
+    console.error('批量上传失败:', error);
+    ElMessage.error(`批量上传失败: ${(error as Error).message}`);
   } finally {
     uploading.value = false;
     uploadProgress.value = 0;
+    // 重置匹配状态
+    resetMatchState();
   }
 };
-
-
 
 // 删除照片
 const deletePhoto = async (id: number) => {
@@ -903,9 +1132,8 @@ const deletePhoto = async (id: number) => {
     });
 
     await deletePhotoAPI(id);
-
     ElMessage.success('照片删除成功');
-    fetchPhotos(); // 刷新列表
+    fetchPhotos();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除照片失败:', error);
@@ -917,32 +1145,24 @@ const deletePhoto = async (id: number) => {
 // 查看照片详情
 const viewPhotoDetails = (photo: any) => {
   selectedPhoto.value = photo;
-  // 初始化编辑值
   editTitle.value = photo?.title || '';
   editRemark.value = photo?.remark || '';
-  // 初始化标签显示
   const tagsString = photo?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
-
-  // 重置编辑状态
   isEditingAll.value = false;
   editTagsInput.value = '';
-
   showDetailsDialog.value = true;
 };
 
 // 添加标签
 const addTagFromInput = () => {
   if (editTagsInput.value.trim()) {
-    // 按逗号分隔输入的标签
     const newTags = editTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-
     newTags.forEach(tag => {
       if (!currentTags.value.includes(tag)) {
         currentTags.value.push(tag);
       }
     });
-
     editTagsInput.value = '';
   }
 };
@@ -984,7 +1204,6 @@ const saveAll = async () => {
     selectedPhoto.value.tags = tagsString;
     selectedPhoto.value.remark = editRemark.value;
 
-    // 同时更新photos列表中的对应项
     const photoIndex = photos.value.findIndex(photo => photo.id === selectedPhoto.value.id);
     if (photoIndex !== -1) {
       photos.value[photoIndex].title = editTitle.value;
@@ -1004,7 +1223,6 @@ const saveAll = async () => {
 
 // 取消所有编辑
 const cancelEditingAll = () => {
-  // 重新加载原始值
   editTitle.value = selectedPhoto.value?.title || '';
   editRemark.value = selectedPhoto.value?.remark || '';
   const tagsString = selectedPhoto.value?.tags || '';
@@ -1017,14 +1235,12 @@ const cancelEditingAll = () => {
 const viewOriginalImage = () => {
   if (selectedPhoto.value?.original_path) {
     const originalImageUrl = `${apiBaseUrl.value}/assets/Media/Photos/${selectedPhoto.value.original_path}`;
-    // 在新窗口中打开原图
     window.open(originalImageUrl, '_blank');
   }
 };
 
 // 处理对话框关闭
 const handleDialogClose = () => {
-  // 如果正在编辑，先取消编辑
   if (isEditingAll.value) {
     cancelEditingAll();
   }
@@ -1034,14 +1250,14 @@ const handleDialogClose = () => {
 // 内容搜索
 const searchContent = async () => {
   currentPage.value = 1;
-  showResultCount.value = !!(searchQuery.value); // 只有在有搜索内容时显示计数
+  showResultCount.value = !!searchQuery.value;
   await fetchPhotos();
 };
 
 // 机器搜索
 const searchByMachine = async () => {
   currentPage.value = 1;
-  showResultCount.value = selectedMachine.value !== '' && selectedMachine.value !== null && selectedMachine.value !== undefined; // 只有在选择了机器时显示计数
+  showResultCount.value = !!selectedMachine.value;
   await fetchPhotos();
 };
 
@@ -1058,67 +1274,39 @@ const clearSearch = () => {
 const handleSizeChange = (size: number) => {
   pageSize.value = size;
   currentPage.value = 1;
-  if (searchQuery.value || selectedMachine.value) {
-    showResultCount.value = true; // 保持搜索状态下的计数显示
-  } else {
-    showResultCount.value = false; // 非搜索状态下不显示计数
-  }
+  showResultCount.value = !!searchQuery.value || !!selectedMachine.value;
   fetchPhotos();
 };
 
 const handleCurrentChange = (page: number) => {
   currentPage.value = page;
-  if (searchQuery.value || selectedMachine.value) {
-    showResultCount.value = true; // 保持搜索状态下的计数显示
-  } else {
-    showResultCount.value = false; // 非搜索状态下不显示计数
-  }
+  showResultCount.value = !!searchQuery.value || !!selectedMachine.value;
   fetchPhotos();
 };
 
-// 添加专门的日志跳转处理函数
+// 日志跳转处理
 const handleLogJump = async (id: number) => {
   console.log(`跳转到照片ID: ${id}`);
 
-  // 首先检查当前页面的视频列表中是否包含该视频
   const currentPhoto = photos.value.find(photo => photo.id === id);
-
   if (currentPhoto) {
-    // 如果在当前页面找到照片，直接打开详情
     viewPhotoDetails(currentPhoto);
-  } else {
-    // 如果当前页面没有找到，需要从服务器获取该照片信息
-    try {
-      const response = await request.get(`/api/photos/${id}`);
+    return;
+  }
 
-      // 检查响应是否成功
-      if (response && response.code === 200) {
-        const responseData = response.data; // 获取实际数据
-        // 打开照片详情
-        viewPhotoDetails(responseData);
-      } else {
-        // 如果后端返回了错误格式的响应
-        if (response && response.code !== 200 &&
-            response.msg && (response.msg.includes('404') || response.msg.toLowerCase().includes('not found'))) {
-          ElMessage.error('该照片已删除或不存在');
-        } else {
-          ElMessage.error('加载照片详情失败');
-        }
-      }
-    } catch (error: any) {
-      console.error('加载照片详情失败:', error);
-      // 检查错误是否为404相关的错误
-      if (error && error.response) {
-        const responseData = error.response.data;
-        if (responseData && typeof responseData === 'object' &&
-            responseData.msg && (responseData.msg.includes('404') || responseData.msg.toLowerCase().includes('not found'))) {
-          ElMessage.error('该照片已删除或不存在');
-        } else {
-          ElMessage.error('加载照片详情失败');
-        }
-      } else {
-        ElMessage.error('加载照片详情失败');
-      }
+  try {
+    const response = await request.get(`/api/photos/${id}`);
+    if (response && response.code === 200) {
+      viewPhotoDetails(response.data);
+    } else {
+      ElMessage.error('加载照片详情失败');
+    }
+  } catch (error: any) {
+    console.error('加载照片详情失败:', error);
+    if (error.response && error.response.data && error.response.data.msg?.includes('404')) {
+      ElMessage.error('该照片已删除或不存在');
+    } else {
+      ElMessage.error('加载照片详情失败');
     }
   }
 };
@@ -1129,12 +1317,97 @@ const showPhotoLogs = () => {
     ElMessage.error('您没有权限查看日志');
     return;
   }
-  // 先重置日志组件的状态，再显示对话框
   logDialogVisible.value = false;
-  // 使用nextTick确保状态更新后再显示
   nextTick(() => {
     logDialogVisible.value = true;
   });
+};
+
+// 切换多选模式
+const toggleMultiSelectMode = () => {
+  isMultiSelectMode.value = !isMultiSelectMode.value;
+  if (!isMultiSelectMode.value) {
+    // 退出多选模式时清空选中项
+    selectedPhotoIds.value = [];
+  }
+};
+
+// 选择单个照片
+const selectPhoto = (photoId: number) => {
+  const index = selectedPhotoIds.value.indexOf(photoId);
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedPhotoIds.value.splice(index, 1);
+  } else {
+    // 未选中，添加选择
+    selectedPhotoIds.value.push(photoId);
+  }
+};
+
+// 全选/取消全选
+const toggleSelectAll = () => {
+  if (selectedPhotoIds.value.length === photos.value.length) {
+    // 当前已全选，取消全选
+    selectedPhotoIds.value = [];
+  } else {
+    // 未全选，进行全选
+    selectedPhotoIds.value = photos.value.map(photo => photo.id);
+  }
+};
+
+// 批量删除选中的照片
+const batchDeletePhotos = async () => {
+  if (selectedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要删除的照片');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedPhotoIds.value.length} 张照片吗？`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    // 批量删除照片
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const photoId of selectedPhotoIds.value) {
+      try {
+        await deletePhotoAPI(photoId);
+        successCount++;
+      } catch (error) {
+        console.error(`删除照片 ${photoId} 失败:`, error);
+        errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      ElMessage.warning(`批量删除完成: ${successCount} 个成功, ${errorCount} 个失败`);
+    } else {
+      ElMessage.success(`成功删除 ${successCount} 张照片`);
+    }
+
+    // 重置选择状态并刷新列表
+    selectedPhotoIds.value = [];
+    isMultiSelectMode.value = false;
+    fetchPhotos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除照片失败:', error);
+      ElMessage.error('批量删除失败');
+    }
+  }
+};
+
+// 检查照片是否被选中
+const isPhotoSelected = (photoId: number) => {
+  return selectedPhotoIds.value.includes(photoId);
 };
 
 // 初始化
@@ -1182,6 +1455,38 @@ onMounted(() => {
   font-size: 20px;
 }
 
+/* 多选模式按钮样式 */
+.multi-select-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 照片卡片多选样式 */
+.photo-card.selected {
+  border: 2px solid #409eff; /* 选中时边框为蓝色 */
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3);
+}
+
+.photo-card .select-checkbox {
+  position: absolute;
+  z-index: 10;
+  top: 10px;
+  right: 10px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: 50%;
+}
+
+.photo-card .select-checkbox .el-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.el-checkbox{
+  width: 32px;
+  height: 32px;
+}
 
 .no-results-actions {
   margin-top: 20px;
@@ -1209,8 +1514,8 @@ onMounted(() => {
 }
 
 .photo-card {
-  position: relative; /* 为删除按钮定位做准备 */
-  width: 100%; /* 适应容器 */
+  position: relative;
+  width: 100%;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
   overflow: hidden;
@@ -1227,12 +1532,12 @@ onMounted(() => {
   height: 32px;
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.8);
-  color: #f56c6c; /* 危险色 */
+  color: #f56c6c;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10; /* 确保在最上层 */
+  z-index: 10;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   transition: all 0.2s;
 }
@@ -1246,39 +1551,38 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-
 .photo-image {
-  position: relative; /* 为标题和分辨率定位做准备 */
+  position: relative;
   width: 100%;
-  height: 180px; /* 适配移动端 */
+  height: 180px;
   overflow: hidden;
-  cursor: pointer; /* 提示可点击 */
+  cursor: pointer;
 }
 
 .photo-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* 保持图片比例 */
+  object-fit: cover;
 }
 
 .photo-title {
-  font-size: 14px; /* 适配移动端 */
+  font-size: 14px;
   font-weight: bold;
-  max-width: 80%; /* 防止标题过长 */
+  max-width: 80%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .photo-upload-time {
-  font-size: 11px; /* 适配移动端 */
+  font-size: 11px;
   color: #909399;
 }
 
 .card-tags-container {
   white-space: nowrap;
   overflow: hidden;
-  max-width: 80%; /* 占满父元素宽度 */
+  max-width: 80%;
   text-overflow: ellipsis;
 }
 
@@ -1288,19 +1592,17 @@ onMounted(() => {
   color: #013b75;
   padding: 2px 8px;
   border-radius: 8px;
-  font-size: 11px; /* 适配移动端 */
+  font-size: 11px;
   margin-right: 5px;
   margin-top: 6px;
 }
 
-
-/* 右下角分辨率样式 */
 .photo-resolution {
   position: absolute;
   bottom: 10px;
   right: 10px;
   color: white;
-  font-size: 11px; /* 适配移动端 */
+  font-size: 11px;
   background-color: rgba(0, 0, 0, 0.5);
   padding: 2px 6px;
   border-radius: 4px;
@@ -1308,27 +1610,26 @@ onMounted(() => {
 }
 
 .photo-info {
-  padding: 12px; /* 适配移动端 */
+  padding: 12px;
 }
 
 .photo-info h4 {
   margin: 0 0 10px 0;
-  font-size: 15px; /* 适配移动端 */
+  font-size: 15px;
   font-weight: 600;
 }
 
-
 .machine {
   color: #606266;
-  font-size: 13px; /* 适配移动端 */
+  font-size: 13px;
   margin: 5px 0;
-  word-break: break-word; /* 防止文本溢出 */
+  word-break: break-word;
 }
 
 .upload-time,
 .uploader {
   color: #909399;
-  font-size: 11px; /* 适配移动端 */
+  font-size: 11px;
   margin: 3px 0;
 }
 
@@ -1352,15 +1653,13 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 优化后的照片详情布局 */
 .photo-details-container {
   display: flex;
   gap: 24px;
   padding: 16px 0;
-  flex-direction: column; /* 移动端改为垂直布局 */
+  flex-direction: column;
 }
 
-/* 左侧预览区 */
 .photo-details-left {
   flex: 1;
   min-width: 300px;
@@ -1383,7 +1682,6 @@ onMounted(() => {
 .preview-actions {
   position: absolute;
   bottom: 0;
-  /* left: 0; */
   right: 0;
   padding: 8px 12px;
   background: linear-gradient(to top, rgba(0,0,0,0.3), transparent);
@@ -1393,7 +1691,6 @@ onMounted(() => {
   color: white;
 }
 
-/* 右侧信息区 */
 .photo-details-right {
   flex: 1.2;
   min-width: 300px;
@@ -1431,7 +1728,6 @@ onMounted(() => {
   word-break: break-word;
 }
 
-/* 标题样式 */
 .title-row {
   align-items: center;
 }
@@ -1448,7 +1744,6 @@ onMounted(() => {
   flex: 1;
 }
 
-/* 标签样式 */
 .tags-container {
   display: flex;
   flex-wrap: wrap;
@@ -1469,7 +1764,6 @@ onMounted(() => {
   width: 140px;
 }
 
-/* 上传表单标签输入样式（适配el-input） */
 .tag-input-wrapper {
   width: 100%;
 }
@@ -1483,22 +1777,6 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-/* 保留并适配原有标签样式，确保视觉一致 */
-.tag-input-wrapper {
-  /* 继承原有容器样式 */
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 8px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  min-height: 32px;
-  align-items: center;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 适配 el-input-tag 内部标签样式 */
 :deep(.el-input-tag__content) {
   display: flex;
   flex-wrap: wrap;
@@ -1507,7 +1785,6 @@ onMounted(() => {
   width: 100%;
 }
 
-/* 标签项样式（对齐原有 tag-item 样式） */
 :deep(.el-tag) {
   height: 24px;
   line-height: 24px;
@@ -1519,7 +1796,6 @@ onMounted(() => {
   margin: 2px;
 }
 
-/* 标签关闭按钮样式 */
 :deep(.el-tag__close) {
   font-size: 12px;
   margin-left: 4px;
@@ -1531,7 +1807,6 @@ onMounted(() => {
   opacity: 1;
 }
 
-/* 输入框部分样式 */
 :deep(.el-input__inner) {
   border: none;
   padding: 0;
@@ -1544,13 +1819,11 @@ onMounted(() => {
   line-height: 24px;
 }
 
-/* 去除输入框聚焦时的边框 */
 :deep(.el-input__inner:focus) {
   border: none;
   box-shadow: none;
 }
 
-/* 备注样式 */
 .remark-value {
   line-height: 1.6;
   background: #f9fafb;
@@ -1563,7 +1836,6 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-/* 信息网格 */
 .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1586,13 +1858,11 @@ onMounted(() => {
   font-size: 13px;
 }
 
-/* 机器信息样式 */
 .machine-value {
   color: #409eff;
   font-weight: 500;
 }
 
-/* 操作按钮 */
 .detail-actions {
   margin-top: 24px;
   text-align: right;
@@ -1604,7 +1874,6 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* 响应式适配 */
 @media (max-width: 768px) {
   .photo-management {
     padding: 10px;
@@ -1621,7 +1890,7 @@ onMounted(() => {
   }
 
   .photo-grid {
-    grid-template-columns: 1fr; /* 移动端单列布局 */
+    grid-template-columns: 1fr;
     padding: 5px;
   }
 
@@ -1630,7 +1899,7 @@ onMounted(() => {
   }
 
   .photo-image {
-    height: 200px; /* 移动端稍微大一些 */
+    height: 200px;
   }
 
   .photo-details-container {
@@ -1652,7 +1921,6 @@ onMounted(() => {
     font-size: 12px;
   }
 
-  /* 移动端对话框适配 */
   .mobile-dialog {
     width: 95% !important;
     margin-top: 2vh;
@@ -1662,28 +1930,8 @@ onMounted(() => {
     width: 98% !important;
   }
 
-  .photo-details-container {
-    flex-direction: column;
-    padding: 8px 0;
-  }
-
-  .photo-details-left,
-  .photo-details-right {
-    width: 100%;
-    min-width: auto;
-  }
-
   .photo-preview-img {
     max-height: 300px;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .detail-label {
-    width: 70px !important;
-    font-size: 12px;
   }
 
   .detail-actions {
@@ -1721,7 +1969,6 @@ onMounted(() => {
     padding: 8px 0;
   }
 
-  /* 移动端对话框适配 */
   .mobile-dialog {
     width: 98% !important;
     margin-top: 5vh;
@@ -1729,15 +1976,6 @@ onMounted(() => {
 
   .photo-preview-img {
     max-height: 200px;
-  }
-
-  .detail-label {
-    width: 60px !important;
-    font-size: 11px;
-  }
-
-  .detail-value {
-    font-size: 12px;
   }
 
   .tag-input {
@@ -1769,4 +2007,34 @@ onMounted(() => {
   font-size: 18px;
 }
 
+/* 多选模式按钮样式 */
+.multi-select-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 照片卡片多选样式 */
+.photo-card.selected {
+  border: 2px solid #409eff; /* 选中时边框为蓝色 */
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3);
+}
+
+.photo-card .select-checkbox {
+  position: absolute;
+  z-index: 10;
+  top: 10px;
+  right: 10px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.photo-card .select-checkbox .el-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.el-icon{
+  margin-right: 5px;
+}
 </style>

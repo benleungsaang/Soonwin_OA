@@ -79,6 +79,10 @@
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
+                    <el-menu-item index="15" @click="goToOrderProgress" v-if="hasToken">
+                      <el-icon><Timer /></el-icon>
+                      <span>订单进度跟踪</span>
+                    </el-menu-item>
                     <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
                       <el-icon><Finished /></el-icon>
                       <span>订单验收</span>
@@ -131,7 +135,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, SwitchButton, Money, Finished,
-  Monitor, Upload, Files, Box, Picture, VideoCamera, ArrowDown, ArrowRight
+  Monitor, Upload, Files, Box, Picture, VideoCamera, ArrowDown, ArrowRight, Timer
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
@@ -198,6 +202,7 @@ const goToPhotoManagement = () => {
   router.push('/photo-management');
 };
 const goToVideoManagement = () => router.push('/video-management');
+const goToOrderProgress = () => router.push('/order-progress');
 
 // 退出登录
 const logout = () => {
