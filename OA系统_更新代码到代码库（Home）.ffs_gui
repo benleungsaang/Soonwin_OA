@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FreeFileSync XmlType="GUI" XmlFormat="19">
+<FreeFileSync XmlType="GUI" XmlFormat="23">
     <Notes>Soonwin_OA 项目同步配置 - 包含 Vue 前端和 Python 后端</Notes>
     <Compare>
         <Variant>TimeAndSize</Variant>
@@ -7,8 +7,10 @@
         <IgnoreTimeShift/>
     </Compare>
     <Synchronize>
-        <Variant>TwoWay</Variant>
-        <DetectMovedFiles>false</DetectMovedFiles>
+        <Changes>
+            <Left Create="right" Update="right" Delete="right"/>
+            <Right Create="left" Update="left" Delete="left"/>
+        </Changes>
         <DeletionPolicy>RecycleBin</DeletionPolicy>
         <VersioningFolder Style="Replace"/>
     </Synchronize>

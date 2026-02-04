@@ -9,23 +9,25 @@ class OrderInspection(db.Model):
     订单验收主表
     """
     __tablename__ = "OrderInspection"
-    
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     order_id = db.Column(db.Integer, db.ForeignKey('Order.id'), nullable=False, comment="关联订单ID")
+    remarks = db.Column(db.Text, comment="备注信息")
+    
+    current_status = db.Column(db.Integer, default=1, comment="当前订单状态: 1-下单, 2-排产, 3-完成生产, 4-验收阶段, 5-发货")
+
     inspection_status = db.Column(db.String(20), default='pending', comment="验收状态: pending(待验收), in_progress(验收中), completed(已完成)")
     inspection_progress = db.Column(db.Integer, default=0, comment="验收进度百分比")
     total_items = db.Column(db.Integer, default=0, comment="总检查项数")
     completed_items = db.Column(db.Integer, default=0, comment="已完成检查项数")
-    remarks = db.Column(db.Text, comment="备注信息")
     # 新增订单状态字段
-    current_status = db.Column(db.Integer, default=1, comment="当前订单状态: 1-下单, 2-排产, 3-完成生产, 4-验收阶段, 5-发货")
     current_status_time = db.Column(db.DateTime, comment="当前状态时间")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
-    
+
     # 关联订单
     order = db.relationship('Order', backref=db.backref('inspections', lazy=True))
-    
+
     def to_dict(self):
         order_data = self.order.to_dict() if self.order else {}
         return {
@@ -58,17 +60,17 @@ class OrderInspectionStatusLog(db.Model):
     订单状态流水表
     """
     __tablename__ = "OrderInspectionStatusLog"
-    
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     inspection_id = db.Column(db.Integer, db.ForeignKey('OrderInspection.id'), nullable=False, comment="关联验收ID")
     status = db.Column(db.String(50), nullable=False, comment="状态值: 下单、采购、排产、完成生产、验收、发货")
     start_time = db.Column(db.DateTime, comment="开始时间")
     expected_completion_time = db.Column(db.DateTime, comment="预计完成时间")
     actual_completion_time = db.Column(db.DateTime, comment="实际完成时间")
-    
+
     # 关联验收记录
     inspection = db.relationship('OrderInspection', backref=db.backref('status_logs', lazy=True))
-    
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -85,7 +87,7 @@ class InspectionItem(db.Model):
     验收检查项表
     """
     __tablename__ = "InspectionItem"
-    
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     inspection_id = db.Column(db.Integer, db.ForeignKey('OrderInspection.id'), nullable=False, comment="关联验收ID")
     parent_id = db.Column(db.Integer, db.ForeignKey('InspectionItem.id'), nullable=True, comment="父级检查项ID（用于大项）")
@@ -98,12 +100,12 @@ class InspectionItem(db.Model):
     sort_order = db.Column(db.Integer, default=0, comment="排序")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
-    
+
     # 关联验收记录
     inspection = db.relationship('OrderInspection', backref=db.backref('items', lazy=True))
     # 关联父级检查项（自关联）
     children = db.relationship('InspectionItem', backref=db.backref('parent', remote_side=[id]))
-    
+
     def to_dict(self):
         return {
             "id": self.id,

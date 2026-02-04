@@ -36,6 +36,7 @@ def create_app(port=5000):
         from .models.business_operation_log import BusinessOperationLog
         from .models.data_change_stats import DataChangeStats
         from .models.order_progress import OrderProgress, ProgressStatusDetail, ProgressItem, ProgressMedia
+        from .models.order_status import OrderStatus, OrderStatusLog, StatusTask
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -91,6 +92,10 @@ def create_app(port=5000):
         # 注册进度管理相关路由蓝图
         from .routes.progress_routes import progress_bp
         app.register_blueprint(progress_bp, url_prefix='/api')
+
+        # 注册订单状态管理相关路由蓝图
+        from .routes.order_status_routes import order_status_bp
+        app.register_blueprint(order_status_bp, url_prefix='/api')
 
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance
