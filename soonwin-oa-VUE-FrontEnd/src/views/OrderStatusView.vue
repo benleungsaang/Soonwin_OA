@@ -55,7 +55,7 @@
               <el-button
                 type="primary"
                 size="small"
-                @click="generateReport(scope.row)"
+                @click="goToReport(scope.row)"
               >
                 <el-icon style="margin-right: 5px;"><List /></el-icon> 报告
               </el-button>
@@ -105,8 +105,8 @@
             </el-descriptions>
 
             <el-descriptions title="当前进度" border>
-              <el-descriptions-item label="当前进度">{{ formatDate((selectedOrderDetail || selectedOrder).ship_time) }}</el-descriptions-item>
-              <el-descriptions-item label="添加进度">
+              <!-- <el-descriptions-item label="当前进度">{{ formatDate((selectedOrderDetail || selectedOrder).ship_time) }}</el-descriptions-item> -->
+              <el-descriptions-item :span="2" label="添加进度">
                 <el-icon class="btn-add-status" @click="openAddStatusLogDialog"><Plus /></el-icon>
               </el-descriptions-item>
             </el-descriptions>
@@ -114,97 +114,72 @@
         </el-card>
 
         <!-- 订单状态日志卡片 -->
-        <el-card>
+        <el-card body-style="padding:8px;" v-for="(statusLog, logIndex) in statusLogs" :key="statusLog.id" class="status-log-card">
           <template #header>
-            <div class="card-header">
-              <span>OrderStatusLog</span>
-              <div class="progress-container">
-                <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
-                  <div :style="{width: `%`, height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
-                </div>
-                <div class="progress-text" style="margin-top: 2px;">
-                  is_completed / status_tasks_count
+            <div class="card-header status-header" >
+
+              <div style="display: flex;gap: 20px;">
+                  <span class="clickable-field card-title" @click.stop="openEditFieldDialog(statusLog, 'status', '修改状态', updateStatusLogStatus)">{{ statusLog.status }}</span>
+                <div class="progress-container">
+                  <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                    <div :style="{width: getStatusLogProgress(statusLog.id) + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
+                  </div>
+                  <div class="progress-text" style="margin-top: 2px;">
+                    {{ getStatusLogCompletionInfo(statusLog.id) }}
+                  </div>
                 </div>
               </div>
-              <el-icon class="btn-add-task"><Plus /></el-icon>
-            </div>
-          </template>
-          <div class="order-info-container">
-            <el-descriptions
-              direction="vertical"
-              :column="2"
-              title="StatusTask"
-              border
-            >
-              <template #extra>
-                <el-switch
-                  v-model="is_completed"
-                  size="large"
-                  active-text="完成"
-                  inactive-text="未完成"
-                />
-              </template>
-              <el-descriptions-item :span="1" label="Image">
-                image1, image2 , ...<el-icon class="btn-add-photo"><Camera /></el-icon>
-              </el-descriptions-item>
-              <el-descriptions-item :span="1" label="Description">
-                Description
-              </el-descriptions-item>
-            </el-descriptions>
-          </div>
-        </el-card>
-        <br>
-        <!-- 订单状态日志卡片2 -->
-        <el-card v-for="(statusLog, logIndex) in statusLogs" :key="statusLog.id">
-          <template #header>
-            <div class="card-header">
-              <span>OrderStatusLog: {{ statusLog.status }}</span>
-              <div class="progress-container">
-                <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
-                  <div :style="{width: getStatusLogProgress(statusLog.id) + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
-                </div>
-                <div class="progress-text" style="margin-top: 2px;">
-                  {{ getStatusLogCompletionInfo(statusLog.id) }}
-                </div>
+
+              <div>
+                <el-icon class="btn-add-task" @click.stop="addStatusTask(statusLog.id)"><Plus /></el-icon>
+                <el-icon class="btn-del-status" @click.stop="deleteStatusLog(statusLog.id)"><Delete /></el-icon>
+                <el-icon @click.stop="toggleStatusLog(statusLog.id)" :class="['expand-icon', {'expanded': expandedStatusLogs[statusLog.id] === true}]"><ArrowRight /></el-icon>
               </div>
-              <el-icon class="btn-add-task" @click="addStatusTask(statusLog.id)"><Plus /></el-icon>
+
             </div>
           </template>
-          <div class="order-info-container">
-            <el-descriptions
+          <div class="order-info-container" v-show="expandedStatusLogs[statusLog.id] === true">
+            <el-descriptions  class="sub-card"
               v-for="(statusTask, taskIndex) in getStatusLogTasks(statusLog.id)"
               :key="statusTask.id"
               direction="vertical"
-              :column="2"
+              :column="3"
               border
             >
-              <template #extra>
-                <el-switch
+              <el-descriptions-item :span="3" label="照片">
+                <div class="task-img-container">
+                  <template v-if="statusTask.thumb_photo_path">
+                      <div v-for="(image, imgIndex) in statusTask.thumb_photo_path.split(',')" :key="imgIndex" style="display: flex; margin-right: 10px;">
+                        <el-image
+                          :src="image"
+                          :preview-src-list="statusTask.photo_path.split(',')"
+                          :initial-index="imgIndex"
+                          preview-teleported
+                          close-on-press-esc
+                          hide-on-click-modal
+                          class="thumb-img"
+                        />
+                      </div>
+                    </template>
+                  <el-icon class="btn-add-photo" @click="addPhotoToTask(statusTask.id)"><Camera /></el-icon>
+                  <el-input style="margin-left: 5px;width:130px;" @paste="(e) => handleInputPaste(e, statusTask.id)" placeholder="粘贴图片(Ctrl+V)"></el-input>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item :span="1" width="150px" label="项目名" >
+                <span class="clickable-field" @click.stop="openEditFieldDialog(statusTask, 'name', '修改任务名称', updateStatusTask)">{{ statusTask.name || '点击添加标题' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item :span="1" label="备注信息" >
+                <span class="clickable-field" @click.stop="openEditFieldDialog(statusTask, 'description', '修改任务描述', updateStatusTask)">{{ statusTask.description || '点击添加描述' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item :span="1" width="250px" label="操作" >
+                 <el-switch
                   v-model="statusTask.is_completed"
                   size="large"
                   active-text="完成"
                   inactive-text="未完成"
                   @change="updateStatusTask(statusTask)"
                 />
-              </template>
-              <el-descriptions-item :span="1" label="Image">
-                <div v-if="statusTask.photo_path">
-                  <div v-for="(image, imgIndex) in statusTask.photo_path.split(',')" :key="imgIndex" style="display: inline-block; margin-right: 5px;">
-                    <el-image
-                      :src="image"
-                      :preview-src-list="statusTask.photo_path.split(',')"
-                      preview-teleported
-                      style="width: 50px; height: 50px; object-fit: cover;"
-                    />
-                  </div>
-                </div>
-                <el-icon class="btn-add-photo" @click="addPhotoToTask(statusTask.id)"><Camera /></el-icon>
-              </el-descriptions-item>
-              <el-descriptions-item :span="1" label="Name" class="clickable-field" @click="editStatusTaskField(statusTask, 'name')">
-                {{ statusTask.name }}
-              </el-descriptions-item>
-              <el-descriptions-item :span="2" label="Description" class="clickable-field" @click="editStatusTaskField(statusTask, 'description')">
-                {{ statusTask.description || '点击添加描述' }}
+                <el-icon class="btn-del-task" @click="deleteTask(statusTask.task_id)"><Delete /></el-icon>
               </el-descriptions-item>
             </el-descriptions>
           </div>
@@ -216,11 +191,8 @@
             <p>任务项进度：</p>
           </div>
           <div class="action-buttons">
-            <el-button type="success" @click="">
-              <el-icon style="margin-right: 5px;"><List /></el-icon>生成报告
-            </el-button>
-            <el-button type="primary" @click="">
-              保存
+            <el-button  @click="handleCloseOrderDetailDialog">
+              关闭
             </el-button>
           </div>
         </div>
@@ -264,7 +236,76 @@
       </template>
     </el-dialog>
 
+    <!-- 添加任务模态框 -->
+    <el-dialog
+      v-model="showAddTaskDialog"
+      title="添加任务"
+      width="400px"
+    >
+      <el-form :model="newTaskForm" label-width="120px">
+        <el-form-item label="任务名称" required>
+          <el-input v-model="newTaskForm.name" placeholder="请输入任务名称" />
+        </el-form-item>
+        <el-form-item label="任务描述">
+          <el-input
+            v-model="newTaskForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入任务描述"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showAddTaskDialog = false">取消</el-button>
+          <el-button type="primary" @click="addTask">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
+    <!-- 通用修改字段模态框 -->
+    <el-dialog
+      v-model="editFieldDialog.visible"
+      :title="editFieldDialog.title"
+      width="400px"
+    >
+      <el-input
+        v-model="editFieldDialog.value"
+        :type="'textarea'"
+        :rows="4"
+        :placeholder="`请输入${editFieldDialog.title}`"
+      />
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editFieldDialog.visible = false">取消</el-button>
+          <el-button type="primary" @click="saveFieldEdit">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 图片预览确认弹窗 -->
+    <el-dialog
+      v-model="previewImageDialogVisible"
+      title="剪贴板图片预览"
+      width="50%"
+      :before-close="handleDialogClose"
+    >
+      <div style="text-align: center; padding: 20px;">
+        <el-image
+          v-if="clipboardImageUrl"
+          :src="clipboardImageUrl"
+          style="max-width: 100%; max-height: 400px;"
+          fit="contain"
+        />
+        <div v-else style="color: #999; padding: 50px;">未检测到剪贴板中的图片</div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="previewImageDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmUploadClipboardImage">确认上传</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
   </div>
 
@@ -272,10 +313,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, List, Loading, Camera } from '@element-plus/icons-vue';
+import { Plus, List, DocumentCopy, Camera, Delete, ArrowRight } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { cursorTo } from 'node:readline';
+
+// 获取路由实例
+const router = useRouter();
 
 // ===================== 响应式数据 =====================
 const orders = ref<any[]>([]);
@@ -301,6 +347,26 @@ const newStatusLogForm = ref({
 const currentOrderStatusId = ref(null);
 const statusLogs = ref<any[]>([]);
 
+// 任务相关
+const newTaskForm = ref({
+  name: '',
+  description: '',
+  category: '',
+  status_log_id: null
+});
+const currentTaskStatusLogId = ref(null);
+const showAddTaskDialog = ref(false);
+
+// 用于跟踪状态日志的展开/折叠状态
+const expandedStatusLogs = ref<{[key: number]: boolean}>({});
+
+// 剪贴板图片相关
+const previewImageDialogVisible = ref(false); // 预览弹窗显示状态
+const clipboardImageUrl = ref(''); // 剪贴板图片预览URL
+const clipboardImageFile = ref<File | null>(null); // 剪贴板图片文件对象
+const currentClipboardTaskId = ref<number | null>(null); // 当前处理的taskId
+const lastClipboardImage = ref<File | null>(null); // 最近一次剪贴板操作的图片
+
 
 // ===================== 计算属性 =====================
 // 判断是否为移动端
@@ -309,6 +375,12 @@ const isMobile = computed(() => windowWidth.value < 768);
 
 // 获取用户角色
 const userRole = ref('');
+
+// 切换状态日志的展开/折叠状态
+const toggleStatusLog = (statusLogId: number) => {
+  const currentState = expandedStatusLogs.value[statusLogId];
+  expandedStatusLogs.value[statusLogId] = !(currentState === true);
+};
 
 // 计算每个状态日志的进度
 const getStatusLogProgress = (statusLogId: number) => {
@@ -354,6 +426,72 @@ const realTimeProgress = computed(() => {
 
 
 // ===================== 工具方法 =====================
+// 通用修改字段相关
+const editFieldDialog = ref({
+  visible: false,
+  title: '',
+  value: '',
+  object: null,
+  field: '',
+  updateCallback: null
+});
+
+// 通用修改字段函数
+const openEditFieldDialog = (obj: any, field: string, title: string, updateCallback?: any) => {
+  editFieldDialog.value = {
+    visible: true,
+    title: title,
+    value: obj[field] || '',
+    object: obj,
+    field: field,
+    updateCallback: updateCallback
+  };
+};
+
+// 更新状态日志状态
+const updateStatusLogStatus = async (statusLog: any, field: string, newValue: string) => {
+  try {
+    const payload: any = {};
+    payload[field] = newValue;
+
+    const response: any = await request.put(`/api/order-status-logs/${statusLog.id}`, payload);
+
+    if (response && response.code === 200) {
+      ElMessage.success('状态日志更新成功');
+    }
+  } catch (error) {
+    console.error('更新状态日志失败:', error);
+    ElMessage.error('更新状态日志失败');
+    // 如果API调用失败，回滚本地更改
+    statusLog[field] = editFieldDialog.value.value; // 原来的值
+  }
+};
+
+// 保存修改的字段
+const saveFieldEdit = async () => {
+  if (!editFieldDialog.value.object || !editFieldDialog.value.field) {
+    ElMessage.error('缺少对象或字段信息');
+    return;
+  }
+
+  const obj = editFieldDialog.value.object;
+  const field = editFieldDialog.value.field;
+  const newValue = editFieldDialog.value.value;
+  const updateCallback = editFieldDialog.value.updateCallback;
+
+  // 更新对象的字段值
+  obj[field] = newValue;
+
+  // 如果有自定义回调函数，则执行它
+  if (updateCallback && typeof updateCallback === 'function') {
+    await updateCallback(obj, field, newValue);
+  }
+
+  // 关闭对话框
+  editFieldDialog.value.visible = false;
+  ElMessage.success(`${editFieldDialog.value.title}修改成功`);
+};
+
 // 格式化日期
 const formatDate = (dateString: string) => {
   if (!dateString) return '';
@@ -374,6 +512,18 @@ const showOrderDetails = async (row: any) => {
 
   // 加载订单状态详情
   await loadOrderStatusDetails();
+};
+
+// 跳转到订单进度报告页面
+const goToReport = (row: any) => {
+  // 检查是否有订单状态ID
+  if (row.status_id) {
+    // 在新标签页中打开报告页面
+    const url = `/order-status-report?orderId=${row.status_id}`;
+    window.open(url, '_blank');
+  } else {
+    ElMessage.warning('该订单尚无状态记录，无法生成报告');
+  }
 };
 
 // 关闭订单详情对话框
@@ -513,17 +663,67 @@ const addStatusLog = async () => {
 
 // 添加状态任务
 const addStatusTask = async (statusLogId: number) => {
+  // 从statusLogs中查找对应的状态日志，获取其status作为category
+  const statusLog = statusLogs.value.find((log: any) => log.id === statusLogId);
+  const category = statusLog ? statusLog.status : '默认分类';
+
+  // 设置新任务表单的初始值
+  newTaskForm.value = {
+    name: '新任务',
+    description: '请输入任务描述',
+    category: category,
+    status_log_id: statusLogId
+  };
+
+  // 显示添加任务模态框
+  showAddTaskDialog.value = true;
+  currentTaskStatusLogId.value = statusLogId;
+};
+
+// 添加任务
+const addTask = async () => {
+  if (!newTaskForm.value.name || newTaskForm.value.name.trim() === '') {
+    ElMessage.warning('任务名称不能为空');
+    return;
+  }
+
   try {
     const response: any = await request.post('/api/order-status/' + currentOrderStatusId.value + '/tasks', {
-      status_log_id: statusLogId,
-      name: '新任务',
-      category: '默认分类',
-      description: '请输入任务描述'
+      status_log_id: currentTaskStatusLogId.value,
+      name: newTaskForm.value.name.trim(),
+      category: newTaskForm.value.category,
+      description: newTaskForm.value.description
     });
 
     if (response) {
       ElMessage.success('任务添加成功');
-      tasks.value.push(response);
+      // 将服务器返回的任务对象转换为前端期望的结构
+      const taskItem = {
+        task_id: response.id,                 // 使用id作为task_id
+        id: response.id,                      // 保留id
+        name: response.name,
+        category: response.category,
+        description: response.description,
+        is_completed: response.is_completed,
+        photo_path: response.photo_path,
+        thumb_photo_path: response.thumb_photo_path,
+        status_log_id: response.status_log_id,
+        create_time: response.create_time,
+        update_time: response.update_time,
+        sort_order: response.sort,           // 将sort转换为sort_order
+        parent_id: response.status_log_id,   // 将status_log_id作为parent_id
+        item_type: 'sub'                     // 固定为sub类型
+      };
+      tasks.value.push(taskItem);
+
+      // 关闭模态框并重置表单
+      showAddTaskDialog.value = false;
+      newTaskForm.value = {
+        name: '',
+        description: '',
+        category: '',
+        status_log_id: null
+      };
     }
   } catch (error) {
     console.error('添加任务失败:', error);
@@ -534,43 +734,60 @@ const addStatusTask = async (statusLogId: number) => {
 // 更新状态任务
 const updateStatusTask = async (task: any) => {
   try {
-    await request.put(`/api/order-status/${currentOrderStatusId.value}/tasks/${task.id}`, {
+    const response: any = await request.put(`/api/order-status/${currentOrderStatusId.value}/tasks/${task.id || task.task_id}`, {
       is_completed: task.is_completed,
       name: task.name,
       description: task.description
     });
+    if (response) {
+      // 找到对应的任务并更新其数据
+      const taskIndex = tasks.value.findIndex((t: any) => t.id === (task.id || task.task_id));
+      if (taskIndex > -1) {
+        // 将服务器返回的任务对象转换为前端期望的结构
+        const taskItem = {
+          task_id: response.id,
+          id: response.id,
+          name: response.name,
+          category: response.category,
+          description: response.description,
+          is_completed: response.is_completed,
+          photo_path: response.photo_path,
+          thumb_photo_path: response.thumb_photo_path,
+          status_log_id: response.status_log_id,
+          create_time: response.create_time,
+          update_time: response.update_time,
+          sort_order: response.sort,
+          parent_id: response.status_log_id,
+          item_type: 'sub'
+        };
+        tasks.value[taskIndex] = taskItem;
+      }
+      ElMessage.success('任务更新成功');
+    }
 
-    ElMessage.success('任务更新成功');
   } catch (error) {
     console.error('更新任务失败:', error);
     ElMessage.error('更新任务失败');
   }
-};
 
-// 编辑状态任务字段
-const editStatusTaskField = async (task: any, field: string) => {
-  // 这里可以使用Element Plus的Input组件来实现内联编辑
-  // 但为了简化，我们先保持使用prompt
-  const newValue = prompt(`请输入新的${field === 'name' ? '名称' : '描述'}:`, task[field]);
-  if (newValue !== null && newValue !== task[field]) {
-    task[field] = newValue;
-    await updateStatusTask(task);
-  }
 };
 
 // 添加照片到任务
-const addPhotoToTask = async (taskId: number) => {
-  // 创建一个隐藏的文件输入元素
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = async (event: any) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
+const addPhotoToTask = async (taskId: number, file?: File) => {
+  // 如果传入了文件参数（如剪贴板图片），则直接上传
+  if (file) {
     // 检查文件类型
     if (!file.type.startsWith('image/')) {
       ElMessage.error('请选择图片文件');
+      return;
+    }
+
+    // 验证文件类型（参考React版本的扩展名校验）
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+    if (!allowedImageExts.includes(ext)) {
+      ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
       return;
     }
 
@@ -589,13 +806,11 @@ const addPhotoToTask = async (taskId: number) => {
       if (response) {
         ElMessage.success('图片上传成功');
 
-        // 更新对应任务的图片路径
-        const task = tasks.value.find((t: any) => t.id === taskId);
-        if (task) {
-          if (task.photo_path) {
-            task.photo_path = `${task.photo_path},${response.file_url}`;
-          } else {
-            task.photo_path = response.file_url;
+        // 重新加载任务列表以获取最新的图片路径（因为需要重新构建任务对象结构）
+        if (selectedOrderDetail.value || selectedOrder.value) {
+          const orderId = selectedOrderDetail.value?.id || selectedOrder.value?.id;
+          if (orderId) {
+            await loadOrderStatusDetails();
           }
         }
       }
@@ -603,8 +818,139 @@ const addPhotoToTask = async (taskId: number) => {
       console.error('图片上传失败:', error);
       ElMessage.error('图片上传失败');
     }
-  };
-  input.click();
+  } else {
+    // 如果没有传入文件参数，则使用文件选择器
+    // 创建一个隐藏的文件输入元素
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (event: any) => {
+      const selectedFile = event.target.files[0];
+      if (!selectedFile) return;
+
+      // 检查文件类型
+      if (!selectedFile.type.startsWith('image/')) {
+        ElMessage.error('请选择图片文件');
+        return;
+      }
+
+      // 验证文件类型（参考React版本的扩展名校验）
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase() || '';
+      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+      if (!allowedImageExts.includes(ext)) {
+        ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
+        return;
+      }
+
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('task_id', taskId.toString());
+
+      try {
+        const response: any = await request.post(`/api/order-status/${currentOrderStatusId.value}/tasks/upload`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        if (response) {
+          ElMessage.success('图片上传成功');
+
+          // 重新加载任务列表以获取最新的图片路径（因为需要重新构建任务对象结构）
+          if (selectedOrderDetail.value || selectedOrder.value) {
+            const orderId = selectedOrderDetail.value?.id || selectedOrder.value?.id;
+            if (orderId) {
+              await loadOrderStatusDetails();
+            }
+          }
+        }
+      } catch (error) {
+        console.error('图片上传失败:', error);
+        ElMessage.error('图片上传失败');
+      }
+    };
+    input.click();
+  }
+};
+
+// 删除状态日志
+const deleteStatusLog = async (statusLogId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除此状态日志吗？删除后将无法恢复，相关的任务也会被删除。', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    const response: any = await request.delete(`/api/order-status-logs/${statusLogId}`);
+
+    // request.ts会自动解包data，对于DELETE请求，如果成功但data为undefined，
+    // 拦截器会返回undefined，所以我们需要特殊处理这种情况
+    // 检查请求是否成功完成（没有抛出异常）
+    ElMessage.success('状态日志删除成功');
+    // 从本地数据中移除该状态日志
+    statusLogs.value = statusLogs.value.filter((log: any) => log.id !== statusLogId);
+    // 同时移除与该状态日志关联的任务
+    tasks.value = tasks.value.filter((task: any) => task.status_log_id !== statusLogId);
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除状态日志失败:', error);
+      ElMessage.error('删除状态日志失败');
+    }
+  }
+};
+
+// 删除任务
+const deleteTask = async (taskId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除此任务吗？删除后将无法恢复，相关的图片也会被删除。', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // 先查找任务，支持id和task_id两种查找方式
+    let taskIndex = tasks.value.findIndex((task: any) => task.id === taskId);
+    if (taskIndex === -1) {
+      taskIndex = tasks.value.findIndex((task: any) => task.task_id === taskId);
+    }
+
+    if (taskIndex === -1) {
+      ElMessage.error('任务不存在');
+      return;
+    }
+
+    const task = tasks.value[taskIndex];
+    const actualTaskId = task.id || task.task_id; // 使用实际的任务ID
+
+    // 尝试从服务器删除
+    try {
+      await request.delete(`/api/order-status/${currentOrderStatusId.value}/tasks/${actualTaskId}`);
+
+      // 服务器删除成功后，从本地移除任务
+      tasks.value.splice(taskIndex, 1);
+      ElMessage.success('任务删除成功');
+    } catch (serverError) {
+      // 检查错误类型
+      if (serverError.response && serverError.response.status === 404) {
+        // 服务器返回404，说明该任务可能不存在（可能已经被删除或未正确保存）
+        // 仍然从本地移除任务
+        tasks.value.splice(taskIndex, 1);
+        ElMessage.success('任务已从本地移除');
+      } else {
+        // 其他服务器错误
+        console.error('删除任务失败:', serverError);
+        ElMessage.error('删除任务失败');
+      }
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除任务失败:', error);
+      ElMessage.error('删除任务失败');
+    }
+  }
 };
 
 // 加载订单状态详情
@@ -626,17 +972,47 @@ const loadOrderStatusDetails = async () => {
     if (response) {
       // 设置当前订单状态ID
       currentOrderStatusId.value = response.id;
+      // 获取所有状态日志
+      statusLogs.value = response.status_logs || [];
+      // 提取所有任务项 - 根据API返回的结构，tasks是按status_log_id分组的类别数组
+      // 每个category都有status_log_id和children数组，需要将children中的任务展开并添加对应的status_log_id
+      const allTasks: any[] = [];
+      response.tasks.forEach((category: any) => {
+        const statusLogId = category.status_log_id;
+        if (category.children && Array.isArray(category.children)) {
+          category.children.forEach((task: any) => {
+            // 确保任务项包含status_log_id，用于与状态日志关联
+            task.status_log_id = statusLogId;
+            // 将服务器返回的任务对象转换为前端期望的结构
+            const taskItem = {
+              task_id: task.id || task.task_id,             // 使用id作为task_id
+              id: task.id || task.task_id,                  // 保留id
+              name: task.name,
+              category: task.category,
+              description: task.description,
+              is_completed: task.is_completed,
+              photo_path: task.photo_path,
+              thumb_photo_path: task.thumb_photo_path,
+              status_log_id: task.status_log_id || statusLogId,
+              create_time: task.create_time,
+              update_time: task.update_time,
+              sort_order: task.sort || task.sort_order,     // 支持两种字段名
+              parent_id: task.status_log_id || statusLogId, // 将status_log_id作为parent_id
+              item_type: task.item_type || 'sub'            // 固定为sub类型或使用原值
+            };
+            allTasks.push(taskItem);
+          });
+        }
+      });
+      tasks.value = allTasks;
 
-      // 获取完整的订单状态详情（包含状态日志和任务）
-      const detailResponse: any = await request.get(`/api/order-status/${response.id}`);
-
-      if (detailResponse) {
-        // 获取所有状态日志
-        statusLogs.value = detailResponse.status_logs || [];
-
-        // 提取所有任务项
-        tasks.value = detailResponse.tasks.flatMap((category: any) => category.children || []);
-      }
+      // 初始化状态日志的展开/折叠状态，默认为折叠
+      const newExpandedStatusLogs: {[key: number]: boolean} = {};
+      statusLogs.value.forEach((log: any) => {
+        // 如果之前有保存的状态则使用，否则默认为折叠（false）
+        newExpandedStatusLogs[log.id] = expandedStatusLogs.value[log.id] || false;
+      });
+      expandedStatusLogs.value = newExpandedStatusLogs;
     }
   } catch (error) {
     console.error('加载订单状态详情失败:', error);
@@ -647,6 +1023,8 @@ const loadOrderStatusDetails = async () => {
 // 组件挂载
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
+  // 添加粘贴事件监听器，用于捕获剪贴板中的图片
+  window.addEventListener('paste', handlePasteEvent);
   await fetchUserInfo();
   fetchOrders();
 });
@@ -654,8 +1032,232 @@ onMounted(async () => {
 // 组件卸载
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  // 移除粘贴事件监听器
+  window.removeEventListener('paste', handlePasteEvent);
 });
 
+// 粘贴事件处理器
+const handlePasteEvent = (e: ClipboardEvent) => {
+  try {
+    let file = null;
+
+    // 方案1：使用 clipboardData.items
+    if (e.clipboardData && e.clipboardData.items) {
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          file = item.getAsFile();
+          break;
+        }
+      }
+    }
+
+    // 方案2：使用 clipboardData.files
+    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+      const candidate = e.clipboardData.files[0];
+      if (candidate.type.startsWith('image/')) {
+        file = candidate;
+      }
+    }
+
+    if (file) {
+      // 验证文件类型
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+      if (allowedImageExts.includes(ext)) {
+        // 保存最近的剪贴板图片
+        lastClipboardImage.value = file;
+      }
+    }
+  } catch (error) {
+    console.warn('处理粘贴事件时出错:', error);
+  }
+};
+
+// ===================== 剪贴板功能 =====================
+
+/**
+ * 关闭弹窗时清理URL
+ */
+const handleDialogClose = () => {
+  // 释放创建的URL对象，避免内存泄漏
+  if (clipboardImageUrl.value) {
+    URL.revokeObjectURL(clipboardImageUrl.value);
+    clipboardImageUrl.value = '';
+  }
+  clipboardImageFile.value = null;
+  previewImageDialogVisible.value = false;
+};
+
+/**
+ * 从剪贴板读取图片（参考React版本优化，增加多方案兼容）
+ */
+const pasteImageFromClipboard = async (taskId: number) => {
+  try {
+    let file = null;
+
+    // 首先尝试使用全局监听器捕获的图片
+    if (lastClipboardImage.value) {
+      file = lastClipboardImage.value;
+      // 使用后清除，避免重复使用
+      lastClipboardImage.value = null;
+    }
+
+    // 如果全局监听器没有捕获到图片，则尝试使用 Clipboard API
+    if (!file) {
+      // 方案1：优先使用 Clipboard API (现代浏览器)
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          const clipboardItems = await navigator.clipboard.read();
+          // 遍历剪贴板项查找图片
+          for (const item of clipboardItems) {
+            const types = item.types;
+            for (const type of types) {
+              if (type.startsWith('image/')) {
+                const blob = await item.getType(type);
+                // 创建File对象，包含时间戳避免重名
+                const ext = type.split('/')[1];
+                file = new File([blob], `paste-${Date.now()}.${ext}`, {
+                  type: blob.type
+                });
+                break;
+              }
+            }
+            if (file) break;
+          }
+        }
+      } catch (clipboardApiError) {
+        console.warn('Clipboard API 访问失败，尝试备用方案:', clipboardApiError);
+      }
+    }
+
+    // 未找到图片，提示用户
+    if (!file) {
+      ElMessage.warning('剪贴板中未检测到图片，请先复制图片后再尝试\n或使用 Ctrl+V 快捷键复制图片');
+      return;
+    }
+
+    // 验证文件类型（参考React版本的扩展名校验）
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+    if (!allowedImageExts.includes(ext)) {
+      ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
+      return;
+    }
+
+    // 存储文件对象并创建预览URL
+    clipboardImageFile.value = file;
+    clipboardImageUrl.value = URL.createObjectURL(file);
+
+    // 记录当前处理的taskId
+    currentClipboardTaskId.value = taskId;
+
+    // 打开预览弹窗
+    previewImageDialogVisible.value = true;
+
+  } catch (error) {
+    console.error('读取剪贴板图片失败：', error);
+
+    // 分类处理错误提示
+    if (error.name === 'NotAllowedError') {
+      ElMessage.error('请允许浏览器访问剪贴板权限后重试');
+    } else if (error.name === 'NotFoundError') {
+      ElMessage.warning('剪贴板中未找到图片');
+    } else {
+      ElMessage.error('读取剪贴板图片失败：' + error.message);
+    }
+  }
+};
+
+/**
+ * 处理输入框的粘贴事件
+ */
+const handleInputPaste = (e: ClipboardEvent, taskId: number) => {
+  try {
+    let file = null;
+
+    // 方案1：使用 clipboardData.items
+    if (e.clipboardData && e.clipboardData.items) {
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          file = item.getAsFile();
+          break;
+        }
+      }
+    }
+
+    // 方案2：使用 clipboardData.files
+    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+      const candidate = e.clipboardData.files[0];
+      if (candidate.type.startsWith('image/')) {
+        file = candidate;
+      }
+    }
+
+    if (file) {
+      // 验证文件类型
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+      if (allowedImageExts.includes(ext)) {
+        // 直接设置图片文件和任务ID，并弹出预览框
+        clipboardImageFile.value = file;
+        clipboardImageUrl.value = URL.createObjectURL(file);
+        currentClipboardTaskId.value = taskId;
+        previewImageDialogVisible.value = true;
+        ElMessage.success(`已检测到图片: ${file.name}，正在预览...`);
+      } else {
+        ElMessage.warning(`检测到文件但格式不支持: ${ext}，仅支持: ${allowedImageExts.join(', ')}`);
+      }
+    } else {
+      // 检查是否是文本内容
+      const pastedText = e.clipboardData?.getData('text') || '';
+      if (pastedText) {
+        ElMessage.info('检测到文本内容，此功能主要用于图片粘贴');
+      } else {
+        ElMessage.warning('剪贴板中未检测到图片');
+      }
+    }
+  } catch (error) {
+    console.warn('处理粘贴事件时出错:', error);
+    ElMessage.error('处理粘贴事件失败');
+  }
+};
+
+/**
+ * 确认上传剪贴板图片
+ */
+const confirmUploadClipboardImage = async () => {
+  if (!clipboardImageFile.value) {
+    ElMessage.warning('没有可上传的图片');
+    previewImageDialogVisible.value = false;
+    return;
+  }
+
+  if (!currentClipboardTaskId.value) {
+    ElMessage.error('未指定上传目标任务');
+    previewImageDialogVisible.value = false;
+    return;
+  }
+
+  try {
+    // 使用现有的addPhotoToTask方法上传剪贴板图片
+    await addPhotoToTask(currentClipboardTaskId.value, clipboardImageFile.value);
+
+    ElMessage.success('图片上传成功');
+    previewImageDialogVisible.value = false;
+
+    // 清理资源
+    handleDialogClose();
+
+  } catch (error) {
+    console.error('图片上传失败：', error);
+    ElMessage.error('图片上传失败：' + error.message);
+  }
+};
 // ===================== 路由 =====================
 </script>
 
@@ -692,11 +1294,41 @@ onUnmounted(() => {
   margin-left: 15px;
 }
 
+.btn-del-status {
+  background-color: #f56c6c;
+  padding: 6px 12px;
+  color: rgb(255, 255, 255);
+  font-size: 16px;
+  margin-left: 15px;
+}
+
+.btn-del-task {
+  background-color: #ff8888;
+  padding: 5px 10px;
+  color: rgb(255, 255, 255);
+  font-size: 12px;
+  margin-left: 25px;
+}
+
+.btn-del-photo{
+  background-color: #f56c6c;
+  padding: 4px 8px;
+  color: rgb(255, 255, 255);
+  font-size: 14px;
+  margin-left: 5px;
+  border-radius: 3px;
+}
+
 /* 卡片头部 */
 .card-header {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
 }
 
 /* 进度容器 */
@@ -912,5 +1544,99 @@ onUnmounted(() => {
     justify-content: flex-start;
     gap: 6px;
   }
+}
+
+.el-card {
+  margin-bottom: 10px;
+}
+
+.sub-card {
+  background-color: rgba(216, 213, 255, 0.1);
+  border:rgba(0, 0, 0, 0.1) solid 1px;
+  padding: 15px;
+  border-radius: 3px;
+
+}
+
+.task-img-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* 内容靠左 */
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border:rgba(167, 167, 167, 0.1) solid 1px;
+  background-color: rgba(167, 167, 167, 0.1);
+  border-radius: 2px;
+}
+
+/* 状态日志卡片 */
+.status-log-card {
+  margin-bottom: 15px;
+}
+
+.status-log-card .el-card__header {
+  cursor: pointer;
+  padding: 12px 20px;
+}
+
+.status-log-card .el-card__body {
+  padding: 15px;
+}
+
+/* 展开/折叠图标 */
+.expand-icon {
+  transition: transform 0.3s;
+  margin:0px 25px;
+  padding: 15px 5px;
+  color: black;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.expand-icon:hover{
+  background-color: #ebeef5;
+}
+
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+/* 可点击编辑字段样式 */
+.clickable-field {
+  cursor: pointer;
+  border: 1px dashed transparent;
+  padding: 2px;
+  border-radius: 3px;
+}
+
+.clickable-field:hover {
+  border: 1px dashed #409eff;
+  background-color: #f5f7fa;
+}
+
+/* 移动端适配 */
+@media (min-width: 768px) {
+  .status-log-card .el-card__header {
+    padding: 12px 20px;
+  }
+
+  .status-log-card .el-card__body {
+    padding: 20px;
+  }
+}
+
+.card-title{
+  font-weight: 400;
+  font-size: 20px;
+}
+
+.thumb-img{
+  /* padding:2px; */
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: rgba(123, 175, 235, 0.2) solid 3px;
 }
 </style>

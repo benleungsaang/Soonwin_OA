@@ -1255,12 +1255,30 @@ const saveOrder = async () => {
     const updatedOrderForm = { ...orderForm.value };
 
     // 处理多选字段，将数组转换为逗号分隔的字符串
+    let processedMachineModel: string;
     if (Array.isArray(updatedOrderForm.machine_model)) {
-      updatedOrderForm.machine_model = updatedOrderForm.machine_model.join(',');
+      processedMachineModel = updatedOrderForm.machine_model.join(',');
+    } else if (typeof updatedOrderForm.machine_model === 'string') {
+      processedMachineModel = updatedOrderForm.machine_model;
+    } else {
+      processedMachineModel = '';
     }
+    
+    let processedOrderDept: string;
     if (Array.isArray(updatedOrderForm.order_dept)) {
-      updatedOrderForm.order_dept = updatedOrderForm.order_dept.join(',');
+      processedOrderDept = updatedOrderForm.order_dept.join(',');
+    } else if (typeof updatedOrderForm.order_dept === 'string') {
+      processedOrderDept = updatedOrderForm.order_dept;
+    } else {
+      processedOrderDept = '';
     }
+    
+    // 最终发送到后端的数据
+    const finalOrderData = {
+      ...updatedOrderForm,
+      machine_model: processedMachineModel,
+      order_dept: processedOrderDept
+    };
 
     // 毛利 = 合同金额 - 机器成本
     updatedOrderForm.gross_profit = (updatedOrderForm.contract_amount || 0) - (updatedOrderForm.machine_cost || 0);
@@ -1274,11 +1292,11 @@ const saveOrder = async () => {
 
     if (isEdit.value) {
       // 更新订单
-      await request.put(`/api/orders/${updatedOrderForm.id}`, updatedOrderForm);
+      await request.put(`/api/orders/${updatedOrderForm.id}`, finalOrderData);
       ElMessage.success('订单更新成功');
     } else {
       // 创建订单
-      await request.post('/api/orders', updatedOrderForm);
+      await request.post('/api/orders', finalOrderData);
       ElMessage.success('订单创建成功');
     }
 

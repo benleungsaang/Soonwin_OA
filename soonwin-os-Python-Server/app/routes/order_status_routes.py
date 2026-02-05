@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 import os
 import uuid
+from werkzeug.utils import secure_filename
 from extensions import db
 from app.models.order import Order
 from app.models.order_status import OrderStatus, OrderStatusLog, StatusTask
@@ -133,7 +134,7 @@ def get_order_status_by_order_no():
                 # 找到对应的状态日志
                 status_log = next((log for log in status_logs if log.id == task.status_log_id), None)
                 category_data = {
-                    'id': task.status_log_id,  # 使用状态日志ID作为类别ID
+                    'status_log_id': task.status_log_id,  # 使用状态日志ID作为类别ID
                     'category': status_log.status if status_log else '未分类',
                     'item_type': 'category',
                     'children': []
@@ -143,13 +144,14 @@ def get_order_status_by_order_no():
 
             # 添加子任务
             task_data = {
-                'id': task.id,
+                'task_id': task.id,
                 'parent_id': task.status_log_id,
                 'category': status_log.status if status_log else '未分类',
                 'name': task.name,
                 'item_type': 'sub',
                 'is_completed': task.is_completed,
                 'photo_path': task.photo_path,
+                'thumb_photo_path': task.thumb_photo_path,
                 'description': task.description,
                 'sort_order': task.sort,
                 'create_time': task.create_time.strftime('%Y-%m-%d %H:%M:%S') if task.create_time else None,
@@ -229,7 +231,7 @@ def get_order_status(status_id):
                 # 找到对应的状态日志
                 status_log = next((log for log in status_logs if log.id == task.status_log_id), None)
                 category_data = {
-                    'id': task.status_log_id,  # 使用状态日志ID作为类别ID
+                    'status_log_id': task.status_log_id,  # 使用状态日志ID作为类别ID
                     'category': status_log.status if status_log else '未分类',
                     'item_type': 'category',
                     'children': []
@@ -239,13 +241,14 @@ def get_order_status(status_id):
 
             # 添加子任务
             task_data = {
-                'id': task.id,
+                'task_id': task.id,
                 'parent_id': task.status_log_id,
                 'category': status_log.status if status_log else '未分类',
                 'name': task.name,
                 'item_type': 'sub',
                 'is_completed': task.is_completed,
                 'photo_path': task.photo_path,
+                'thumb_photo_path': task.thumb_photo_path,
                 'description': task.description,
                 'sort_order': task.sort,
                 'create_time': task.create_time.strftime('%Y-%m-%d %H:%M:%S') if task.create_time else None,
@@ -514,26 +517,7 @@ def update_status_task(status_id, task_id):
         return jsonify({'code': 500, 'msg': f'更新任务项失败: {str(e)}'})
 
 
-@order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['DELETE'])
-def delete_status_task(status_id, task_id):
-    """删除任务项"""
-    try:
-        task = StatusTask.query.filter_by(id=task_id, order_status_id=status_id).first()
-        if not task:
-            return jsonify({'code': 404, 'msg': '任务项不存在或不属于该进度记录'})
 
-        db.session.delete(task)
-        db.session.commit()
-
-        # 同步进度
-        status_record = OrderStatus.query.get(status_id)
-        if status_record:
-            status_record.sync_progress()
-
-        return jsonify({'code': 200, 'msg': '任务项删除成功'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'code': 500, 'msg': f'删除任务项失败: {str(e)}'})
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/upload', methods=['POST'])
@@ -571,18 +555,19 @@ def upload_status_task_media(status_id):
         if not order:
             return jsonify({'code': 404, 'msg': '关联的订单不存在'})
 
-        # 构建上传路径：./assets/OrderStatus/合同编号/OrderStatusLog.id+OrderStatusLog.status/
+        # 构建上传路径：./assets/OrderStatus/合同编号/status_log_id/task_id/
+        # 使用纯ID作为文件夹名，避免名称更改影响路径
         contract_no = order.contract_no.replace('/', '_').replace('\\', '_')  # 替换路径分隔符
-        status_log_folder = f"{status_log.id}_{status_log.status.replace('/', '_').replace('\\', '_')}"
-        task_folder = f"{task.id}_{task.name.replace('/', '_').replace('\\', '_')}"
-        
+        status_log_folder = str(status_log.id)
+        task_folder = str(task.id)
+
         # 确保文件名安全
         safe_filename = secure_filename(file.filename)
-        
+
         # 创建目录路径
         upload_dir = os.path.join(UPLOAD_FOLDER, contract_no, status_log_folder, task_folder)
         os.makedirs(upload_dir, exist_ok=True)
-        
+
         # 检查该任务是否已有相同名称的文件，如果有则添加序号
         base_name, ext = os.path.splitext(safe_filename)
         counter = 1
@@ -602,11 +587,43 @@ def upload_status_task_media(status_id):
         relative_path = os.path.relpath(file_path, UPLOAD_FOLDER)
         file_url = f"/assets/OrderStatus/{relative_path}"
 
+        # 如果是图片，生成缩略图
+        thumb_url = None
+        if file_type == 'image':
+            try:
+                from PIL import Image
+                # 打开原始图片
+                img = Image.open(file_path)
+
+                # 生成缩略图尺寸（保持宽高比）
+                img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+
+                # 生成缩略图文件名
+                thumb_filename = f"thumb_{new_filename}"
+                thumb_path = os.path.join(upload_dir, thumb_filename)
+
+                # 保存缩略图
+                img.save(thumb_path, optimize=True, quality=70)
+
+                # 生成缩略图的相对路径URL
+                thumb_relative_path = os.path.relpath(thumb_path, UPLOAD_FOLDER)
+                thumb_url = f"/assets/OrderStatus/{thumb_relative_path}"
+            except Exception as e:
+                print(f"生成缩略图失败: {str(e)}")
+                # 如果缩略图生成失败，继续处理原图
+
         # 更新任务项的photo_path字段（支持多张图片，用逗号分隔）
         if task.photo_path:
             task.photo_path = f"{task.photo_path},{file_url}"
         else:
             task.photo_path = file_url
+
+        # 更新任务项的thumb_photo_path字段（支持多张缩略图，用逗号分隔）
+        if thumb_url:
+            if task.thumb_photo_path:
+                task.thumb_photo_path = f"{task.thumb_photo_path},{thumb_url}"
+            else:
+                task.thumb_photo_path = thumb_url
 
         task.update_time = datetime.now()
         db.session.commit()
@@ -616,6 +633,7 @@ def upload_status_task_media(status_id):
             'msg': '文件上传成功',
             'data': {
                 'file_url': file_url,
+                'thumb_url': thumb_url,  # 返回缩略图URL
                 'file_name': new_filename,
                 'relative_path': relative_path
             }
@@ -636,11 +654,28 @@ def delete_status_task_media(status_id, task_id):
         if not media_file_path:
             return jsonify({'code': 400, 'msg': '缺少媒体文件路径'})
 
+        # 从photo_path中移除指定的文件路径
         if task.photo_path:
-            # 从photo_path中移除指定的文件路径
             paths = task.photo_path.split(',')
             updated_paths = [path for path in paths if path != media_file_path]
             task.photo_path = ','.join(updated_paths)
+
+        # 同时处理缩略图路径
+        if task.thumb_photo_path:
+            thumb_paths = task.thumb_photo_path.split(',')
+            # 找到与原图对应的缩略图路径（通常是以thumb_开头的同目录文件）
+            thumb_to_remove = None
+            for path in thumb_paths:
+                # 检查缩略图路径是否对应于要删除的原图
+                original_filename = os.path.basename(media_file_path)
+                thumb_filename = f"thumb_{original_filename}"
+                if thumb_filename in path or path.replace('/thumb_', '/') == media_file_path:
+                    thumb_to_remove = path
+                    break
+
+            if thumb_to_remove:
+                updated_thumb_paths = [path for path in thumb_paths if path != thumb_to_remove]
+                task.thumb_photo_path = ','.join(updated_thumb_paths)
 
         task.update_time = datetime.now()
         db.session.commit()
@@ -649,13 +684,168 @@ def delete_status_task_media(status_id, task_id):
         try:
             if os.path.exists(media_file_path.lstrip('/')):
                 os.remove(media_file_path.lstrip('/'))
-        except:
+
+            # 如果有对应的缩略图文件，也删除它
+            if thumb_to_remove and os.path.exists(thumb_to_remove.lstrip('/')):
+                os.remove(thumb_to_remove.lstrip('/'))
+        except Exception as e:
+            print(f"删除文件失败: {str(e)}")
             pass  # 文件删除失败不影响记录更新
 
         return jsonify({'code': 200, 'msg': '媒体文件删除成功'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'code': 500, 'msg': f'删除媒体文件失败: {str(e)}'})
+
+
+@order_status_bp.route('/order-status-logs/<int:log_id>', methods=['PUT'])
+def update_order_status_log(log_id):
+    """更新订单状态日志"""
+    try:
+        status_log = OrderStatusLog.query.get(log_id)
+        if not status_log:
+            return jsonify({'code': 404, 'msg': '订单状态日志不存在'})
+
+        data = request.json
+        # 更新可修改的字段
+        if 'status' in data:
+            status_log.status = data['status']
+        if 'start_time' in data:
+            status_log.start_time = datetime.strptime(data['start_time'], '%Y-%m-%d %H:%M:%S') if data['start_time'] else None
+        if 'expected_completion_time' in data:
+            status_log.expected_completion_time = datetime.strptime(data['expected_completion_time'], '%Y-%m-%d %H:%M:%S') if data['expected_completion_time'] else None
+        if 'actual_completion_time' in data:
+            status_log.actual_completion_time = datetime.strptime(data['actual_completion_time'], '%Y-%m-%d %H:%M:%S') if data['actual_completion_time'] else None
+
+        status_log.order_status.update_time = datetime.now()
+        db.session.commit()
+
+        return jsonify({
+            'code': 200, 
+            'msg': '订单状态日志更新成功',
+            'data': status_log.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'code': 500, 'msg': f'更新订单状态日志失败: {str(e)}'})
+
+
+@order_status_bp.route('/order-status-logs/<int:log_id>', methods=['DELETE'])
+def delete_order_status_log(log_id):
+    """删除订单状态日志"""
+    try:
+        status_log = OrderStatusLog.query.get(log_id)
+        if not status_log:
+            return jsonify({'code': 404, 'msg': '订单状态日志不存在'})
+
+        # 获取关联的进度记录和订单，用于构建文件路径
+        status_record = OrderStatus.query.get(status_log.order_status_id)
+        if status_record:
+            order = Order.query.get(status_record.order_id)
+            if order and status_log:
+                # 构建要删除的文件夹路径：./assets/OrderStatus/合同编号/status_log_id/
+                # 使用纯ID作为文件夹名，避免名称更改影响路径
+                contract_no = order.contract_no.replace('/', '_').replace('\\', '_')  # 替换路径分隔符
+                status_log_folder = str(status_log.id)
+                
+                import os
+                upload_dir = os.path.join(UPLOAD_FOLDER, contract_no, status_log_folder)
+                
+                # 删除整个状态日志的文件夹（如果存在）
+                if os.path.exists(upload_dir):
+                    import shutil
+                    try:
+                        shutil.rmtree(upload_dir)
+                        print(f"已删除状态日志文件夹: {upload_dir}")
+                    except Exception as e:
+                        print(f"删除状态日志文件夹失败: {str(e)}")
+
+        # 首先删除与该状态日志关联的所有任务项
+        related_tasks = StatusTask.query.filter_by(status_log_id=log_id).all()
+        for task in related_tasks:
+            db.session.delete(task)
+
+        # 删除状态日志本身
+        db.session.delete(status_log)
+        db.session.commit()
+
+        # 同步进度
+        status_record = OrderStatus.query.get(status_log.order_status_id)
+        if status_record:
+            status_record.sync_progress()
+
+        return jsonify({'code': 200, 'msg': '订单状态日志删除成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'code': 500, 'msg': f'删除订单状态日志失败: {str(e)}'})
+
+
+@order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(status_id, task_id):
+    """删除任务项（单独删除任务项，不是删除状态日志）"""
+    try:
+        task = StatusTask.query.filter_by(id=task_id, order_status_id=status_id).first()
+        if not task:
+            return jsonify({'code': 404, 'msg': '任务项不存在或不属于该进度记录'})
+
+        # 获取关联的订单状态、订单和状态日志，用于构建文件路径
+        status_record = OrderStatus.query.get(status_id)
+        status_log = OrderStatusLog.query.get(task.status_log_id)
+        if status_record:
+            order = Order.query.get(status_record.order_id)
+            if order and status_log:
+                # 构建要删除的文件夹路径：./assets/OrderStatus/合同编号/status_log_id/task_id/
+                # 使用纯ID作为文件夹名，避免名称更改影响路径
+                contract_no = order.contract_no.replace('/', '_').replace('\\', '_')  # 替换路径分隔符
+                status_log_folder = str(status_log.id)
+                task_folder = str(task.id)
+
+                import os
+                upload_dir = os.path.join(UPLOAD_FOLDER, contract_no, status_log_folder, task_folder)
+                
+                # 删除整个任务的文件夹（如果存在）
+                if os.path.exists(upload_dir):
+                    import shutil
+                    try:
+                        shutil.rmtree(upload_dir)
+                        print(f"已删除任务文件夹: {upload_dir}")
+                    except Exception as e:
+                        print(f"删除任务文件夹失败: {str(e)}")
+
+        # 删除关联的图片文件（为了兼容旧数据，仍然删除单独的文件）
+        if task.photo_path:
+            photo_paths = task.photo_path.split(',')
+            for photo_path in photo_paths:
+                try:
+                    # 移除URL前缀，获取实际文件路径
+                    if photo_path.startswith('/assets/OrderStatus/'):
+                        file_path = photo_path[1:]
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    # 如果有缩略图，也删除缩略图文件
+                    if task.thumb_photo_path:
+                        thumb_paths = task.thumb_photo_path.split(',')
+                        for thumb_path in thumb_paths:
+                            if thumb_path.startswith('/assets/OrderStatus/'):
+                                thumb_file_path = thumb_path[1:]
+                                if os.path.exists(thumb_file_path):
+                                    os.remove(thumb_file_path)
+                except Exception as e:
+                    # 删除文件失败不影响任务删除
+                    print(f"删除文件失败: {str(e)}")
+
+        db.session.delete(task)
+        db.session.commit()
+
+        # 同步进度
+        status_record = OrderStatus.query.get(status_id)
+        if status_record:
+            status_record.sync_progress()
+
+        return jsonify({'code': 200, 'msg': '任务项删除成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'code': 500, 'msg': f'删除任务项失败: {str(e)}'})
 
 
 @order_status_bp.route('/order-status-logs', methods=['POST'])
@@ -679,12 +869,12 @@ def create_order_status_log():
         # 解析时间字符串
         start_time = None
         expected_completion_time = None
-        
+
         if start_time_str:
             start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
         else:
             start_time = datetime.now()
-            
+
         if expected_completion_time_str:
             expected_completion_time = datetime.strptime(expected_completion_time_str, '%Y-%m-%d %H:%M:%S')
 
@@ -726,7 +916,7 @@ def get_complete_order_status_details(status_id):
 
         # 构建返回数据
         result = status_record.to_dict()
-        
+
         # 添加状态日志数据
         result['status_logs'] = [log.to_dict() for log in status_logs]
 
@@ -740,7 +930,7 @@ def get_complete_order_status_details(status_id):
                 # 找到对应的状态日志
                 status_log = next((log for log in status_logs if log.id == task.status_log_id), None)
                 category_data = {
-                    'id': task.status_log_id,  # 使用状态日志ID作为类别ID
+                    'status_log_id': task.status_log_id,  # 使用状态日志ID作为类别ID
                     'category': status_log.status if status_log else '未分类',
                     'item_type': 'category',
                     'children': []
@@ -750,13 +940,14 @@ def get_complete_order_status_details(status_id):
 
             # 添加子任务
             task_data = {
-                'id': task.id,
+                'task_id': task.id,
                 'parent_id': task.status_log_id,
                 'category': status_log.status if status_log else '未分类',
                 'name': task.name,
                 'item_type': 'sub',
                 'is_completed': task.is_completed,
                 'photo_path': task.photo_path,
+                'thumb_photo_path': task.thumb_photo_path,
                 'description': task.description,
                 'sort_order': task.sort,
                 'create_time': task.create_time.strftime('%Y-%m-%d %H:%M:%S') if task.create_time else None,
@@ -803,14 +994,17 @@ def get_order_status_report(status_id):
 
         # 按状态日志分组任务
         for task in tasks:
+            # 找到对应的状态日志对象并转换为字典
+            status_log_obj = next((log for log in status_logs if log.id == task.status_log_id), None)
             task_data = {
                 'id': task.id,
                 'status_log_id': task.status_log_id,
-                'status_log': next((log for log in status_logs if log.id == task.status_log_id), None),  # 包含状态日志信息
+                'status_log': status_log_obj.to_dict() if status_log_obj else None,  # 转换为字典
                 'category': task.category,
                 'name': task.name,
                 'is_completed': task.is_completed,
                 'photo_path': task.photo_path,
+                'thumb_photo_path': task.thumb_photo_path,
                 'description': task.description,
                 'sort': task.sort,
                 'create_time': task.create_time.strftime('%Y-%m-%d %H:%M:%S') if task.create_time else None,

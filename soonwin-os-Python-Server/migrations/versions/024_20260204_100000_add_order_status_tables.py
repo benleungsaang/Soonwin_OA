@@ -1,8 +1,8 @@
 """add order status tables
 
-Revision ID: 024_add_order_status_tables
-Revises: 023_add_order_progress_tables
-Create Date: 2026-02-04 00:00:00.000000
+Revision ID: 20260204_100000_add_order_status_tables
+Revises: 20260203_154500_add_order_progress_tables
+Create Date: 2026-02-04 10:00:00.000000
 
 """
 from alembic import op
@@ -11,8 +11,8 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '024_add_order_status_tables'
-down_revision = '023_add_order_progress_tables'
+revision = '20260204_100000_add_order_status_tables'
+down_revision = '023_20260203_153000_modify_order_inspection_status_log_table_structure'
 branch_labels = None
 depends_on = None
 

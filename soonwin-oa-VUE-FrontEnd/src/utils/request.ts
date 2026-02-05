@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse, AxiosError, AxiosProgressEvent } from 'axios';
 import { ElMessage } from 'element-plus';
 
 // 定义接口响应通用类型
@@ -431,7 +431,7 @@ multipartRequest.interceptors.response.use(
 
 export const createPhoto = (
   data: FormData, 
-  onUploadProgress?: (progressEvent: ProgressEvent) => void
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
 ) => {
   return multipartRequest.post('/api/photos', data, {
     onUploadProgress
@@ -473,7 +473,7 @@ export const getMachinesForPhotos = () => request.get('/api/photos/machines');
 // 视频管理相关API - 使用特殊处理FormData的函数
 export const createVideo = (
   data: FormData, 
-  onUploadProgress?: (progressEvent: ProgressEvent) => void
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
 ) => {
   return multipartRequest.post('/api/videos', data, {
     onUploadProgress

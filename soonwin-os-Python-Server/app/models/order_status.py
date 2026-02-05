@@ -125,6 +125,7 @@ class StatusTask(db.Model):
     name = db.Column(db.String(200), nullable=False, comment="任务名称（如：部件1、角度1、运行速度等）")
     is_completed = db.Column(db.Boolean, default=False, comment="是否完成任务：False-未完成，True-完成")
     photo_path = db.Column(db.String(500), comment="照片路径，多张图片路径以逗号分隔")
+    thumb_photo_path = db.Column(db.String(500), comment="缩略图路径，多张缩略图路径以逗号分隔")
     description = db.Column(db.Text, comment="描述（可记录任务结果、异常信息等）")
     sort = db.Column(db.Integer, default=0, comment="排序序号")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
@@ -139,6 +140,7 @@ class StatusTask(db.Model):
             "name": self.name,
             "is_completed": self.is_completed,
             "photo_path": self.photo_path,
+            "thumb_photo_path": self.thumb_photo_path,
             "description": self.description,
             "sort": self.sort,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,

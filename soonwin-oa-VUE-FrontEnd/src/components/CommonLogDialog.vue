@@ -305,18 +305,17 @@ const loadLogs = async () => {
         last_reset_time: response.statistics.last_reset_time || null
       };
     }
-  } catch (error: any) {
-    console.error(`加载${logTypeText.value}日志失败:`, error);
-    // 检查是否是权限错误
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      ElMessage.error('您没有权限查看日志');
-      // 关闭对话框，因为用户没有权限
-      emit('update:visible', false);
-    } else {
-      ElMessage.error(`加载${logTypeText.value}日志失败`);
-    }
-  } finally {
-    loading.value = false;
+      } catch (error: any) {
+      console.error(`加载${logTypeText.value}日志失败:`, error);
+      // 检查是否是权限错误
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        ElMessage.error('您没有权限查看日志');
+        // 关闭对话框，因为用户没有权限
+        emit('update:modelValue', false);
+      } else {
+        ElMessage.error(`加载${logTypeText.value}日志失败`);
+      }
+    } finally {    loading.value = false;
   }
 };
 

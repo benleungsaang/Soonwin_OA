@@ -65,7 +65,7 @@
                 :width="300"
               >
                 <template #reference>
-                  <el-link type="primary" :underline="false">查看</el-link>
+                  <el-link type="primary">查看</el-link>
                 </template>
                 <div>{{ scope.row.remark }}</div>
               </el-popover>

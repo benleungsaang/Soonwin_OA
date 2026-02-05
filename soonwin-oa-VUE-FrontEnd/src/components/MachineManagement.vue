@@ -150,7 +150,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="被添加次数" prop="added_count">
-              <el-span>{{ machineForm.added_count }} 次</el-span>
+              <span>{{ machineForm.added_count }} 次</span>
             </el-form-item>
           </el-col>
           <!-- <el-col :span="24">

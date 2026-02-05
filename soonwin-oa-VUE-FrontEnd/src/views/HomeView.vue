@@ -6,7 +6,6 @@
         <h1>{{ appTitle }}</h1>
         <el-button
           icon="SwitchButton"
-          type="text"
           class="logout-btn"
           @click="logout"
           v-if="hasToken"
@@ -31,7 +30,7 @@
                   <ArrowRight v-else />
                 </el-icon>
               </div>
-              <transition name="menu-collapse" duration="300">
+              <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.resource">
                   <el-menu :default-active="activeMenu" class="menu-list">
                     <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken">
@@ -42,7 +41,7 @@
                       <el-icon><VideoCamera /></el-icon>
                       <span>视频管理</span>
                     </el-menu-item>
-                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken">
+                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && isCurrentUserAdmin">
                       <el-icon><Tools /></el-icon>
                       <span>机器零部件管理</span>
                     </el-menu-item>
@@ -68,7 +67,7 @@
                   <ArrowRight v-else />
                 </el-icon>
               </div>
-              <transition name="menu-collapse" duration="300">
+              <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.order">
                   <el-menu :default-active="activeMenu" class="menu-list">
                     <el-menu-item index="9" @click="goToInquiries" v-if="hasToken">
@@ -79,10 +78,10 @@
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
-                    <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
+                    <!-- <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
                       <el-icon><Finished /></el-icon>
                       <span>订单验收</span>
-                    </el-menu-item>
+                    </el-menu-item> -->
                     <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken">
                       <el-icon><List /></el-icon>
                       <span>订单状态管理</span>
@@ -101,7 +100,7 @@
                   <ArrowRight v-else />
                 </el-icon>
               </div>
-              <transition name="menu-collapse" duration="300">
+              <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.other">
                   <el-menu :default-active="activeMenu" class="menu-list">
                     <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken">
@@ -238,8 +237,10 @@ const logout = () => {
 .logout-btn {
   position: absolute;
   right: 20px;
-  color: white !important;
+  color: rgb(255, 255, 255);
+  background-color: rgba(82, 177, 255, 0.1);
   font-size: 14px;
+  border: rgba(0, 0, 0, 0.2) solid 1px;
 }
 .logout-btn:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;

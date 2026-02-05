@@ -1010,7 +1010,8 @@ const cancelCommunication = () => {
     id: null,
     subject: '',
     content: '',
-    communication_date: ''
+    communication_date: '',
+    company_name: ''
   };
   editingCommunicationId.value = null;
 };

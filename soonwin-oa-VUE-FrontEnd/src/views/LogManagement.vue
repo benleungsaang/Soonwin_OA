@@ -20,11 +20,10 @@
     <!-- 通用日志组件（非模态框形式） -->
     <div class="log-content">
       <CommonLogDialog
-        :visible="true"
+        v-model="logDialogVisible"
         :log-type="selectedLogType"
         :show-statistics="true"
         :handle-jump="handleJumpToDetail"
-        @close="() => {}"
         style="position: relative; top: 0; left: 0; width: 100%;"
       />
     </div>
@@ -40,6 +39,8 @@ import CommonLogDialog from '@/components/CommonLogDialog.vue';
 
 const router = useRouter();
 const selectedLogType = ref('inquiry');
+// 由于LogManagement是直接显示日志组件，不需要控制显示/隐藏，因此设置为始终为true
+const logDialogVisible = ref(true);
 
 // 切换日志类型
 const switchLogType = () => {

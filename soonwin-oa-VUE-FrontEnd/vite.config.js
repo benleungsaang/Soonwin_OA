@@ -53,6 +53,11 @@ export default defineConfig(({ mode }) => {
                     // 不重写路径，保持/api前缀完整传递给后端
                     // 开发环境保留/api前缀（和后端一致）
                     // rewrite: (path) => path.replace(/^\/api/, '')
+                },
+                // 将 /assets 开头的请求代理到后端（用于静态文件服务）
+                '/assets': {
+                    target: env.VITE_API_TARGET || 'http://localhost:5001',
+                    changeOrigin: true,
                 }
             } : {}, // 生产环境清空proxy（打包后不生效）
         },

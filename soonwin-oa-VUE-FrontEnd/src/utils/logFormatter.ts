@@ -164,10 +164,17 @@ const formatUpdatedFields = (updatedFields?: Record<string, any>, fieldMap?: Log
   let companyName = '';
   if (!updatedFields || !fieldMap) return { changeDetails, companyName };
 
+  // 定义 value 的类型
+  interface FieldValue {
+    old?: any;
+    new?: any;
+  }
+
   Object.entries(updatedFields).forEach(([field, value]) => {
     const fieldText = fieldMap[field] || field;
-    const oldValue = fallbackValue(value.old, '');
-    const newValue = fallbackValue(value.new, '');
+    const typedValue = value as FieldValue;
+    const oldValue = fallbackValue(typedValue.old, '');
+    const newValue = fallbackValue(typedValue.new, '');
 
     if (oldValue !== newValue) {
       changeDetails.push(`${fieldText}[ ${oldValue} ] => [ ${newValue} ]`);
@@ -459,6 +466,12 @@ function formatUpdateCommunicationLog(logData: GenericLog, userName: string, act
   let changeDetails: string[] = [];
   let companyName = '';
 
+  // 定义 value 的类型
+  interface FieldValue {
+    old?: any;
+    new?: any;
+  }
+
   // 筛选有实际变化的沟通字段
   Object.entries(updatedFields).forEach(([field, value]) => {
     const fieldMap: Record<string, string> = {
@@ -469,8 +482,9 @@ function formatUpdateCommunicationLog(logData: GenericLog, userName: string, act
     };
 
     const fieldText = fieldMap[field] || field;
-    const oldValue = fallbackValue(value.old, '');
-    const newValue = fallbackValue(value.new, '');
+    const typedValue = value as FieldValue;
+    const oldValue = fallbackValue(typedValue.old, '');
+    const newValue = fallbackValue(typedValue.new, '');
 
     if (oldValue !== newValue) {
       changeDetails.push(`${fieldText}[ ${oldValue} ] => [ ${newValue} ]`);
@@ -512,8 +526,8 @@ function formatDeleteCommunicationLog(logData: GenericLog, userName: string, act
  */
 function formatResetStatsLog(logData: GenericLog, userName: string, actionText: string): string {
   const resetTime = formatDateSafely(logData.reset_time);
-  const inquiryCount = fallbackValue(logData.previous_new_inquiries || logData.inquiry_count, 0);
-  const communicationCount = fallbackValue(logData.previous_new_communications || logData.communication_count, 0);
+  const inquiryCount = fallbackValue(logData.previous_new_inquiries || logData.inquiry_count, '0');
+  const communicationCount = fallbackValue(logData.previous_new_communications || logData.communication_count, '0');
   return `${userName} [ ${actionText} ] 统计信息 - 复位时间: ${resetTime}, 复位前新增询盘数: ${inquiryCount}, 新增沟通数: ${communicationCount}`;
 }
 
