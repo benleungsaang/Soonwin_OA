@@ -2,7 +2,9 @@ import os
 import shutil
 import subprocess
 import sys
+import sqlite3
 from pathlib import Path
+from typing import List, Tuple
 
 # ======================== 配置区（请根据实际路径修改） ========================
 # 源目录配置
@@ -20,6 +22,7 @@ BACKEND_ROOT_FILES = [
     "config.py",
     "extensions.py",
     "soonwin_oa.db",
+    "soonwin_oa_dev.db",
     "requirements.txt",
     "run.py",          # 新增：缺失的run.py
     "wsgi.py"          # 新增：缺失的wsgi.py
@@ -33,10 +36,14 @@ BACKEND_FOLDERS = [
     "other"
 ]
 
+# 【简化/修复】直接指定需要复制的后端assets子目录（精准到TemplateImg）
+BACKEND_ASSETS_COPY = "TemplateImg"  # 仅复制assets下的TemplateImg目录
+
 # 脚本同级目录需要复制的文件（启动文件，将放到迁移包根目录）
 SCRIPT_ROOT_FILES = [
     "run_server.py",
     "启动服务器.bat"
+    "startPythonServe.bat"
 ]
 
 # 额外部署文件（OA根目录下）
@@ -45,7 +52,7 @@ EXTRA_DEPLOY_FILES = [
     "启动服务器_生产环境_迁移版.bat"
 ]
 
-# 后端排除的冗余文件/文件夹（仅排除后端的assets，前端不排除）
+# 后端排除的冗余文件/文件夹【保持】：保留assets整体排除（核心！）
 BACKEND_EXCLUDE_PATTERNS = [
     "venv",
     "__pycache__",
@@ -54,7 +61,7 @@ BACKEND_EXCLUDE_PATTERNS = [
     "*.tmp",
     ".gitignore",
     ".git",
-    "assets"  # 仅排除后端的assets
+    "assets"  # 【保持】整体排除assets，后续单独复制指定子目录
 ]
 
 # 前端排除的冗余文件/文件夹（不排除assets）
@@ -138,19 +145,17 @@ def copy_folder(src: Path, dest: Path, exclude_patterns: list = None):
 
     try:
         if src.exists():
-            # 清空目标文件夹
+            # 清空目标文件夹（避免旧文件残留）
             if dest.exists():
                 shutil.rmtree(dest, ignore_errors=True)
-
-            # 复制文件夹
+            # 递归复制文件夹，保留所有子文件/子目录，支持排除规则
             shutil.copytree(
                 src,
                 dest,
                 ignore=shutil.ignore_patterns(*exclude_patterns),
                 dirs_exist_ok=True
             )
-            print(f"[复制成功] {src.name} 文件夹 -> {dest.parent.name}")
-
+            print(f"[复制成功] 文件夹: {src} -> {dest}")
             # 清理冗余文件
             clean_redundant_files(dest, exclude_patterns)
             return True
@@ -158,42 +163,195 @@ def copy_folder(src: Path, dest: Path, exclude_patterns: list = None):
             print(f"[跳过] 文件夹不存在: {src}")
             return False
     except Exception as e:
-        print(f"[复制失败] {src.name}: {e}")
+        print(f"[复制失败] 文件夹 {src.name}: {str(e)[:100]}")  # 截断错误信息，更整洁
         return False
 
 def clean_redundant_files(dir_path: Path, exclude_patterns: list = None):
     """清理冗余文件（__pycache__、.pyc等）"""
     if exclude_patterns is None:
         exclude_patterns = []
+    if not dir_path.exists():
+        return
 
     try:
         # 清理__pycache__文件夹
         for cache_dir in dir_path.rglob("__pycache__"):
             if cache_dir.is_dir():
                 shutil.rmtree(cache_dir, ignore_errors=True)
-
         # 清理指定后缀的冗余文件
-        for ext in ["*.pyc", "*.log", "*.tmp"]:
+        for ext in ["*.pyc", "*.pyo", "*.pyd", "*.log", "*.tmp", "*.swp"]:
             if ext not in exclude_patterns:
                 for file in dir_path.rglob(ext):
                     if file.is_file():
                         file.unlink(missing_ok=True)
-
-        print(f"[清理完成] {dir_path.name} 文件夹冗余文件已清理")
+        print(f"[清理完成] 冗余文件: {dir_path.name}")
     except Exception as e:
-        print(f"[清理失败] {dir_path.name}: {e}")
+        print(f"[清理失败] {dir_path.name}: {str(e)[:80]}")
+
+def get_table_structure(db_path: str, table_name: str) -> Tuple[str, List]:
+    """
+    获取指定表的结构信息
+    返回: (CREATE语句, 列信息列表)
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # 获取CREATE语句
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?;", (table_name,))
+    create_sql = cursor.fetchone()
+    create_sql = create_sql[0] if create_sql else None
+
+    # 获取列信息
+    cursor.execute(f"PRAGMA table_info(\"{table_name}\");")
+    columns = cursor.fetchall()
+
+    conn.close()
+    return create_sql, columns
+
+def get_all_tables(db_path: str) -> List[str]:
+    """获取数据库中所有表的名称"""
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+    tables = [row[0] for row in cursor.fetchall()]
+
+    conn.close()
+    return tables
+
+def sync_table_structure(source_db: str, target_db: str, table_name: str):
+    """
+    将单个表的结构从源数据库同步到目标数据库
+    """
+    print(f"  同步表结构: {table_name}")
+
+    # 获取源表结构
+    source_create_sql, source_columns = get_table_structure(source_db, table_name)
+
+    if not source_create_sql:
+        print(f"    源数据库中不存在表 {table_name}")
+        return
+
+    # 连接到目标数据库
+    target_conn = sqlite3.connect(target_db)
+    target_cursor = target_conn.cursor()
+
+    try:
+        # 检查目标数据库中是否存在该表
+        target_cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+        target_table_exists = target_cursor.fetchone() is not None
+
+        if target_table_exists:
+            print(f"    表 {table_name} 已存在，将重新创建以更新结构")
+
+            # 保存原表数据
+            target_cursor.execute(f"SELECT * FROM '{table_name}';")
+            old_data = target_cursor.fetchall()
+
+            # 获取原表的列信息以便数据映射
+            target_cursor.execute(f"PRAGMA table_info('{table_name}');")
+            old_columns = [col[1] for col in target_cursor.fetchall()]
+
+            # 删除原表
+            target_cursor.execute(f"DROP TABLE '{table_name}';")
+
+            # 创建新表
+            target_cursor.execute(source_create_sql)
+
+            # 如果有旧数据，尝试插入（只插入在新旧表中都存在的列）
+            if old_data and old_columns:
+                # 获取新表的列
+                target_cursor.execute(f"PRAGMA table_info('{table_name}');")
+                new_columns = [col[1] for col in target_cursor.fetchall()]
+
+                # 确定共同列
+                common_columns = [col for col in old_columns if col in new_columns]
+
+                if common_columns:
+                    # 构建INSERT语句
+                    placeholders = ', '.join(['?' for _ in common_columns])
+                    columns_str = ', '.join(common_columns)
+                    insert_sql = f"INSERT INTO '{table_name}' ({columns_str}) VALUES ({placeholders})"
+
+                    # 凼取旧数据中的对应列
+                    old_col_indices = {col: i for i, col in enumerate(old_columns)}
+                    new_col_indices = {col: i for i, col in enumerate(new_columns)}
+
+                    for row in old_data:
+                        common_values = []
+                        for col in common_columns:
+                            common_values.append(row[old_col_indices[col]])
+
+                        target_cursor.execute(insert_sql, common_values)
+
+                    print(f"    已迁移 {len(old_data)} 行数据到新表结构")
+                else:
+                    print(f"    新旧表结构差异过大，无法迁移数据")
+        else:
+            print(f"    表 {table_name} 不存在，直接创建")
+            # 直接创建新表
+            target_cursor.execute(source_create_sql)
+
+        target_conn.commit()
+        print(f"    表 {table_name} 结构同步完成")
+
+    except sqlite3.Error as e:
+        print(f"    同步表 {table_name} 时出错: {e}")
+        target_conn.rollback()
+    finally:
+        target_conn.close()
+
+def sync_database_structure(source_db: str, target_db: str):
+    """
+    将源数据库的结构同步到目标数据库
+    """
+    print(f"开始同步数据库结构: {source_db} -> {target_db}")
+
+    # 创建备份
+    backup_path = target_db + ".backup_before_sync"
+    shutil.copy2(target_db, backup_path)
+    print(f"已创建备份: {backup_path}")
+
+    # 获取源数据库的所有表
+    source_tables = get_all_tables(source_db)
+    print(f"源数据库包含 {len(source_tables)} 个表")
+
+    # 同步每个表的结构
+    for table_name in source_tables:
+        if table_name == '_migration_history':  # 跳过旧的迁移历史表
+            print(f"  跳过表: {table_name}")
+            continue
+        sync_table_structure(source_db, target_db, table_name)
+
+    print("数据库结构同步完成!")
+
+# 【修复/核心】单独复制assets下的TemplateImg目录（含所有图片/子文件）
+def copy_assets_template_img():
+    """单独复制后端assets/TemplateImg目录，确保所有图片文件被复制"""
+    # 源路径：后端assets/TemplateImg（精准到具体目录）
+    src_template = Path(BACK_SRC) / "assets" / BACKEND_ASSETS_COPY
+    # 目标路径：迁移包后端/assets/TemplateImg（保持原目录结构）
+    dest_template = Path(BACK_DEPLOY) / "assets" / BACKEND_ASSETS_COPY
+
+    if not src_template.exists():
+        print(f"[警告] TemplateImg目录不存在: {src_template}")
+        return False
+    # 复制TemplateImg目录（无排除规则，保留所有文件：图片、文件夹、子文件等）
+    return copy_folder(src_template, dest_template, [])  # 空排除规则=复制所有内容
 
 def main():
     """主执行函数"""
-    # 设置控制台编码为UTF-8
+    # 设置控制台编码为UTF-8（解决中文乱码）
     if sys.platform == "win32":
         os.system("chcp 65001 > nul")
+        sys.stdout.reconfigure(encoding='utf-8')  # 修复Python3.9+ stdout编码
 
     print_separator()
     print("          OA后端/前端迁移文件同步脚本 (Python版)")
+    print("          【修复版】确保assets/TemplateImg图片文件完整复制")
     print_separator()
 
-    # 1. 生成requirements.txt
+    # 1. 生成最新requirements.txt（可选）
     generate_requirements_txt()
 
     # 2. 前置检查
@@ -204,57 +362,91 @@ def main():
     print(f"迁移包目录: {DEPLOY_ROOT}")
     print_separator()
 
-    # 检查后端源目录是否存在
+    # 检查核心目录是否存在
     if not Path(BACK_SRC).exists():
         print(f"[错误] 后端源目录不存在: {BACK_SRC}")
         input("按回车键退出...")
         sys.exit(1)
+    if not Path(FRONT_SRC).exists():
+        print(f"[警告] 前端源目录不存在: {FRONT_SRC}")
 
-    # 3. 清空并重建迁移目录
+    # 3. 清空并重建迁移目录（确保干净）
     clean_directory(DEPLOY_ROOT)
     clean_directory(BACK_DEPLOY)
     clean_directory(FRONT_DEPLOY)
 
-    # 4. 复制脚本同级的启动文件到迁移包根目录（关键修复）
+    # 4. 复制脚本同级的启动文件到迁移包根目录
     print("\n" + "=" * 30)
     print("复制启动文件到迁移包根目录")
     print("=" * 30)
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     for filename in SCRIPT_ROOT_FILES:
-        src_file = script_dir / filename
-        dest_file = DEPLOY_ROOT / filename  # 放到根目录，而非后端文件夹
-        copy_file(src_file, dest_file)
+        copy_file(script_dir / filename, DEPLOY_ROOT / filename)
 
-    # 5. 复制后端根目录核心文件（新增run.py、wsgi.py）
+    # 5. 复制后端根目录核心文件
     print("\n" + "=" * 30)
     print("复制后端根目录核心文件")
     print("=" * 30)
     back_src_path = Path(BACK_SRC)
-    for filename in BACKEND_ROOT_FILES:
-        src_file = back_src_path / filename
-        dest_file = BACK_DEPLOY / filename
-        copy_file(src_file, dest_file)
 
-    # 6. 复制后端子文件夹（排除后端assets）
+    # 在复制soonwin_oa.db之前，先将soonwin_oa_dev.db的结构同步到soonwin_oa.db
+    source_db = back_src_path / "soonwin_oa_dev.db"
+    target_db = back_src_path / "soonwin_oa.db"
+
+    if source_db.exists() and target_db.exists():
+        print("\n[重要提醒] 在同步数据库结构前，请确认以下信息：")
+        print(f"  - soonwin_oa.db 文件路径: {target_db}")
+        print(f"  - soonwin_oa_dev.db 文件路径: {source_db}")
+        print("  - soonwin_oa_dev.db 将作为结构更新的模板")
+        print("  - soonwin_oa.db 中的数据将保留，但表结构会被更新")
+        print("\n[确认问题] soonwin_oa.db 是否为从生产环境复制过来的最新数据库？")
+
+        user_input = input("请输入 'y' 确认并继续，或输入其他内容取消操作: ").strip().lower()
+
+        if user_input == 'y' or user_input == '' or user_input == 'yes':
+            print("\n用户已确认，开始同步数据库结构 (soonwin_oa_dev.db -> soonwin_oa.db)...")
+            sync_database_structure(str(source_db), str(target_db))
+            print("数据库结构同步完成，现在复制更新后的数据库文件...")
+        else:
+            print("\n用户取消操作，跳过数据库结构同步步骤。")
+            print("即将继续执行后续复制步骤...")
+    elif source_db.exists() and not target_db.exists():
+        print(f"\n[注意] soonwin_oa.db 不存在，将直接复制 soonwin_oa_dev.db 作为 soonwin_oa.db")
+    elif not source_db.exists():
+        print(f"\n[警告] soonwin_oa_dev.db 不存在，无法进行数据库结构同步")
+    elif not target_db.exists():
+        print(f"\n[警告] soonwin_oa.db 不存在，将跳过数据库结构同步步骤")
+
+    for filename in BACKEND_ROOT_FILES:
+        # 特别处理数据库文件
+        if filename == "soonwin_oa.db":
+            # 由于结构可能已同步，直接复制文件
+            copy_file(back_src_path / filename, BACK_DEPLOY / filename)
+        else:
+            copy_file(back_src_path / filename, BACK_DEPLOY / filename)
+
+    # 6. 复制后端子文件夹（应用排除规则，含整体排除assets）
     print("\n" + "=" * 30)
     print("复制后端子文件夹")
     print("=" * 30)
     for folder_name in BACKEND_FOLDERS:
-        src_folder = back_src_path / folder_name
-        dest_folder = BACK_DEPLOY / folder_name
-        copy_folder(src_folder, dest_folder, BACKEND_EXCLUDE_PATTERNS)
+        copy_folder(back_src_path / folder_name, BACK_DEPLOY / folder_name, BACKEND_EXCLUDE_PATTERNS)
 
-    # 7. 复制额外部署文件（OA根目录下）
+    # 7. 【核心修复】单独复制assets/TemplateImg目录（含所有图片文件）
+    print("\n" + "=" * 30)
+    print("复制后端assets/TemplateImg（含所有图片）")
+    print("=" * 30)
+    copy_assets_template_img()
+
+    # 8. 复制额外部署文件（OA根目录下的说明/启动文件）
     print("\n" + "=" * 30)
     print("复制额外部署文件")
     print("=" * 30)
     base_dir_path = Path(BASE_DIR)
     for filename in EXTRA_DEPLOY_FILES:
-        src_file = base_dir_path / filename
-        dest_file = DEPLOY_ROOT / filename
-        copy_file(src_file, dest_file)
+        copy_file(base_dir_path / filename, DEPLOY_ROOT / filename)
 
-    # 8. 复制前端dist目录（不排除前端assets）
+    # 9. 复制前端dist目录（保留前端assets，不排除）
     print("\n" + "=" * 30)
     print("复制前端dist目录（保留assets）")
     print("=" * 30)
@@ -264,20 +456,21 @@ def main():
     else:
         print(f"[警告] 前端dist目录不存在: {front_dist_src}")
 
-    # 9. 最终清理冗余文件
+    # 10. 最终全局清理冗余文件
     print("\n" + "=" * 30)
-    print("最终清理冗余文件")
+    print("最终清理所有冗余文件")
     print("=" * 30)
     clean_redundant_files(BACK_DEPLOY, BACKEND_EXCLUDE_PATTERNS)
     clean_redundant_files(FRONT_DEPLOY, FRONTEND_EXCLUDE_PATTERNS)
 
-    # 完成提示
+    # 完成提示（含TemplateImg路径核对）
     print_separator()
-    print("[成功] 迁移文件同步完成！")
+    print("[成功] 迁移文件同步完成！✅")
     print(f"迁移包根目录: {DEPLOY_ROOT}")
     print(f"后端文件目录: {BACK_DEPLOY}")
     print(f"前端文件目录: {FRONT_DEPLOY}")
     print(f"启动文件位置: {DEPLOY_ROOT} (run_server.py、启动服务器.bat)")
+    print(f"📷 图片目录已复制: {BACK_DEPLOY}/assets/{BACKEND_ASSETS_COPY}")
     print_separator()
     input("按回车键退出...")
 
@@ -285,7 +478,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n[取消] 用户中断了操作")
+        print("\n\n[取消] 用户中断了操作 ❌")
     except Exception as e:
-        print(f"\n\n[错误] 脚本执行失败: {e}")
+        print(f"\n\n[致命错误] 脚本执行失败: {str(e)}")
         input("按回车键退出...")

@@ -96,6 +96,10 @@ assets/
 nginx-1.28.1/
 nginx_pid/
 其它文件/
+# 取反保留：Python后端项目的assets/TemplateImg目录（及内部所有内容）
+!soonwin-os-Python-Server/assets/
+!soonwin-os-Python-Server/assets/TemplateImg/
+!soonwin-os-Python-Server/assets/TemplateImg/**/*
 
 # ===================== 补充：忽略历史记录目录 =====================
 # Vue前端项目历史记录

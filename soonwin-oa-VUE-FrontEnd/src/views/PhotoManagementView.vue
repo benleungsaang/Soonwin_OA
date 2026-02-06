@@ -33,7 +33,7 @@
             </el-button>
 
             <!-- 多选模式按钮组 -->
-            <div v-else class="multi-select-buttons">
+            <div v-if="isMultiSelectMode" class="multi-select-buttons">
               <el-button @click="batchDeletePhotos" :disabled="selectedPhotoIds.length === 0">
                 <el-icon><Delete /></el-icon>
                 批量删除 ({{ selectedPhotoIds.length }})
@@ -309,7 +309,7 @@
         </el-form-item>
 
         <!-- 匹配文件按钮 -->
-        <el-form-item v-if="fileList.length > 0">
+        <el-form-item v-if="fileList.length > 1">
           <el-button
             @click="showJsonInputDialog = true"
             type="info"
@@ -501,10 +501,12 @@
     >
       <div>
         <p>请输入匹配信息，格式如下：</p>
-        <pre style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; white-space: pre-wrap; word-break: break-all;">
-照片文件名	照片标题	关联机器	标签	备注
-5328	测试标题1	VP-BF-210-10	标签1,标签2	测试备注1
-1024	测试标题2	VP-BF-210-10	标签4,标签3	测试备注2
+        <!-- 根据返回类型显示图片或文本 -->
+        <div v-if="isImageFormat">
+          <img :src="jsonFormatDescription" alt="匹配格式示例" style="max-width: 100%; height: auto; border: 1px solid #e6e6e6; border-radius: 4px;">
+        </div>
+        <pre v-else style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; white-space: pre-wrap; word-break: break-all;">
+{{ jsonFormatDescription }}
         </pre>
         <el-input
           v-model="jsonInputText"
@@ -580,9 +582,21 @@ import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { uploadFile } from '@/utils/upload';
 import { isCurrentUserAdmin } from '@/utils/authUtils';
 import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI } from '@/utils/request';
+import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
 
 // 响应式数据
 const photos = ref<any[]>([]);
+
+// 计算属性：JSON格式说明
+const jsonFormatDescription = computed(() => {
+  return getJsonFormatDescription('photo');
+});
+
+// 判断是否为图片格式
+const isImageFormat = computed(() => {
+  const desc = jsonFormatDescription.value;
+  return desc.endsWith('.png') || desc.endsWith('.jpg') || desc.endsWith('.jpeg') || desc.endsWith('.gif') || desc.endsWith('.webp');
+});
 const currentPage = ref(1);
 const pageSize = ref(10);
 const totalPhotos = ref(0);
@@ -691,9 +705,22 @@ const router = useRouter();
 // API基础URL
 const apiBaseUrl = computed(() => {
   if (import.meta.env.VITE_API_BASE_URL) {
+    // 在生产环境中，如果VITE_API_BASE_URL不是相对路径，则使用window.location.origin
+    if (import.meta.env.MODE === 'production') {
+      // 检查VITE_API_BASE_URL是否为完整的URL
+      if (import.meta.env.VITE_API_BASE_URL.startsWith('http')) {
+        // 如果是完整URL，返回当前页面的origin，以确保静态资源访问使用当前域名
+        return window.location.origin;
+      } else {
+        // 如果是相对路径或以/开头的路径，直接返回
+        return import.meta.env.VITE_API_BASE_URL;
+      }
+    }
+    // 开发环境中继续使用环境变量
     return import.meta.env.VITE_API_BASE_URL;
   }
-  return '';
+  // 如果没有设置环境变量，返回当前页面的origin
+  return window.location.origin;
 });
 
 // 权限相关
@@ -903,125 +930,27 @@ const resetUploadForm = () => {
 // JSON匹配多文件相关函数（核心修复：换行符兼容）
 const matchJsonToFiles = () => {
   try {
-    // 解析JSON输入 - 核心优化：兼容制表符和多个空格分隔
-    const inputText = jsonInputText.value.trim();
-    if (!inputText) {
-      ElMessage.error('请输入匹配信息');
-      return;
-    }
-
-    // 第一步：将所有连续空白（制表符、多个空格、全角空格）统一替换为单个制表符
-    const normalizedText = inputText.replace(/[\s\u00A0]+/g, '\t');
-    // 第二步：按换行符分割行（兼容\r\n和\n）
-    let lines = normalizedText.split(/\r?\n/).filter(line => line.trim() !== '');
-
-    // 核心修复：处理无换行符的场景（所有内容在一行）
-    if (lines.length === 1) {
-      const allFields = lines[0].split('\t').map(field => field.trim()).filter(field => field);
-      // 检查是否是表头+多行数据混在一起的情况（表头5个字段，总字段数>5且能被5整除）
-      if (allFields.length >= 5 && allFields.slice(0,5).join(',') === '照片文件名,照片标题,关联机器,标签,备注') {
-        // 分离表头和数据
-        const headerFields = allFields.slice(0,5); // 前5个是表头
-        const dataFields = allFields.slice(5);     // 后面的是数据
-
-        // 按每5个字段为一行拆分数据
-        const newLines = [headerFields.join('\t')]; // 重新构建表头行
-        for (let i = 0; i < dataFields.length; i += 5) {
-          const rowFields = dataFields.slice(i, i+5);
-          if (rowFields.length >= 1) { // 至少有文件名字段
-            newLines.push(rowFields.join('\t'));
-          }
-        }
-        lines = newLines; // 使用重构后的行数据
-      }
-    }
-
-    if (lines.length === 0) {
-      ElMessage.error('请输入匹配信息');
-      return;
-    }
-
-    // 解析表头
-    const headers = lines[0].split('\t').map(header => header.trim());
-
-    // 校验表头（增加容错性，处理大小写和空白问题）
-    if (headers.length < 5 ||
-        headers[0].toLowerCase().trim() !== '照片文件名' ||
-        headers[1].toLowerCase().trim() !== '照片标题' ||
-        headers[2].toLowerCase().trim() !== '关联机器' ||
-        headers[3].toLowerCase().trim() !== '标签' ||
-        headers[4].toLowerCase().trim() !== '备注') {
-      ElMessage.error('表头格式不正确，请使用：照片文件名\t照片标题\t关联机器\t标签\t备注');
-      return;
-    }
-
-    // 解析数据行
-    const dataRows = lines.slice(1).map(line => {
-      const fields = line.split('\t').map(field => field.trim());
-      // 确保至少有文件名字段，其他字段可选（补空）
-      if (fields.length >= 1 && fields[0]) {
-        return {
-          filename: fields[0] || '',
-          title: fields[1] || '',
-          machineId: fields[2] || '',
-          tags: fields[3] || '',
-          remark: fields[4] || ''
-        };
-      }
-      return null;
-    }).filter(row => row !== null);
-
-    // 匹配文件与数据
-    const matchedFilesTemp = [];
-    const unmatchedFilesTemp = [];
-
-    fileList.value.forEach(fileObj => {
-      const originalFilename = fileObj.name;
-      // 安全地提取文件名（去掉扩展名）
-      const lastDotIndex = originalFilename.lastIndexOf('.');
-      let baseFilename;
-      if (lastDotIndex > 0) {
-        baseFilename = originalFilename.substring(0, lastDotIndex);
-      } else {
-        // 如果没有扩展名，使用完整文件名
-        baseFilename = originalFilename;
-      }
-
-      // 统一小写进行匹配，增加匹配的健壮性
-      const targetFilename = baseFilename.toLowerCase().trim();
-      const matchedData = dataRows.find(data =>
-        data.filename.toLowerCase().trim() === targetFilename
-      );
-
-      if (matchedData) {
-        matchedFilesTemp.push({
-          file: fileObj,
-          data: matchedData
-        });
-      } else {
-        unmatchedFilesTemp.push(originalFilename);
-      }
-    });
+    const result = parseJsonToFiles(jsonInputText.value, fileList.value);
 
     // 更新匹配结果
-    matchedFiles.value = matchedFilesTemp;
-    unmatchedFiles.value = unmatchedFilesTemp;
-    isMatched.value = matchedFilesTemp.length > 0;
+    matchedFiles.value = result.matchedFiles;
+    unmatchedFiles.value = result.unmatchedFiles;
+    isMatched.value = result.isMatched;
 
     // 提示信息
-    if (unmatchedFilesTemp.length > 0) {
-      ElMessage.warning(`以下文件未找到匹配数据: ${unmatchedFilesTemp.join(', ')}`);
+    if (result.unmatchedFiles.length > 0) {
+      ElMessage.warning(`以下文件未找到匹配数据: ${result.unmatchedFiles.join(', ')}`);
     }
 
-    if (matchedFilesTemp.length === 0) {
+    if (result.matchedFiles.length === 0) {
       ElMessage.warning('没有找到匹配的文件');
       isMatched.value = false;
     } else {
-      ElMessage.success(`匹配成功: ${matchedFilesTemp.length} 个文件已匹配`);
+      ElMessage.success(`匹配成功: ${result.matchedFiles.length} 个文件已匹配`);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('匹配JSON数据失败:', error);
-    ElMessage.error('解析JSON数据失败，请检查格式');
+    ElMessage.error(error.message || '解析JSON数据失败，请检查格式');
     isMatched.value = false;
   }
 };

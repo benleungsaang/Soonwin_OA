@@ -38,7 +38,7 @@
                 style="cursor: pointer; display: flex; flex-direction: column; align-items: center;"
                 @click.stop="showOrderDetails(scope.row)"
               >
-                <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                <div style="width: 100px; height: 8px; background: rgba(255, 186, 98, 0.6); border-radius: 4px; overflow: hidden;">
                   <div
                     :style="{width: `${getOrderStatusProgress(scope.row.id)}%`, height: '100%'}"
                     style="background: #67c23a; border-radius: 4px;"
@@ -105,9 +105,26 @@
             </el-descriptions>
 
             <el-descriptions title="当前进度" border>
-              <!-- <el-descriptions-item label="当前进度">{{ formatDate((selectedOrderDetail || selectedOrder).ship_time) }}</el-descriptions-item> -->
-              <el-descriptions-item :span="2" label="添加进度">
-                <el-icon class="btn-add-status" @click="openAddStatusLogDialog"><Plus /></el-icon>
+              <el-descriptions-item label="总进度">
+                <div class="progress-container">
+                  <div style="width: 100%; height: 8px; background: rgba(255, 186, 98, 0.6); border-radius: 4px; overflow: hidden;">
+                    <div :style="{width: (selectedOrderDetail && selectedOrderDetail.completed_tasks !== undefined ? getOrderProgress(selectedOrderDetail.completed_tasks, selectedOrderDetail.total_tasks) : 0) + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
+                  </div>
+                  <div class="progress-text" style="margin-top: 2px;">
+                    {{ (selectedOrderDetail && selectedOrderDetail.completed_tasks !== undefined) ? selectedOrderDetail.completed_tasks : 0 }} / {{ (selectedOrderDetail && selectedOrderDetail.total_tasks !== undefined) ? selectedOrderDetail.total_tasks : 0 }}
+                  </div>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item :span="1" label="添加进度">
+              <el-tooltip content="快速创建进度" placement="bottom">
+                <el-icon class="btn-add-status" style="background-color: #67c23a;margin-right: 5px;" @click="openAddStatusLogDialog"><Plus /></el-icon>
+              </el-tooltip>
+              <el-tooltip content="批量导入状态" placement="bottom">
+                <el-icon class="btn-add-status" style="background-color: #629cd9;margin-right: 5px;" @click="openBatchStatusDialog"><DocumentCopy /></el-icon>
+              </el-tooltip>
+              <el-tooltip content="清空状态" placement="bottom">
+                <el-icon class="btn-add-status" style="background-color: #d9b062;" @click="clearAllStatusData"><Refresh /></el-icon>
+              </el-tooltip>
               </el-descriptions-item>
             </el-descriptions>
           </div>
@@ -121,7 +138,7 @@
               <div style="display: flex;gap: 20px;">
                   <span class="clickable-field card-title" @click.stop="openEditFieldDialog(statusLog, 'status', '修改状态', updateStatusLogStatus)">{{ statusLog.status }}</span>
                 <div class="progress-container">
-                  <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                  <div style="width: 100px; height: 8px; background: rgba(255, 186, 98, 0.6); border-radius: 4px; overflow: hidden;">
                     <div :style="{width: getStatusLogProgress(statusLog.id) + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
                   </div>
                   <div class="progress-text" style="margin-top: 2px;">
@@ -161,8 +178,18 @@
                         />
                       </div>
                     </template>
-                  <el-icon class="btn-add-photo" @click="addPhotoToTask(statusTask.id)"><Camera /></el-icon>
-                  <el-input style="margin-left: 5px;width:130px;" @paste="(e) => handleInputPaste(e, statusTask.id)" placeholder="粘贴图片(Ctrl+V)"></el-input>
+                  <!-- 图片上传预览组件 -->
+
+                  <el-tooltip content="可直接拖入多张照片" placement="bottom">
+                    <ImageUploadPreview
+                      :task-id="statusTask.id"
+                      @upload-success="onImageUploadSuccess"
+                      @upload-failure="onImageUploadFailure"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
+                    <el-input style="margin-left: 5px;width:130px;" @paste="(e) => handleInputPaste(e, statusTask.id)" placeholder="粘贴图片(Ctrl+V)"></el-input>
+                  </el-tooltip>
                 </div>
               </el-descriptions-item>
               <el-descriptions-item :span="1" width="150px" label="项目名" >
@@ -307,6 +334,88 @@
       </template>
     </el-dialog>
 
+    <!-- 批量创建状态日志对话框 -->
+    <el-dialog
+      v-model="showBatchStatusDialog"
+      title="批量创建状态日志"
+      width="800px"
+      :before-close="() => { showBatchStatusDialog = false; }"
+      class="mobile-dialog"
+    >
+      <div>
+        <p>请输入状态和任务数据，格式如下：</p>
+        <!-- 根据返回类型显示图片或文本 -->
+        <div v-if="isStatusImageFormat">
+          <img :src="statusFormatDescription" alt="匹配格式示例" style="max-width: 100%; height: auto; border: 1px solid #e6e6e6; border-radius: 4px;">
+        </div>
+        <pre v-else style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; white-space: pre-wrap; word-break: break-all;">
+{{ statusFormatDescription }}
+        </pre>
+
+        <el-input
+          v-model="batchStatusInputText"
+          :rows="10"
+          type="textarea"
+          placeholder="请按上述格式输入数据，例如：\n下单	发单，排产\n排产	采购，生产，回厂前确认"
+        />
+
+        <!-- 匹配结果展示 -->
+        <div v-if="isStatusMatched" class="match-results-section" style="margin-top: 20px;">
+          <h4>匹配结果：</h4>
+
+          <!-- 已匹配状态 -->
+          <div v-if="matchedStatuses.length > 0" class="matched-statuses-section">
+            <h5 style="color: #67c23a;">已匹配状态 ({{ matchedStatuses.length }}个)：</h5>
+            <el-table :data="matchedStatuses" style="width: 100%; margin-top: 8px;">
+              <el-table-column prop="status" label="状态" width="150"></el-table-column>
+              <el-table-column prop="tasks" label="任务项" show-overflow-tooltip>
+                <template #default="scope">
+                  <div>
+                    <el-tag
+                      v-for="(task, index) in scope.row.tasks"
+                      :key="index"
+                      size="small"
+                      style="margin-right: 5px; margin-bottom: 5px; display: inline-block;"
+                    >
+                      {{ task }}
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <!-- 未匹配数据 -->
+          <div v-if="unmatchedStatuses.length > 0" class="unmatched-statuses-section" style="margin-top: 15px;">
+            <h5 style="color: #e6a23c;">未匹配数据 ({{ unmatchedStatuses.length }}个)：</h5>
+            <div style="background: #fdf6ec; border: 1px solid #faecd8; border-radius: 4px; padding: 10px; margin-top: 8px;">
+              <span v-for="(item, index) in unmatchedStatuses" :key="index" class="unmatched-item">
+                {{ item }}{{ index < unmatchedStatuses.length - 1 ? ', ' : '' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showBatchStatusDialog = false">取消</el-button>
+          <el-button
+            type="warning"
+            @click="matchBatchStatusData"
+          >
+            匹配数据
+          </el-button>
+          <el-button
+            :disabled="!isStatusMatched"
+            type="primary"
+            @click="batchCreateStatusLogs"
+          >
+            批量创建
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
+
   </div>
 
 </template>
@@ -316,9 +425,11 @@ import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, List, DocumentCopy, Camera, Delete, ArrowRight } from '@element-plus/icons-vue';
+import { Plus, List, DocumentCopy, Camera, Delete, ArrowRight, Refresh, Upload } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
+import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { cursorTo } from 'node:readline';
+import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
 
 // 获取路由实例
 const router = useRouter();
@@ -347,6 +458,10 @@ const newStatusLogForm = ref({
 const currentOrderStatusId = ref(null);
 const statusLogs = ref<any[]>([]);
 
+// 图片上传预览相关
+const showImageUploadPreview = ref(false);
+const currentImageUploadTaskId = ref<number | null>(null);
+
 // 任务相关
 const newTaskForm = ref({
   name: '',
@@ -367,10 +482,28 @@ const clipboardImageFile = ref<File | null>(null); // 剪贴板图片文件对�
 const currentClipboardTaskId = ref<number | null>(null); // 当前处理的taskId
 const lastClipboardImage = ref<File | null>(null); // 最近一次剪贴板操作的图片
 
+// 批量创建状态日志相关
+const showBatchStatusDialog = ref(false); // 批量创建状态日志对话框显示状态
+const batchStatusInputText = ref(''); // 批量状态输入文本
+const matchedStatuses = ref<any[]>([]); // 匹配的状态数据
+const unmatchedStatuses = ref<string[]>([]); // 未匹配的状态数据
+const isStatusMatched = ref(false); // 状态是否已匹配
+
 
 // ===================== 计算属性 =====================
 // 判断是否为移动端
 const isMobile = computed(() => windowWidth.value < 768);
+
+// 计算属性：状态格式说明
+const statusFormatDescription = computed(() => {
+  return getJsonFormatDescription('status');
+});
+
+// 判断是否为图片格式
+const isStatusImageFormat = computed(() => {
+  const desc = statusFormatDescription.value;
+  return desc.endsWith('.png') || desc.endsWith('.jpg') || desc.endsWith('.jpeg') || desc.endsWith('.gif') || desc.endsWith('.webp');
+});
 
 
 // 获取用户角色
@@ -380,6 +513,19 @@ const userRole = ref('');
 const toggleStatusLog = (statusLogId: number) => {
   const currentState = expandedStatusLogs.value[statusLogId];
   expandedStatusLogs.value[statusLogId] = !(currentState === true);
+};
+
+
+const getOrderProgress = (completed_tasks:number, total_tasks:number) => {
+  const completed = completed_tasks || 0;
+  const total = total_tasks || 0;
+
+  // 计算百分比，避免除零错误
+  if (total === 0) {
+    return 0;
+  }
+
+  return Math.round((completed / total) * 100);
 };
 
 // 计算每个状态日志的进度
@@ -661,6 +807,188 @@ const addStatusLog = async () => {
   }
 };
 
+// 打开批量创建状态日志对话框
+const openBatchStatusDialog = () => {
+  if (!selectedOrderDetail.value && !selectedOrder.value) {
+    ElMessage.error('请先选择一个订单');
+    return;
+  }
+
+  // 如果还没有创建订单状态记录，先创建一个
+  if (!selectedOrderDetail.value.status_id) {
+    ElMessage.error('此订单尚无状态记录，请先创建');
+    return;
+  }
+
+  currentOrderStatusId.value = selectedOrderDetail.value.status_id;
+  showBatchStatusDialog.value = true;
+  // 重置表单
+  batchStatusInputText.value = '';
+  matchedStatuses.value = [];
+  unmatchedStatuses.value = [];
+  isStatusMatched.value = false;
+};
+
+// 批量匹配状态数据
+const matchBatchStatusData = () => {
+  try {
+    // 解析输入文本
+    const inputText = batchStatusInputText.value.trim();
+    if (!inputText) {
+      ElMessage.error('请输入匹配信息');
+      return;
+    }
+
+    // 第一步：将所有连续空白（制表符、多个空格、全角空格）统一替换为单个制表符
+    const normalizedText = inputText.replace(/[\s\u00A0]+/g, '\t');
+    // 第二步：按换行符分割行（兼容\r\n和\n）
+    let lines = normalizedText.split(/\r?\n/).filter(line => line.trim() !== '');
+
+    // 核心修复：处理无换行符的场景（所有内容在一行）
+    if (lines.length === 1) {
+      const allFields = lines[0].split('\t').map(field => field.trim()).filter(field => field);
+      // 检查是否是表头+多行数据混在一起的情况（表头2个字段，总字段数>=2且能被2整除）
+      if (allFields.length >= 2 && allFields.slice(0, 2).join(',') === '状态,进度项') {
+        // 分离表头和数据
+        const headerFields = allFields.slice(0, 2); // 前2个是表头
+        const dataFields = allFields.slice(2);     // 后面的是数据
+
+        // 按每2个字段为一行拆分数据
+        const newLines = [headerFields.join('\t')]; // 重新构建表头行
+        for (let i = 0; i < dataFields.length; i += 2) {
+          const rowFields = dataFields.slice(i, i+2);
+          if (rowFields.length >= 1) { // 至少有状态字段
+            newLines.push(rowFields.join('\t'));
+          }
+        }
+        lines = newLines; // 使用重构后的行数据
+      }
+    }
+
+    if (lines.length === 0) {
+      ElMessage.error('请输入匹配信息');
+      return;
+    }
+
+    // 解析表头
+    const headers = lines[0].split('\t').map(header => header.trim());
+
+    // 校验表头（增加容错性，处理大小写和空白问题）
+    if (headers.length < 2 ||
+        headers[0].toLowerCase().trim() !== '状态' ||
+        headers[1].toLowerCase().trim() !== '进度项') {
+      ElMessage.error('表头格式不正确，请使用：状态\t进度项');
+      return;
+    }
+
+    // 解析数据行
+    const dataRows = lines.slice(1).map(line => {
+      const fields = line.split('\t').map(field => field.trim());
+      // 确保至少有状态字段，进度项字段可选（补空）
+      if (fields.length >= 1 && fields[0]) {
+        return {
+          status: fields[0] || '',
+          progressItems: fields[1] || ''
+        };
+      }
+      return null;
+    }).filter(row => row !== null);
+
+    // 处理结果 - 将匹配的数据转换为状态和任务格式
+    const matchedStatusesTemp = [];
+    const unmatchedStatusesTemp = [];
+
+    dataRows.forEach((data: any) => {
+      if (data.status && data.progressItems) {
+        // 解析进度项为任务数组
+        const tasks = data.progressItems.split('，').map(task => task.trim()).filter(task => task);
+        matchedStatusesTemp.push({
+          status: data.status,
+          tasks: tasks
+        });
+      } else if (data.status) {
+        // 只有状态没有进度项
+        matchedStatusesTemp.push({
+          status: data.status,
+          tasks: []
+        });
+      } else {
+        // 使用data对象的字符串表示作为未匹配项
+        const dataStr = Object.values(data || {}).join(',');
+        unmatchedStatusesTemp.push(dataStr || '未知数据');
+      }
+    });
+
+    // 更新匹配结果
+    matchedStatuses.value = matchedStatusesTemp;
+    unmatchedStatuses.value = unmatchedStatusesTemp;
+    isStatusMatched.value = matchedStatusesTemp.length > 0;
+
+    // 提示信息
+    if (unmatchedStatusesTemp.length > 0) {
+      ElMessage.warning(`以下行未找到匹配格式: ${unmatchedStatusesTemp.join(', ')}`);
+    }
+
+    if (matchedStatusesTemp.length === 0) {
+      ElMessage.warning('没有找到匹配的数据');
+      isStatusMatched.value = false;
+    } else {
+      ElMessage.success(`匹配成功: ${matchedStatusesTemp.length} 个状态已匹配`);
+    }
+  } catch (error: any) {
+    console.error('匹配状态数据失败:', error);
+    ElMessage.error(error.message || '解析状态数据失败，请检查格式');
+    isStatusMatched.value = false;
+  }
+};
+
+// 批量创建状态日志和任务
+const batchCreateStatusLogs = async () => {
+  if (matchedStatuses.value.length === 0) {
+    ElMessage.warning('没有匹配的状态数据可创建');
+    return;
+  }
+
+  try {
+    // 构建要发送的数据
+    const batchData = {
+      order_status_id: currentOrderStatusId.value,
+      statuses: matchedStatuses.value
+    };
+
+    console.log('发送批量创建请求:', batchData); // 调试信息
+
+    // 使用新的批量创建API
+    // 注意：由于request.ts会自动解包data，这里response已经是后端返回的data部分
+    const response: any = await request.post('/api/order-status-logs/batch', batchData);
+
+    console.log('后端响应:', response); // 调试信息
+
+    // 成功：后端返回的data部分包含创建结果
+    ElMessage.success(`批量创建完成: ${response.created_status_logs.length} 个状态日志, ${response.created_tasks.length} 个任务`);
+    showBatchStatusDialog.value = false;
+
+    // 重新加载订单状态详情
+    await loadOrderStatusDetails();
+  } catch (error: any) {
+    console.error('批量创建状态日志失败:', error);
+
+    // 根据错误类型提供更具体的错误消息
+    if (error.response) {
+      // 服务器返回了错误状态码
+      console.error('HTTP错误:', error.response.status, error.response.data);
+      ElMessage.error(`批量创建失败: ${error.response.data.msg || `HTTP ${error.response.status}`}`);
+    } else if (error.request) {
+      // 请求已发出但没有收到响应
+      console.error('网络错误:', error.request);
+      ElMessage.error('网络错误，请检查后端服务是否正常运行');
+    } else {
+      // 其他错误
+      console.error('请求错误:', error.message);
+      ElMessage.error(`批量创建失败: ${error.message || '未知错误'}`);
+    }
+  }
+};
 // 添加状态任务
 const addStatusTask = async (statusLogId: number) => {
   // 从statusLogs中查找对应的状态日志，获取其status作为category
@@ -763,6 +1091,12 @@ const updateStatusTask = async (task: any) => {
         tasks.value[taskIndex] = taskItem;
       }
       ElMessage.success('任务更新成功');
+
+      // 重新加载订单状态详情以更新进度信息
+      await loadOrderStatusDetails();
+
+      // 重新获取订单列表以更新待处理订单列表中的进度信息
+      await fetchOrders();
     }
 
   } catch (error) {
@@ -953,6 +1287,44 @@ const deleteTask = async (taskId: number) => {
   }
 };
 
+// 清空全部状态数据（包括状态日志、任务项及关联文件）
+const clearAllStatusData = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空所有状态数据吗？此操作将删除所有状态日志、任务项及相关文件，且无法恢复！',
+      '危险操作确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    );
+
+    if (!currentOrderStatusId.value) {
+      ElMessage.error('当前没有选中的订单状态记录');
+      return;
+    }
+
+    const response: any = await request.post(`/api/order-status/${currentOrderStatusId.value}/clear-all`);
+
+    console.log('清空状态API响应:', response); // 调试信息
+
+    // 注意：由于request.ts会自动解包data，这里response已经是后端返回的data部分
+    // 后端返回格式为 {code: 200, data: {...}, msg: "..."}，但前端接收到的是data部分
+    // 所以这里直接认为请求成功（如果失败，request拦截器会抛出异常）
+    ElMessage.success('清空成功');
+
+    // 重新加载订单状态详情
+    await loadOrderStatusDetails();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空全部状态数据失败:', error);
+      ElMessage.error('清空失败');
+    }
+  }
+};
+
 // 加载订单状态详情
 const loadOrderStatusDetails = async () => {
   if (!selectedOrderDetail.value && !selectedOrder.value) {
@@ -972,6 +1344,17 @@ const loadOrderStatusDetails = async () => {
     if (response) {
       // 设置当前订单状态ID
       currentOrderStatusId.value = response.id;
+      // 更新selectedOrderDetail中的进度信息（确保模板中可以正确显示进度）
+      if (selectedOrderDetail.value) {
+        selectedOrderDetail.value.completed_tasks = response.completed_tasks || 0;
+        selectedOrderDetail.value.total_tasks = response.total_tasks || 0;
+        selectedOrderDetail.value.progress_percent = response.progress_percent || 0;
+        // 同时更新其他可能的属性
+        selectedOrderDetail.value.current_status = response.current_status;
+        selectedOrderDetail.value.current_status_time = response.current_status_time;
+        selectedOrderDetail.value.progress_status = response.progress_status;
+        selectedOrderDetail.value.remarks = response.remarks;
+      }
       // 获取所有状态日志
       statusLogs.value = response.status_logs || [];
       // 提取所有任务项 - 根据API返回的结构，tasks是按status_log_id分组的类别数组
@@ -1258,6 +1641,28 @@ const confirmUploadClipboardImage = async () => {
     ElMessage.error('图片上传失败：' + error.message);
   }
 };
+
+// 显示图片上传预览组件
+const showImageUploadPreviewForTask = (taskId: number) => {
+  currentImageUploadTaskId.value = taskId;
+  showImageUploadPreview.value = true;
+};
+
+// 图片上传成功回调
+const onImageUploadSuccess = (files: File[]) => {
+  ElMessage.success(`${files.length} 张图片上传成功`);
+  // 重新加载订单状态详情以更新图片显示
+  loadOrderStatusDetails();
+  // 隐藏上传组件
+  showImageUploadPreview.value = false;
+  currentImageUploadTaskId.value = null;
+};
+
+// 图片上传失败回调
+const onImageUploadFailure = (error: any) => {
+  console.error('图片上传失败：', error);
+  ElMessage.error('图片上传失败');
+};
 // ===================== 路由 =====================
 </script>
 
@@ -1276,7 +1681,6 @@ const confirmUploadClipboardImage = async () => {
 }
 
 .btn-add-status {
-  background-color: #33c44b;
 }
 
 .btn-add-photo {

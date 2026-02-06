@@ -27,6 +27,7 @@ NGINX_EXE = os.path.join(NGINX_INSTALL_PATH, "nginx.exe") # nginx.exe
 MIME_TYPES_PATH = os.path.join(NGINX_INSTALL_PATH, "conf", "mime.types") # nginx 自带的 mime.types
 NGINX_CONF = os.path.join(NGINX_INSTALL_PATH, 'conf', "nginx.conf") # 自生成的 nginx.conf 文件路径
 NGINX_PID_PATH = os.path.join(NGINX_INSTALL_PATH, 'logs', "nginx.pid") # 开启nginx后会生成一个PID文件，方便停止程序时使用，实际经常用不上
+
 NGINX_PORT = 5183
 
 if os.path.exists("soonwin-os-Python-Server"):
@@ -42,7 +43,13 @@ else:
 
 
 # 前端构建输出路径 (Nginx静态文件目录)
-FRONTEND_DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
+if "soonwin-oa-VUE-FrontEnd" in FRONTEND_DIR:
+    FRONTEND_DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
+else:
+    FRONTEND_DIST_DIR = FRONTEND_DIR
+
+# 后端媒体文件目录 (Nginx静态文件目录) - 用于处理图片、视频等上传文件
+BACKEND_MEDIA_ROOT = os.path.join(BACKEND_DIR, "assets")
 
 
 # 生成时间
@@ -53,6 +60,7 @@ class OAServerManager:
     def __init__(self):
         # 基础配置
         self.nginx_exe = NGINX_EXE
+        self.nginx_path = NGINX_INSTALL_PATH
         self.nginx_conf = NGINX_CONF
         self.mime_path = MIME_TYPES_PATH
         self.nginx_pid_path = NGINX_PID_PATH
@@ -60,6 +68,7 @@ class OAServerManager:
         self.nginx_port = NGINX_PORT
         self.backend_dir = BACKEND_DIR
         self.frontend_dir = FRONTEND_DIR
+        self.backend_media_root = BACKEND_MEDIA_ROOT  # 后端媒体文件目录
 
         # 存储运行的进程
         self.running_processes = []
@@ -72,13 +81,22 @@ class OAServerManager:
     def generate_nginx_config(self, force_overwrite: bool = False):
         """生成Nginx配置文件"""
         try:
+
+            # BACKEND_MEDIA_ABS_PATH = r"E:\Soonwin_OA\soonwin-os-Python-Server\assets"
+
             # 检查文件是否已存在，非强制模式下提示
             if os.path.exists(self.nginx_conf) and not force_overwrite:
                 print(f"[!] Nginx配置文件 {self.nginx_conf} 已存在，跳过生成（如需覆盖请使用重新生成功能）")
                 return False
 
+            # nginx_path = self.nginx_path.replace('\\', '/')
+
             # 修复5：PID路径转成Nginx兼容的正斜杠，且不加多余转义
             pid_path_nginx = self.nginx_pid_path.replace('\\', '/')
+
+            # 新增：后端Media目录转Nginx兼容的正斜杠（关键！Windows路径必须转）
+            backend_media_path = BACKEND_MEDIA_ROOT.replace('\\', '/')
+            # backend_media_nginx = BACKEND_MEDIA_ABS_PATH.replace('\\', '/')
 
             # 统一路径处理
             mime_types_path = self.mime_path.replace('\\', '/')
@@ -126,6 +144,45 @@ http {{
         proxy_buffering on;
         proxy_buffer_size 64K;
         proxy_buffers 4 64K;
+        
+        rewrite ^/assets/(Media|TemplateImg)/(.*)$ /backend-assets/$1/$2 last;
+
+        # ~* 正则匹配优先级高于 ^~ 前缀匹配，确保脚本先被处理
+        location ~* ^/assets/(.*)\.(css|js|mjs|png|jpg|jpeg|ico|svg|woff|woff2|ttf)$ {{
+            try_files $uri $uri/ =404;
+            expires 1d;
+            # 允许模块脚本跨域（模块加载的额外要求）
+            add_header Access-Control-Allow-Origin *;
+            # 针对脚本/样式文件补充MIME类型
+            if ($request_uri ~* \.css$) {{
+                add_header Content-Type "text/css" always;
+            }}
+            if ($request_uri ~* \.(js|mjs)$) {{
+                add_header Content-Type "application/javascript" always;
+            }}
+        }}
+
+
+        # ========== 核心1：精准匹配媒体文件 /assets/Media/ ，指向后端真实目录 ==========
+        # ^~ 最高优先级，匹配所有/media/子路径（Photos/Videos等）
+        # alias 直接映射后端物理目录，自动替换/assets/Media/为后端真实路径
+        location ^~ /backend-assets/ {{
+            alias         "{}/";  # 关键：指向后端assets/Media（已转Nginx正斜杠）
+            try_files     $uri $uri/ =404;  # 找不到文件返回404，不跳转前端路由
+            expires       7d;  # 媒体文件缓存7天，减轻服务器压力
+            sendfile      on;  # 开启零拷贝，优化大文件（视频/图片）传输
+            tcp_nopush    on;
+            tcp_nodelay   on;
+            # 允许跨域访问（前端调用后端媒体文件避免跨域报错）
+            add_header    Access-Control-Allow-Origin *;
+            add_header    Access-Control-Allow-Methods 'GET, HEAD, OPTIONS';
+            # 处理OPTIONS预检请求
+            if ($request_method = 'OPTIONS') {{
+                return 204;
+            }}
+        }}
+        # ==============================================================================
+
 
         location /api/ {{
             proxy_pass http://backend_server;  # 无末尾/，保留/api
@@ -162,7 +219,9 @@ http {{
     mime_types_path,
     self.nginx_port,
     frontend_dist,
-    nginx_temp_files
+    nginx_temp_files,
+    backend_media_path,
+    backend_media_path
 )
 
             with open(self.nginx_conf, 'w', encoding='utf-8') as f:

@@ -26,7 +26,7 @@
           <el-descriptions-item label="预计出货时间">{{ formatDate(orderInfo.ship_time) }}</el-descriptions-item>
           <el-descriptions-item label="总进度">
             <div class="progress-container">
-              <div style="width: 60%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+              <div style="width: 60%; height: 8px; background: rgba(255, 186, 98, 0.6); border-radius: 4px; overflow: hidden;">
                 <div :style="{width: getOrderProgress() + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
               </div>
               <span style="margin-left: 15px;">{{ statusInfo.completed_tasks }} / {{ statusInfo.total_tasks }}</span>
@@ -43,18 +43,18 @@
               <div style="display: flex;align-items: center; gap: 20px;">
                 <span class="status-log-title">{{ statusLog.status }}</span>
                 <div class="progress-container">
-                  <div style="width: 100px; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                  <div style="width: 100px; height: 8px; background: rgba(255, 186, 98, 0.6); border-radius: 4px; overflow: hidden;">
                     <div :style="{width: getStatusLogProgress(statusLog.id) + '%', height: '100%'}" style="background: #67c23a; border-radius: 4px;"></div>
                   </div>
                   <div class="progress-text" style="margin-top: 2px;">
                     {{ getStatusLogCompletionInfo(statusLog.id) }}
                   </div>
                 </div>
-              </div>
-              <div class="status-log-meta">
-                <div v-if="statusLog.start_time" class="status-meta-item">开始: {{ formatDate(statusLog.start_time) }}</div>
-                <div v-if="statusLog.expected_completion_time" class="status-meta-item">预计完成: {{ formatDate(statusLog.expected_completion_time) }}</div>
-                <div v-if="statusLog.actual_completion_time" class="status-meta-item">实际完成: {{ formatDate(statusLog.actual_completion_time) }}</div>
+                <div class="status-log-meta">
+                  <div class="status-meta-item">开始: {{ formatDate(statusLog.start_time) || '未有设置' }}</div>
+                  <div class="status-meta-item">预计完成: {{ formatDate(statusLog.expected_completion_time)  || '未有设置' }}</div>
+                  <div v-if="statusLog.actual_completion_time" class="status-meta-item">实际完成: {{ formatDate(statusLog.actual_completion_time) }}</div>
+                </div>
               </div>
             </div>
           </template>
@@ -175,12 +175,12 @@ const getStatusLogTasks = (statusLogId: number) => {
 const getOrderProgress = () => {
   const completed = statusInfo.value?.completed_tasks || 0;
   const total = statusInfo.value?.total_tasks || 0;
-  
+
   // 计算百分比，避免除零错误
   if (total === 0) {
     return 0;
   }
-  
+
   return Math.round((completed / total) * 100);
 };
 
@@ -267,12 +267,12 @@ onMounted(() => {
   // 从路由参数获取订单ID
   const id = route.query.orderId;
   if (id) {
-    orderId.value = typeof id === 'string' ? parseInt(id, 10) : id as number;
+    orderId.value = typeof id === 'string' ? parseInt(id, 10) : Array.isArray(id) ? parseInt(id[0], 10) : id;
   } else {
     // 如果没有提供order_id，尝试从其他参数获取
     const idFromParams = route.params.orderId;
     if (idFromParams) {
-      orderId.value = typeof idFromParams === 'string' ? parseInt(idFromParams, 10) : idFromParams as number;
+      orderId.value = typeof idFromParams === 'string' ? parseInt(idFromParams, 10) : Array.isArray(idFromParams) ? parseInt(idFromParams[0], 10) : idFromParams;
     }
   }
 
@@ -316,6 +316,7 @@ onMounted(() => {
   display: flex;
   gap: 15px;
   margin-top: 8px;
+  margin-left: 30px;
   font-size: 12px;
   color: #909399;
 }
