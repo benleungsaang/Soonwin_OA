@@ -86,7 +86,7 @@ class Order(db.Model):
             parts.append(str(self.pay_type))
         if self.order_dept:
             parts.append(str(self.order_dept))
-        
+
         return ' '.join(parts)
 
     # 定义序列化方法，便于接口返回JSON数据

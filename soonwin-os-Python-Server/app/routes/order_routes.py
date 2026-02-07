@@ -25,7 +25,7 @@ def get_current_user():
     token = request.headers.get('Authorization')
     if not token:
         return None
-    
+
     try:
         # 去掉 "Bearer " 前缀
         token = token.replace('Bearer ', '')
@@ -39,13 +39,13 @@ def get_current_user():
     except jwt.InvalidTokenError:
         return None
 
-def serialize_order(order, include_expense_allocations=False, is_admin=False):
+def serialize_order(order, include_expense_allocations=False, is_admin=False, fields=None):
     """将订单对象转换为字典格式，使用模型的to_dict方法并根据用户权限控制敏感字段"""
     # 使用模型的to_dict方法获取完整数据
     order_dict = order.to_dict()
 
     # 定义敏感字段列表
-    sensitive_fields = ['machine_cost', 'proportionate_cost']
+    sensitive_fields = ['machine_cost', 'proportionate_cost', 'net_profit', 'gross_profit']
 
     # 根据用户权限控制敏感字段
     if not is_admin:
@@ -65,7 +65,24 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False):
         # 重新计算净利，减去费用分摊
         order_dict['net_profit_with_expense'] = order_dict['gross_profit'] - order_dict['proportionate_cost'] - order_dict['individual_cost'] - order_dict['total_expense_allocation']
 
-    return order_dict
+    # 如果指定了字段列表，则只返回这些字段
+    if fields:
+        field_list = [f.strip() for f in fields.split(',')]
+        # 确保ID字段总是被包含
+        if 'id' not in field_list:
+            field_list.insert(0, 'id')
+        filtered_dict = {}
+        for field in field_list:
+            if field in order_dict:
+                filtered_dict[field] = order_dict[field]
+        return filtered_dict
+
+    # 如果没有指定字段列表，返回非敏感的完整字段
+    non_sensitive_dict = {}
+    for key, value in order_dict.items():
+        if key not in sensitive_fields:
+            non_sensitive_dict[key] = value
+    return non_sensitive_dict
 
 @order_bp.route('/orders', methods=['GET'])
 def get_orders():
@@ -75,19 +92,10 @@ def get_orders():
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
         # 获取筛选参数
-        customer_name = request.args.get('customer_name')
-        order_no = request.args.get('order_no')
-        machine_name = request.args.get('machine_name')
-        area = request.args.get('area')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        is_new = request.args.get('is_new', type=int)
-        ship_country = request.args.get('ship_country')
-        order_dept = request.args.get('order_dept')
-        pay_type = request.args.get('pay_type')
-        customer_type = request.args.get('customer_type')
-        order_status = request.args.get('order_status')  # 可以是 'unshipped', 'shipped', 'completed' 等
         search = request.args.get('search')  # 添加搜索参数
+        fields = request.args.get('fields')  # 添加字段参数
 
         # 构建查询
         query = Order.query
@@ -96,25 +104,6 @@ def get_orders():
         if search:
             query = query.filter(Order.search_field.contains(search))
 
-        # 应用筛选条件
-        if customer_name and not search:  # 如果已经使用了搜索参数，则不使用单独的筛选，避免重复
-            query = query.filter(Order.customer_name.contains(customer_name))
-        if order_no and not search:
-            query = query.filter(Order.order_no.contains(order_no))
-        if machine_name and not search:
-            query = query.filter(Order.machine_name.contains(machine_name))
-        if area and not search:
-            query = query.filter(Order.area.contains(area))
-        if is_new is not None:
-            query = query.filter(Order.is_new == is_new)
-        if ship_country and not search:
-            query = query.filter(Order.ship_country.contains(ship_country))
-        if order_dept and not search:
-            query = query.filter(Order.order_dept.contains(order_dept))
-        if pay_type and not search:
-            query = query.filter(Order.pay_type.contains(pay_type))
-        if customer_type and not search:
-            query = query.filter(Order.customer_type.contains(customer_type))
         if start_date:
             start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
             query = query.filter(Order.order_time >= start_datetime)
@@ -134,9 +123,9 @@ def get_orders():
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-        
-        # 序列化订单数据
-        orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations, is_admin=is_admin) for order in orders]
+
+        # 序列化订单数据，支持字段过滤
+        orders_list = [serialize_order(order, include_expense_allocations=include_expense_allocations, is_admin=is_admin, fields=fields) for order in orders]
 
         # 返回统一格式的数据，与打卡记录API保持一致
         import json
@@ -220,7 +209,7 @@ def create_order():
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-        
+
         # 序列化创建的订单
         order_data = serialize_order(new_order, is_admin=is_admin)
 
@@ -247,11 +236,13 @@ def get_order(order_id):
     """获取单个订单详情"""
     try:
         order = Order.query.get_or_404(order_id)
+        # 获取字段过滤参数
+        fields = request.args.get('fields')
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-        
-        order_data = serialize_order(order, is_admin=is_admin)
+
+        order_data = serialize_order(order, is_admin=is_admin, fields=fields)
 
         import json
         from flask import Response
@@ -322,11 +313,11 @@ def update_order(order_id):
         # 更新搜索字段
         order.search_field = order.generate_search_field()
         db.session.commit()
-        
+
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-        
+
         order_data = serialize_order(order, is_admin=is_admin)
 
         import json
@@ -380,7 +371,7 @@ def get_order_statistics():
         total_orders = db.session.query(db.func.count(Order.id)).scalar()
         # 计算总金额
         total_amount = db.session.query(db.func.sum(Order.contract_amount)).scalar() or 0.0
-        
+
         statistics_data = {
             'total_orders': total_orders,
             'total_amount': float(total_amount)
@@ -392,7 +383,7 @@ def get_order_statistics():
             total_gross_profit = db.session.query(db.func.sum(Order.gross_profit)).scalar() or 0.0
             # 计算总净利
             total_net_profit = db.session.query(db.func.sum(Order.net_profit)).scalar() or 0.0
-            
+
             statistics_data.update({
                 'total_gross_profit': float(total_gross_profit),
                 'total_net_profit': float(total_net_profit)
@@ -423,7 +414,7 @@ def get_order_expense_summary():
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-        
+
         # 非管理员不能访问费用汇总信息
         if not is_admin:
             return jsonify({
@@ -534,7 +525,7 @@ def update_order_proportionate_cost():
             )
             db.session.add(annual_target_record)
             db.session.commit()
-        
+
         annual_target = float(annual_target_record.target_amount) if annual_target_record.target_amount else 10000000.00
 
         # 获取该年份的所有费用记录
@@ -632,7 +623,7 @@ def update_order_proportionate_cost():
                     (order_amount / allocation_base) * float(expense.amount) if expense.amount else 0.0
                     for expense in expenses
                 )
-                
+
                 # 更新订单的摊分费用字段
                 order.proportionate_cost = order_total_expense
             else:

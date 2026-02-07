@@ -36,7 +36,7 @@ def create_app(port=5000):
         from .models.business_operation_log import BusinessOperationLog
         from .models.data_change_stats import DataChangeStats
         from .models.order_progress import OrderProgress, ProgressStatusDetail, ProgressItem, ProgressMedia
-        from .models.order_status import OrderStatus, OrderStatusLog, StatusTask
+        from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)

@@ -15,7 +15,7 @@ BASE_DIR = r"E:\Soonwin_OA"                           # OA根目录
 # 迁移包目录配置
 DEPLOY_ROOT = Path(os.path.expanduser("~")) / "Desktop" / "Soonwin_OA"
 BACK_DEPLOY = DEPLOY_ROOT / "SoonwinOA_Backend"       # 迁移包内后端文件夹
-FRONT_DEPLOY = DEPLOY_ROOT / "SoonwinOA_Frontend"     # 迁移包内前端文件夹
+FRONT_DEPLOY = DEPLOY_ROOT / "Soonwin_OA_Frontend"     # 迁移包内前端文件夹
 
 # 需要复制的后端根文件（新增run.py、wsgi.py）
 BACKEND_ROOT_FILES = [
@@ -42,7 +42,7 @@ BACKEND_ASSETS_COPY = "TemplateImg"  # 仅复制assets下的TemplateImg目录
 # 脚本同级目录需要复制的文件（启动文件，将放到迁移包根目录）
 SCRIPT_ROOT_FILES = [
     "run_server.py",
-    "启动服务器.bat"
+    "启动服务器.bat",
     "startPythonServe.bat"
 ]
 
@@ -73,6 +73,31 @@ FRONTEND_EXCLUDE_PATTERNS = [
     "*.tmp",
     ".gitignore",
     ".git"
+]
+
+# 关键分析代码复制配置
+ANALYSIS_CODE_ROOT = Path(os.path.expanduser("~")) / "Desktop" / "OA_关键分析代码"
+# 后端关键代码目录/文件（Flask核心）
+BACKEND_ANALYSIS_FILES = [
+    "app/__init__.py",
+    "app/models",
+    "app/routes",
+    "app/utils",
+    "config.py",
+    "extensions.py",
+    "run.py",
+    "wsgi.py"
+]
+# 前端关键代码目录/文件（Vue核心）
+FRONTEND_ANALYSIS_FILES = [
+    "src/api",
+    "src/components",
+    "src/views",
+    "src/utils/request.ts",
+    "src/types",
+    "vite.config.ts",
+    "package.json",
+    "tsconfig.json"
 ]
 # ============================================================================
 
@@ -339,18 +364,47 @@ def copy_assets_template_img():
     # 复制TemplateImg目录（无排除规则，保留所有文件：图片、文件夹、子文件等）
     return copy_folder(src_template, dest_template, [])  # 空排除规则=复制所有内容
 
-def main():
-    """主执行函数"""
-    # 设置控制台编码为UTF-8（解决中文乱码）
-    if sys.platform == "win32":
-        os.system("chcp 65001 > nul")
-        sys.stdout.reconfigure(encoding='utf-8')  # 修复Python3.9+ stdout编码
-
+def copy_analysis_code():
+    """复制前端Vue、后端Python-Flask关键分析代码到桌面"""
     print_separator()
-    print("          OA后端/前端迁移文件同步脚本 (Python版)")
-    print("          【修复版】确保assets/TemplateImg图片文件完整复制")
+    print("          开始复制OA关键分析代码到桌面")
     print_separator()
 
+    # 初始化目标目录
+    clean_directory(ANALYSIS_CODE_ROOT)
+    back_analysis_dir = ANALYSIS_CODE_ROOT / "后端Flask代码"
+    front_analysis_dir = ANALYSIS_CODE_ROOT / "前端Vue代码"
+    back_analysis_dir.mkdir(parents=True, exist_ok=True)
+    front_analysis_dir.mkdir(parents=True, exist_ok=True)
+
+    # 复制后端关键代码
+    print("\n[复制后端关键分析代码]")
+    back_src_path = Path(BACK_SRC)
+    for item in BACKEND_ANALYSIS_FILES:
+        src_item = back_src_path / item
+        dest_item = back_analysis_dir / item
+        if src_item.is_file():
+            copy_file(src_item, dest_item)
+        elif src_item.is_dir():
+            copy_folder(src_item, dest_item, BACKEND_EXCLUDE_PATTERNS)
+
+    # 复制前端关键代码
+    print("\n[复制前端关键分析代码]")
+    front_src_path = Path(FRONT_SRC)
+    for item in FRONTEND_ANALYSIS_FILES:
+        src_item = front_src_path / item
+        dest_item = front_analysis_dir / item
+        if src_item.is_file():
+            copy_file(src_item, dest_item)
+        elif src_item.is_dir():
+            copy_folder(src_item, dest_item, FRONTEND_EXCLUDE_PATTERNS)
+
+    print(f"\n[成功] 关键分析代码已复制到: {ANALYSIS_CODE_ROOT}")
+    print(f"  - 后端Flask代码: {back_analysis_dir}")
+    print(f"  - 前端Vue代码: {front_analysis_dir}")
+
+def full_deploy_sync():
+    """完整的迁移包同步功能（原脚本核心逻辑）"""
     # 1. 生成最新requirements.txt（可选）
     generate_requirements_txt()
 
@@ -472,13 +526,49 @@ def main():
     print(f"启动文件位置: {DEPLOY_ROOT} (run_server.py、启动服务器.bat)")
     print(f"📷 图片目录已复制: {BACK_DEPLOY}/assets/{BACKEND_ASSETS_COPY}")
     print_separator()
-    input("按回车键退出...")
+
+def show_menu():
+    """显示功能菜单"""
+    print_separator()
+    print("          OA系统文件处理脚本 - 功能菜单")
+    print_separator()
+    print("请选择要执行的功能（输入对应编号）：")
+    print("1 - 完整迁移包同步（原脚本所有功能）")
+    print("2 - 仅复制前端Vue+后端Flask关键分析代码到桌面")
+    print("0 - 退出脚本")
+    print_separator()
+
+def main():
+    """主执行函数（带菜单选择）"""
+    # 设置控制台编码为UTF-8（解决中文乱码）
+    if sys.platform == "win32":
+        os.system("chcp 65001 > nul")
+        sys.stdout.reconfigure(encoding='utf-8')  # 修复Python3.9+ stdout编码
+
+    while True:
+        show_menu()
+        try:
+            choice = input("请输入功能编号: ").strip()
+            if choice == "0":
+                print("\n[退出] 脚本已退出，感谢使用！")
+                break
+            elif choice == "1":
+                print("\n[执行] 开始执行完整迁移包同步功能...")
+                full_deploy_sync()
+                input("\n功能执行完成，按回车键返回菜单...")
+            elif choice == "2":
+                print("\n[执行] 开始执行复制关键分析代码功能...")
+                copy_analysis_code()
+                input("\n功能执行完成，按回车键返回菜单...")
+            else:
+                print("\n[错误] 无效的编号，请输入 0/1/2 中的一个！")
+                input("按回车键重新选择...")
+        except KeyboardInterrupt:
+            print("\n\n[取消] 用户中断了操作 ❌")
+            break
+        except Exception as e:
+            print(f"\n\n[致命错误] 脚本执行失败: {str(e)}")
+            input("按回车键返回菜单...")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n[取消] 用户中断了操作 ❌")
-    except Exception as e:
-        print(f"\n\n[致命错误] 脚本执行失败: {str(e)}")
-        input("按回车键退出...")
+    main()

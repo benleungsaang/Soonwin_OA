@@ -42,7 +42,22 @@ def get_video_info(video_path):
         '-show_format', '-show_streams', video_path
     ]
     try:
-        result = subprocess.check_output(cmd, encoding='utf-8', stderr=subprocess.PIPE)
+        # 在Windows上使用locale.getpreferredencoding()可能会导致编码问题
+        # 尝试使用 'utf-8' 并设置 errors='ignore' 或 'replace'
+        try:
+            result = subprocess.check_output(cmd, encoding='utf-8', stderr=subprocess.PIPE)
+        except UnicodeDecodeError:
+            # 如果UTF-8失败，尝试使用系统默认编码，并允许错误处理
+            import locale
+            encoding = locale.getpreferredencoding()
+            try:
+                result = subprocess.check_output(cmd, stderr=subprocess.PIPE)
+                result = result.decode(encoding, errors='replace')
+            except UnicodeDecodeError:
+                # 作为最后手段，使用latin-1编码
+                result = subprocess.check_output(cmd, stderr=subprocess.PIPE)
+                result = result.decode('latin-1', errors='replace')
+        
         info = json.loads(result)
 
         # 提取核心信息（仅基于原始文件）
@@ -60,6 +75,9 @@ def get_video_info(video_path):
             'fps': round(fps, 1),
             'format': format_name
         }
+    except json.JSONDecodeError:
+        print(f"无法解析视频信息JSON：文件路径 {video_path}")
+        return None
     except Exception as e:
         print(f"获取视频信息失败：{e}")
         return None
@@ -122,7 +140,17 @@ def compress_video(input_path, output_path, size_threshold=100):
                 '-c:v', 'copy', '-c:a', 'copy',
                 '-f', 'mp4', '-y', output_path
             ]
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                # 如果无损复制失败，记录错误并继续到有损编码
+                try:
+                    stderr_str = result.stderr.decode('utf-8', errors='replace')
+                except UnicodeDecodeError:
+                    import locale
+                    encoding = locale.getpreferredencoding()
+                    stderr_str = result.stderr.decode(encoding, errors='replace')
+                print(f"无损复制失败: {stderr_str}")
+                raise  # 重新抛出异常以触发有损编码
         except:
             # 复制失败（如编码不兼容）→ 轻度编码转MP4（保证成功）
             print("无损转格式失败，轻度编码转MP4...")
@@ -269,7 +297,7 @@ def save_uploaded_file(file, base_save_dir, use_date_subdir=True, custom_filenam
     file.save(save_path)
 
     # 返回相对于基础目录的路径
-    relative_path = os.path.relpath(save_path, base_save_dir)
+    relative_path = os.path.relpath(save_path, base_save_dir).replace('\\', '/')
     return save_path, relative_path, original_filename
 
 def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_sizes=None):
@@ -310,10 +338,10 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
             variant_path = os.path.join(save_dir, f"{file_prefix}_{variant}.{ext}")
             resized_img.save(variant_path, quality=85)
 
-            result_paths[variant] = os.path.relpath(variant_path, base_save_dir)
+            result_paths[variant] = os.path.relpath(variant_path, base_save_dir).replace('\\', '/')
         else:
             # 不需要压缩，使用原图
-            result_paths[variant] = os.path.relpath(file_path, base_save_dir)
+            result_paths[variant] = os.path.relpath(file_path, base_save_dir).replace('\\', '/')
 
     return {
         'paths': result_paths,
@@ -341,10 +369,18 @@ def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
             'ffprobe', '-v', 'quiet', '-show_format', '-show_streams',
             '-print_format', 'json', file_path
         ]
-        # 简化：合并stdout/stderr捕获，减少代码量
-        res = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        # 修复编码问题：先获取字节输出，然后手动解码
+        res = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if res.returncode == 0:
-            video_info = json.loads(res.stdout)
+            try:
+                stdout_str = res.stdout.decode('utf-8', errors='replace')
+            except UnicodeDecodeError:
+                # 如果UTF-8失败，尝试系统默认编码
+                import locale
+                encoding = locale.getpreferredencoding()
+                stdout_str = res.stdout.decode(encoding, errors='replace')
+            
+            video_info = json.loads(stdout_str)
             # 简化：合并时长/宽高获取逻辑，减少嵌套
             for stream in video_info.get('streams', []):
                 if stream.get('codec_type') == 'video':
@@ -353,6 +389,8 @@ def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
                     break
     except json.JSONDecodeError:
         print("无法解析视频元信息JSON")
+    except UnicodeDecodeError as e:
+        print(f"解码视频信息输出失败: {e}")
     except Exception as e:
         print(f"获取视频信息失败: {str(e)}")
 
@@ -370,12 +408,19 @@ def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
             '-vf', 'scale=400:300:force_original_aspect_ratio=decrease',
             '-y', thumbnail_path
         ]
-        res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if res.returncode == 0:
             # 核心：相对路径返回（现在相对于base_save_dir，但指向正确的缩略图位置）
-            result_paths['thumbnail'] = os.path.relpath(thumbnail_path, base_save_dir)
+            result_paths['thumbnail'] = os.path.relpath(thumbnail_path, base_save_dir).replace('\\', '/')
         else:
-            print(f"生成缩略图失败: {res.stderr}")
+            # 尝试解码错误信息
+            try:
+                stderr_str = res.stderr.decode('utf-8', errors='replace')
+            except UnicodeDecodeError:
+                import locale
+                encoding = locale.getpreferredencoding()
+                stderr_str = res.stderr.decode(encoding, errors='replace')
+            print(f"生成缩略图失败: {stderr_str}")
     # 简化：合并同类异常，减少重复提示
     except FileNotFoundError:
         print("ffmpeg/ffprobe未安装，无法处理视频缩略图")

@@ -89,9 +89,8 @@
             <Item>*\venv\</Item>
             <Item>\soonwin-os-Python-Server\assets\</Item>
             <Item>\nginx-1.28.1\</Item>
-            <Item>\soonwin-oa-VUE-FrontEnd\dist\</Item>
-            <Item>\soonwin-oa-VUE-FrontEnd\.history\</Item>
-            <Item>\soonwin-os-Python-Server\.history\</Item>
+            <Item>*\dist\</Item>
+            <Item>*\.history\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>

@@ -54,10 +54,9 @@
             <template #default="scope">
               <el-button
                 type="primary"
-                size="small"
-                @click="goToReport(scope.row)"
+                @click.stop="goToReport(scope.row)"
               >
-                <el-icon style="margin-right: 5px;"><List /></el-icon> 报告
+                <el-icon style="margin-right: 5px;"><List /></el-icon> 简报
               </el-button>
             </template>
           </el-table-column>
@@ -122,7 +121,7 @@
               <el-tooltip content="批量导入状态" placement="bottom">
                 <el-icon class="btn-add-status" style="background-color: #629cd9;margin-right: 5px;" @click="openBatchStatusDialog"><DocumentCopy /></el-icon>
               </el-tooltip>
-              <el-tooltip content="清空状态" placement="bottom">
+              <el-tooltip v-if="!isCurrentUserAdmin" content="清空状态" placement="bottom">
                 <el-icon class="btn-add-status" style="background-color: #d9b062;" @click="clearAllStatusData"><Refresh /></el-icon>
               </el-tooltip>
               </el-descriptions-item>
@@ -163,35 +162,87 @@
               :column="3"
               border
             >
-              <el-descriptions-item :span="3" label="照片">
+            <el-descriptions-item :span="3" label="照片">
                 <div class="task-img-container">
-                  <template v-if="statusTask.thumb_photo_path">
-                      <div v-for="(image, imgIndex) in statusTask.thumb_photo_path.split(',')" :key="imgIndex" style="display: flex; margin-right: 10px;">
-                        <el-image
-                          :src="image"
-                          :preview-src-list="statusTask.photo_path.split(',')"
-                          :initial-index="imgIndex"
-                          preview-teleported
-                          close-on-press-esc
-                          hide-on-click-modal
-                          class="thumb-img"
+                  <!-- 修改：使用解析后的媒体文件数组渲染，包含图片和视频缩略图 -->
+                  <template v-if="getTaskMediaFiles(statusTask).length">
+                    <div
+                      v-for="(media, mediaIndex) in getTaskMediaFiles(statusTask)"
+                      :key="`media-${statusTask.id}-${mediaIndex}`"
+                      style="display: flex; margin-right: 10px; position: relative;"
+                    >
+                      <!-- 图片文件显示 -->
+                      <el-image
+                        v-if="media.file_type === 'image'"
+                        :src="media.thumb || media.url"
+                        :preview-src-list="getTaskMediaUrls(statusTask)"
+                        :initial-index="mediaIndex"
+                        preview-teleported
+                        close-on-press-esc
+                        hide-on-click-modal
+                        class="thumb-img"
+                      />
+                      <!-- 视频文件显示 -->
+                      <div
+                        v-else-if="media.file_type === 'video'"
+                        class="video-container"
+                        style="position: relative; display: inline-block;"
+                      >
+                        <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
+                        <img
+                          v-if="media.thumb"
+                          :src="media.thumb"
+                          class="thumb-img video-thumb"
+                          style="cursor: pointer;"
+                          @click="$event.stopPropagation(); playVideo(media.url)"
                         />
+                        <!-- 如果没有缩略图，显示默认背景和图标 -->
+                        <div
+                          v-else
+                          class="thumb-img video-thumb"
+                          style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+                          @click="playVideo(media.url)"
+                        >
+                          <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
+                        </div>
+                                              <!-- 播放按钮覆盖层 -->
+                                              <div class="video-play-overlay" @click.stop="playVideo(media.url)">
+                                                <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
+                                              </div>                      </div>
+                      <el-button
+                        class="delete-img-btn"
+                        size="small"
+                        @click="deleteMediaFromTemplate(statusTask, mediaIndex)"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                      <!-- 显示文件类型图标 -->
+                      <div v-if="media.file_type === 'video'" class="file-type-indicator">
+                        <el-icon><VideoCamera /></el-icon>
                       </div>
-                    </template>
-                  <!-- 图片上传预览组件 -->
+                    </div>
+                  </template>
 
-                  <el-tooltip content="可直接拖入多张照片" placement="bottom">
+                  <!-- 原有上传组件不变 -->
+                  <el-tooltip content="可直接拖入图片或视频" placement="bottom">
                     <ImageUploadPreview
-                      :task-id="statusTask.id"
-                      @upload-success="onImageUploadSuccess"
-                      @upload-failure="onImageUploadFailure"
+                      :ref="setUploadPreviewRef(statusTask)"
+                      :task-id="getValidTaskId(statusTask)"
+                      @upload-success="onMediaUploadSuccess"
+                      @upload-failure="onMediaUploadFailure"
+                      @upload-clipboard-image="onUploadClipboardMedia"
                     />
                   </el-tooltip>
                   <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
-                    <el-input style="margin-left: 5px;width:130px;" @paste="(e) => handleInputPaste(e, statusTask.id)" placeholder="粘贴图片(Ctrl+V)"></el-input>
+                    <el-input
+                      style="margin-left: 5px;width:130px;"
+                      @paste="(e) => handleInputPaste(e, getValidTaskId(statusTask))"
+                      placeholder="粘贴图片(Ctrl+V)"
+                    ></el-input>
                   </el-tooltip>
                 </div>
               </el-descriptions-item>
+
               <el-descriptions-item :span="1" width="150px" label="项目名" >
                 <span class="clickable-field" @click.stop="openEditFieldDialog(statusTask, 'name', '修改任务名称', updateStatusTask)">{{ statusTask.name || '点击添加标题' }}</span>
               </el-descriptions-item>
@@ -310,29 +361,7 @@
       </template>
     </el-dialog>
 
-    <!-- 图片预览确认弹窗 -->
-    <el-dialog
-      v-model="previewImageDialogVisible"
-      title="剪贴板图片预览"
-      width="50%"
-      :before-close="handleDialogClose"
-    >
-      <div style="text-align: center; padding: 20px;">
-        <el-image
-          v-if="clipboardImageUrl"
-          :src="clipboardImageUrl"
-          style="max-width: 100%; max-height: 400px;"
-          fit="contain"
-        />
-        <div v-else style="color: #999; padding: 50px;">未检测到剪贴板中的图片</div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="previewImageDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmUploadClipboardImage">确认上传</el-button>
-        </span>
-      </template>
-    </el-dialog>
+
 
     <!-- 批量创建状态日志对话框 -->
     <el-dialog
@@ -416,20 +445,40 @@
       </template>
     </el-dialog>
 
+    <!-- 全局视频播放模态框 -->
+    <div v-if="showVideoPlayer" class="video-modal-overlay" @click="closeVideoPlayer">
+      <div class="video-modal-content" @click.stop>
+        <video
+          ref="videoRef"
+          :src="currentVideoSrc"
+          controls
+          autoplay
+          class="video-player"
+          @click.stop
+          @error="onVideoError"
+        ></video>
+        <div class="video-controls">
+          <button class="close-btn" @click="closeVideoPlayer">关闭</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, List, DocumentCopy, Camera, Delete, ArrowRight, Refresh, Upload } from '@element-plus/icons-vue';
+import { Plus, List, DocumentCopy, Close, Delete, ArrowRight, Refresh, Film, VideoPlay, VideoCamera } from '@element-plus/icons-vue';
+
 import CommonHeader from '@/components/CommonHeader.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { cursorTo } from 'node:readline';
 import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
+import { isCurrentUserAdmin } from '@/utils/authUtils';
 
 // 获取路由实例
 const router = useRouter();
@@ -445,8 +494,15 @@ const selectedOrder = ref<any>({});
 const selectedOrderDetail = ref<any>(null);
 const selectedStatus = ref<any>(null);
 const tasks = ref<any[]>([]);
+const uploadPreviewRefs = ref<{[key: number]: any}>({}); // 存储ImageUploadPreview组件引用
 const windowWidth = ref(window.innerWidth);
 const is_completed = ref(false); // 补充缺失的响应式变量
+
+// 视频播放相关
+const showVideoPlayer = ref(false);
+const currentVideoSrc = ref('');
+const videoRef = ref<HTMLVideoElement | null>(null);
+
 
 // 订单状态日志相关
 const showAddStatusLogDialog = ref(false);
@@ -475,12 +531,7 @@ const showAddTaskDialog = ref(false);
 // 用于跟踪状态日志的展开/折叠状态
 const expandedStatusLogs = ref<{[key: number]: boolean}>({});
 
-// 剪贴板图片相关
-const previewImageDialogVisible = ref(false); // 预览弹窗显示状态
-const clipboardImageUrl = ref(''); // 剪贴板图片预览URL
-const clipboardImageFile = ref<File | null>(null); // 剪贴板图片文件对象
-const currentClipboardTaskId = ref<number | null>(null); // 当前处理的taskId
-const lastClipboardImage = ref<File | null>(null); // 最近一次剪贴板操作的图片
+
 
 // 批量创建状态日志相关
 const showBatchStatusDialog = ref(false); // 批量创建状态日志对话框显示状态
@@ -489,6 +540,84 @@ const matchedStatuses = ref<any[]>([]); // 匹配的状态数据
 const unmatchedStatuses = ref<string[]>([]); // 未匹配的状态数据
 const isStatusMatched = ref(false); // 状态是否已匹配
 
+
+// ===================== 图片数据结构化处理 =====================
+/**
+ * 将任务的媒体文件解析为结构化数组（仅支持新数据格式）
+ * @param task 任务对象
+ * @returns 媒体文件对象数组 [{ url: '', thumb: '', file_type: '' }, ...]
+ */
+const getTaskMediaFiles = (task: any) => {
+  if (!task) return [];
+
+  // 仅使用新的media_files字段
+  if (task.media_files && Array.isArray(task.media_files)) {
+    return task.media_files
+      .filter((file: any) => file.file_type === 'image' || file.file_type === 'video') // 获取图片和视频
+      .map((file: any) => ({
+        url: file.file_path,
+        thumb: file.thumb_path || file.file_path, // 如果没有缩略图，使用原图
+        id: file.id,  // 媒体文件ID，用于删除操作
+        file_type: file.file_type  // 文件类型：image或video
+      }));
+  }
+
+  // 如果没有新格式数据，返回空数组
+  return [];
+};
+
+/**
+ * 将任务的图片路径字符串解析为结构化数组（仅支持新数据格式）
+ * @param task 任务对象
+ * @returns 图片对象数组 [{ url: '', thumb: '' }, ...]
+ */
+const getTaskImages = (task: any) => {
+  if (!task) return [];
+
+  // 仅使用新的media_files字段
+  if (task.media_files && Array.isArray(task.media_files)) {
+    return task.media_files
+      .filter((file: any) => file.file_type === 'image') // 只获取图片
+      .map((file: any) => ({
+        url: file.file_path,
+        thumb: file.thumb_path || file.file_path, // 如果没有缩略图，使用原图
+        id: file.id  // 媒体文件ID，用于删除操作
+      }));
+  }
+
+  // 如果没有新格式数据，返回空数组
+  return [];
+};
+
+/**
+ * 获取任务的媒体文件URL列表（用于预览）
+ * @param task 任务对象
+ * @returns 媒体文件URL数组
+ */
+const getTaskMediaUrls = (task: any) => {
+  return getTaskMediaFiles(task).map(media => media.url); // 总是返回原图用于预览
+};
+
+/**
+ * 获取任务的图片URL列表（用于预览）
+ * @param task 任务对象
+ * @returns 图片URL数组
+ */
+const getTaskImageUrls = (task: any) => {
+  return getTaskImages(task).map(img => img.url);
+};
+
+
+
+/**
+ * 安全获取任务ID
+ * @param task 任务对象
+ * @returns 有效的任务ID或undefined
+ */
+const getValidTaskId = (task: any) => {
+  const id = task?.task_id || task?.id;
+  return id ? Number(id) : undefined;
+};
 
 // ===================== 计算属性 =====================
 // 判断是否为移动端
@@ -539,7 +668,8 @@ const getStatusLogProgress = (statusLogId: number) => {
 
 // 获取某个状态日志的任务项
 const getStatusLogTasks = (statusLogId: number) => {
-  return tasks.value.filter((task: any) => task.status_log_id === statusLogId);
+  const tasks_list = tasks.value.filter((task: any) => task.status_log_id === statusLogId)
+  return tasks_list;
 };
 
 // 获取状态日志的完成信息
@@ -753,6 +883,35 @@ const fetchUserInfo = async () => {
   }
 };
 
+// 关闭视频播放器
+const closeVideoPlayer = () => {
+  showVideoPlayer.value = false;
+  if (videoRef.value) {
+    videoRef.value.pause();
+  }
+};
+
+// 视频错误处理
+const onVideoError = (event: Event) => {
+  ElMessage.error('视频加载失败');
+};
+
+// ESC键关闭视频播放器
+const handleEscKey = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showVideoPlayer.value) {
+    closeVideoPlayer();
+  }
+};
+
+// 监听键盘事件
+onMounted(() => {
+  document.addEventListener('keydown', handleEscKey);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscKey);
+});
+
 // ===================== 业务逻辑方法 =====================
 
 // 打开添加状态日志对话框
@@ -956,13 +1115,11 @@ const batchCreateStatusLogs = async () => {
       statuses: matchedStatuses.value
     };
 
-    console.log('发送批量创建请求:', batchData); // 调试信息
 
     // 使用新的批量创建API
     // 注意：由于request.ts会自动解包data，这里response已经是后端返回的data部分
     const response: any = await request.post('/api/order-status-logs/batch', batchData);
 
-    console.log('后端响应:', response); // 调试信息
 
     // 成功：后端返回的data部分包含创建结果
     ElMessage.success(`批量创建完成: ${response.created_status_logs.length} 个状态日志, ${response.created_tasks.length} 个任务`);
@@ -1027,8 +1184,8 @@ const addTask = async () => {
       ElMessage.success('任务添加成功');
       // 将服务器返回的任务对象转换为前端期望的结构
       const taskItem = {
-        task_id: response.id,                 // 使用id作为task_id
-        id: response.id,                      // 保留id
+        task_id: response.task_id,                 // 使用id作为task_id
+        id: response.task_id,                      // 保留id
         name: response.name,
         category: response.category,
         description: response.description,
@@ -1073,8 +1230,8 @@ const updateStatusTask = async (task: any) => {
       if (taskIndex > -1) {
         // 将服务器返回的任务对象转换为前端期望的结构
         const taskItem = {
-          task_id: response.id,
-          id: response.id,
+          task_id: response.task_id,
+          id: response.task_id,
           name: response.name,
           category: response.category,
           description: response.description,
@@ -1106,108 +1263,7 @@ const updateStatusTask = async (task: any) => {
 
 };
 
-// 添加照片到任务
-const addPhotoToTask = async (taskId: number, file?: File) => {
-  // 如果传入了文件参数（如剪贴板图片），则直接上传
-  if (file) {
-    // 检查文件类型
-    if (!file.type.startsWith('image/')) {
-      ElMessage.error('请选择图片文件');
-      return;
-    }
 
-    // 验证文件类型（参考React版本的扩展名校验）
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-    if (!allowedImageExts.includes(ext)) {
-      ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
-      return;
-    }
-
-    // 创建FormData对象
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('task_id', taskId.toString());
-
-    try {
-      const response: any = await request.post(`/api/order-status/${currentOrderStatusId.value}/tasks/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      if (response) {
-        ElMessage.success('图片上传成功');
-
-        // 重新加载任务列表以获取最新的图片路径（因为需要重新构建任务对象结构）
-        if (selectedOrderDetail.value || selectedOrder.value) {
-          const orderId = selectedOrderDetail.value?.id || selectedOrder.value?.id;
-          if (orderId) {
-            await loadOrderStatusDetails();
-          }
-        }
-      }
-    } catch (error) {
-      console.error('图片上传失败:', error);
-      ElMessage.error('图片上传失败');
-    }
-  } else {
-    // 如果没有传入文件参数，则使用文件选择器
-    // 创建一个隐藏的文件输入元素
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (event: any) => {
-      const selectedFile = event.target.files[0];
-      if (!selectedFile) return;
-
-      // 检查文件类型
-      if (!selectedFile.type.startsWith('image/')) {
-        ElMessage.error('请选择图片文件');
-        return;
-      }
-
-      // 验证文件类型（参考React版本的扩展名校验）
-      const ext = selectedFile.name.split('.').pop()?.toLowerCase() || '';
-      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-      if (!allowedImageExts.includes(ext)) {
-        ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
-        return;
-      }
-
-      // 创建FormData对象
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('task_id', taskId.toString());
-
-      try {
-        const response: any = await request.post(`/api/order-status/${currentOrderStatusId.value}/tasks/upload`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
-        if (response) {
-          ElMessage.success('图片上传成功');
-
-          // 重新加载任务列表以获取最新的图片路径（因为需要重新构建任务对象结构）
-          if (selectedOrderDetail.value || selectedOrder.value) {
-            const orderId = selectedOrderDetail.value?.id || selectedOrder.value?.id;
-            if (orderId) {
-              await loadOrderStatusDetails();
-            }
-          }
-        }
-      } catch (error) {
-        console.error('图片上传失败:', error);
-        ElMessage.error('图片上传失败');
-      }
-    };
-    input.click();
-  }
-};
 
 // 删除状态日志
 const deleteStatusLog = async (statusLogId: number) => {
@@ -1232,6 +1288,177 @@ const deleteStatusLog = async (statusLogId: number) => {
     if (error !== 'cancel') {
       console.error('删除状态日志失败:', error);
       ElMessage.error('删除状态日志失败');
+    }
+  }
+};
+
+// ===================== 修改删除图片函数（核心修复） =====================
+const deleteImage = async (task: any, imgIndex: number, taskId?: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这张图片吗？删除后将无法恢复。', '确认删除', {
+      type: 'warning'
+    });
+
+    // 1. 解析当前图片为结构化数组
+    const currentImages = getTaskImages(task);
+
+    // 2. 边界校验
+    if (imgIndex < 0 || imgIndex >= currentImages.length) {
+      ElMessage.error('图片索引超出范围');
+      return;
+    }
+
+    // 3. 获取要删除的图片信息
+    const imageToDelete = currentImages[imgIndex];
+    const actualTaskId = taskId || (task.task_id ? Number(task.task_id) : undefined) || (task.id ? Number(task.id) : undefined);
+
+    // 验证任务ID是否有效
+    if (!actualTaskId) {
+      ElMessage.error('无法删除图片：任务ID无效');
+      return;
+    }
+
+    // 4. 优先使用新的媒体文件ID进行删除
+    let response;
+      response = await request.delete(`/api/order-status/${currentOrderStatusId.value}/tasks/${actualTaskId}/media`, {
+        data: { media_file_id: imageToDelete.id }
+      });
+
+    if (response) {
+      // 5. 更新本地任务数据
+      const taskIndex = tasks.value.findIndex(t =>
+        Number(t.task_id || t.id || 0) === Number(actualTaskId || 0)
+      );
+      if (taskIndex > -1) {
+        const newTasks = [...tasks.value];
+
+        if (imageToDelete.id) {
+          // 从media_files数组中移除对应的媒体文件
+          const updatedMediaFiles = newTasks[taskIndex].media_files?.filter((file: any) => file.id !== imageToDelete.id) || [];
+          newTasks[taskIndex] = {
+            ...newTasks[taskIndex],
+            media_files: updatedMediaFiles,
+            images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+            image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length
+          };
+        }
+        // 不再处理旧格式数据，因为现在全部使用media_files格式
+
+        tasks.value = newTasks;
+      }
+    }
+
+    ElMessage.success('图片删除成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除图片失败:', error);
+      ElMessage.error('删除图片失败');
+    }
+  }
+};
+
+// 播放视频函数
+const playVideo = (videoUrl: string) => {
+  if (!videoUrl) {
+    ElMessage.error('视频URL无效');
+    return;
+  }
+  // 替换反斜杠为正斜杠
+  const correctedUrl = videoUrl.replace(/\\/g, '/');
+  currentVideoSrc.value = correctedUrl;
+  showVideoPlayer.value = true;
+
+  // 确保视频在打开后能够播放
+  nextTick(() => {
+    if (videoRef.value) {
+      videoRef.value.play().catch(e => console.error('自动播放失败:', e));
+    }
+  });
+};
+// 从模板调用的包装函数，用于处理类型问题
+const deleteImageFromTemplate = (task: any, imgIndex: number) => {
+  const taskId = task?.id ? Number(task.id) : undefined;
+  deleteImage(task, imgIndex, taskId);
+};
+
+// 删除媒体文件的包装函数（用于处理图片和视频）
+const deleteMediaFromTemplate = (task: any, mediaIndex: number) => {
+  const taskId = task?.id ? Number(task.id) : undefined;
+  deleteMedia(task, mediaIndex, taskId);
+};
+
+// 删除媒体文件（图片或视频）
+const deleteMedia = async (task: any, mediaIndex: number, taskId?: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个媒体文件吗？删除后将无法恢复。', '确认删除', {
+      type: 'warning'
+    });
+
+    // 1. 解析当前媒体文件为结构化数组
+    const currentMediaFiles = getTaskMediaFiles(task);
+
+    // 2. 边界校验
+    if (mediaIndex < 0 || mediaIndex >= currentMediaFiles.length) {
+      ElMessage.error('媒体文件索引超出范围');
+      return;
+    }
+
+    // 3. 获取要删除的媒体文件信息
+    const mediaToDelete = currentMediaFiles[mediaIndex];
+    const actualTaskId = taskId || (task.task_id ? Number(task.task_id) : undefined) || (task.id ? Number(task.id) : undefined);
+
+    // 验证任务ID是否有效
+    if (!actualTaskId) {
+      ElMessage.error('无法删除媒体文件：任务ID无效');
+      return;
+    }
+
+    // 4. 使用新的媒体文件ID进行删除
+    let response;
+    if (mediaToDelete.id) {
+      // 使用新的媒体文件ID删除
+      response = await request.delete(`/api/order-status/${currentOrderStatusId.value}/tasks/${actualTaskId}/media`, {
+        data: { media_file_id: mediaToDelete.id }
+      });
+    } else {
+      // 兼容旧数据，使用文件路径删除（虽然旧数据不适用于这个函数）
+      ElMessage.error('无法删除媒体文件：缺少媒体文件ID');
+      return;
+    }
+
+
+    // 5. 更新本地任务数据
+    const taskIndex = tasks.value.findIndex(t =>
+      Number(t.task_id || t.id || 0) === Number(actualTaskId || 0)
+    );
+
+    if (taskIndex > -1) {
+      const newTasks = [...tasks.value];
+
+      if (mediaToDelete.id) {
+        // 从media_files数组中移除对应的媒体文件
+        const updatedMediaFiles = newTasks[taskIndex].media_files?.filter((file: any) => file.id !== mediaToDelete.id) || [];
+
+        newTasks[taskIndex] = {
+          ...newTasks[taskIndex],
+          media_files: updatedMediaFiles,
+          images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+          videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+          image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+          video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+        };
+      }
+
+      tasks.value = newTasks;
+    } else {
+      console.warn('未找到对应的任务进行更新');
+    }
+
+    ElMessage.success('媒体文件删除成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除媒体文件失败:', error);
+      ElMessage.error('删除媒体文件失败');
     }
   }
 };
@@ -1308,7 +1535,6 @@ const clearAllStatusData = async () => {
 
     const response: any = await request.post(`/api/order-status/${currentOrderStatusId.value}/clear-all`);
 
-    console.log('清空状态API响应:', response); // 调试信息
 
     // 注意：由于request.ts会自动解包data，这里response已经是后端返回的data部分
     // 后端返回格式为 {code: 200, data: {...}, msg: "..."}，但前端接收到的是data部分
@@ -1325,16 +1551,12 @@ const clearAllStatusData = async () => {
   }
 };
 
-// 加载订单状态详情
+// ===================== 优化loadOrderStatusDetails中的任务处理 =====================
 const loadOrderStatusDetails = async () => {
-  if (!selectedOrderDetail.value && !selectedOrder.value) {
-    return;
-  }
+  if (!selectedOrderDetail.value) return;
 
-  const orderId = selectedOrderDetail.value?.id || selectedOrder.value?.id;
-  if (!orderId) {
-    return;
-  }
+  const orderId = selectedOrderDetail.value.id;
+  if (!orderId) return;
 
   try {
     const response: any = await request.get('/api/order-status', {
@@ -1342,60 +1564,59 @@ const loadOrderStatusDetails = async () => {
     });
 
     if (response) {
-      // 设置当前订单状态ID
       currentOrderStatusId.value = response.id;
-      // 更新selectedOrderDetail中的进度信息（确保模板中可以正确显示进度）
-      if (selectedOrderDetail.value) {
-        selectedOrderDetail.value.completed_tasks = response.completed_tasks || 0;
-        selectedOrderDetail.value.total_tasks = response.total_tasks || 0;
-        selectedOrderDetail.value.progress_percent = response.progress_percent || 0;
-        // 同时更新其他可能的属性
-        selectedOrderDetail.value.current_status = response.current_status;
-        selectedOrderDetail.value.current_status_time = response.current_status_time;
-        selectedOrderDetail.value.progress_status = response.progress_status;
-        selectedOrderDetail.value.remarks = response.remarks;
-      }
-      // 获取所有状态日志
+
+      // 更新订单详情进度
+      selectedOrderDetail.value = {
+        ...selectedOrderDetail.value,
+        completed_tasks: response.completed_tasks || 0,
+        total_tasks: response.total_tasks || 0,
+        progress_percent: response.progress_percent || 0
+      };
+
+      // 更新状态日志
       statusLogs.value = response.status_logs || [];
-      // 提取所有任务项 - 根据API返回的结构，tasks是按status_log_id分组的类别数组
-      // 每个category都有status_log_id和children数组，需要将children中的任务展开并添加对应的status_log_id
+
+      // 处理任务数据
       const allTasks: any[] = [];
-      response.tasks.forEach((category: any) => {
+      (response.status || []).forEach((category: any) => {
         const statusLogId = category.status_log_id;
-        if (category.children && Array.isArray(category.children)) {
-          category.children.forEach((task: any) => {
-            // 确保任务项包含status_log_id，用于与状态日志关联
-            task.status_log_id = statusLogId;
-            // 将服务器返回的任务对象转换为前端期望的结构
-            const taskItem = {
-              task_id: task.id || task.task_id,             // 使用id作为task_id
-              id: task.id || task.task_id,                  // 保留id
-              name: task.name,
-              category: task.category,
-              description: task.description,
-              is_completed: task.is_completed,
-              photo_path: task.photo_path,
-              thumb_photo_path: task.thumb_photo_path,
-              status_log_id: task.status_log_id || statusLogId,
-              create_time: task.create_time,
-              update_time: task.update_time,
-              sort_order: task.sort || task.sort_order,     // 支持两种字段名
-              parent_id: task.status_log_id || statusLogId, // 将status_log_id作为parent_id
-              item_type: task.item_type || 'sub'            // 固定为sub类型或使用原值
-            };
-            allTasks.push(taskItem);
+        (category.tasks || []).forEach((task: any) => {
+          // 确保任务对象结构完整
+          allTasks.push({
+            id: task.task_id,
+            task_id: task.task_id,
+            name: task.name,
+            category: task.category,
+            description: task.description,
+            is_completed: task.is_completed || false,
+            // 包含新的媒体文件字段
+            media_files: task.media_files || [],
+            images: task.images || [],
+            videos: task.videos || [],
+            image_count: task.image_count || 0,
+            video_count: task.video_count || 0,
+            status_log_id: statusLogId,
+            create_time: task.create_time,
+            update_time: task.update_time,
+            sort_order: task.sort || 0,
+            parent_id: statusLogId,
+            item_type: 'sub'
           });
-        }
+        });
       });
+
       tasks.value = allTasks;
 
-      // 初始化状态日志的展开/折叠状态，默认为折叠
-      const newExpandedStatusLogs: {[key: number]: boolean} = {};
-      statusLogs.value.forEach((log: any) => {
-        // 如果之前有保存的状态则使用，否则默认为折叠（false）
-        newExpandedStatusLogs[log.id] = expandedStatusLogs.value[log.id] || false;
+      // 初始化展开状态
+      const newExpanded: {[key: number]: boolean} = {};
+      statusLogs.value.forEach(log => {
+        newExpanded[log.id] = expandedStatusLogs.value[log.id] || false;
       });
-      expandedStatusLogs.value = newExpandedStatusLogs;
+      expandedStatusLogs.value = newExpanded;
+
+      // 新增：强制更新展开状态，触发UI重渲染
+      expandedStatusLogs.value = { ...expandedStatusLogs.value };
     }
   } catch (error) {
     console.error('加载订单状态详情失败:', error);
@@ -1406,241 +1627,42 @@ const loadOrderStatusDetails = async () => {
 // 组件挂载
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
-  // 添加粘贴事件监听器，用于捕获剪贴板中的图片
-  window.addEventListener('paste', handlePasteEvent);
-  await fetchUserInfo();
+    await fetchUserInfo();
   fetchOrders();
 });
 
 // 组件卸载
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
-  // 移除粘贴事件监听器
-  window.removeEventListener('paste', handlePasteEvent);
+  // 清理上传预览组件引用
+  uploadPreviewRefs.value = {};
 });
 
-// 粘贴事件处理器
-const handlePasteEvent = (e: ClipboardEvent) => {
-  try {
-    let file = null;
+// 监听任务变化，自动更新订单列表进度
+watch([() => tasks.value.length, () => tasks.value.map(t => t.is_completed)], () => {
+  if (selectedOrderDetail.value && selectedOrderDetail.value.id) {
+    // 找到对应订单并更新进度
+    const orderIndex = orders.value.findIndex(o => o.id === selectedOrderDetail.value.id);
+    if (orderIndex > -1) {
+      const completedTasks = tasks.value.filter(t => t.is_completed).length;
+      const totalTasks = tasks.value.length;
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // 方案1：使用 clipboardData.items
-    if (e.clipboardData && e.clipboardData.items) {
-      for (let i = 0; i < e.clipboardData.items.length; i++) {
-        const item = e.clipboardData.items[i];
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
-          file = item.getAsFile();
-          break;
-        }
-      }
+      orders.value[orderIndex] = {
+        ...orders.value[orderIndex],
+        completed_tasks: completedTasks,
+        total_tasks: totalTasks,
+        progress_percent: progress
+      };
     }
-
-    // 方案2：使用 clipboardData.files
-    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
-      const candidate = e.clipboardData.files[0];
-      if (candidate.type.startsWith('image/')) {
-        file = candidate;
-      }
-    }
-
-    if (file) {
-      // 验证文件类型
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-      if (allowedImageExts.includes(ext)) {
-        // 保存最近的剪贴板图片
-        lastClipboardImage.value = file;
-      }
-    }
-  } catch (error) {
-    console.warn('处理粘贴事件时出错:', error);
   }
-};
+}, { deep: true });
+
+
 
 // ===================== 剪贴板功能 =====================
 
-/**
- * 关闭弹窗时清理URL
- */
-const handleDialogClose = () => {
-  // 释放创建的URL对象，避免内存泄漏
-  if (clipboardImageUrl.value) {
-    URL.revokeObjectURL(clipboardImageUrl.value);
-    clipboardImageUrl.value = '';
-  }
-  clipboardImageFile.value = null;
-  previewImageDialogVisible.value = false;
-};
 
-/**
- * 从剪贴板读取图片（参考React版本优化，增加多方案兼容）
- */
-const pasteImageFromClipboard = async (taskId: number) => {
-  try {
-    let file = null;
-
-    // 首先尝试使用全局监听器捕获的图片
-    if (lastClipboardImage.value) {
-      file = lastClipboardImage.value;
-      // 使用后清除，避免重复使用
-      lastClipboardImage.value = null;
-    }
-
-    // 如果全局监听器没有捕获到图片，则尝试使用 Clipboard API
-    if (!file) {
-      // 方案1：优先使用 Clipboard API (现代浏览器)
-      try {
-        if (navigator.clipboard && window.ClipboardItem) {
-          const clipboardItems = await navigator.clipboard.read();
-          // 遍历剪贴板项查找图片
-          for (const item of clipboardItems) {
-            const types = item.types;
-            for (const type of types) {
-              if (type.startsWith('image/')) {
-                const blob = await item.getType(type);
-                // 创建File对象，包含时间戳避免重名
-                const ext = type.split('/')[1];
-                file = new File([blob], `paste-${Date.now()}.${ext}`, {
-                  type: blob.type
-                });
-                break;
-              }
-            }
-            if (file) break;
-          }
-        }
-      } catch (clipboardApiError) {
-        console.warn('Clipboard API 访问失败，尝试备用方案:', clipboardApiError);
-      }
-    }
-
-    // 未找到图片，提示用户
-    if (!file) {
-      ElMessage.warning('剪贴板中未检测到图片，请先复制图片后再尝试\n或使用 Ctrl+V 快捷键复制图片');
-      return;
-    }
-
-    // 验证文件类型（参考React版本的扩展名校验）
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-    if (!allowedImageExts.includes(ext)) {
-      ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
-      return;
-    }
-
-    // 存储文件对象并创建预览URL
-    clipboardImageFile.value = file;
-    clipboardImageUrl.value = URL.createObjectURL(file);
-
-    // 记录当前处理的taskId
-    currentClipboardTaskId.value = taskId;
-
-    // 打开预览弹窗
-    previewImageDialogVisible.value = true;
-
-  } catch (error) {
-    console.error('读取剪贴板图片失败：', error);
-
-    // 分类处理错误提示
-    if (error.name === 'NotAllowedError') {
-      ElMessage.error('请允许浏览器访问剪贴板权限后重试');
-    } else if (error.name === 'NotFoundError') {
-      ElMessage.warning('剪贴板中未找到图片');
-    } else {
-      ElMessage.error('读取剪贴板图片失败：' + error.message);
-    }
-  }
-};
-
-/**
- * 处理输入框的粘贴事件
- */
-const handleInputPaste = (e: ClipboardEvent, taskId: number) => {
-  try {
-    let file = null;
-
-    // 方案1：使用 clipboardData.items
-    if (e.clipboardData && e.clipboardData.items) {
-      for (let i = 0; i < e.clipboardData.items.length; i++) {
-        const item = e.clipboardData.items[i];
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
-          file = item.getAsFile();
-          break;
-        }
-      }
-    }
-
-    // 方案2：使用 clipboardData.files
-    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
-      const candidate = e.clipboardData.files[0];
-      if (candidate.type.startsWith('image/')) {
-        file = candidate;
-      }
-    }
-
-    if (file) {
-      // 验证文件类型
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-      if (allowedImageExts.includes(ext)) {
-        // 直接设置图片文件和任务ID，并弹出预览框
-        clipboardImageFile.value = file;
-        clipboardImageUrl.value = URL.createObjectURL(file);
-        currentClipboardTaskId.value = taskId;
-        previewImageDialogVisible.value = true;
-        ElMessage.success(`已检测到图片: ${file.name}，正在预览...`);
-      } else {
-        ElMessage.warning(`检测到文件但格式不支持: ${ext}，仅支持: ${allowedImageExts.join(', ')}`);
-      }
-    } else {
-      // 检查是否是文本内容
-      const pastedText = e.clipboardData?.getData('text') || '';
-      if (pastedText) {
-        ElMessage.info('检测到文本内容，此功能主要用于图片粘贴');
-      } else {
-        ElMessage.warning('剪贴板中未检测到图片');
-      }
-    }
-  } catch (error) {
-    console.warn('处理粘贴事件时出错:', error);
-    ElMessage.error('处理粘贴事件失败');
-  }
-};
-
-/**
- * 确认上传剪贴板图片
- */
-const confirmUploadClipboardImage = async () => {
-  if (!clipboardImageFile.value) {
-    ElMessage.warning('没有可上传的图片');
-    previewImageDialogVisible.value = false;
-    return;
-  }
-
-  if (!currentClipboardTaskId.value) {
-    ElMessage.error('未指定上传目标任务');
-    previewImageDialogVisible.value = false;
-    return;
-  }
-
-  try {
-    // 使用现有的addPhotoToTask方法上传剪贴板图片
-    await addPhotoToTask(currentClipboardTaskId.value, clipboardImageFile.value);
-
-    ElMessage.success('图片上传成功');
-    previewImageDialogVisible.value = false;
-
-    // 清理资源
-    handleDialogClose();
-
-  } catch (error) {
-    console.error('图片上传失败：', error);
-    ElMessage.error('图片上传失败：' + error.message);
-  }
-};
 
 // 显示图片上传预览组件
 const showImageUploadPreviewForTask = (taskId: number) => {
@@ -1648,20 +1670,225 @@ const showImageUploadPreviewForTask = (taskId: number) => {
   showImageUploadPreview.value = true;
 };
 
-// 图片上传成功回调
-const onImageUploadSuccess = (files: File[]) => {
-  ElMessage.success(`${files.length} 张图片上传成功`);
-  // 重新加载订单状态详情以更新图片显示
-  loadOrderStatusDetails();
+// ===================== 修改媒体上传成功回调 =====================
+const onMediaUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
+  ElMessage.success(`${files.length} 个媒体文件上传成功`);
+
+  // 如果有返回的媒体文件信息，直接更新本地状态，避免重新加载
+  if (mediaFiles && mediaFiles.length > 0) {
+            // 更新本地任务数据中的媒体文件
+            // 首先找到对应的task ID
+            const currentTaskId = currentImageUploadTaskId.value;
+            if (currentTaskId) {
+              const taskIndex = tasks.value.findIndex(t =>
+                Number(t.task_id || t.id || 0) === Number(currentTaskId || 0)
+              );
+
+              if (taskIndex > -1) {
+                const newTasks = [...tasks.value];
+                const currentTask = newTasks[taskIndex];
+
+                // 将新上传的媒体文件添加到现有媒体文件列表中
+                const updatedMediaFiles = [...(currentTask.media_files || []), ...mediaFiles];
+
+                newTasks[taskIndex] = {
+                  ...currentTask,
+                  media_files: updatedMediaFiles,
+                  images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+                  videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+                  image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+                  video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+                };
+
+                tasks.value = newTasks;
+              }
+            }  } else {
+    // 如果没有返回媒体文件信息，则重新加载订单状态详情
+    await loadOrderStatusDetails();
+  }
+
   // 隐藏上传组件
   showImageUploadPreview.value = false;
   currentImageUploadTaskId.value = null;
 };
 
-// 图片上传失败回调
-const onImageUploadFailure = (error: any) => {
-  console.error('图片上传失败：', error);
-  ElMessage.error('图片上传失败');
+// 媒体上传失败回调
+const onMediaUploadFailure = (error: any) => {
+  console.error('媒体文件上传失败：', error);
+  ElMessage.error('媒体文件上传失败');
+};
+
+// 上传剪贴板媒体回调
+const onUploadClipboardMedia = async (file: File, taskId: number) => {
+  try {
+    // 检查文件类型 - 支持图片和视频
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      ElMessage.error('请选择图片或视频文件');
+      return;
+    }
+
+    // 验证文件类型
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    const allowedVideoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v'];
+
+    if (!allowedImageExts.includes(ext) && !allowedVideoExts.includes(ext)) {
+      ElMessage.error(`不支持的媒体格式：${ext}，支持的格式：${[...allowedImageExts, ...allowedVideoExts].join(', ')}`);
+      return;
+    }
+
+    // 创建FormData对象
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('task_id', taskId.toString());
+
+    const response: any = await request.post('/api/order-status/upload-multiple-images', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      onUploadProgress: (progressEvent: ProgressEvent) => {
+        if (progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          // 这里可以显示上传进度，例如使用 ElMessage 或其他UI组件
+        }
+      }
+    });
+
+    if (response) {
+      const fileType = file.type.startsWith('image/') ? '图片' : '视频';
+      ElMessage.success(`剪贴板${fileType}上传成功`);
+
+      // 使用返回的媒体文件信息更新本地状态
+      if (response.data && response.data.media_files && response.data.media_files.length > 0) {
+        // 从响应中获取新上传的媒体文件信息
+        const newMediaFiles = response.data.media_files.map((mediaFile: any) => ({
+          id: mediaFile.id,
+          file_name: mediaFile.file_name || file.name,
+          file_path: mediaFile.file_path,
+          thumb_path: mediaFile.thumb_path,
+          file_type: mediaFile.file_type,
+          file_size: mediaFile.file_size,
+          upload_time: mediaFile.upload_time
+        }));
+
+        // 更新本地任务数据中的媒体文件
+        const taskIndex = tasks.value.findIndex(t =>
+          Number(t.task_id || t.id || 0) === Number(taskId || 0)
+        );
+
+        if (taskIndex > -1) {
+          const newTasks = [...tasks.value];
+          const currentTask = newTasks[taskIndex];
+
+          // 将新上传的媒体文件添加到现有媒体文件列表中
+          const updatedMediaFiles = [...(currentTask.media_files || []), ...newMediaFiles];
+
+          newTasks[taskIndex] = {
+            ...currentTask,
+            media_files: updatedMediaFiles,
+            images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+            videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+            image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+            video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+          };
+          tasks.value = newTasks;
+        }
+      } else {
+        // 如果响应中没有媒体文件信息，则重新加载订单状态详情
+        await loadOrderStatusDetails();
+      }
+    }
+  } catch (error) {
+    console.error('剪贴板媒体上传失败:', error);
+    ElMessage.error('剪贴板媒体上传失败');
+  }
+};
+
+/**
+ * 设置上传预览组件引用
+ */
+const setUploadPreviewRef = (task: any) => {
+  return (el: any) => {
+    const taskId = getValidTaskId(task);
+    if (!taskId) return;
+
+    // 当el为null时，表示组件被卸载，应从引用中移除
+    if (el) {
+      uploadPreviewRefs.value[taskId] = el;
+    } else {
+      // 确保删除对应的任务ID引用
+      delete uploadPreviewRefs.value[taskId];
+    }
+  };
+};
+
+/**
+ * 处理输入框的粘贴事件
+ */
+const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
+  try {
+    // 检查taskId是否有效
+    if (!taskId) {
+      ElMessage.error('无法粘贴媒体文件：未指定有效的任务ID');
+      return;
+    }
+
+    let file = null;
+
+    // 方案1：使用 clipboardData.items
+    if (e.clipboardData && e.clipboardData.items) {
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+          file = item.getAsFile();
+          break;
+        }
+      }
+    }
+
+    // 方案2：使用 clipboardData.files
+    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+      const candidate = e.clipboardData.files[0];
+      if (candidate.type.startsWith('image/') || candidate.type.startsWith('video/')) {
+        file = candidate;
+      }
+    }
+
+    if (file) {
+      // 验证文件类型
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+      const allowedVideoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v'];
+
+      if (allowedImageExts.includes(ext) || allowedVideoExts.includes(ext)) {
+        // 查找对应的uploadPreviewRef并调用addClipboardMedia方法
+        const uploadPreviewRef = uploadPreviewRefs.value[taskId];
+        if (uploadPreviewRef && uploadPreviewRef.addClipboardMedia) {
+          uploadPreviewRef.addClipboardMedia(file);
+          const fileType = file.type.startsWith('image/') ? '图片' : '视频';
+          ElMessage.success(`已检测到${fileType}: ${file.name}，已添加到上传队列...`);
+        } else {
+          console.warn('uploadPreviewRefs内容:', uploadPreviewRefs.value);
+          console.warn('查找的任务ID:', taskId);
+          console.warn('可用的任务ID:', Object.keys(uploadPreviewRefs.value));
+          ElMessage.warning(`找不到任务ID为 ${taskId} 的上传组件，请确保该任务有上传组件`);
+        }
+      } else {
+        ElMessage.warning(`检测到文件但格式不支持: ${ext}，仅支持: ${[...allowedImageExts, ...allowedVideoExts].join(', ')}`);
+      }
+    } else {
+      // 检查是否是文本内容
+      const pastedText = e.clipboardData?.getData('text') || '';
+      if (pastedText) {
+        ElMessage.info('检测到文本内容，此功能主要用于媒体文件粘贴');
+      } else {
+        ElMessage.warning('剪贴板中未检测到媒体文件');
+      }
+    }
+  } catch (error) {
+    console.warn('处理粘贴事件时出错:', error);
+    ElMessage.error('处理粘贴事件失败');
+  }
 };
 // ===================== 路由 =====================
 </script>
@@ -2037,10 +2264,167 @@ const onImageUploadFailure = (error: any) => {
 
 .thumb-img{
   /* padding:2px; */
+  box-sizing: border-box;
   width: 50px;
   height: 50px;
   object-fit: cover;
   border-radius: 5px;
   border: rgba(123, 175, 235, 0.2) solid 3px;
+  /* 确保图片是块级元素，避免行内元素的基线对齐干扰 */
+  display: block;
+  /* 可选：重置默认间距 */
+  margin: 0;
+  padding: 0;
+}
+
+/* 图片容器样式，用于实现hover显示删除按钮 */
+.task-img-container div[style*="position: relative"] {
+  position: relative;
+  display: inline-block;
+}
+
+/* 删除图片按钮样式 */
+.delete-img-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  background-color: #f56c6c !important;
+  border: 1px solid white;
+  transform: scale(0.8);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.delete-img-btn .el-icon {
+  font-size: 12px;
+  margin: 0;
+  padding: 0;
+}
+
+/* hover时显示删除按钮 */
+.task-img-container div[style*="position: relative"]:hover .delete-img-btn {
+  opacity: 1;
+}
+
+.delete-img-btn:hover {
+  background-color: #ff5a5a !important;
+}
+
+/* 文件类型指示器 */
+.file-type-indicator {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 16px;
+  height: 16px;
+  background-color: #409eff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.file-type-indicator .el-icon {
+  font-size: 10px;
+  color: white;
+  margin: 0;
+  padding: 0;
+}
+
+/* 简易视频播放模态框样式 */
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+
+.video-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+  z-index: 100000;
+}
+
+.video-player {
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 8px;
+  background: #000;
+}
+
+.video-controls {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.close-btn {
+  padding: 8px 16px;
+  background-color: #409eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* 视频容器样式 */
+.video-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* 视频缩略图样式 - 与图片缩略图保持一致 */
+.video-thumb {
+  width: 50px !important;
+  height: 50px !important;
+  object-fit: cover;
+  border-radius: 5px;
+  border: rgba(123, 175, 235, 0.2) solid 3px;
+  /* 确保图片是块级元素，避免行内元素的基线对齐干扰 */
+  display: block;
+  /* 可选：重置默认间距 */
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 视频播放覆盖层 */
+.video-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.video-container:hover .video-play-overlay {
+  opacity: 1;
 }
 </style>

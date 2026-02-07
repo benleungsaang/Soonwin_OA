@@ -166,17 +166,6 @@ const handleLogin = async () => {
       totp_code: loginForm.totpCode,
     });
 
-    console.log('登录API响应:', res); // 添加调试信息
-    console.log('响应类型:', typeof res);
-    if (res) {
-      console.log('响应中的属性:', Object.keys(res));
-      console.log('res.token:', res.token);
-      console.log('res.data:', res.data);
-      console.log('res.emp_id:', res.emp_id);
-      console.log('res.name:', res.name);
-      console.log('res.user_role:', res.user_role);
-    }
-
     // 检查响应结构并提取token
     // 现在request.ts的响应拦截器会自动解包data，所以res应该是解包后的数据
     let token, empId, name;
@@ -184,17 +173,13 @@ const handleLogin = async () => {
       // 如果res直接包含token（axios拦截器已解包）
       token = res.token;
       empId = res.emp_id || res.empId;
-      name = res.name || res.name;
-      console.log('使用解包后的数据结构');
+      name = res.name;
     } else {
       // 如果由于某些原因拦截器未解包（不太可能），作为后备
       token = res?.data?.token;
       empId = res?.data?.emp_id || res?.data?.empId;
       name = res?.data?.name || res?.data?.name;
-      console.log('使用完整响应结构');
     }
-
-    console.log('提取的token:', token); // 添加调试信息
 
     if (!token) {
       throw new Error('登录响应中未包含有效token');
@@ -230,7 +215,7 @@ const checkEmployeeStatus = async () => {
     // 重置显示状态
     totpUri.value = '';
     showVerificationInput.value = false;
-    
+
     // 始终显示员工姓名（如果存在）
     bindForm.name = empName || '';
 
@@ -261,7 +246,6 @@ const checkEmployeeStatus = async () => {
       // 如果员工状态是"待绑定"，则可以发放TOTP验证码
       // request.post 工具已经自动处理了响应，返回的是 res.data 部分
       const res: any = await request.post('/api/totp-qr', { emp_id: bindForm.empId });
-      console.log('TOTP QR API response:', res); // 调试日志
 
       // 检查是否是完整的响应格式还是已经解包的数据
       let totpData;
@@ -282,7 +266,6 @@ const checkEmployeeStatus = async () => {
         throw new Error('获取TOTP配置失败：服务器未返回有效的URI');
       }
 
-      console.log('Generated TOTP URI:', totpUri.value); // 调试日志
 
       // 使用 nextTick 确保 DOM 更新完成
       await nextTick();
@@ -302,7 +285,6 @@ const checkEmployeeStatus = async () => {
           margin: 2,
           errorCorrectionLevel: 'M'  // 设置错误纠正级别
         });
-        console.log('二维码生成成功');
       } catch (error) {
         console.error('生成二维码失败:', error);
         ElMessage.error('生成二维码失败: ' + (error as Error).message);
@@ -331,7 +313,7 @@ const verifyAndBind = async () => {
     ElMessage.error('请输入验证码');
     return;
   }
-  
+
   try {
     await bindFormRef.value?.validate();
     isBinding.value = true;

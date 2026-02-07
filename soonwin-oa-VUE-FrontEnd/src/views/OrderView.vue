@@ -18,23 +18,7 @@
           <span v-if="hasSearched" class="search-result">搜索结果: {{ orders.length }} 条</span>
           <el-button v-if="hasSearched" type="secondary" @click="resetSearch">重置表单</el-button>
         </el-form-item>
-        <br></br>
-        <!-- 日期搜索筛选区域 -->
-        <el-form-item label="订单时间">
-          <el-date-picker
-            v-model="searchForm.orderTimeRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchOrdersByDate"><el-icon style="margin-right: 5px;"><Search /></el-icon>日期查询</el-button>
-          <!-- <el-button @click="resetSearch">重置</el-button>
-          <el-button type="success" @click="refreshData">刷新</el-button> -->
-        </el-form-item>
+
       </el-form>
 
       <!-- 订单表格 -->
@@ -49,49 +33,18 @@
         @row-click="viewOrderById"
       :row-style="{ cursor: 'pointer' }"
       >
-        <!-- <el-table-column prop="id" label="ID" width="80" /> -->
-        <!-- <el-table-column prop="order_no" label="订单编号" width="150" /> -->
         <el-table-column prop="customer_name" label="客户名称" width="150" />
         <el-table-column prop="area" label="地区" width="100" />
-        <el-table-column prop="machine_name" label="名称" width="150" />
-        <el-table-column prop="machine_model" label="机型" width="120" />
-        <el-table-column prop="machine_count" label="主机数量" width="100" />
         <el-table-column prop="contract_amount" label="合同金额" width="120">
           <template #default="scope">
             ¥{{ formatCurrency(scope.row.contract_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="machine_cost" label="机器成本" width="100" v-if="isCurrentUserAdmin">
-          <template #default="scope">
-            ¥{{ formatCurrency(scope.row.machine_cost) }}
-          </template>
-        </el-table-column>
-        <el-table-column v-if="isCurrentUserAdmin" prop="gross_profit" label="毛利" width="100">
-          <template #default="scope">
-            ¥{{ formatCurrency(scope.row.gross_profit) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="proportionate_cost" label="运营摊分费用" width="120" v-if="isCurrentUserAdmin">
-          <template #default="scope">
-            ¥{{ formatCurrency(scope.row.proportionate_cost) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="individual_cost" label="其它费用" width="100">
-          <template #default="scope">
-            ¥{{ formatCurrency(scope.row.individual_cost) }}
-          </template>
-        </el-table-column>
-        <el-table-column v-if="isCurrentUserAdmin" prop="net_profit" label="净利" width="100">
-          <template #default="scope">
-            ¥{{ formatCurrency(scope.row.net_profit) }}
-          </template>
-        </el-table-column>
         <el-table-column prop="order_time" label="下单时间" width="120" />
         <el-table-column prop="ship_time" label="出货时间" width="120" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
             <el-button size="small" @click.stop="showEditDialog(scope.row)">编辑</el-button>
-            <el-button size="small" @click.stop="showIndividualExpensesDialog(scope.row)">添加费用</el-button>
             <el-button size="small" type="danger" @click.stop="deleteOrder(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -767,11 +720,6 @@ const pagination = ref({
 // 搜索表单
 const searchForm = ref({
   search: '', // 内容搜索字段
-  customerName: '',
-  orderNo: '',
-  machineName: '',
-  area: '',
-  orderTimeRange: [] as string[],
 });
 
 // 订单数据
@@ -993,25 +941,28 @@ const fetchOrders = async () => {
     const params = {
       page: pagination.value.page,
       size: pagination.value.size,
-      customer_name: searchForm.value.customerName || undefined,
-      order_no: searchForm.value.orderNo || undefined,
-      machine_name: searchForm.value.machineName || undefined,
-      area: searchForm.value.area || undefined,
-      start_date: searchForm.value.orderTimeRange?.[0] || undefined,
-      end_date: searchForm.value.orderTimeRange?.[1] || undefined
+      fields: 'id,customer_name,area,contract_amount,order_time,ship_time' // 显式请求ID和所需字段
     };
 
-    const response = await request.get('/api/orders', { params });
-    // 处理返回的订单数据，将多选字段的字符串转换回数组
-    const processedOrders = (response.list || []).map((order: any) => ({
-      ...order,
-      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
-      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
-    }));
+    const response: any = await request.get('/api/orders', { params });
+
+    // 检查响应结构并提取数据
+    let ordersData;
+    if (response && response.data && response.data.list) {
+      // 标准响应结构：{ code: 200, msg: "...", data: { list: [...], ... } }
+      ordersData = response.data;
+    } else {
+      // 未知结构，使用默认值
+      console.warn('Unexpected response structure:', response);
+      ordersData = { list: [], total: 0, page: 1, size: 10 };
+    }
+
+    // 处理返回的订单数据
+    const processedOrders = (ordersData.list || []);
     orders.value = processedOrders;
-    pagination.value.total = response.total || 0;
-    pagination.value.page = response.page || 1;
-    pagination.value.size = response.size || 10;
+    pagination.value.total = ordersData.total || 0;
+    pagination.value.page = ordersData.page || 1;
+    pagination.value.size = ordersData.size || 10;
   } catch (error) {
     console.error('Error fetching orders:', error);
     ElMessage.error('获取订单列表失败');
@@ -1027,26 +978,29 @@ const fetchOrdersByContent = async () => {
     const params = {
       page: pagination.value.page,
       size: pagination.value.size,
-      search: searchForm.value.search || undefined, // 使用新的search参数
-      customer_name: undefined, // 清除其他筛选条件，避免混用
-      order_no: undefined,
-      machine_name: undefined,
-      area: undefined,
-      start_date: undefined,
-      end_date: undefined
+      search: searchForm.value.search || undefined, // 使用search参数进行搜索
+      fields: 'id,customer_name,area,contract_amount,order_time,ship_time' // 显式请求ID和所需字段
     };
 
-    const response = await request.get('/api/orders', { params });
-    // 处理返回的订单数据，将多选字段的字符串转换回数组
-    const processedOrders = (response.list || []).map((order: any) => ({
-      ...order,
-      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
-      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
-    }));
+    const response: any = await request.get('/api/orders', { params });
+
+    // 检查响应结构并提取数据
+    let ordersData;
+    if (response && response.data && response.data.list) {
+      // 标准响应结构：{ code: 200, msg: "...", data: { list: [...], ... } }
+      ordersData = response.data;
+    } else {
+      // 未知结构，使用默认值
+      console.warn('Unexpected search response structure:', response);
+      ordersData = { list: [], total: 0, page: 1, size: 10 };
+    }
+
+    // 处理返回的订单数据
+    const processedOrders = (ordersData.list || []);
     orders.value = processedOrders;
-    pagination.value.total = response.total || 0;
-    pagination.value.page = response.page || 1;
-    pagination.value.size = response.size || 10;
+    pagination.value.total = ordersData.total || 0;
+    pagination.value.page = ordersData.page || 1;
+    pagination.value.size = ordersData.size || 10;
     hasSearched.value = true; // 设置已搜索状态
   } catch (error) {
     console.error('Error fetching orders by content:', error);
@@ -1056,51 +1010,12 @@ const fetchOrdersByContent = async () => {
   }
 };
 
-// 按日期筛选订单
-const fetchOrdersByDate = async () => {
-  loading.value = true;
-  try {
-    const params = {
-      page: pagination.value.page,
-      size: pagination.value.size,
-      start_date: searchForm.value.orderTimeRange?.[0] || undefined,
-      end_date: searchForm.value.orderTimeRange?.[1] || undefined,
-      search: undefined, // 清除内容搜索条件，避免混用
-      customer_name: undefined,
-      order_no: undefined,
-      machine_name: undefined,
-      area: undefined
-    };
 
-    const response = await request.get('/api/orders', { params });
-    // 处理返回的订单数据，将多选字段的字符串转换回数组
-    const processedOrders = (response.list || []).map((order: any) => ({
-      ...order,
-      machine_model: typeof order.machine_model === 'string' ? order.machine_model.split(',').filter((item: string) => item) : order.machine_model || [],
-      order_dept: typeof order.order_dept === 'string' ? order.order_dept.split(',').filter((item: string) => item) : order.order_dept || []
-    }));
-    orders.value = processedOrders;
-    pagination.value.total = response.total || 0;
-    pagination.value.page = response.page || 1;
-    pagination.value.size = response.size || 10;
-    hasSearched.value = true; // 设置已搜索状态
-  } catch (error) {
-    console.error('Error fetching orders by date:', error);
-    ElMessage.error('按日期筛选订单失败');
-  } finally {
-    loading.value = false;
-  }
-};
 
 // 重置搜索
 const resetSearch = () => {
   searchForm.value = {
     search: '',
-    customerName: '',
-    orderNo: '',
-    machineName: '',
-    area: '',
-    orderTimeRange: [],
   };
   pagination.value.page = 1;
   hasSearched.value = false; // 重置搜索状态
@@ -1144,60 +1059,78 @@ const showAddDialog = async () => {
 
 // 显示编辑对话框
 const showEditDialog = async (order: any) => {
-  dialogTitle.value = '编辑订单';
-  isEdit.value = true;
-  isViewMode.value = false; // 确保编辑模式不是查看模式
-  // 深拷贝订单数据到表单，确保所有字段都被正确复制
-  orderForm.value = {
-    id: order.id || 0,
-    is_new: order.is_new || 1,
-    area: order.area || '',
-    customer_name: order.customer_name || '',
-    customer_type: order.customer_type || '',
-    order_time: order.order_time || '',
-    ship_time: order.ship_time || '',
-    ship_country: order.ship_country || '',
-    contract_no: order.contract_no || '',
-    order_no: order.order_no || '',
-    machine_no: order.machine_no || '',
-    machine_name: order.machine_name || '包装机',
-    machine_model: Array.isArray(order.machine_model) ? order.machine_model : order.machine_model ? [order.machine_model] : [],
-    machine_count: order.machine_count || 1,
-    unit: order.unit || 'set',
-    contract_amount: order.contract_amount || 0,
-    deposit: order.deposit || 0,
-    balance: order.balance || 0,
-    tax_rate: order.tax_rate || 13.0,
-    tax_refund_amount: order.tax_refund_amount || 0,
-    currency_amount: order.currency_amount || 0,
-    payment_received: order.payment_received || 0,
-    machine_cost: order.machine_cost || 0,
-    net_profit: order.net_profit || 0,
-    gross_profit: order.gross_profit || 0,
-    pay_type: order.pay_type || 'T/T',
-    commission: order.commission || 0,
-    proportionate_cost: order.proportionate_cost || 0,
-    individual_cost: order.individual_cost || 0,
-    latest_ship_date: order.latest_ship_date || '',
-    expected_delivery: order.expected_delivery || '',
-    order_dept: Array.isArray(order.order_dept) ? order.order_dept : order.order_dept ? [order.order_dept] : [],
-    check_requirement: order.check_requirement || '',
-    attachment_imgs: order.attachment_imgs || '',
-    attachment_videos: order.attachment_videos || ''
-  };
-  // 编辑时自动计算利润
-  setTimeout(() => {
-    calculateProfits();
-  }, 100); // 延迟执行以确保数据已更新
+  try {
+    // 获取完整的订单数据，而不是只使用表格中显示的部分数据
+    const response: any = await request.get(`/api/orders/${order.id}`);
+    
+    // 检查响应结构并提取数据
+    let fullOrderData;
+    if (response && response.data) {
+      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
+      fullOrderData = response.data;
+    } else {
+      // 直接返回数据结构或未知结构
+      fullOrderData = response || {};
+    }
+    
+    dialogTitle.value = '编辑订单';
+    isEdit.value = true;
+    isViewMode.value = false; // 确保编辑模式不是查看模式
+    // 深拷贝完整订单数据到表单，确保所有字段都被正确复制
+    orderForm.value = {
+      id: fullOrderData.id || 0,
+      is_new: fullOrderData.is_new || 1,
+      area: fullOrderData.area || '',
+      customer_name: fullOrderData.customer_name || '',
+      customer_type: fullOrderData.customer_type || '',
+      order_time: fullOrderData.order_time || '',
+      ship_time: fullOrderData.ship_time || '',
+      ship_country: fullOrderData.ship_country || '',
+      contract_no: fullOrderData.contract_no || '',
+      order_no: fullOrderData.order_no || '',
+      machine_no: fullOrderData.machine_no || '',
+      machine_name: fullOrderData.machine_name || '包装机',
+      machine_model: Array.isArray(fullOrderData.machine_model) ? fullOrderData.machine_model : fullOrderData.machine_model ? [fullOrderData.machine_model] : [],
+      machine_count: fullOrderData.machine_count || 1,
+      unit: fullOrderData.unit || 'set',
+      contract_amount: fullOrderData.contract_amount || 0,
+      deposit: fullOrderData.deposit || 0,
+      balance: fullOrderData.balance || 0,
+      tax_rate: fullOrderData.tax_rate || 13.0,
+      tax_refund_amount: fullOrderData.tax_refund_amount || 0,
+      currency_amount: fullOrderData.currency_amount || 0,
+      payment_received: fullOrderData.payment_received || 0,
+      machine_cost: fullOrderData.machine_cost || 0,
+      net_profit: fullOrderData.net_profit || 0,
+      gross_profit: fullOrderData.gross_profit || 0,
+      pay_type: fullOrderData.pay_type || 'T/T',
+      commission: fullOrderData.commission || 0,
+      proportionate_cost: fullOrderData.proportionate_cost || 0,
+      individual_cost: fullOrderData.individual_cost || 0,
+      latest_ship_date: fullOrderData.latest_ship_date || '',
+      expected_delivery: fullOrderData.expected_delivery || '',
+      order_dept: Array.isArray(fullOrderData.order_dept) ? fullOrderData.order_dept : fullOrderData.order_dept ? [fullOrderData.order_dept] : [],
+      check_requirement: fullOrderData.check_requirement || '',
+      attachment_imgs: fullOrderData.attachment_imgs || '',
+      attachment_videos: fullOrderData.attachment_videos || ''
+    };
+    // 编辑时自动计算利润
+    setTimeout(() => {
+      calculateProfits();
+    }, 100); // 延迟执行以确保数据已更新
 
-  // 确保机器选项数据已加载
-  if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
-    // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
-    await fetchMachineOptions();
-    hasLoadedMachineOptions.value = true;
+    // 确保机器选项数据已加载
+    if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
+      // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
+      await fetchMachineOptions();
+      hasLoadedMachineOptions.value = true;
+    }
+
+    dialogVisible.value = true;
+  } catch (error) {
+    console.error('加载订单详情失败:', error);
+    ElMessage.error('加载订单详情失败');
   }
-
-  dialogVisible.value = true;
 };
 
 // 重置表单
@@ -1263,7 +1196,7 @@ const saveOrder = async () => {
     } else {
       processedMachineModel = '';
     }
-    
+
     let processedOrderDept: string;
     if (Array.isArray(updatedOrderForm.order_dept)) {
       processedOrderDept = updatedOrderForm.order_dept.join(',');
@@ -1272,7 +1205,7 @@ const saveOrder = async () => {
     } else {
       processedOrderDept = '';
     }
-    
+
     // 最终发送到后端的数据
     const finalOrderData = {
       ...updatedOrderForm,
@@ -1375,15 +1308,22 @@ const checkContractNoDuplicate = async () => {
 // 查看订单详情
 const viewOrder = async (id: number) => {
   try {
-    const response = await request.get(`/api/orders/${id}`);
-    // 处理返回的订单数据，将多选字段的字符串转换回数组
-    const processedOrder = {
-      ...response,
-      machine_model: typeof response.machine_model === 'string' ? response.machine_model.split(',').filter((item: string) => item) : response.machine_model || [],
-      order_dept: typeof response.order_dept === 'string' ? response.order_dept.split(',').filter((item: string) => item) : response.order_dept || []
+    const response: any = await request.get(`/api/orders/${id}`);
+    
+    // 检查响应结构并提取数据
+    let orderData;
+    if (response && response.data) {
+      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
+      orderData = response.data;
+    } else {
+      // 直接返回数据结构或未知结构
+      orderData = response || {};
+    }
+
+    // 用获取到的数据填充表单
+    orderForm.value = {
+      ...orderData
     };
-    // 用获取到的数据填充表单，但保持为只读模式或切换到只读模式
-    orderForm.value = processedOrder;
     dialogTitle.value = '查看订单详情';
     isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
     isViewMode.value = true; // 设置为查看模式
@@ -1395,8 +1335,32 @@ const viewOrder = async (id: number) => {
 };
 
 // 通过行点击查看详情
-const viewOrderById = (row: any) => {
-  viewOrder(row.id);
+const viewOrderById = async (row: any) => {
+  try {
+    const response: any = await request.get(`/api/orders/${row.id}`);
+    
+    // 检查响应结构并提取数据
+    let orderData;
+    if (response && response.data) {
+      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
+      orderData = response.data;
+    } else {
+      // 直接返回数据结构或未知结构
+      orderData = response || {};
+    }
+
+    // 用获取到的完整数据填充表单
+    orderForm.value = {
+      ...orderData
+    };
+    dialogTitle.value = '查看订单详情';
+    isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
+    isViewMode.value = true; // 设置为查看模式
+    dialogVisible.value = true;
+  } catch (error) {
+    console.error('加载订单详情失败:', error);
+    ElMessage.error('加载订单详情失败');
+  }
 };
 
 // 格式化货币显示

@@ -71,21 +71,45 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="照片" width="200">
+              <el-table-column label="媒体文件" width="250">
                 <template #default="scope">
-                  <div class="task-images-container">
-                    <template v-if="scope.row.thumb_photo_path">
-                      <el-image
-                        v-for="(image, imgIndex) in scope.row.thumb_photo_path.split(',')"
-                        :key="imgIndex"
-                        :src="image"
-                        :preview-src-list="scope.row.photo_path.split(',')"
-                        preview-teleported
-                        hide-on-click-modal
-                        close-on-press-esc
-                        style="width: 40px; height: 40px; object-fit: cover; margin-right: 5px; border-radius: 3px; cursor: pointer;"
-                        fit="cover"
-                      />
+                  <div class="task-media-container">
+                    <template v-if="getTaskMediaFiles(scope.row).length > 0">
+                      <div
+                        v-for="(media, mediaIndex) in getTaskMediaFiles(scope.row)"
+                        :key="'media-' + scope.row.id + '-' + mediaIndex"
+                        style="position: relative; display: inline-block; margin-right: 5px;"
+                      >
+                        <template v-if="media.file_type === 'image'">
+                          <el-image
+                            :src="media.thumb || media.url"
+                            :preview-src-list="getTaskImageUrls(scope.row)"
+                            preview-teleported
+                            hide-on-click-modal
+                            close-on-press-esc
+                            style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px; cursor: pointer;"
+                            fit="cover"
+                          />
+                          <div class="file-type-indicator" style="top: -3px; right: -3px;background-color: #67c23a;">
+                            <el-icon><Picture /></el-icon>
+                          </div>
+                        </template>
+
+                        <template v-else-if="media.file_type === 'video'">
+                          <img
+                            :src="media.thumb || media.url || '/assets/default-video-thumbnail.jpg'"
+                            style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px; cursor: pointer;"
+                            @click="playVideo(media.url)"
+                          />
+                          <div class="file-type-indicator" style="top: -3px; right: -3px;">
+                            <el-icon><VideoCamera /></el-icon>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <template v-else>
+                      <span style="color: #999; font-size: 12px;">暂无媒体文件</span>
                     </template>
                   </div>
                 </template>
@@ -136,6 +160,22 @@
       <el-icon class="loading-icon"><Loading /></el-icon>
       <span>加载中...</span>
     </div>
+
+    <!-- 视频播放模态框 -->
+    <div v-if="showVideoPlayer" class="video-modal-overlay" @click="closeVideoPlayer">
+      <div class="video-modal-content" @click.stop>
+        <video
+          :src="currentVideoSrc"
+          controls
+          autoplay
+          class="video-player"
+          @click.stop
+        ></video>
+        <div class="video-controls">
+          <button class="close-btn" @click="closeVideoPlayer">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -151,7 +191,10 @@ import {
   Back,
   Loading,
   CircleCheckFilled,
-  Clock
+  Clock,
+  Picture,
+  VideoCamera,
+  VideoPlay
 } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 
@@ -164,12 +207,91 @@ const statusLogs = ref<any[]>([]);
 const tasks = ref<any[]>([]);
 const loading = ref(false);
 
+// 视频播放相关
+const showVideoPlayer = ref(false);
+const currentVideoSrc = ref('');
+
 // 获取URL参数中的订单ID
 const orderId = ref<number | null>(null);
 
 // 计算属性和方法
 const getStatusLogTasks = (statusLogId: number) => {
   return tasks.value.filter((task: any) => task.status_log_id === statusLogId);
+};
+
+/**
+ * 将任务的媒体文件解析为结构化数组
+ * @param task 任务对象
+ * @returns 媒体文件对象数组 [{ url: '', thumb: '', file_type: '' }, ...]
+ */
+const getTaskMediaFiles = (task: any) => {
+  if (!task) return [];
+
+  // 使用新的media_files字段
+  if (task.media_files && Array.isArray(task.media_files)) {
+    return task.media_files
+      .filter((file: any) => file.file_type === 'image' || file.file_type === 'video') // 获取图片和视频
+      .map((file: any) => ({
+        url: file.file_path,
+        thumb: file.thumb_path || file.file_path, // 如果没有缩略图，使用原图
+        id: file.id,  // 媒体文件ID
+        file_type: file.file_type  // 文件类型：image或video
+      }));
+  }
+
+  // 兼容旧字段结构
+  const mediaFiles = [];
+
+  // 检查旧的images字段
+  if (task.images && Array.isArray(task.images)) {
+    task.images.forEach((img: any) => {
+      mediaFiles.push({
+        url: img.file_path || img.url,
+        thumb: img.thumb_path || img.url,
+        id: img.id,
+        file_type: 'image'
+      });
+    });
+  }
+
+  // 检查旧的videos字段
+  if (task.videos && Array.isArray(task.videos)) {
+    task.videos.forEach((vid: any) => {
+      mediaFiles.push({
+        url: vid.file_path || vid.url,
+        thumb: vid.thumb_path || vid.url,
+        id: vid.id,
+        file_type: 'video'
+      });
+    });
+  }
+
+  // 检查旧的单独字段
+  if (task.photo_path && task.thumb_photo_path) {
+    const photoPaths = task.photo_path.split(',').map((p: string) => p.trim());
+    const thumbPaths = task.thumb_photo_path.split(',').map((t: string) => t.trim());
+
+    for (let i = 0; i < Math.min(photoPaths.length, thumbPaths.length); i++) {
+      mediaFiles.push({
+        url: photoPaths[i],
+        thumb: thumbPaths[i],
+        file_type: 'image'
+      });
+    }
+  }
+
+  return mediaFiles;
+};
+
+/**
+ * 获取任务的图片URL列表（用于预览）
+ * @param task 任务对象
+ * @returns 图片URL数组
+ */
+const getTaskImageUrls = (task: any) => {
+  return getTaskMediaFiles(task)
+    .filter((media: any) => media.file_type === 'image')
+    .map((media: any) => media.url); // 总是返回原图用于预览
 };
 
 const getOrderProgress = () => {
@@ -224,6 +346,22 @@ const getCurrentStatusText = (status: number) => {
   return statusMap[status] || `状态${status}`;
 };
 
+// 视频播放功能
+const playVideo = (videoUrl: string) => {
+  if (!videoUrl) {
+    ElMessage.error('视频URL无效');
+    return;
+  }
+  // 替换反斜杠为正斜杠
+  const correctedUrl = videoUrl.replace(/\\/g, '/');
+  currentVideoSrc.value = correctedUrl;
+  showVideoPlayer.value = true;
+};
+
+const closeVideoPlayer = () => {
+  showVideoPlayer.value = false;
+};
+
 // 业务逻辑方法
 const fetchOrderStatusReport = async () => {
   if (!orderId.value) {
@@ -237,9 +375,24 @@ const fetchOrderStatusReport = async () => {
 
     // request.ts会自动解包data，所以response直接就是数据内容
     orderInfo.value = response.order_info || {};
-    statusInfo.value = response.status_info
+    statusInfo.value = response.status_info;
     statusLogs.value = response.status_logs || [];
-    tasks.value = response.tasks || [];
+
+    // 处理任务数据，兼容新旧数据结构
+    if (response.tasks && Array.isArray(response.tasks)) {
+      // 无论返回的是分组结构还是扁平结构，都直接使用
+      // 如果是分组结构（每个元素包含tasks数组），则展开
+      if (response.tasks.length > 0 && Array.isArray(response.tasks[0].tasks)) {
+        tasks.value = response.tasks.flatMap((taskGroup: any) => {
+          return taskGroup.tasks || [];
+        });
+      } else {
+        // 如果是扁平结构，直接赋值
+        tasks.value = response.tasks || [];
+      }
+    } else {
+      tasks.value = [];
+    }
   } catch (error) {
     console.error('获取订单进度报告失败:', error);
     ElMessage.error('获取订单进度报告失败');
@@ -247,7 +400,6 @@ const fetchOrderStatusReport = async () => {
     loading.value = false;
   }
 };
-
 const printReport = () => {
   ElMessage.info('打印功能开发中...');
   // 实际项目中可以使用 window.print() 或专门的打印库
@@ -403,6 +555,70 @@ onMounted(() => {
 @keyframes rotating {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+.file-type-indicator {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-color: #409eff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.file-type-indicator .el-icon {
+  font-size: 10px;
+  color: white;
+  margin: 0;
+  padding: 0;
+}
+
+/* 简易视频播放模态框样式 */
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+
+.video-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+  z-index: 100000;
+}
+
+.video-player {
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 8px;
+  background: #000;
+}
+
+.video-controls {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.close-btn {
+  padding: 8px 16px;
+  background-color: #409eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* 移动端适配 */

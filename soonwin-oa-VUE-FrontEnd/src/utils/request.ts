@@ -303,38 +303,23 @@ const request = {
 
 // 机器管理相关API
 export const getMachines = (params?: any) => request.get('/api/machines', { params });
-
 export const getMachine = (model: string) => request.get(`/api/machines/${model}`);
-
 export const createMachine = (data: any) => request.post('/api/machines', data);
-
 export const updateMachine = (model: string, data: any) => request.put(`/api/machines/${model}`, data);
-
 export const deleteMachine = (model: string) => request.delete(`/api/machines/${model}`);
-
 export const importMachines = (data: FormData) => request.post('/api/machines/import', data);
-
 // 直接JSON数据导入导出API
 export const importMachinesJson = (data: any) => request.post('/api/machines/import-json', data);
-
 export const exportMachinesJson = () => request.get('/api/machines/export-json');
-
 // 部件管理相关API
 export const getParts = (params?: any) => request.get('/api/parts', { params });
-
 export const getPart = (partTypeId: number) => request.get(`/api/parts/${partTypeId}`);
-
 export const createPart = (data: any) => request.post('/api/parts', data);
-
 export const updatePart = (partTypeId: number, data: any) => request.put(`/api/parts/${partTypeId}`, data);
-
 export const deletePart = (partTypeId: number) => request.delete(`/api/parts/${partTypeId}`);
-
 // 部件JSON导入导出API
 export const importPartsJson = (data: any) => request.post('/api/parts/import-json', data);
-
 export const exportPartsJson = () => request.get('/api/parts/export-json');
-
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),
@@ -430,7 +415,7 @@ multipartRequest.interceptors.response.use(
 );
 
 export const createPhoto = (
-  data: FormData, 
+  data: FormData,
   onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
 ) => {
   return multipartRequest.post('/api/photos', data, {
@@ -439,40 +424,13 @@ export const createPhoto = (
 };
 
 export const updatePhoto = (photoId: number, data: any) => request.put(`/api/photos/${photoId}`, data);
-
 export const deletePhoto = (photoId: number) => request.delete(`/api/photos/${photoId}`);
-
 export const getPhotos = (params?: any) => request.get('/api/photos', { params });
-
 export const getMachinesForPhotos = () => request.get('/api/photos/machines');
-
-
-
-// 注释：当后端实现批量上传接口后，取消下面函数的注释
-
-// 批量上传照片（新增）
-
-// export const createPhotoBatch = (
-
-//   data: FormData, 
-
-//   onUploadProgress?: (progressEvent: ProgressEvent) => void
-
-// ) => {
-
-//   return multipartRequest.post('/api/photos/batch', data, {
-
-//     onUploadProgress
-
-//   });
-
-// };
-
-
 
 // 视频管理相关API - 使用特殊处理FormData的函数
 export const createVideo = (
-  data: FormData, 
+  data: FormData,
   onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
 ) => {
   return multipartRequest.post('/api/videos', data, {
@@ -489,10 +447,10 @@ export const getMachinesForVideos = () => request.get('/api/videos/machines');
 // 回收站相关API
 export const getDeletedVideos = (params?: any) => request.get('/api/videos/deleted', { params });
 
-export const physicalDeleteVideos = (videoIds: number[]) => 
+export const physicalDeleteVideos = (videoIds: number[]) =>
   request.delete('/api/videos/physical_delete', { data: { video_ids: videoIds } });
 
-export const restoreVideos = (videoIds: number[]) => 
+export const restoreVideos = (videoIds: number[]) =>
   request.post('/api/videos/restore', { video_ids: videoIds });
 
 export default request;
