@@ -25,13 +25,12 @@
       <el-table-column prop="model" label="设备型号" width="200" />
       <el-table-column prop="packing_speed" label="包装速度" width="150" />
       <el-table-column prop="show_price" label="价格" width="120" />
-      <el-table-column label="操作" width="200">
-        <template #default="{ row }">
-          <el-button size="small" @click="showEditMachineDialog(row)">编辑</el-button>
-          <el-button v-if="isCurrentUserAdmin" size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+          <el-table-column label="操作" width="200">
+              <template #default="{ row }">
+                <el-button size="small" @click="showEditMachineDialog(row)">编辑</el-button>
+                <el-button v-if="props.isCurrentUserAdmin" size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
+              </template>
+          </el-table-column>    </el-table>
 
     <!-- 分页 -->
     <el-pagination
@@ -82,7 +81,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!isCurrentUserAdmin"
+                :disabled="!props.isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
@@ -94,7 +93,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!isCurrentUserAdmin"
+                :disabled="!props.isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
@@ -208,6 +207,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Picture } from '@element-plus/icons-vue'
+import { getCurrentUserRole } from '@/utils/authUtils';
 import { getMachines, createMachine, updateMachine, deleteMachine as deleteMachineAPI, importMachines, importMachinesJson, exportMachinesJson } from '@/utils/request'
 import JsonImportExport from '@/components/JsonImportExport.vue'
 

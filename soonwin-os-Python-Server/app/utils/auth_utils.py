@@ -3,6 +3,7 @@ from flask import request, jsonify
 import jwt
 import config
 from app.models.employee import Employee
+from app.models.permission import RolePermission
 from extensions import db
 from datetime import timedelta
 
@@ -183,6 +184,129 @@ def require_auth_with_leeway(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def require_module_permission(module_name, permission_type='view'):
+    """
+    模块权限验证装饰器
+    :param module_name: 模块名称（如：employee_manage）
+    :param permission_type: 权限类型（view/edit/delete）
+    :return: 装饰器
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            token = request.headers.get('Authorization')
+            if not token:
+                return jsonify({
+                    "code": 401,
+                    "msg": "缺少访问令牌",
+                    "data": None
+                }), 401
+
+            # 移除 "Bearer " 前缀
+            if token.startswith("Bearer "):
+                token = token[7:]
+
+            try:
+                # 解码JWT令牌
+                payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+                emp_id = payload['emp_id']
+
+                # 查询员工信息
+                employee = Employee.query.filter_by(emp_id=emp_id).first()
+                if not employee:
+                    return jsonify({
+                        "code": 401,
+                        "msg": "员工信息不存在",
+                        "data": None
+                    }), 401
+
+                # 管理员默认拥有所有权限
+                if employee.user_role == 'admin':
+                    return f(*args, **kwargs)
+
+                # 查询该角色对该模块的权限
+                role_perm = RolePermission.query.filter_by(
+                    role_name=employee.user_role,
+                    module_name=module_name
+                ).first()
+
+                # 检查权限
+                if not role_perm:
+                    return jsonify({
+                        "code": 403,
+                        "msg": f"无访问{module_name}模块的权限",
+                        "data": None
+                    }), 403
+
+                # 根据权限类型验证
+                permission_check_map = {
+                    'view': role_perm.can_view,
+                    'edit': role_perm.can_edit,
+                    'delete': role_perm.can_delete
+                }
+
+                if not permission_check_map.get(permission_type, False):
+                    return jsonify({
+                        "code": 403,
+                        "msg": f"无{module_name}模块的{permission_type}权限",
+                        "data": None
+                    }), 403
+
+            except jwt.ExpiredSignatureError:
+                return jsonify({
+                    "code": 401,
+                    "msg": "令牌已过期",
+                    "data": None
+                }), 401
+            except jwt.InvalidTokenError:
+                return jsonify({
+                    "code": 401,
+                    "msg": "无效的令牌",
+                    "data": None
+                }), 401
+            except Exception as e:
+                return jsonify({
+                    "code": 500,
+                    "msg": f"权限验证失败: {str(e)}",
+                    "data": None
+                }), 500
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def require_multi_module_permissions(module_names, permission_type="view"):
+    """多模块权限验证装饰器"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # 1. 从token获取用户角色
+            user_role = get_user_role_from_token()
+            if not user_role:
+                return jsonify({"code": 401, "msg": "未认证"}), 401
+            
+            # 2. 管理员直接通过
+            if user_role == "admin":
+                return f(*args, **kwargs)
+            
+            # 3. 校验所有指定模块的权限
+            for module_name in module_names:
+                role_perm = RolePermission.query.filter_by(
+                    role_name=user_role,
+                    module_name=module_name
+                ).first()
+                if not role_perm or not getattr(role_perm, f"can_{permission_type}"):
+                    return jsonify({
+                        "code": 403,
+                        "msg": f"无{module_name}模块的{permission_type}权限",
+                        "data": None
+                    }), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 
 def get_user_role_from_token():

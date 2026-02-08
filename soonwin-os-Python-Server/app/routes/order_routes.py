@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from app.models.order import Order
 from app.models.employee import Employee
+from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
+from app.constants.permission_constants import MODULE_ORDER_MANAGE
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
@@ -14,30 +16,34 @@ from app.models.expense import AnnualTarget, Expense, ExpenseAllocation, Expense
 # 创建蓝图
 order_bp = Blueprint('order', __name__)
 
+def get_current_user():
+    """获取当前用户信息的辅助函数"""
+    emp_id = get_user_id_from_token()
+    user_role = get_user_role_from_token()
+    user_name = "system"  # 默认名称
+    
+    # 尝试从数据库获取用户信息以获取真实姓名
+    if emp_id:
+        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        if employee:
+            user_name = employee.name
+    
+    # 创建模拟用户对象
+    current_user = type('User', (), {
+        'emp_id': emp_id,
+        'user_role': user_role,
+        'name': user_name
+    })()
+    
+    return current_user
+
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
-def get_current_user():
-    """从JWT token中获取当前用户信息"""
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
 
-    try:
-        # 去掉 "Bearer " 前缀
-        token = token.replace('Bearer ', '')
-        # 解码JWT token获取用户信息
-        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload.get('emp_id')
-        # 查询用户信息
-        return Employee.query.filter_by(emp_id=emp_id).first()
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
 
 def serialize_order(order, include_expense_allocations=False, is_admin=False, fields=None):
     """将订单对象转换为字典格式，使用模型的to_dict方法并根据用户权限控制敏感字段"""
@@ -85,6 +91,7 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
     return non_sensitive_dict
 
 @order_bp.route('/orders', methods=['GET'])
+@require_module_permission(MODULE_ORDER_MANAGE, "view")
 def get_orders():
     """获取订单列表，支持分页和筛选"""
     try:
@@ -151,6 +158,7 @@ def get_orders():
         }), 500
 
 @order_bp.route('/orders', methods=['POST'])
+@require_module_permission(MODULE_ORDER_MANAGE, "edit")
 def create_order():
     """创建新订单"""
     try:
@@ -232,6 +240,7 @@ def create_order():
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['GET'])
+@require_module_permission(MODULE_ORDER_MANAGE, "view")
 def get_order(order_id):
     """获取单个订单详情"""
     try:
@@ -262,6 +271,7 @@ def get_order(order_id):
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_MANAGE, "edit")
 def update_order(order_id):
     """更新订单信息"""
     try:
@@ -339,6 +349,7 @@ def update_order(order_id):
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_MANAGE, "delete")
 def delete_order(order_id):
     """删除订单"""
     try:
@@ -360,6 +371,7 @@ def delete_order(order_id):
         }), 500
 
 @order_bp.route('/orders/statistics', methods=['GET'])
+@require_module_permission(MODULE_ORDER_MANAGE, "view")
 def get_order_statistics():
     """获取订单统计信息"""
     try:
@@ -408,20 +420,13 @@ def get_order_statistics():
 
 
 @order_bp.route('/orders/expense-summary', methods=['GET'])
+@require_module_permission(MODULE_ORDER_MANAGE, "view")
 def get_order_expense_summary():
     """获取订单费用分摊汇总信息"""
     try:
         # 获取当前用户信息以确定是否为管理员
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
-
-        # 非管理员不能访问费用汇总信息
-        if not is_admin:
-            return jsonify({
-                "code": 403,
-                "msg": "权限不足，无法访问费用汇总信息",
-                "data": None
-            }), 403
 
         # 获取查询参数中的年份
         target_year = request.args.get('year', type=int)
@@ -496,6 +501,7 @@ def get_order_expense_summary():
 
 
 @order_bp.route('/orders/update-proportionate-cost', methods=['POST'])
+@require_module_permission(MODULE_ORDER_MANAGE, "edit")
 def update_order_proportionate_cost():
     """更新订单摊分费用 - 按订单金额比例分摊到指定年度的所有订单"""
     try:

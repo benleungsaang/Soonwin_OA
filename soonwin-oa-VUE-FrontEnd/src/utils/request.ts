@@ -76,7 +76,7 @@ const refreshToken = async (): Promise<string> => {
   const token = localStorage.getItem('oa_token');
 
   if (!token) {
-    throw new Error('No token available for refresh');
+    throw new Error('验证码错误');
   }
 
   try {

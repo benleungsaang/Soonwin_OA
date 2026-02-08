@@ -7,7 +7,8 @@ from .. import db
 from ..models.photo import Photo
 from ..models.machine import Machine
 from ..models.business_operation_log import add_photo_log
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token, require_module_permission
+from ..constants.permission_constants import MODULE_PHOTO_MANAGE
 from ..utils.upload_utils import (
     generate_unique_filename,
     get_date_dir,
@@ -270,6 +271,7 @@ def set_app_instance(app):
     processing_queue.set_app_instance(app)
 
 @photo_bp.route('/photos', methods=['GET'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "view")
 def get_photos():
     """获取照片列表"""
     try:
@@ -299,7 +301,8 @@ def get_photos():
             machine_id = None
 
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         # 构建查询
         query = Photo.query
@@ -351,6 +354,7 @@ def get_photos():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/batch-upload', methods=['POST'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
 def batch_upload_photos():
     """批量图片上传接口"""
     try:
@@ -505,6 +509,7 @@ def batch_upload_photos():
 
 
 @photo_bp.route('/photos', methods=['POST'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
 def upload_photo():
     """图片上传接口：先入库返回，后台异步压缩"""
     try:
@@ -615,11 +620,13 @@ def upload_photo():
         return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['GET'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "view")
 def get_photo(photo_id):
     """获取单个照片信息"""
     try:
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         photo = Photo.query.get(photo_id)
         if not photo:
@@ -637,6 +644,7 @@ def get_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['PUT'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
 def update_photo(photo_id):
     """更新照片信息"""
     try:
@@ -646,7 +654,7 @@ def update_photo(photo_id):
 
         # 获取当前用户信息
         user_role = get_user_role_from_token()
-        is_admin = is_admin_user()
+        is_admin = user_role == 'admin'
 
         # 移除普通用户的权限限制，允许所有用户更新照片
         # 如果需要保留权限控制，可以在这里添加特定逻辑
@@ -721,6 +729,7 @@ def update_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['DELETE'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "delete")
 def delete_photo(photo_id):
     """删除照片"""
     try:
@@ -730,7 +739,7 @@ def delete_photo(photo_id):
 
         # 获取当前用户信息
         user_role = get_user_role_from_token()
-        is_admin = is_admin_user()
+        is_admin = user_role == 'admin'
 
         # 移除普通用户的权限限制，允许所有用户删除照片
         # 如果需要保留权限控制，可以在这里添加特定逻辑
@@ -805,6 +814,7 @@ def delete_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/machines', methods=['GET'])
+@require_module_permission(MODULE_PHOTO_MANAGE, "view")
 def get_machines_for_photos():
     """获取机器列表（用于照片关联）"""
     try:

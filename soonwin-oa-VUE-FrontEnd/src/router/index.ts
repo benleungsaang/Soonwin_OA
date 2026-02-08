@@ -8,8 +8,7 @@ const PunchSuccessView = () => import('@/views/PunchSuccessView.vue');
 const PunchRecordsView = () => import('@/views/PunchRecordsView.vue');
 const EmployeeManagementView = () => import('@/views/EmployeeManagementView.vue');
 const ExpenseManagementView = () => import('@/views/ExpenseManagementView.vue');
-const OrderInspectionView = () => import('@/views/OrderInspectionView.vue');
-const InspectionReportView = () => import('@/views/InspectionReportView.vue');
+
 const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
 const DisplayFileView = () => import('@/views/DisplayFileView.vue');
 const InquiryView = () => import('@/views/InquiryView.vue');
@@ -19,6 +18,7 @@ const VideoManagementView = () => import('@/views/VideoManagementView.vue');
 const LogManagementView = () => import('@/views/LogManagement.vue');
 const OrderStatusView =() => import ('@/views/OrderStatusView.vue')
 const OrderStatusReportView = () => import('@/views/OrderStatusReportView.vue');
+const OrderProgressView = () => import('@/views/OrderProgressView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -71,19 +71,7 @@ const routes: RouteRecordRaw[] = [
     component: ExpenseManagementView,
     meta: { title: '费用管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
-  {
-    path: '/order-inspection',
-    name: 'orderInspection',
-    component: OrderInspectionView,
-    meta: { title: '订单验收', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  },
-  {
-    path: '/inspection-report/:inspectionId',
-    name: 'inspectionReport',
-    component: InspectionReportView,
-    props: true,
-    meta: { title: '验收报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  },
+
   {
     path: '/display-file-upload',
     name: 'displayFileUpload',
@@ -150,6 +138,12 @@ const routes: RouteRecordRaw[] = [
     name: 'orderStatusReport',
     component: OrderStatusReportView,
     meta: { title: '订单进度报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/order-progress',
+    name: 'orderProgress',
+    component: OrderProgressView,
+    meta: { title: '订单进度管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 ];
 

@@ -580,7 +580,7 @@ import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { uploadFile } from '@/utils/upload';
-import { isCurrentUserAdmin } from '@/utils/authUtils';
+import { getCurrentUserRole } from '@/utils/authUtils';
 import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI } from '@/utils/request';
 import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
 
@@ -724,7 +724,10 @@ const apiBaseUrl = computed(() => {
 });
 
 // 权限相关
-const isAdmin = computed(() => isCurrentUserAdmin());
+const isAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 格式化日期
 const formatDate = (dateString: string) => {

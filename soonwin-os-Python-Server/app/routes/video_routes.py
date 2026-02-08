@@ -6,7 +6,8 @@ from .. import db
 from ..models.video import Video
 from ..models.machine import Machine
 from ..models.business_operation_log import add_video_log
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token, require_module_permission
+from ..constants.permission_constants import MODULE_VIDEO_MANAGE
 from ..utils.upload_utils import (
     validate_file_type,
     save_uploaded_file,
@@ -217,6 +218,7 @@ def process_video(original_file, base_save_dir="./assets/Media/Videos", title=""
     }
 
 @video_bp.route('/videos', methods=['GET'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "view")
 def get_videos():
     """获取视频列表"""
     try:
@@ -246,7 +248,8 @@ def get_videos():
             machine_id = None
 
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         # 构建查询
         pagination = Video.get_paginated_videos(
@@ -283,6 +286,7 @@ def get_videos():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos', methods=['POST'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
 def upload_video():
     """视频上传接口：先入库返回，后台异步处理缩略图等"""
     try:
@@ -407,11 +411,13 @@ def upload_video():
         return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['GET'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "view")
 def get_video(video_id):
     """获取单个视频信息"""
     try:
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         video = Video.get_video_by_id(video_id, is_admin, None)  # 移除权限限制
         if not video:
@@ -426,6 +432,7 @@ def get_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['PUT'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
 def update_video(video_id):
     """更新视频信息"""
     try:
@@ -435,7 +442,7 @@ def update_video(video_id):
 
         # 获取当前用户信息
         user_role = get_user_role_from_token()
-        is_admin = is_admin_user()
+        is_admin = user_role == 'admin'
 
         # 记录更新前的数据
         old_data = {
@@ -507,6 +514,7 @@ def update_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['DELETE'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "delete")
 def delete_video(video_id):
     """删除视频"""
     try:
@@ -516,7 +524,7 @@ def delete_video(video_id):
 
         # 获取当前用户信息
         user_role = get_user_role_from_token()
-        is_admin = is_admin_user()
+        is_admin = user_role == 'admin'
 
         # 记录删除前的视频数据
         video_data = {
@@ -563,6 +571,7 @@ def delete_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/machines', methods=['GET'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "view")
 def get_machines_for_videos():
     """获取机器列表（用于视频关联）"""
     try:
@@ -586,13 +595,13 @@ def get_machines_for_videos():
 
 # 获取已删除视频（回收站功能）
 @video_bp.route('/videos/deleted', methods=['GET'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "view")
 def get_deleted_videos():
     """获取已删除的视频列表（回收站）"""
     try:
-        # 检查管理员权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可访问回收站'}), 403
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -630,13 +639,13 @@ def get_deleted_videos():
 
 # 物理删除视频（从回收站彻底删除）
 @video_bp.route('/videos/physical_delete', methods=['DELETE'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "delete")
 def physical_delete_videos():
     """物理删除视频（从回收站彻底删除）"""
     try:
-        # 检查管理员权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可执行物理删除'}), 403
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         data = request.get_json()
         video_ids = data.get('video_ids', [])
@@ -723,13 +732,13 @@ def physical_delete_videos():
 
 # 恢复已删除的视频
 @video_bp.route('/videos/restore', methods=['POST'])
+@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
 def restore_videos():
     """恢复已删除的视频"""
     try:
-        # 检查管理员权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可执行恢复操作'}), 403
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
 
         data = request.get_json()
         video_ids = data.get('video_ids', [])

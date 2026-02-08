@@ -37,6 +37,19 @@ def create_app(port=5000):
         from .models.data_change_stats import DataChangeStats
         from .models.order_progress import OrderProgress, ProgressStatusDetail, ProgressItem, ProgressMedia
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
+        from .models.permission import RolePermission, init_default_permissions
+        
+        # 初始化数据库表（如果不存在）
+        db.create_all()
+        
+        # 初始化默认权限（如果表已存在且没有初始化数据）
+        try:
+            init_default_permissions()
+        except Exception as e:
+            print(f"⚠️  权限初始化时出现警告: {str(e)}")
+            # 如果权限表不存在（例如在首次运行时），则跳过初始化
+            pass
+        
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -53,9 +66,7 @@ def create_app(port=5000):
         from .routes.expense_routes import expense_bp
         app.register_blueprint(expense_bp, url_prefix='/api')
 
-        # 注册验收管理路由蓝图
-        from .routes.inspection_routes import inspection_bp
-        app.register_blueprint(inspection_bp, url_prefix='/api')
+
 
         # 注册认证相关路由蓝图
         from .routes.auth_routes import auth_bp
@@ -96,6 +107,10 @@ def create_app(port=5000):
         # 注册订单状态管理相关路由蓝图
         from .routes.order_status_routes import order_status_bp
         app.register_blueprint(order_status_bp, url_prefix='/api')
+
+        # 注册权限管理相关路由蓝图
+        from .routes.permission_routes import permission_bp
+        app.register_blueprint(permission_bp)
 
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance

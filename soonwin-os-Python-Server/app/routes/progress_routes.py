@@ -6,6 +6,8 @@ from extensions import db
 from app.models.order import Order
 from app.models.order_progress import OrderProgress, ProgressStatusDetail, ProgressItem, ProgressMedia
 from app.utils.upload_utils import allowed_file, get_file_type
+from app.utils.auth_utils import require_module_permission
+from app.constants.permission_constants import MODULE_ORDER_PROGRESS_MANAGE
 
 progress_bp = Blueprint('progress_bp', __name__)
 
@@ -15,6 +17,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @progress_bp.route('/orders/<order_id>/progress', methods=['GET'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "view")
 def get_order_progress(order_id):
     """获取订单进度详情"""
     try:
@@ -96,6 +99,7 @@ def get_order_progress(order_id):
 
 
 @progress_bp.route('/orders/<order_id>/progress/status', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def update_progress_status(order_id):
     """更新订单进度状态"""
     try:
@@ -159,6 +163,7 @@ def update_progress_status(order_id):
 
 
 @progress_bp.route('/orders/<order_id>/progress/status', methods=['POST'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def create_progress_status(order_id):
     """创建新的进度状态"""
     try:
@@ -208,6 +213,7 @@ def create_progress_status(order_id):
 
 
 @progress_bp.route('/progress/items', methods=['POST'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def add_progress_item():
     """新增进度项"""
     try:
@@ -235,6 +241,7 @@ def add_progress_item():
 
 
 @progress_bp.route('/progress/items/<item_id>', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def update_progress_item(item_id):
     """更新进度项"""
     try:
@@ -259,6 +266,7 @@ def update_progress_item(item_id):
 
 
 @progress_bp.route('/progress/items/<item_id>', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "delete")
 def delete_progress_item(item_id):
     """删除进度项"""
     try:
@@ -285,6 +293,7 @@ def delete_progress_item(item_id):
 
 
 @progress_bp.route('/progress/media/upload', methods=['POST'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def upload_progress_media():
     """上传进度项多媒体文件"""
     try:
@@ -337,6 +346,7 @@ def upload_progress_media():
 
 
 @progress_bp.route('/progress/media/<media_id>', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "delete")
 def delete_progress_media(media_id):
     """删除进度项多媒体文件"""
     try:
@@ -360,6 +370,7 @@ def delete_progress_media(media_id):
 
 
 @progress_bp.route('/orders', methods=['POST'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "edit")
 def create_order_with_progress():
     """创建订单时自动生成进度表"""
     try:
@@ -430,6 +441,7 @@ def create_order_with_progress():
 
 
 @progress_bp.route('/orders', methods=['GET'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "view")
 def get_order_list_with_progress():
     """获取订单列表（仅返回非敏感基础数据）"""
     try:
@@ -476,6 +488,7 @@ def get_order_list_with_progress():
 
 
 @progress_bp.route('/orders/<order_id>/progress', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "delete")
 def delete_order_progress(order_id):
     """删除订单进度及所有相关数据"""
     try:
@@ -514,6 +527,7 @@ def delete_order_progress(order_id):
 
 
 @progress_bp.route('/orders/<order_id>/progress/status', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_PROGRESS_MANAGE, "delete")
 def clear_progress_status(order_id):
     """删除当前状态详情及在该状态下创建的进度项"""
     try:

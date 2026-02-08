@@ -372,14 +372,17 @@ import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Re
 import { formatBusinessLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
-import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
+import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 路由
 const router = useRouter();
 const route = useRoute();
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
+const isCurrentUserAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 在组件挂载时检查用户角色
 // 用户角色检查现在通过computed属性自动处理

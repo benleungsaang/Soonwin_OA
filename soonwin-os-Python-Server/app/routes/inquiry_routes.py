@@ -5,6 +5,8 @@ from app.models.totp_user import TotpUser
 from app.models.employee import Employee
 from app.models.business_operation_log import BusinessOperationLog, add_inquiry_log
 from app.models.data_change_stats import DataChangeStats
+from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
+from app.constants.permission_constants import MODULE_INQUIRY_MANAGE
 from datetime import datetime, timedelta
 import json
 from functools import wraps
@@ -12,54 +14,33 @@ from functools import wraps
 # 创建蓝图
 inquiry_bp = Blueprint('inquiry', __name__)
 
-
-def admin_required(f):
-    """检查用户是否为管理员的装饰器"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # 从请求头获取JWT token
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({"code": 401, "msg": "未提供访问令牌", "data": None}), 401
-
-        try:
-            # 去掉 "Bearer " 前缀
-            token = token.replace('Bearer ', '')
-            # 解码JWT token获取用户信息
-            import jwt
-            from config import Config
-            payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload.get('emp_id')
-
-            # 查询用户信息 - 使用Employee表而不是TotpUser表
-            user = Employee.query.filter_by(emp_id=emp_id).first()
-            if not user or user.user_role != 'admin':
-                return jsonify({"code": 403, "msg": "权限不足", "data": None}), 403
-        except jwt.ExpiredSignatureError:
-            return jsonify({"code": 401, "msg": "令牌已过期", "data": None}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"code": 401, "msg": "无效的令牌", "data": None}), 401
-
-        return f(*args, **kwargs)
-    return decorated_function
+def get_current_user():
+    """获取当前用户信息的辅助函数"""
+    emp_id = get_user_id_from_token()
+    user_role = get_user_role_from_token()
+    user_name = "system"  # 默认名称
+    
+    # 尝试从数据库获取用户信息以获取真实姓名
+    if emp_id:
+        from app.models.employee import Employee
+        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        if employee:
+            user_name = employee.name
+    
+    # 创建模拟用户对象
+    current_user = type('User', (), {
+        'emp_id': emp_id,
+        'user_role': user_role,
+        'name': user_name
+    })()
+    
+    return current_user
 
 
-def get_user_from_token():
-    """从JWT token中获取用户信息"""
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
 
-    try:
-        import jwt
-        from config import Config
-        token = token.replace('Bearer ', '')
-        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload.get('emp_id')
-        # 使用Employee表而不是TotpUser表
-        return Employee.query.filter_by(emp_id=emp_id).first()
-    except:
-        return None
+
+
+
 
 
 def create_inquiry_log(inquiry_id, operation_type, operator_id, details="", inquiry_obj=None, communication_obj=None):
@@ -92,6 +73,7 @@ def create_inquiry_log(inquiry_id, operation_type, operator_id, details="", inqu
 
 
 @inquiry_bp.route('/inquiries', methods=['GET'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_inquiries():
     """获取询盘列表，支持分页和筛选"""
     try:
@@ -110,21 +92,8 @@ def get_inquiries():
         end_date = request.args.get('end_date')
         inquiry_source = request.args.get('inquiry_source')
 
-        # 检查用户权限
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
-
-        # 构建查询
-        query = Inquiry.query
-
-        # 检查是否为管理员，如果不是管理员则只允许查看自己创建的数据
-        if current_user.user_role != 'admin':
-            query = query.filter(Inquiry.creator_id == current_user.emp_id)
+        # 获取当前用户信息
+        current_user = get_current_user()
 
         # 应用综合搜索条件（使用新的search_field字段）
         if search:
@@ -182,6 +151,7 @@ def get_inquiries():
 
 
 @inquiry_bp.route('/inquiries', methods=['POST'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def create_inquiry():
     """创建新询盘"""
     try:
@@ -194,13 +164,7 @@ def create_inquiry():
             }), 400
 
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 验证必填字段 - 所有字段都必须填写
         required_fields = ['area', 'inquiry_date', 'inquiry_source', 'company_name', 'contact_person', 'phone', 'email', 'packaging_product', 'machine_type']
@@ -280,17 +244,12 @@ def create_inquiry():
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['GET'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_inquiry(inquiry_id):
     """获取单个询盘详情"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         inquiry = Inquiry.query.get_or_404(inquiry_id)
 
@@ -319,19 +278,14 @@ def get_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['PUT'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def update_inquiry(inquiry_id):
     """更新询盘信息"""
     try:
         inquiry = Inquiry.query.get_or_404(inquiry_id)
 
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 检查权限：管理员可以修改所有，普通用户只能修改自己创建的
         if current_user.user_role != 'admin' and inquiry.creator_id != current_user.emp_id:
@@ -422,19 +376,14 @@ def update_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['DELETE'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
 def delete_inquiry(inquiry_id):
     """删除询盘"""
     try:
         inquiry = Inquiry.query.get_or_404(inquiry_id)
 
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 检查权限：管理员可以删除所有，普通用户只能删除自己创建的
         if current_user.user_role != 'admin' and inquiry.creator_id != current_user.emp_id:
@@ -493,17 +442,12 @@ def delete_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications', methods=['GET'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_inquiry_communications(inquiry_id):
     """获取询盘沟通记录列表"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 检查询盘是否存在及其访问权限
         inquiry = Inquiry.query.get_or_404(inquiry_id)
@@ -550,6 +494,7 @@ def get_inquiry_communications(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications', methods=['POST'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def create_inquiry_communication(inquiry_id):
     """为询盘添加沟通记录"""
     try:
@@ -562,13 +507,7 @@ def create_inquiry_communication(inquiry_id):
             }), 400
 
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 检查询盘是否存在及其访问权限
         inquiry = Inquiry.query.get_or_404(inquiry_id)
@@ -639,17 +578,12 @@ def create_inquiry_communication(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications/<int:comm_id>', methods=['PUT'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def update_inquiry_communication(inquiry_id, comm_id):
     """更新询盘沟通记录"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 获取沟通记录
         communication = InquiryCommunication.query.filter_by(
@@ -730,17 +664,12 @@ def update_inquiry_communication(inquiry_id, comm_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications/<int:comm_id>', methods=['DELETE'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
 def delete_inquiry_communication(inquiry_id, comm_id):
     """删除询盘沟通记录"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 获取沟通记录
         communication = InquiryCommunication.query.filter_by(
@@ -798,7 +727,7 @@ def delete_inquiry_communication(inquiry_id, comm_id):
 
 
 @inquiry_bp.route('/inquiry-logs', methods=['GET'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_inquiry_logs():
     """获取询盘日志列表（仅管理员）"""
     try:
@@ -840,11 +769,11 @@ def get_inquiry_logs():
         # 获取询盘统计
         inquiry_total_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='total').first()
         inquiry_new_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='new').first()
-        
+
         # 获取沟通记录统计
         communication_total_stats = DataChangeStats.query.filter_by(module='communication', stats_type='total').first()
         communication_new_stats = DataChangeStats.query.filter_by(module='communication', stats_type='new').first()
-        
+
         # 复位时间
         inquiry_reset_time = inquiry_new_stats.reset_time if inquiry_new_stats else None
 
@@ -891,17 +820,12 @@ def get_inquiry_logs():
 
 
 @inquiry_bp.route('/inquiries/stats', methods=['GET'])
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_inquiry_statistics():
     """获取询盘统计信息"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
-        if not current_user:
-            return jsonify({
-                "code": 401,
-                "msg": "未授权访问",
-                "data": None
-            }), 401
+        current_user = get_current_user()
 
         # 构建查询
         query = Inquiry.query
@@ -957,7 +881,7 @@ def get_inquiry_statistics():
 
 
 @inquiry_bp.route('/inquiry-logs/<int:log_id>', methods=['DELETE'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
 def delete_inquiry_log(log_id):
     """删除询盘操作日志（仅管理员）"""
     try:
@@ -986,7 +910,7 @@ def delete_inquiry_log(log_id):
 
 
 @inquiry_bp.route('/inquiry-logs', methods=['DELETE'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
 def clear_all_inquiry_logs():
     """清空所有询盘操作日志（仅管理员）"""
     try:
@@ -1011,7 +935,7 @@ def clear_all_inquiry_logs():
 
 
 @inquiry_bp.route('/inquiry-logs/<int:log_id>/restore', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def restore_inquiry_log(log_id):
     """根据日志恢复被删除或修改的数据（仅管理员）"""
     try:
@@ -1085,7 +1009,7 @@ def restore_inquiry_log(log_id):
             add_inquiry_log(
                 inquiry_id=new_inquiry.id,
                 operation_type='restore',
-                operator_id=get_user_from_token().emp_id,
+                operator_id=get_user_id_from_token(),
                 details=restore_details
             )
 
@@ -1141,7 +1065,7 @@ def restore_inquiry_log(log_id):
             add_inquiry_log(
                 inquiry_id=inquiry.id,
                 operation_type='restore',
-                operator_id=get_user_from_token().emp_id,
+                operator_id=get_user_id_from_token(),
                 details=restore_details
             )
 
@@ -1214,7 +1138,7 @@ def restore_inquiry_log(log_id):
             # 查找需要恢复的沟通记录
             log_inquiry_id = int(log.biz_id) if log.biz_id else None
             communication_id = details.get('communication_id')  # 需要从日志详情中获取沟通记录ID
-            
+
             # 检查询盘是否存在
             inquiry = Inquiry.query.get(log_inquiry_id)
             if not inquiry:
@@ -1223,13 +1147,13 @@ def restore_inquiry_log(log_id):
                     "msg": f"询盘ID {log_inquiry_id} 不存在，无法恢复沟通记录",
                     "data": None
                 }), 400
-            
+
             # 查找沟通记录
             communication = InquiryCommunication.query.filter_by(
                 id=communication_id,
                 inquiry_id=log_inquiry_id
             ).first()
-            
+
             if not communication:
                 return jsonify({
                     "code": 400,
@@ -1260,7 +1184,7 @@ def restore_inquiry_log(log_id):
             add_inquiry_log(
                 inquiry_id=log_inquiry_id,
                 operation_type='restore',
-                operator_id=get_user_from_token().emp_id,
+                operator_id=get_user_id_from_token(),
                 details=restore_details
             )
 
@@ -1287,18 +1211,18 @@ def restore_inquiry_log(log_id):
 
 
 @inquiry_bp.route('/reset-stats', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def reset_statistics():
     """复位统计数字（仅管理员）- 基于新统计模型实现"""
     try:
         reset_time = datetime.now()
         reset_time_str = reset_time.strftime('%Y-%m-%d %H:%M:%S')
-        current_user = get_user_from_token()
+        current_user = get_current_user()
 
         # 1. 获取复位前的统计数值
         inquiry_new_stats = DataChangeStats.query.filter_by(module='inquiry', stats_type='new').first()
         communication_new_stats = DataChangeStats.query.filter_by(module='communication', stats_type='new').first()
-        
+
         previous_new_inquiries = inquiry_new_stats.stats_value if inquiry_new_stats else 0
         previous_new_communications = communication_new_stats.stats_value if communication_new_stats else 0
 
@@ -1351,14 +1275,14 @@ def reset_statistics():
 
 
 @inquiry_bp.route('/reset-inquiry-stats', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def reset_inquiry_stats():
     """复位询盘统计数字（适配前端调用）"""
     return reset_statistics()
 
 
 @inquiry_bp.route('/monthly-stats', methods=['GET'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
 def get_monthly_stats():
     """获取本月统计数字（仅管理员）"""
     try:
@@ -1402,36 +1326,36 @@ def get_monthly_stats():
 
 
 @inquiry_bp.route('/recalculate-stats', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
 def recalculate_statistics():
     """重新计算统计数字（仅管理员）- 用于开发阶段数据校正"""
     try:
-        current_user = get_user_from_token()
-        
+        current_user = get_current_user()
+
         # 重新计算询盘统计
         total_inquiries = Inquiry.query.count()
-        
+
         # 重置并重新计算询盘统计数据
         DataChangeStats.increment_stats('inquiry', 'total', total_inquiries)
         # 由于无法确定新增数量，这里暂时设置为0，或使用其他逻辑
         # 我们将根据实际数据重新设置
         DataChangeStats.reset_stats('inquiry', ['new', 'total'])
-        
+
         # 重新计算并设置总数
         total_inquiries = Inquiry.query.count()
         DataChangeStats.query.filter_by(module='inquiry', stats_type='total').update({'stats_value': total_inquiries})
         # 新增数暂时设置为当前总数（因为开发阶段无法确定历史新增）
         DataChangeStats.query.filter_by(module='inquiry', stats_type='new').update({'stats_value': total_inquiries})
-        
+
         # 重新计算沟通记录统计
         total_communications = InquiryCommunication.query.count()
         DataChangeStats.reset_stats('communication', ['new', 'total'])
-        
+
         # 重新设置总数
         total_communications = InquiryCommunication.query.count()
         DataChangeStats.query.filter_by(module='communication', stats_type='total').update({'stats_value': total_communications})
         DataChangeStats.query.filter_by(module='communication', stats_type='new').update({'stats_value': total_communications})
-        
+
         # 提交更改
         db.session.commit()
 

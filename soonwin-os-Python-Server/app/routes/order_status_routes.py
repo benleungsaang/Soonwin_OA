@@ -7,6 +7,8 @@ from extensions import db
 from app.models.order import Order
 from app.models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
 from app.utils.upload_utils import allowed_file, get_file_type
+from app.utils.auth_utils import require_module_permission
+from app.constants.permission_constants import MODULE_ORDER_STATUS_MANAGE
 
 order_status_bp = Blueprint('order_status_bp', __name__)
 
@@ -16,6 +18,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @order_status_bp.route('/order-status-orders', methods=['GET'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
 def get_order_status_orders():
     """获取需要进度管理的订单列表"""
     try:
@@ -71,6 +74,7 @@ def get_order_status_orders():
 
 
 @order_status_bp.route('/order-status', methods=['GET'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
 def get_order_status_by_order_no():
     """根据订单号获取进度记录"""
     try:
@@ -169,6 +173,7 @@ def get_order_status_by_order_no():
 
 
 @order_status_bp.route('/order-status', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def create_order_status():
     """创建订单进度记录"""
     try:
@@ -208,6 +213,7 @@ def create_order_status():
 
 
 @order_status_bp.route('/order-status/<int:status_id>', methods=['GET'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
 def get_order_status(status_id):
     """获取订单进度详情"""
     try:
@@ -270,6 +276,7 @@ def get_order_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def update_order_status(status_id):
     """更新订单进度记录"""
     try:
@@ -301,6 +308,7 @@ def update_order_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/status', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def update_order_status_status(status_id):
     """更新订单状态"""
     try:
@@ -332,6 +340,7 @@ def update_order_status_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/clear', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def clear_order_status_tasks(status_id):
     """清空订单进度记录的所有任务项"""
     try:
@@ -369,6 +378,7 @@ def clear_order_status_tasks(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/batch', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def batch_update_status_tasks(status_id):
     """批量更新任务项"""
     try:
@@ -441,6 +451,7 @@ def batch_update_status_tasks(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def create_status_task(status_id):
     """创建任务项"""
     try:
@@ -481,6 +492,7 @@ def create_status_task(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def update_status_task(status_id, task_id):
     """更新任务项"""
     try:
@@ -527,6 +539,7 @@ def update_status_task(status_id, task_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>/media', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
 def delete_status_task_media(status_id, task_id):
     """删除任务项的媒体文件"""
     try:
@@ -567,6 +580,7 @@ def delete_status_task_media(status_id, task_id):
 
 
 @order_status_bp.route('/order-status-logs/<int:log_id>', methods=['PUT'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def update_order_status_log(log_id):
     """更新订单状态日志"""
     try:
@@ -599,6 +613,7 @@ def update_order_status_log(log_id):
 
 
 @order_status_bp.route('/order-status-logs/<int:log_id>', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
 def delete_order_status_log(log_id):
     """删除订单状态日志"""
     try:
@@ -649,6 +664,7 @@ def delete_order_status_log(log_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['DELETE'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
 def delete_task(status_id, task_id):
     """删除任务项（单独删除任务项，不是删除状态日志）"""
     try:
@@ -714,6 +730,7 @@ def delete_task(status_id, task_id):
 
 
 @order_status_bp.route('/order-status-logs', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def create_order_status_log():
     """创建订单状态日志"""
     try:
@@ -765,6 +782,7 @@ def create_order_status_log():
 
 
 @order_status_bp.route('/order-status/<int:status_id>/report', methods=['GET'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
 def get_order_status_report(status_id):
     """生成订单状态报告（目前返回JSON格式，后续可扩展为PDF等格式）"""
     try:
@@ -826,6 +844,7 @@ def get_order_status_report(status_id):
 
 
 @order_status_bp.route('/order-status-logs/batch', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def batch_create_order_status_logs():
     """批量创建订单状态日志和任务项"""
     try:
@@ -910,6 +929,7 @@ def batch_create_order_status_logs():
 
 
 @order_status_bp.route('/order-status/<int:status_id>/clear-all', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
 def clear_all_order_status_data(status_id):
     """清空订单进度记录的所有数据（包括状态日志、任务项及关联的文件）"""
     try:
@@ -1009,6 +1029,7 @@ def clear_all_order_status_data(status_id):
 
 
 @order_status_bp.route('/order-status/upload-multiple-images', methods=['POST'])
+@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
 def upload_multiple_images():
     """批量上传任务项媒体文件"""
     try:

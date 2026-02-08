@@ -82,7 +82,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!isCurrentUserAdmin"
+                :disabled="!props.isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
@@ -94,7 +94,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!isCurrentUserAdmin"
+                :disabled="!props.isCurrentUserAdmin"
               />
             </el-form-item>
           </el-col>
@@ -120,6 +120,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture } from '@element-plus/icons-vue'
 import { getParts, createPart, updatePart, deletePart as deletePartAPI, importPartsJson, exportPartsJson } from '@/utils/request'
+import { getCurrentUserRole } from '@/utils/authUtils';
 import JsonImportExport from '@/components/JsonImportExport.vue'
 
 // 响应式数据

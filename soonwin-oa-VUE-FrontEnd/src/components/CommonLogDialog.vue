@@ -177,7 +177,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '@/utils/request';
 import { formatBusinessLog } from '@/utils/logFormatter';
 import { Loading, Refresh, OfficeBuilding, Delete } from '@element-plus/icons-vue';
-import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
+import { hasModulePermission, ModuleNames, getCurrentUserRole } from '@/utils/authUtils';
 
 // 定义Props
 interface Props {
@@ -212,7 +212,10 @@ const statistics = ref({
 });
 
 // 计算属性
-const isAdmin = computed(() => checkIsCurrentUserAdmin());
+const isAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 const logTypeText = computed(() => {
   const typeMap: Record<string, string> = {
     'inquiry': '询盘',

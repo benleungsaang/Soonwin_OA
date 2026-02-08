@@ -4,63 +4,43 @@ from app.models.business_operation_log import BusinessOperationLog, get_logs_by_
 from app.models.employee import Employee
 from app.models.inquiry import Inquiry, InquiryCommunication
 from app.models.machine import Machine
+from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
+from app.constants.permission_constants import MODULE_LOG_MANAGE
 from datetime import datetime, timedelta
 import json
 
 # 创建蓝图
 log_bp = Blueprint('log', __name__)
 
-def admin_required(f):
-    """检查用户是否为管理员的装饰器"""
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # 从请求头获取JWT token
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({"code": 401, "msg": "未提供访问令牌", "data": None}), 401
-
-        try:
-            # 去掉 "Bearer " 前缀
-            token = token.replace('Bearer ', '')
-            # 解码JWT token获取用户信息
-            import jwt
-            from config import Config
-            payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload.get('emp_id')
-
-            # 查询用户信息
-            user = Employee.query.filter_by(emp_id=emp_id).first()
-            if not user or user.user_role != 'admin':
-                return jsonify({"code": 403, "msg": "权限不足", "data": None}), 403
-        except jwt.ExpiredSignatureError:
-            return jsonify({"code": 401, "msg": "令牌已过期", "data": None}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"code": 401, "msg": "无效的令牌", "data": None}), 401
-
-        return f(*args, **kwargs)
-    return decorated_function
+def get_current_user():
+    """获取当前用户信息的辅助函数"""
+    emp_id = get_user_id_from_token()
+    user_role = get_user_role_from_token()
+    user_name = "system"  # 默认名称
+    
+    # 尝试从数据库获取用户信息以获取真实姓名
+    if emp_id:
+        employee = Employee.query.filter_by(emp_id=emp_id).first()
+        if employee:
+            user_name = employee.name
+    
+    # 创建模拟用户对象
+    current_user = type('User', (), {
+        'emp_id': emp_id,
+        'user_role': user_role,
+        'name': user_name
+    })()
+    
+    return current_user
 
 
-def get_user_from_token():
-    """从JWT token中获取用户信息"""
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
 
-    try:
-        import jwt
-        from config import Config
-        token = token.replace('Bearer ', '')
-        payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload.get('emp_id')
-        return Employee.query.filter_by(emp_id=emp_id).first()
-    except:
-        return None
+
+
 
 
 @log_bp.route('/<module>-logs', methods=['GET'])
-@admin_required
+@require_module_permission(MODULE_LOG_MANAGE, "view")
 def get_logs_by_module_endpoint(module):
     """根据模块获取日志列表（仅管理员）"""
     try:
@@ -233,7 +213,7 @@ def get_statistics_by_module(module):
 
 
 @log_bp.route('/<module>-logs/<int:log_id>', methods=['DELETE'])
-@admin_required
+@require_module_permission(MODULE_LOG_MANAGE, "delete")
 def delete_log_by_id(module, log_id):
     """删除指定模块的特定日志（仅管理员）"""
     try:
@@ -261,7 +241,7 @@ def delete_log_by_id(module, log_id):
 
 
 @log_bp.route('/<module>-logs', methods=['DELETE'])
-@admin_required
+@require_module_permission(MODULE_LOG_MANAGE, "delete")
 def clear_all_logs_by_module(module):
     """清空指定模块的所有日志（仅管理员）"""
     try:
@@ -283,7 +263,7 @@ def clear_all_logs_by_module(module):
 
 
 @log_bp.route('/<module>-logs/<int:log_id>/restore', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_LOG_MANAGE, "edit")
 def restore_log_by_id(module, log_id):
     """根据日志恢复被删除或修改的数据（仅管理员）"""
     try:
@@ -378,7 +358,7 @@ def restore_inquiry_log(log):
         add_inquiry_log(
             inquiry_id=new_inquiry.id,
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -433,11 +413,10 @@ def restore_inquiry_log(log):
         }
 
         add_inquiry_log(
-            inquiry_id=inquiry.id,
-            operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
-            details=restore_details
-        )
+                    inquiry_id=inquiry.id,
+                    operation_type='restore',
+                    operator_id=get_user_id_from_token(),
+                    details=restore_details        )
 
         return jsonify({
             "code": 200,
@@ -477,7 +456,7 @@ def restore_inquiry_log(log):
         add_inquiry_log(
             inquiry_id=communication_data.get('inquiry_id'),
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -528,7 +507,7 @@ def restore_inquiry_log(log):
         add_inquiry_log(
             inquiry_id=log_inquiry_id,
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -618,7 +597,7 @@ def restore_video_log(log):
         add_video_log(
             video_id=video.id,
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -678,7 +657,7 @@ def restore_video_log(log):
         add_video_log(
             video_id=video.id,
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -776,7 +755,7 @@ def restore_photo_log(log):
         add_photo_log(
             photo_id=photo.id,
             operation_type='restore',
-            operator_id=get_user_from_token().emp_id,
+            operator_id=get_user_id_from_token(),
             details=restore_details
         )
 
@@ -805,12 +784,12 @@ def restore_employee_log(log):
 
 
 @log_bp.route('/reset-<module>-stats', methods=['POST'])
-@admin_required
+@require_module_permission(MODULE_LOG_MANAGE, "edit")
 def reset_statistics_by_module(module):
     """复位指定模块的统计数字（仅管理员）"""
     try:
         # 获取当前用户
-        current_user = get_user_from_token()
+        current_user = get_current_user()
 
         # 记录复位操作到日志
         details = {

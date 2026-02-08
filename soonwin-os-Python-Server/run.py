@@ -71,6 +71,56 @@ def auto_execute_existing_migrations(port=5000):
         traceback.print_exc()
         sys.exit(1)
 
+# ========== 【新增】创建权限表并初始化权限 ==========
+def init_permissions_after_startup(port=5000):
+    """
+    启动后初始化权限表和默认权限
+    """
+    try:
+        print("🔍 初始化权限表和默认权限...")
+        app = create_app(port)
+
+        with app.app_context():
+            from extensions import db
+            from app.models.permission import RolePermission, init_default_permissions
+            from sqlalchemy import text
+            from sqlalchemy import inspect
+
+            # 检查RolePermission表是否存在
+            inspector_instance = inspect(db.engine)
+            tables = inspector_instance.get_table_names()
+
+            if 'RolePermission' not in tables:
+                print("🔍 RolePermission表不存在，手动创建...")
+                # 手动创建RolePermission表
+                with db.engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE RolePermission (
+                            id TEXT PRIMARY KEY,
+                            role_name VARCHAR(10) NOT NULL,
+                            module_name VARCHAR(50) NOT NULL,
+                            can_view BOOLEAN DEFAULT 1,
+                            can_edit BOOLEAN DEFAULT 0,
+                            can_delete BOOLEAN DEFAULT 0,
+                            create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            update_time DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE UNIQUE INDEX uq_role_module ON RolePermission (role_name, module_name)
+                    """))
+                    conn.commit()  # 提交事务
+                print("✅ RolePermission表创建成功！")
+
+            # 初始化默认权限
+            init_default_permissions()
+            print("✅ 默认权限初始化成功！")
+
+    except Exception as e:
+        print(f"❌ 权限初始化失败！错误信息：{str(e)}")
+        import traceback
+        traceback.print_exc()
+
 # ========== 你的业务路由示例 ==========
 def create_app_with_routes(port=5000):
     app = create_app(port)

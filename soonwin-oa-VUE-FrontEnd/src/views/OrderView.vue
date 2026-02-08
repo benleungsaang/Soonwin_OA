@@ -78,7 +78,7 @@
                 :value="year"
               ></el-option>
             </el-select>
-            <el-button size="small" @click="fetchExpenseSummary">刷新</el-button>
+            <el-button size="small" @click="fetchExpenseSummary">手动加载</el-button>
           </div>
         </div>
       </template>
@@ -154,7 +154,7 @@
         </div>
       </div>
       <div v-else class="no-summary-data">
-        暂无费用汇总数据，请点击"刷新"按钮进行加载
+        查看费用汇总数据，请点击"手动加载"按钮进行加载
       </div>
     </el-card>
 
@@ -688,10 +688,13 @@ import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import request from '@/utils/request';
 import { Search, Plus } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
-import { isCurrentUserAdmin as checkIsCurrentUserAdmin } from '@/utils/authUtils';
+import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
+const isCurrentUserAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 导入ECharts
 
@@ -1062,7 +1065,7 @@ const showEditDialog = async (order: any) => {
   try {
     // 获取完整的订单数据，而不是只使用表格中显示的部分数据
     const response: any = await request.get(`/api/orders/${order.id}`);
-    
+
     // 检查响应结构并提取数据
     let fullOrderData;
     if (response && response.data) {
@@ -1072,7 +1075,7 @@ const showEditDialog = async (order: any) => {
       // 直接返回数据结构或未知结构
       fullOrderData = response || {};
     }
-    
+
     dialogTitle.value = '编辑订单';
     isEdit.value = true;
     isViewMode.value = false; // 确保编辑模式不是查看模式
@@ -1309,7 +1312,7 @@ const checkContractNoDuplicate = async () => {
 const viewOrder = async (id: number) => {
   try {
     const response: any = await request.get(`/api/orders/${id}`);
-    
+
     // 检查响应结构并提取数据
     let orderData;
     if (response && response.data) {
@@ -1338,7 +1341,7 @@ const viewOrder = async (id: number) => {
 const viewOrderById = async (row: any) => {
   try {
     const response: any = await request.get(`/api/orders/${row.id}`);
-    
+
     // 检查响应结构并提取数据
     let orderData;
     if (response && response.data) {

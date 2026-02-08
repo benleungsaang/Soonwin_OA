@@ -224,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Delete, Loading, Document, ArrowLeft, ArrowRight, FolderOpened, Edit } from '@element-plus/icons-vue';
 import request from '@/utils/request';
@@ -232,6 +232,7 @@ import { useRouter } from 'vue-router';
 import { initializePdfDocument, getPdfPage, renderPdfPage } from '@/utils/pdfUtils';
 import { DisplayFile } from '@/types';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 路由相关
 const router = useRouter();
@@ -242,7 +243,10 @@ const loading = ref(false);
 const page = ref(1);
 const perPage = ref(10);
 const hasMore = ref(true);
-const isCurrentUserAdmin = ref(false);
+const isCurrentUserAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 预览相关
 const previewVisible = ref(false);
@@ -280,13 +284,10 @@ const checkAdminRole = () => {
   if (token) {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      isCurrentUserAdmin.value = payload.user_role === 'admin';
+  
     } catch (error) {
       console.error('解析用户信息失败:', error);
-      isCurrentUserAdmin.value = false;
     }
-  } else {
-    isCurrentUserAdmin.value = false;
   }
 };
 

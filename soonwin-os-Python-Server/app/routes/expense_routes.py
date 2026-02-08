@@ -3,7 +3,8 @@ from extensions import db
 from app.models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
 from app.models.order import Order
 from app.models.employee import Employee
-from app.utils.auth_utils import require_admin
+from app.utils.auth_utils import require_admin, require_module_permission
+from app.constants.permission_constants import MODULE_EXPENSE_MANAGE
 from datetime import datetime, date, timedelta
 import json
 from decimal import Decimal
@@ -84,7 +85,7 @@ expense_bp = Blueprint('expense', __name__)
 
 
 @expense_bp.route('/expenses', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_expenses():
         """获取费用列表，支持分页和筛选，同时返回年度费用汇总"""
         try:
@@ -241,7 +242,7 @@ def get_expenses():
 
 
 @expense_bp.route('/expenses', methods=['POST'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def create_expense():
     """创建费用记录"""
     try:
@@ -287,7 +288,7 @@ def create_expense():
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_expense(expense_id):
     """获取单个费用详情"""
     try:
@@ -313,7 +314,7 @@ def get_expense(expense_id):
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['PUT'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def update_expense(expense_id):
     """更新费用记录"""
     try:
@@ -356,7 +357,7 @@ def update_expense(expense_id):
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['DELETE'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "delete")
 def delete_expense(expense_id):
     """删除费用记录"""
     try:
@@ -383,7 +384,7 @@ def delete_expense(expense_id):
 
 
 @expense_bp.route('/expense-allocations', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_expense_allocations():
     """获取费用分摊列表"""
     try:
@@ -441,7 +442,7 @@ def get_expense_allocations():
 
 
 @expense_bp.route('/expense-calculation-records', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_calculation_records():
     """获取费用计算记录列表"""
     try:
@@ -496,7 +497,7 @@ def get_calculation_records():
 
 
 @expense_bp.route('/calculate-expense-allocations', methods=['POST'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def calculate_expense_allocations():
     """计算费用分摊 - 按订单金额比例分摊到指定年度的所有订单"""
     try:
@@ -723,7 +724,7 @@ def calculate_expense_allocations():
 
 
 @expense_bp.route('/get-yearly-expense-summary/<int:year>', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_yearly_expense_summary(year):
     """获取指定年份的费用汇总信息"""
     try:
@@ -831,7 +832,7 @@ def get_yearly_expense_summary(year):
 
 
 @expense_bp.route('/annual-targets', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_annual_targets():
     """获取年度目标列表"""
     try:
@@ -882,7 +883,7 @@ def get_annual_targets():
 
 
 @expense_bp.route('/annual-targets', methods=['POST'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def create_annual_target():
     """创建年度目标"""
     try:
@@ -942,7 +943,7 @@ def create_annual_target():
 
 
 @expense_bp.route('/annual-targets/<int:target_id>', methods=['PUT'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def update_annual_target(target_id):
     """更新年度目标"""
     try:
@@ -984,7 +985,7 @@ def update_annual_target(target_id):
 
 
 @expense_bp.route('/annual-targets/<int:target_id>', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_annual_target(target_id):
     """获取单个年度目标详情"""
     try:
@@ -1010,7 +1011,7 @@ def get_annual_target(target_id):
 
 
 @expense_bp.route('/annual-targets/year/<int:target_year>', methods=['GET'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_annual_target_by_year(target_year):
     """根据年份获取年度目标"""
     try:
@@ -1045,7 +1046,7 @@ def get_annual_target_by_year(target_year):
 
 
 @expense_bp.route('/annual-targets/year/<int:target_year>', methods=['PUT'])
-@require_admin
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def update_annual_target_by_year(target_year):
     """根据年份更新年度目标"""
     try:
@@ -1086,48 +1087,10 @@ def update_annual_target_by_year(target_year):
 
 
 @expense_bp.route('/individual-expenses', methods=['GET'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_individual_expenses():
     """获取个别费用列表"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
@@ -1179,48 +1142,10 @@ def get_individual_expenses():
 
 
 @expense_bp.route('/individual-expenses', methods=['POST'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def create_individual_expense():
     """创建个别费用"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         data = request.get_json()
         if not data:
@@ -1283,48 +1208,10 @@ def create_individual_expense():
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['PUT'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
 def update_individual_expense(expense_id):
     """更新个别费用"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         individual_expense = IndividualExpense.query.get_or_404(expense_id)
         data = request.get_json()
@@ -1369,48 +1256,10 @@ def update_individual_expense(expense_id):
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['GET'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_individual_expense(expense_id):
     """获取单个别费用详情"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         individual_expense = IndividualExpense.query.get_or_404(expense_id)
         expense_data = serialize_individual_expense(individual_expense)
@@ -1434,48 +1283,10 @@ def get_individual_expense(expense_id):
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['DELETE'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "delete")
 def delete_individual_expense(expense_id):
     """删除个别费用"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         individual_expense = IndividualExpense.query.get_or_404(expense_id)
         order_id = individual_expense.order_id
@@ -1501,48 +1312,10 @@ def delete_individual_expense(expense_id):
 
 
 @expense_bp.route('/orders/<int:order_id>/individual-expenses', methods=['GET'])
+@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
 def get_individual_expenses_by_order(order_id):
     """获取指定订单的个别费用列表"""
     try:
-        # 检查用户是否已认证
-        token = request.headers.get('Authorization')
-        if not token:
-            return jsonify({
-                "code": 401,
-                "msg": "缺少访问令牌",
-                "data": None
-            }), 401
-
-        # 移除 "Bearer " 前缀
-        if token.startswith("Bearer "):
-            token = token[7:]
-
-        try:
-            # 解码JWT令牌
-            payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            emp_id = payload['emp_id']
-
-            # 查询员工信息
-            employee = Employee.query.filter_by(emp_id=emp_id).first()
-            if not employee:
-                return jsonify({
-                    "code": 401,
-                    "msg": "员工信息不存在",
-                    "data": None
-                }), 401
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "code": 401,
-                "msg": "令牌已过期",
-                "data": None
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "code": 401,
-                "msg": "无效的令牌",
-                "data": None
-            }), 401
 
         # 检查订单是否存在
         order = Order.query.get(order_id)

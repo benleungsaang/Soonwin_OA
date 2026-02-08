@@ -530,7 +530,7 @@ import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { uploadFile } from '@/utils/upload';
-import { isCurrentUserAdmin } from '@/utils/authUtils';
+import { getCurrentUserRole } from '@/utils/authUtils';
 import request, {
   getMachinesForVideos,
   createVideo,
@@ -630,7 +630,10 @@ const isMultiSelectMode = ref(false); // 是否处于普通视频列表的多选
 const selectedNormalVideos = ref<number[]>([]); // 选中的普通视频ID列表
 
 // 权限相关
-const isAdmin = computed(() => isCurrentUserAdmin());
+const isAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 通用日志组件相关
 const logDialogVisible = ref(false);

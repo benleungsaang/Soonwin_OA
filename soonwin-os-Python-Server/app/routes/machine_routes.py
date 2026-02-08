@@ -5,12 +5,14 @@ import json
 from .. import db
 from ..models.machine import Machine, PartType
 from ..utils.json_utils import import_json_data, export_json_data
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user
+from ..utils.auth_utils import get_user_role_from_token, is_admin_user, require_module_permission
+from ..constants.permission_constants import MODULE_MACHINE_MANAGE
 import uuid
 
 machine_bp = Blueprint('machine_bp', __name__, url_prefix='/api')
 
 @machine_bp.route('/machines', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def get_machines():
     """获取所有机器列表"""
     try:
@@ -18,7 +20,8 @@ def get_machines():
         per_page = request.args.get('per_page', 10, type=int)
         
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         # 过滤掉已删除的机器
         query = Machine.query.filter_by(is_deleted=0)
@@ -51,11 +54,13 @@ def get_machines():
 
 
 @machine_bp.route('/machines/<string:model>', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def get_machine(model):
     """根据型号获取单个机器"""
     try:
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
@@ -77,13 +82,13 @@ def get_machine(model):
 
 
 @machine_bp.route('/machines', methods=['POST'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def create_machine():
     """创建新机器"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可创建机器'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -166,6 +171,7 @@ def create_machine():
 
 
 @machine_bp.route('/machines/<string:model>', methods=['PUT'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def update_machine(model):
     """更新机器信息"""
     try:
@@ -174,9 +180,8 @@ def update_machine(model):
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
         
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可更新机器'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -241,6 +246,7 @@ def update_machine(model):
 
 
 @machine_bp.route('/machines/<string:model>', methods=['DELETE'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "delete")
 def delete_machine(model):
     """逻辑删除机器（归档）"""
     try:
@@ -265,6 +271,7 @@ def delete_machine(model):
 
 
 @machine_bp.route('/parts', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def get_parts():
     """获取所有部件列表"""
     try:
@@ -272,7 +279,8 @@ def get_parts():
         per_page = request.args.get('per_page', 10, type=int)
         
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         pagination = PartType.query.paginate(
             page=page, per_page=per_page, error_out=False
@@ -303,11 +311,13 @@ def get_parts():
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def get_part(part_type_id):
     """根据ID获取单个部件"""
     try:
         # 使用通用函数检查用户权限
-        is_admin = is_admin_user()
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         part = PartType.query.filter_by(part_type_id=part_type_id).first()
         if not part:
@@ -329,13 +339,13 @@ def get_part(part_type_id):
 
 
 @machine_bp.route('/parts', methods=['POST'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def create_part():
     """创建新部件"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可创建部件'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -394,6 +404,7 @@ def create_part():
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['PUT'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def update_part(part_type_id):
     """更新部件信息"""
     try:
@@ -402,9 +413,8 @@ def update_part(part_type_id):
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
         
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可更新部件'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -461,6 +471,7 @@ def update_part(part_type_id):
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['DELETE'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "delete")
 def delete_part(part_type_id):
     """删除部件"""
     try:
@@ -482,13 +493,13 @@ def delete_part(part_type_id):
 
 
 @machine_bp.route('/parts/import-json', methods=['POST'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def import_parts_json():
     """直接从JSON数据导入部件数据（不需要文件上传）"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入部件数据'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -521,13 +532,13 @@ def import_parts_json():
 
 
 @machine_bp.route('/parts/export-json', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def export_parts_json():
     """导出部件数据为JSON格式"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可导出部件数据'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         # 获取过滤参数
         filters = {}
@@ -546,13 +557,13 @@ def export_parts_json():
 
 
 @machine_bp.route('/machines/import', methods=['POST'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def import_machines():
     """从JSON文件导入机器数据（保留原有功能）"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入机器数据'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': '未提供文件'}), 400
@@ -596,13 +607,13 @@ def import_machines():
 
 
 @machine_bp.route('/machines/import-json', methods=['POST'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
 def import_machines_json():
     """直接从JSON数据导入机器数据（不需要文件上传）"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可导入机器数据'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         data = request.get_json()
         
@@ -635,13 +646,13 @@ def import_machines_json():
 
 
 @machine_bp.route('/machines/export-json', methods=['GET'])
+@require_module_permission(MODULE_MACHINE_MANAGE, "view")
 def export_machines_json():
     """导出机器数据为JSON格式"""
     try:
         # 检查用户权限
-        is_admin = is_admin_user()
-        if not is_admin:
-            return jsonify({'success': False, 'message': '权限不足，仅管理员可导出机器数据'}), 403
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
         
         # 获取过滤参数
         filters = {}

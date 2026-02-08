@@ -121,7 +121,7 @@
               <el-tooltip content="批量导入状态" placement="bottom">
                 <el-icon class="btn-add-status" style="background-color: #629cd9;margin-right: 5px;" @click="openBatchStatusDialog"><DocumentCopy /></el-icon>
               </el-tooltip>
-              <el-tooltip v-if="!isCurrentUserAdmin" content="清空状态" placement="bottom">
+              <el-tooltip v-if="showClearStatusBtn" content="清空状态" placement="bottom">
                 <el-icon class="btn-add-status" style="background-color: #d9b062;" @click="clearAllStatusData"><Refresh /></el-icon>
               </el-tooltip>
               </el-descriptions-item>
@@ -478,7 +478,7 @@ import CommonHeader from '@/components/CommonHeader.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { cursorTo } from 'node:readline';
 import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
-import { isCurrentUserAdmin } from '@/utils/authUtils';
+import { hasModulePermission, ModuleNames, getCurrentUserRole } from '@/utils/authUtils';
 
 // 获取路由实例
 const router = useRouter();
@@ -634,6 +634,11 @@ const isStatusImageFormat = computed(() => {
   return desc.endsWith('.png') || desc.endsWith('.jpg') || desc.endsWith('.jpeg') || desc.endsWith('.gif') || desc.endsWith('.webp');
 });
 
+// 控制清空状态按钮的显示：非管理员用户显示此按钮
+const showClearStatusBtn = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole !== 'admin';
+});
 
 // 获取用户角色
 const userRole = ref('');

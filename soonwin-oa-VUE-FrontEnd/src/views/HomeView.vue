@@ -33,23 +33,23 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.resource">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken">
+                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken && hasPhotoManagePermission">
                       <el-icon><Picture /></el-icon>
                       <span>照片管理</span>
                     </el-menu-item>
-                    <el-menu-item index="14" @click="goToVideoManagement" v-if="hasToken">
+                    <el-menu-item index="14" @click="goToVideoManagement" v-if="hasToken && hasVideoManagePermission">
                       <el-icon><VideoCamera /></el-icon>
                       <span>视频管理</span>
                     </el-menu-item>
-                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && hasMachinePartsManagePermission">
                       <el-icon><Tools /></el-icon>
                       <span>机器零部件管理</span>
                     </el-menu-item>
-                    <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && hasExpenseManagePermission">
                       <el-icon><Money /></el-icon>
                       <span>运营费用</span>
                     </el-menu-item>
-                    <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken && hasEmployeeManagePermission">
                       <el-icon><User /></el-icon>
                       <span>员工管理</span>
                     </el-menu-item>
@@ -70,19 +70,19 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.order">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="9" @click="goToInquiries" v-if="hasToken">
+                    <el-menu-item index="9" @click="goToInquiries" v-if="hasToken && hasInquiriesManagePermission">
                       <el-icon><Document /></el-icon>
                       <span>询盘登记表</span>
                     </el-menu-item>
-                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken">
+                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken && hasOrderManagePermission">
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
-                    <!-- <el-menu-item index="6" @click="goToOrderInspection" v-if="hasToken">
-                      <el-icon><Finished /></el-icon>
-                      <span>订单验收</span>
-                    </el-menu-item> -->
-                    <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken">
+                    <el-menu-item index="16" @click="goToOrderProgress" v-if="hasToken && hasOrderProgressManagePermission">
+                      <el-icon><List /></el-icon>
+                      <span>订单进度管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken && hasOrderStatusManagePermission">
                       <el-icon><List /></el-icon>
                       <span>订单状态管理</span>
                     </el-menu-item>
@@ -103,11 +103,11 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.other">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken">
+                    <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken && hasPunchManagePermission">
                       <el-icon><Monitor /></el-icon>
                       <span>打卡</span>
                     </el-menu-item>
-                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken">
+                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken && hasDisplayFilesManagePermission">
                       <el-icon><Files /></el-icon>
                       <span>展示文件</span>
                     </el-menu-item>
@@ -130,13 +130,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, SwitchButton, Money, Finished,
   Monitor, Upload, Files, Box, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+// 导入权限工具函数
+import {
+  hasToken as checkHasToken,
+  hasModulePermission,
+  ModuleNames,
+  loadUserPermissions,
+  clearUserPermissions
+} from '@/utils/authUtils';
 
 // 路由实例
 const router = useRouter();
@@ -145,9 +153,7 @@ const appTitle = ref(import.meta.env.VITE_APP_TITLE);
 // 当前激活的菜单
 const activeMenu = ref('1');
 // 是否已登录（存在token）
-const hasToken = ref(!!localStorage.getItem('oa_token'));
-// 当前用户是否为管理员
-const isCurrentUserAdmin = ref(false);
+const hasToken = ref(false);
 // 折叠状态控制：默认订单跟进展开，其余折叠
 const collapseStatus = ref({
   resource: false,  // 资源管理：默认折叠
@@ -155,59 +161,182 @@ const collapseStatus = ref({
   other: false      // 其它功能：默认折叠
 });
 
+// ========== 权限判断计算属性 ==========
+const hasEmployeeManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.EMPLOYEE_MANAGE, 'view');
+});
+
+const hasExpenseManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.EXPENSE_MANAGE, 'view');
+});
+
+const hasMachinePartsManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.MACHINE_MANAGE, 'view');
+});
+
+const hasPhotoManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.PHOTO_MANAGE, 'view');
+});
+
+const hasVideoManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.VIDEO_MANAGE, 'view');
+});
+
+const hasOrderManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.ORDER_MANAGE, 'view');
+});
+
+const hasInquiriesManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.INQUIRY_MANAGE, 'view');
+});
+
+const hasOrderStatusManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.ORDER_STATUS_MANAGE, 'view');
+});
+
+const hasPunchManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.PUNCH_MANAGE, 'view');
+});
+
+const hasDisplayFilesManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.DISPLAY_FILES_MANAGE, 'view');
+});
+
+const hasOrderProgressManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.ORDER_PROGRESS_MANAGE, 'view');
+});
+
+const hasDeviceManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.DEVICE_MANAGE, 'view');
+});
+
+const hasUserManagePermission = computed(() => {
+  return hasModulePermission(ModuleNames.USER_MANAGE, 'view');
+});
+
+
+
+// ========== 方法定义 ==========
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {
   collapseStatus.value[column] = !collapseStatus.value[column];
 };
 
-// 页面挂载时检查登录状态和用户角色
-onMounted(() => {
-  hasToken.value = !!localStorage.getItem('oa_token');
+// 页面挂载时检查登录状态和加载权限
+onMounted(async () => {
+  hasToken.value = checkHasToken();
   if (hasToken.value) {
-    try {
-      const token = localStorage.getItem('oa_token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        isCurrentUserAdmin.value = payload.user_role === 'admin';
-      }
-    } catch (error) {
-      console.error('解析用户信息失败:', error);
-      isCurrentUserAdmin.value = false;
-    }
+    // 加载用户权限
+    await loadUserPermissions();
   }
 });
 
-// 所有跳转方法（保持原有功能不变）
-const goToOrder = () => router.push('/order');
-const goToPunchIn = () => router.push('/punch');
-const goToPunchRecords = () => router.push('/punch-records');
+// 所有跳转方法（增加权限检查）
+const goToOrder = () => {
+  if (hasOrderManagePermission.value) {
+    router.push('/order');
+  } else {
+    ElMessage.error('您没有权限访问订单管理页面！');
+  }
+};
+
+const goToPunchIn = () => {
+  if (hasPunchManagePermission.value) {
+    router.push('/punch');
+  } else {
+    ElMessage.error('您没有权限访问打卡页面！');
+  }
+};
+
+const goToPunchRecords = () => {
+  if (hasPunchManagePermission.value) {
+    router.push('/punch-records');
+  } else {
+    ElMessage.error('您没有权限访问打卡记录页面！');
+  }
+};
+
 const goToEmployeeManagement = () => {
-  if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问员工管理页面！');
-  router.push('/employee-management');
+  if (hasEmployeeManagePermission.value) {
+    router.push('/employee-management');
+  } else {
+    ElMessage.error('您没有权限访问员工管理页面！');
+  }
 };
+
 const goToExpenseManagement = () => {
-  if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问运营费用页面！');
-  router.push('/expense-management');
+  if (hasExpenseManagePermission.value) {
+    router.push('/expense-management');
+  } else {
+    ElMessage.error('您没有权限访问运营费用页面！');
+  }
 };
+
 const goToLogin = () => router.push('/login');
-const goToOrderInspection = () => router.push('/order-inspection');
-const goToInquiries = () => router.push('/inquiries');
-const goToDisplayFiles = () => router.push('/display-files');
+
+
+
+const goToInquiries = () => {
+  if (hasInquiriesManagePermission.value) {
+    router.push('/inquiries');
+  } else {
+    ElMessage.error('您没有权限访问询盘登记表页面！');
+  }
+};
+
+const goToDisplayFiles = () => {
+  if (hasDisplayFilesManagePermission.value) {
+    router.push('/display-files');
+  } else {
+    ElMessage.error('您没有权限访问展示文件页面！');
+  }
+};
+
 const goToMachinePartsManagement = () => {
-  if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问机器零部件管理页面！');
-  router.push('/machine-parts-management');
+  if (hasMachinePartsManagePermission.value) {
+    router.push('/machine-parts-management');
+  } else {
+    ElMessage.error('您没有权限访问机器零部件管理页面！');
+  }
 };
+
 const goToPhotoManagement = () => {
-  router.push('/photo-management');
+  if (hasPhotoManagePermission.value) {
+    router.push('/photo-management');
+  } else {
+    ElMessage.error('您没有权限访问照片管理页面！');
+  }
 };
-const goToVideoManagement = () => router.push('/video-management');
-const goToOrderStatus = () => router.push('/order-status');
+
+const goToVideoManagement = () => {
+  if (hasVideoManagePermission.value) {
+    router.push('/video-management');
+  } else {
+    ElMessage.error('您没有权限访问视频管理页面！');
+  }
+};
+
+const goToOrderStatus = () => {
+  if (hasOrderStatusManagePermission.value) {
+    router.push('/order-status');
+  } else {
+    ElMessage.error('您没有权限访问订单状态管理页面！');
+  }
+};
+
+const goToOrderProgress = () => {
+  if (hasOrderProgressManagePermission.value) {
+    router.push('/order-progress');
+  } else {
+    ElMessage.error('您没有权限访问订单进度管理页面！');
+  }
+};
 
 // 退出登录
 const logout = () => {
   localStorage.removeItem('oa_token');
+  clearUserPermissions(); // 清空权限缓存
   hasToken.value = false;
-  isCurrentUserAdmin.value = false;
   ElMessage.success('已退出登录');
   router.push('/login');
 };

@@ -26,7 +26,7 @@ import { ref, onMounted, computed } from 'vue';
 import CommonHeader from '@/components/CommonHeader.vue'
 import MachineManagement from '@/components/MachineManagement.vue'
 import PartManagement from '@/components/PartManagement.vue'
-import { isCurrentUserAdmin as checkIsCurrentUserAdmin, hasToken as checkHasToken } from '@/utils/authUtils'
+import { hasModulePermission, ModuleNames, getCurrentUserRole, hasToken as checkHasToken } from '@/utils/authUtils'
 
 const activeTab = ref('machines')
 
@@ -36,7 +36,10 @@ const handleTabChange = (tabName: string) => {
 // 是否已登录（存在token）
 const hasToken = computed(() => checkHasToken());
 // 当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => checkIsCurrentUserAdmin());
+const isCurrentUserAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'admin';
+});
 
 // 页面挂载时检查登录状态和用户角色
 onMounted(() => {

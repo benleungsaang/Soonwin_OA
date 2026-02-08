@@ -82,6 +82,7 @@ import { FormInstance, FormRules } from 'element-plus';
 import { User, Lock } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { LoginResponse } from '@/types';
+import { loadUserPermissions } from '@/utils/authUtils';
 
 // 引入二维码生成库
 import QRCode from 'qrcode';
@@ -188,6 +189,9 @@ const handleLogin = async () => {
     // 存储token
     localStorage.setItem('oa_token', token);
     ElMessage.success('登录成功！');
+
+    // 加载用户权限
+    await loadUserPermissions();
 
     // 跳转首页
     router.push('/');
