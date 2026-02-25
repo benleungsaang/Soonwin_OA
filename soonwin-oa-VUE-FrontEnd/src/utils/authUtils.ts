@@ -214,49 +214,7 @@ export async function loadUserPermissions(): Promise<void> {
     }
   } catch (error) {
     console.error('加载用户权限失败:', error);
-    // 降级处理：基于角色赋予默认权限
-    const userRole = getCurrentUserRole();
-    const defaultPermissions: RoutePermission[] = [];
-
-    // 为不同角色设置默认权限
-    if (userRole === 'sales') {
-      defaultPermissions.push(
-        { id: '', role_name: 'sales', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'inquiry_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'order_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'sales', route_name: 'order_status_manage', create_time: new Date().toISOString(), update_time: null }
-      );
-    } else if (userRole === 'follow') {  // 跟单角色
-      defaultPermissions.push(
-        { id: '', role_name: 'follow', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'follow', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'follow', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'follow', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'follow', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'follow', route_name: 'order_status_manage', create_time: new Date().toISOString(), update_time: null }
-      );
-    } else if (userRole === 'design') {  // 设计角色
-      defaultPermissions.push(
-        { id: '', role_name: 'design', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'design', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'design', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'design', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'design', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null }
-      );
-    } else if (userRole === 'user') {  // 普通用户（如果保留此角色）
-      defaultPermissions.push(
-        { id: '', role_name: 'user', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'user', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'user', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'user', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
-        { id: '', role_name: 'user', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null }
-      );
-    }
-
-    initUserPermissions(defaultPermissions);
+    // 如果无法获取权限数据，初始化为空权限
+    initUserPermissions([]);
   }
 }

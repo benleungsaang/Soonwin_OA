@@ -985,8 +985,24 @@ def clear_all_order_status_data(status_id):
         # 构建基础上传路径
         UPLOAD_FOLDER = 'assets/OrderStatus'
 
-        # 删除每个任务项的文件夹
+        # 删除每个任务项的关联媒体文件
         for task in tasks:
+            # 获取任务项关联的媒体文件
+            media_files = TaskMediaFile.query.filter_by(status_task_id=task.id).all()
+            for media_file in media_files:
+                try:
+                    # 删除实际文件
+                    if media_file.file_path and os.path.exists(media_file.file_path.lstrip('/')):
+                        os.remove(media_file.file_path.lstrip('/'))
+                    if media_file.thumb_path and os.path.exists(media_file.thumb_path.lstrip('/')):
+                        os.remove(media_file.thumb_path.lstrip('/'))
+
+                    # 从数据库中删除媒体文件记录
+                    db.session.delete(media_file)
+                except Exception as e:
+                    # 删除文件失败不影响后续操作
+                    print(f"删除媒体文件失败: {str(e)}")
+
             status_log = next((log for log in status_logs if log.id == task.status_log_id), None)
             if status_log and order:
                 # 构建任务文件夹路径：./assets/OrderStatus/合同编号/status_log_id/task_id/

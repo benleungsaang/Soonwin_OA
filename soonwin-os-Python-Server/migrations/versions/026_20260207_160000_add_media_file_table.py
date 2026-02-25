@@ -11,7 +11,7 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '026_20260207_160000'
+revision = '026_20260207_160000_add_media_file_table'
 down_revision = '025_20260205_110000_rename_task_folder_structure'
 branch_labels = None
 depends_on = None

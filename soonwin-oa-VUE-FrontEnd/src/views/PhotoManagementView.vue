@@ -3,57 +3,110 @@
     <CommonHeader title="照片管理" />
         <div class="header">
           <div class="title-with-count">
-            <h2>照片管理</h2>
-            <span v-if="showResultCount" class="result-count">
-              找到 {{ totalPhotos }} 张照片
-
-            </span>
-            <el-icon
-              v-if="showResultCount"
-              @click="clearSearch"
-              class="result-refresh-btn"
-            ><RefreshLeft /></el-icon>
+            <h2>
+              <template v-if="isRecycleBinMode">
+                回收站
+              </template>
+              <template v-else>照片管理</template>
+            </h2>
+            <div v-if="showResultCount && !isRecycleBinMode" class="result-count-container">
+              <span class="result-count">
+                找到 {{ totalPhotos }} 张照片
+              </span>
+              <el-icon
+                @click="clearSearch"
+                class="result-refresh-btn"
+              ><RefreshLeft /></el-icon>
+            </div>
           </div>
           <div class="header-buttons">
-            <el-button
-              v-if="!isMultiSelectMode"
-              type="primary"
-              @click="showUploadDialog = true"
-            >
-              <el-icon><UploadFilled /></el-icon>
-              上传照片
-            </el-button>
 
-            <el-button
-              v-if="isAdmin && !isMultiSelectMode"
-              @click="showPhotoLogs"
-            >
-              <el-icon><Document /></el-icon>
-              查看日志
-            </el-button>
+          <el-button
+            v-if="!isRecycleBinMode && !isMultiSelectMode"
+            type="primary"
+            @click="showUploadDialog = true"
+          >
+            <el-icon><UploadFilled /></el-icon>
+            上传照片
+          </el-button>
 
-            <!-- 多选模式按钮组 -->
-            <div v-if="isMultiSelectMode" class="multi-select-buttons">
-              <el-button @click="batchDeletePhotos" :disabled="selectedPhotoIds.length === 0">
-                <el-icon><Delete /></el-icon>
-                批量删除 ({{ selectedPhotoIds.length }})
-              </el-button>
-              <el-button @click="toggleSelectAll">
-                {{ selectedPhotoIds.length === photos.length ? '取消全选' : '全选' }}
-              </el-button>
-              <el-button @click="toggleMultiSelectMode">
-                取消
-              </el-button>
-            </div>
-
-            <!-- 非多选模式下的多选按钮 -->
-            <el-button
-              v-if="!isMultiSelectMode && photos.length > 0"
-              @click="toggleMultiSelectMode"
-            >
-              <el-icon><CircleCheck /></el-icon>
-              多选
+          <!-- 普通照片列表多选模式按钮组 -->
+          <div v-if="!isRecycleBinMode && isMultiSelectMode" class="multi-select-buttons">
+            <el-button @click="toggleSelectAll">
+              {{ selectedPhotoIds.length === photos.length ? '取消全选' : '全选' }}
             </el-button>
+            <el-button
+              type="danger"
+              @click="batchDeletePhotos"
+              :disabled="selectedPhotoIds.length === 0">
+              <el-icon><Delete /></el-icon>
+              批量删除 ({{ selectedPhotoIds.length }})
+            </el-button>
+            <el-button
+              type="warning"
+              @click="toggleMultiSelectMode">
+              取消
+            </el-button>
+          </div>
+
+          <!-- 非多选模式且非回收站模式下的多选按钮 -->
+          <el-button
+            v-if="!isRecycleBinMode && !isMultiSelectMode && photos.length > 0"
+            @click="toggleMultiSelectMode"
+            type="success"
+          >
+            <el-icon><CircleCheck /></el-icon>
+            多选
+          </el-button>
+
+          <el-button
+            v-if="!isRecycleBinMode && isAdmin"
+            @click="showPhotoLogs" >
+            <el-icon><Document /></el-icon>
+            查看日志
+          </el-button>
+          <el-button
+            v-if="isRecycleBinMode"
+            type="primary"
+            @click="batchRestorePhotos"
+            style="margin-right: 10px;"
+          >
+            <el-icon><RefreshLeft /></el-icon>
+            恢复 ({{ selectedDeletedPhotoIds.length }})
+          </el-button>
+          <el-button
+            v-if="isRecycleBinMode"
+            type="danger"
+            @click="batchPermanentDeletePhotos"
+            style="margin-right: 10px;"
+          >
+            <el-icon><Delete /></el-icon>
+            彻底删除 ({{ selectedDeletedPhotoIds.length }})
+          </el-button>
+          <el-button
+            v-if="!isRecycleBinMode && isAdmin"
+            @click="showRecycleBin"
+            style="margin-right: 10px;"
+          >
+            <el-icon><Delete /></el-icon>
+            回收站
+          </el-button>
+          <el-button
+            v-if="isRecycleBinMode && isAdmin"
+            @click="toggleSelectAllDeleted"
+            style="margin-right: 10px;"
+          >
+            <el-icon><CircleCheck /></el-icon>
+            {{ selectedDeletedPhotoIds.length === deletedPhotos.length ? '取消' : '全选' }}
+          </el-button>
+          <el-button
+            v-if="isRecycleBinMode"
+            @click="backToNormalList"
+            style="margin-right: 10px;"
+          >
+            <el-icon><Back /></el-icon>
+            返回
+          </el-button>
           </div>
         </div>
 
@@ -84,9 +137,9 @@
       <el-button type="primary" @click="searchByMachine">机器搜索</el-button>
     </div>
 
-        <!-- 照片列表 -->
+        <!-- 照片列表或回收站列表 -->
 
-        <div v-if="photos.length > 0" class="photo-grid">
+        <div v-if="!isRecycleBinMode && photos.length > 0" class="photo-grid">
 
           <div
 
@@ -217,22 +270,154 @@
       </div>
 
         </div>
+        
+        
+        <!-- 回收站照片列表 -->
+        <div v-if="isRecycleBinMode && deletedPhotos.length > 0" class="photo-grid">
 
-    <!-- 无搜索结果提示 -->
-    <div v-else class="no-results">
-      <el-empty
-        :description="searchQuery || selectedMachine ? '没有找到匹配的照片' : '暂无照片'"
-        :image-size="100">
-      </el-empty>
-      <div v-if="searchQuery || selectedMachine" class="no-results-actions">
-        <el-button type="primary" @click="clearSearch">返回照片主页</el-button>
+          <div
+
+        v-for="photo in deletedPhotos"
+
+        :key="photo.id"
+
+        class="photo-card deleted-photo"
+
+        :class="{ 'selected': isDeletedPhotoSelected(photo.id) }"
+
+        @click="toggleSelectDeletedPhoto(photo)"
+
+      >
+
+        <!-- 多选复选框（仅在回收站模式下显示） -->
+
+        <div
+
+          class="select-checkbox"
+
+          @click.stop="toggleSelectDeletedPhoto(photo)"
+
+        >
+
+          <el-checkbox
+
+            :model-value="isDeletedPhotoSelected(photo.id)"
+
+            @click.stop="toggleSelectDeletedPhoto(photo)"
+
+          />
+
+        </div>
+
+
+
+        <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
+
+        <div class="photo-image" >
+
+
+
+          <img
+
+            :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
+
+            :alt="photo.title"
+
+            @error="onImageError"
+
+          />
+
+
+
+          <!-- 右下角分辨率 -->
+
+          <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
+
+            {{ photo.original_width }} x {{ photo.original_height }}
+
+          </div>
+
+          <!-- 已删除标识 -->
+
+          <div class="photo-deleted-badge">
+
+            已删除
+
+          </div>
+
+        </div>
+
+
+
+        <div class="photo-info">
+
+
+
+          <div class="photo-title">{{ photo.title }}</div>
+
+          <div class="photo-upload-time">
+            <div class="recycle-info">
+              <div class="info-item">
+                <span class="time-label">上传:</span> {{ photo.upload_time }}
+              </div>
+              <div class="info-item" v-if="photo.uploader">
+                <span class="time-label">上传人:</span> {{ photo.uploader }}
+              </div>
+              <div class="info-item" v-if="photo.delete_time">
+                <span class="time-label">删除:</span> {{ photo.delete_time }}
+              </div>
+              <div class="info-item" v-if="photo.delete_operator">
+                <span class="time-label">删除人:</span> {{ photo.delete_operator }}
+              </div>
+            </div>
+          </div>
+
+          <div class="card-tags-container" v-if="photo.tags">
+
+            <div
+
+              v-for="tag in photo.tags.split(',')"
+
+              :key="tag"
+
+              class="card-tags"
+
+            >
+
+              {{ tag.trim() }}
+
+            </div>
+
+          </div>
+
+          <p class="machine" v-if="photo.machine_info">
+
+            机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
+
+          </p>
+
+        </div>
+
       </div>
-    </div>
 
+        </div>
+
+            <!-- 无搜索结果提示 -->
+        <div v-else class="no-results">
+          <el-empty
+            :description="isRecycleBinMode ? (searchQuery ? '回收站中没有找到匹配的照片' : '回收站中暂无照片') : (searchQuery || selectedMachine ? '没有找到匹配的照片' : '暂无照片')"
+            :image-size="100">
+          </el-empty>
+          <div v-if="searchQuery || selectedMachine || isRecycleBinMode" class="no-results-actions">
+            <el-button v-if="isRecycleBinMode" type="primary" @click="backToNormalList">返回照片主页</el-button>
+            <el-button v-else-if="searchQuery || selectedMachine" type="primary" @click="clearSearch">返回照片主页</el-button>
+          </div>
+        </div>
     <!-- 搜索结果统计和分页 -->
-    <div class="result-info" v-if="photos.length > 0">
+    <div class="result-info" v-if="!isRecycleBinMode && photos.length > 0 || isRecycleBinMode && deletedPhotos.length > 0">
       <div class="pagination">
         <el-pagination
+          v-if="!isRecycleBinMode"
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="[10, 20, 50, 100]"
@@ -240,6 +425,16 @@
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
+        />
+        <el-pagination
+          v-else
+          v-model:current-page="deletedCurrentPage"
+          v-model:page-size="deletedPageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="deletedTotalPhotos"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleDeletedSizeChange"
+          @current-change="handleDeletedCurrentChange"
         />
       </div>
     </div>
@@ -575,13 +770,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, ZoomIn, Document, RefreshLeft, Search, CircleCheck } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, ZoomIn, Document, Refresh, RefreshLeft, Search, CircleCheck, Back } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { uploadFile } from '@/utils/upload';
 import { getCurrentUserRole } from '@/utils/authUtils';
-import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI } from '@/utils/request';
+import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI, getDeletedPhotos, restorePhoto as restorePhotoAPI, permanentDeletePhotos as permanentDeletePhotosAPI } from '@/utils/request';
 import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
 
 // 响应式数据
@@ -630,6 +825,14 @@ const isMatched = ref(false); // 是否已匹配成功
 // 多选相关状态
 const isMultiSelectMode = ref(false); // 是否处于多选模式
 const selectedPhotoIds = ref<number[]>([]); // 选中的照片ID列表
+
+// 回收站相关状态
+const isRecycleBinMode = ref(false); // 是否处于回收站模式
+const deletedPhotos = ref<any[]>([]); // 回收站中的照片
+const deletedCurrentPage = ref(1);
+const deletedPageSize = ref(10);
+const deletedTotalPhotos = ref(0);
+const selectedDeletedPhotoIds = ref<number[]>([]); // 选中回收站中的照片ID列表
 
 // 监听uploadFormTags变化并更新uploadForm中的tags字段
 watch(uploadFormTags, (newTags) => {
@@ -1342,6 +1545,207 @@ const isPhotoSelected = (photoId: number) => {
   return selectedPhotoIds.value.includes(photoId);
 };
 
+
+// 显示回收站
+const showRecycleBin = async () => {
+  isRecycleBinMode.value = true;
+  await fetchDeletedPhotos();
+};
+
+// 获取回收站中的照片
+const fetchDeletedPhotos = async () => {
+  try {
+    const response = await getDeletedPhotos({
+      page: deletedCurrentPage.value,
+      per_page: deletedPageSize.value,
+    });
+
+    // request.ts 自动解包了 response，这里 response 就是解包后的 data 部分
+    deletedPhotos.value = response.photos || [];
+    deletedTotalPhotos.value = response.total || 0;
+  } catch (error) {
+    console.error('获取回收站照片失败:', error);
+    ElMessage.error('获取回收站照片失败');
+  }
+};
+
+// 从回收站恢复照片
+const restorePhoto = async (id: number) => {
+  try {
+    await ElMessageBox.confirm('确定要恢复这张照片吗？', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    const response = await restorePhotoAPI(id);
+    ElMessage.success(response.message || '照片恢复成功');
+    // 如果当前在回收站页面，刷新回收站列表；否则刷新正常列表
+    if (isRecycleBinMode.value) {
+      await fetchDeletedPhotos();
+    } else {
+      await fetchPhotos();
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('恢复照片失败:', error);
+      ElMessage.error('恢复失败');
+    }
+  }
+};
+
+// 永久删除照片（从回收站彻底删除）
+const permanentDeletePhoto = async (id: number) => {
+  try {
+    await ElMessageBox.confirm('确定要永久删除这张照片吗？此操作不可恢复！', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    await permanentDeletePhotosAPI([id]);
+    ElMessage.success('照片已永久删除');
+    await fetchDeletedPhotos(); // 刷新回收站列表
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('永久删除照片失败:', error);
+      ElMessage.error('永久删除失败');
+    }
+  }
+};
+
+// 批量从回收站恢复照片
+const batchRestorePhotos = async () => {
+  if (selectedDeletedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要恢复的照片');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(`确定要恢复选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？`, '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // 批量恢复照片（暂时逐个恢复，因为API可能不支持批量恢复）
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const photoId of selectedDeletedPhotoIds.value) {
+      try {
+        await restorePhotoAPI(photoId);
+        successCount++;
+      } catch (error) {
+        console.error(`恢复照片 ${photoId} 失败:`, error);
+        errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      ElMessage.warning(`批量恢复完成: ${successCount} 个成功, ${errorCount} 个失败`);
+    } else {
+      ElMessage.success(`成功恢复 ${successCount} 张照片`);
+    }
+
+    // 重置选择状态并刷新列表
+    selectedDeletedPhotoIds.value = [];
+    await fetchDeletedPhotos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量恢复照片失败:', error);
+      ElMessage.error('批量恢复失败');
+    }
+  }
+};
+
+// 批量永久删除照片
+const batchPermanentDeletePhotos = async () => {
+  if (selectedDeletedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要永久删除的照片');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(`确定要永久删除选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？此操作不可恢复！`, '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    const response = await permanentDeletePhotosAPI(selectedDeletedPhotoIds.value);
+    ElMessage.success(response.message || `成功永久删除 ${selectedDeletedPhotoIds.value.length} 张照片`);
+    
+    // 重置选择状态并刷新列表
+    selectedDeletedPhotoIds.value = [];
+    await fetchDeletedPhotos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量永久删除照片失败:', error);
+      ElMessage.error('批量永久删除失败');
+    }
+  }
+};
+
+
+// 返回正常照片列表
+const backToNormalList = () => {
+  isRecycleBinMode.value = false;
+  fetchPhotos(); // 刷新正常照片列表
+};
+
+// 检查回收站中的照片是否被选中
+const isDeletedPhotoSelected = (photoId: number) => {
+  return selectedDeletedPhotoIds.value.includes(photoId);
+};
+
+// 选择回收站中的单个照片
+const selectDeletedPhoto = (photoId: number) => {
+  const index = selectedDeletedPhotoIds.value.indexOf(photoId);
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedDeletedPhotoIds.value.splice(index, 1);
+  } else {
+    // 未选中，添加选择
+    selectedDeletedPhotoIds.value.push(photoId);
+  }
+};
+
+// 全选/取消全选回收站中的照片
+const toggleSelectAllDeleted = () => {
+  if (selectedDeletedPhotoIds.value.length === deletedPhotos.value.length) {
+    // 当前已全选，取消全选
+    selectedDeletedPhotoIds.value = [];
+  } else {
+    // 未全选，进行全选
+    selectedDeletedPhotoIds.value = deletedPhotos.value.map(photo => photo.id);
+  }
+};
+
+// 切换回收站中照片的选择状态
+const toggleSelectDeletedPhoto = (photo: any) => {
+  const index = selectedDeletedPhotoIds.value.indexOf(photo.id);
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedDeletedPhotoIds.value.splice(index, 1);
+  } else {
+    // 未选中，添加选择
+    selectedDeletedPhotoIds.value.push(photo.id);
+  }
+};
+
+// 回收站分页处理
+const handleDeletedSizeChange = (size: number) => {
+  deletedPageSize.value = size;
+  deletedCurrentPage.value = 1;
+  fetchDeletedPhotos();
+};
+
+const handleDeletedCurrentChange = (page: number) => {
+  deletedCurrentPage.value = page;
+  fetchDeletedPhotos();
+};
+
 // 初始化
 onMounted(() => {
   fetchPhotos();
@@ -1932,6 +2336,37 @@ onMounted(() => {
   align-items: center;
   min-height: 300px;
   padding: 20px;
+}
+
+.deleted-photo {
+  opacity: 0.7;
+  border-color: #f56c6c;
+}
+
+.photo-deleted-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(245, 108, 108, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  z-index: 5;
+}
+
+.restore-delete-btns {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 5px;
+  z-index: 10;
+}
+
+.photo-delete-time {
+  font-size: 11px;
+  color: #e6a23c;
 }
 
 .icon-zoomin{

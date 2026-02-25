@@ -24,6 +24,7 @@ export interface Employee {
   login_device?: string;
   create_time: string;
   device_count?: number; // 设备数量
+  totp_secret?: string; // TOTP密钥
 }
 
 // 打卡记录类型
@@ -104,6 +105,7 @@ export interface OrderList {
   attachment_videos?: string; // 验收视频路径（多视频逗号分隔）
   create_time?: string; // 创建时间
   update_time?: string; // 更新时间
+  creator_id?: string; // 创建者ID
 }
 
 // 展示文件类型

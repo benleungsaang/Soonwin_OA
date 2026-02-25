@@ -72,8 +72,6 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
-
-
 def serialize_order(order, include_expense_allocations=False, is_admin=False, fields=None):
     """将订单对象转换为字典格式，使用模型的to_dict方法并根据用户权限控制敏感字段"""
     # 使用模型的to_dict方法获取完整数据
@@ -87,6 +85,10 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
         for field in sensitive_fields:
             if field in order_dict:
                 order_dict[field] = 0.0
+
+    # 对于管理员，添加creator_id字段
+    if is_admin and hasattr(order, 'creator_id'):
+        order_dict['creator_id'] = order.creator_id
 
     # 如果需要包含费用分摊信息
     if include_expense_allocations and is_admin:
@@ -133,8 +135,15 @@ def get_orders():
         search = request.args.get('search')  # 添加搜索参数
         fields = request.args.get('fields')  # 添加字段参数
 
+        # 获取当前用户信息
+        current_user = get_current_user()
+
         # 构建查询
         query = Order.query
+
+        # 检查是否为管理员，如果不是管理员则只查询自己创建的数据
+        if current_user.user_role != 'admin':
+            query = query.filter(Order.creator_id == current_user.emp_id)
 
         # 如果有搜索参数，则使用search_field进行全文搜索
         if search:
@@ -157,7 +166,6 @@ def get_orders():
         include_expense_allocations = request.args.get('include_expense_allocations', 'false').lower() == 'true'
 
         # 获取当前用户信息以确定是否为管理员
-        current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
 
         # 序列化订单数据，支持字段过滤
@@ -199,6 +207,9 @@ def create_order():
                 "data": None
             }), 400
 
+        # 获取当前用户
+        current_user = get_current_user()
+
         # 创建订单记录
         new_order = Order(
             is_new=data.get('is_new'),
@@ -212,7 +223,7 @@ def create_order():
             order_no=data.get('order_no'),
             machine_no=data.get('machine_no'),
             machine_name=data.get('machine_name', '包装机'),
-            machine_model=data.get('machine_model', ''),
+            machine_model=data.get('machine_model'),
             machine_count=data.get('machine_count', 1),
             unit=data.get('unit', 'set'),
             contract_amount=data.get('contract_amount', 0),
@@ -234,7 +245,8 @@ def create_order():
             order_dept=data.get('order_dept'),
             check_requirement=data.get('check_requirement'),
             attachment_imgs=data.get('attachment_imgs'),
-            attachment_videos=data.get('attachment_videos')
+            attachment_videos=data.get('attachment_videos'),
+            creator_id=current_user.emp_id  # 添加创建者ID
         )
         db.session.add(new_order)
         db.session.commit()
@@ -244,7 +256,6 @@ def create_order():
         db.session.commit()
 
         # 获取当前用户信息以确定是否为管理员
-        current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
 
         # 序列化创建的订单
@@ -274,10 +285,21 @@ def get_order(order_id):
     """获取单个订单详情"""
     try:
         order = Order.query.get_or_404(order_id)
+        
+        # 获取当前用户
+        current_user = get_current_user()
+        
+        # 检查权限：管理员可以查看所有，普通用户只能查看自己创建的
+        if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
+            return jsonify({
+                "code": 403,
+                "msg": "无权限访问该订单",
+                "data": None
+            }), 403
+            
         # 获取字段过滤参数
         fields = request.args.get('fields')
         # 获取当前用户信息以确定是否为管理员
-        current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
 
         order_data = serialize_order(order, is_admin=is_admin, fields=fields)
@@ -305,6 +327,18 @@ def update_order(order_id):
     """更新订单信息"""
     try:
         order = Order.query.get_or_404(order_id)
+        
+        # 获取当前用户
+        current_user = get_current_user()
+        
+        # 检查权限：管理员可以修改所有，普通用户只能修改自己创建的
+        if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
+            return jsonify({
+                "code": 403,
+                "msg": "无权限修改该订单",
+                "data": None
+            }), 403
+
         data = request.get_json()
         if not data:
             return jsonify({
@@ -383,6 +417,18 @@ def delete_order(order_id):
     """删除订单"""
     try:
         order = Order.query.get_or_404(order_id)
+        
+        # 获取当前用户
+        current_user = get_current_user()
+        
+        # 检查权限：管理员可以删除所有，普通用户只能删除自己创建的
+        if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
+            return jsonify({
+                "code": 403,
+                "msg": "无权限删除该订单",
+                "data": None
+            }), 403
+
         db.session.delete(order)
         db.session.commit()
 
@@ -408,10 +454,19 @@ def get_order_statistics():
         current_user = get_current_user()
         is_admin = current_user and current_user.user_role == 'admin'
 
+        # 构建查询
+        query = Order.query
+
+        # 检查是否为管理员，如果不是管理员则只统计自己创建的数据
+        if current_user.user_role != 'admin':
+            query = query.filter(Order.creator_id == current_user.emp_id)
+
         # 计算总订单数
-        total_orders = db.session.query(db.func.count(Order.id)).scalar()
+        total_orders = query.count()
         # 计算总金额
-        total_amount = db.session.query(db.func.sum(Order.contract_amount)).scalar() or 0.0
+        total_amount = db.session.query(db.func.sum(Order.contract_amount)).filter(
+            Order.creator_id == current_user.emp_id if current_user.user_role != 'admin' else True
+        ).scalar() or 0.0
 
         statistics_data = {
             'total_orders': total_orders,
@@ -421,9 +476,17 @@ def get_order_statistics():
         # 仅对管理员显示敏感统计信息
         if is_admin:
             # 计算总毛利
-            total_gross_profit = db.session.query(db.func.sum(Order.gross_profit)).scalar() or 0.0
+            total_gross_profit = db.session.query(
+                db.func.sum(Order.gross_profit)
+            ).filter(
+                Order.creator_id == current_user.emp_id if current_user.user_role != 'admin' else True
+            ).scalar() or 0.0
             # 计算总净利
-            total_net_profit = db.session.query(db.func.sum(Order.net_profit)).scalar() or 0.0
+            total_net_profit = db.session.query(
+                db.func.sum(Order.net_profit)
+            ).filter(
+                Order.creator_id == current_user.emp_id if current_user.user_role != 'admin' else True
+            ).scalar() or 0.0
 
             statistics_data.update({
                 'total_gross_profit': float(total_gross_profit),
@@ -462,16 +525,23 @@ def get_order_expense_summary():
         if not target_year:
             target_year = datetime.now().year  # 默认为当前年份
 
+        # 构建查询
+        query = Order.query
+        if current_user.user_role != 'admin':
+            query = query.filter(Order.creator_id == current_user.emp_id)
+
         # 计算该年度的订单总数
-        total_orders = db.session.query(db.func.count(Order.id)).filter(
+        total_orders = query.filter(
             db.extract('year', Order.create_time) == target_year
-        ).scalar() or 0
+        ).count()
 
         # 计算该年度的订单总金额
         total_contract_amount = db.session.query(
             db.func.sum(Order.contract_amount)
         ).filter(
             db.extract('year', Order.create_time) == target_year
+        ).filter(
+            Order.creator_id == current_user.emp_id if current_user.user_role != 'admin' else True
         ).scalar() or 0.0
 
         # 计算该年度的总毛利
@@ -479,6 +549,8 @@ def get_order_expense_summary():
             db.func.sum(Order.gross_profit)
         ).filter(
             db.extract('year', Order.create_time) == target_year
+        ).filter(
+            Order.creator_id == current_user.emp_id if current_user.user_role != 'admin' else True
         ).scalar() or 0.0
 
         # 计算该年度的费用分摊总金额
@@ -589,9 +661,16 @@ def update_order_proportionate_cost():
             })
 
         # 获取该年份的所有订单
-        orders = Order.query.filter(
+        # 获取当前用户信息
+        current_user = get_current_user()
+        # 如果不是管理员，只处理该用户创建的订单
+        orders_query = Order.query.filter(
             db.extract('year', Order.create_time) == target_year
-        ).all()
+        )
+        if current_user.user_role != 'admin':
+            orders_query = orders_query.filter(Order.creator_id == current_user.emp_id)
+            
+        orders = orders_query.all()
 
         if not orders:
             # 创建计算记录

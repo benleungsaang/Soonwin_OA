@@ -7,7 +7,7 @@
         <div class="card-header">
           <span style="font-size: 25px;">展示文件</span>
           <el-icon
-            v-if="isCurrentUserAdmin && !isMobile"
+            v-if="isAdmin && !isMobile"
             class="upload-icon"
             @click.stop="goToDisplayFileUpload"
           ><FolderOpened /></el-icon>
@@ -38,13 +38,13 @@
             }"
           >{{ file.file_type === 'image_group' ? 'IMG' : 'PDF' }}</span>
           <el-icon
-            v-if="isCurrentUserAdmin"
+            v-if="isAdmin"
             @click.stop="editFile(file, $event)"
             class="edit-btn"
             style="font-size: 28px;margin-right: 10px;"
           ><Edit /></el-icon>
           <el-icon
-            v-if="isCurrentUserAdmin"
+            v-if="isAdmin"
             @click.stop="deleteFile(file, $event)"
             class="delete-btn"
             style="font-size: 25px;margin-right: 15px;"
@@ -243,7 +243,7 @@ const loading = ref(false);
 const page = ref(1);
 const perPage = ref(10);
 const hasMore = ref(true);
-const isCurrentUserAdmin = computed(() => {
+const isAdmin = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole === 'admin';
 });
@@ -972,8 +972,7 @@ const goToNextPage = () => {
 
 // 跳转上传展示文件页面
 const goToDisplayFileUpload = () => {
-  if (!isCurrentUserAdmin.value) {
-    ElMessage.error('您没有权限访问上传展示文件页面！');
+          if (!isAdmin.value) {    ElMessage.error('您没有权限访问上传展示文件页面！');
     return;
   }
   router.push('/display-file-upload');

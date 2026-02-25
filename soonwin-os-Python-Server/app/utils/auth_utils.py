@@ -3,7 +3,7 @@ from flask import request, jsonify
 import jwt
 import config
 from app.models.employee import Employee
-from app.models.permission import RolePermission
+from app.models.simple_permission import user_can_access_route, SimpleRole, SimpleRolePermission
 from extensions import db
 from datetime import timedelta
 
@@ -190,7 +190,7 @@ def require_module_permission(module_name, permission_type='view'):
     """
     模块权限验证装饰器
     :param module_name: 模块名称（如：employee_manage）
-    :param permission_type: 权限类型（view/edit/delete）
+    :param permission_type: 权限类型（view/edit/delete）- 仅用于兼容旧代码，简化版权限模型不区分权限类型
     :return: 装饰器
     """
     def decorator(f):
@@ -226,31 +226,13 @@ def require_module_permission(module_name, permission_type='view'):
                 if employee.user_role == 'admin':
                     return f(*args, **kwargs)
 
-                # 查询该角色对该模块的权限
-                role_perm = RolePermission.query.filter_by(
-                    role_name=employee.user_role,
-                    module_name=module_name
-                ).first()
-
-                # 检查权限
-                if not role_perm:
+                # 检查用户是否有访问指定路由的权限
+                # 将模块名称转换为路由名称（模块名称通常与路由名称一致）
+                has_permission = user_can_access_route(module_name)
+                if not has_permission:
                     return jsonify({
                         "code": 403,
                         "msg": f"无访问{module_name}模块的权限",
-                        "data": None
-                    }), 403
-
-                # 根据权限类型验证
-                permission_check_map = {
-                    'view': role_perm.can_view,
-                    'edit': role_perm.can_edit,
-                    'delete': role_perm.can_delete
-                }
-
-                if not permission_check_map.get(permission_type, False):
-                    return jsonify({
-                        "code": 403,
-                        "msg": f"无{module_name}模块的{permission_type}权限",
                         "data": None
                     }), 403
 
@@ -294,11 +276,9 @@ def require_multi_module_permissions(module_names, permission_type="view"):
             
             # 3. 校验所有指定模块的权限
             for module_name in module_names:
-                role_perm = RolePermission.query.filter_by(
-                    role_name=user_role,
-                    module_name=module_name
-                ).first()
-                if not role_perm or not getattr(role_perm, f"can_{permission_type}"):
+                # 使用简化版权限模型检查权限
+                has_permission = user_can_access_route(module_name)
+                if not has_permission:
                     return jsonify({
                         "code": 403,
                         "msg": f"无{module_name}模块的{permission_type}权限",

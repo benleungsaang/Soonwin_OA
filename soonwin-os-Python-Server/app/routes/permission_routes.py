@@ -1,69 +1,58 @@
 """权限管理相关路由"""
 from flask import Blueprint, request, jsonify
 from app.utils.auth_utils import require_admin, require_auth, require_module_permission, is_admin_user
-from app.models.permission import RolePermission
-from app.constants.permission_constants import MODULE_PERMISSION_MANAGE, ALL_MODULES
+from app.models.simple_permission import SimpleRole, SimpleRolePermission
+from app.constants.simple_permission_constants import ALL_ROUTES
 from extensions import db
 import uuid
 
 permission_bp = Blueprint('permission', __name__, url_prefix="/api/permission")
 
 @permission_bp.route('/list', methods=['GET'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'view')
+@require_module_permission("permission_manage", 'view')
 def get_permissions():
-    """获取权限配置 - 如果指定角色，则返回该角色的所有权限（包括未设置的模块），否则返回所有已存在的权限"""
+    """获取权限配置 - 如果指定角色，则返回该角色的所有权限（包括未设置的路由），否则返回所有已存在的权限"""
     try:
         # 获取查询参数
         role_name = request.args.get('role_name')
-        module_name = request.args.get('module_name')
+        route_name = request.args.get('route_name')
         
-        # 如果指定了角色名，返回该角色的所有可能模块（包括未设置的）
+        # 如果指定了角色名，返回该角色的所有可能路由（包括未设置的）
         if role_name:
             # 获取该角色的所有现有权限
-            existing_permissions = RolePermission.query.filter_by(role_name=role_name).all()
-            existing_perms_dict = {perm.module_name: perm for perm in existing_permissions}
+            existing_permissions = SimpleRolePermission.query.join(SimpleRole).filter(SimpleRole.name == role_name).all()
+            existing_perms_dict = {perm.route_name: perm for perm in existing_permissions}
             
-            # 为所有可能的模块创建权限对象
-            all_module_permissions = []
-            for module in ALL_MODULES:
-                if module in existing_perms_dict:
-                    # 如果该模块已有权限配置，使用现有配置
-                    perm = existing_perms_dict[module]
-                    all_module_permissions.append({
+            # 为所有可能的路由创建权限对象
+            all_route_permissions = []
+            for route in ALL_ROUTES:
+                if route in existing_perms_dict:
+                    # 如果该路由已有权限配置，使用现有配置
+                    perm = existing_perms_dict[route]
+                    all_route_permissions.append({
                         "id": perm.id,
-                        "role_name": perm.role_name,
-                        "role_description": perm.role_description,
-                        "module_name": perm.module_name,
-                        "can_view": perm.can_view,
-                        "can_edit": perm.can_edit,
-                        "can_delete": perm.can_delete,
-                        "create_time": perm.create_time.isoformat() if perm.create_time else None,
-                        "update_time": perm.update_time.isoformat() if perm.update_time else None
+                        "role_id": perm.role_id,
+                        "route_name": perm.route_name
                     })
                 else:
-                    # 如果该模块没有权限配置，创建默认的未设置权限对象
-                    all_module_permissions.append({
-                        "id": "",
-                        "role_name": role_name,
-                        "role_description": "",
-                        "module_name": module,
-                        "can_view": False,
-                        "can_edit": False,
-                        "can_delete": False,
-                        "create_time": None,
-                        "update_time": None
+                    # 如果该路由没有权限配置，创建默认的未设置权限对象
+                    all_route_permissions.append({
+                        "id": None,
+                        "role_id": None,
+                        "route_name": route
                     })
             
             return jsonify({
                 "code": 200,
                 "msg": "success",
-                "data": all_module_permissions
+                "data": all_route_permissions
             })
         
-        # 否则按原逻辑返回所有已存在的权限
-        query = RolePermission.query
-        if module_name:
-            query = query.filter_by(module_name=module_name)
+        # 否则返回所有已存在的权限
+        query = SimpleRolePermission.query
+        if route_name:
+            query = query.filter_by(route_name=route_name)
+        query = query.join(SimpleRole)
         
         permissions = query.all()
 
@@ -81,65 +70,45 @@ def get_permissions():
 
 
 @permission_bp.route('/all-modules', methods=['GET'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'view')
+@require_module_permission("permission_manage", 'view')
 def get_all_modules():
-    """获取所有可能的权限模块列表"""
+    """获取所有可能的权限模块列表（改为获取所有路由）"""
     try:
         return jsonify({
             "code": 200,
             "msg": "success",
             "data": {
-                "all_modules": ALL_MODULES
+                "all_routes": ALL_ROUTES  # 改为返回所有路由
             }
         })
     except Exception as e:
         return jsonify({
             "code": 500,
-            "msg": f"获取所有模块列表失败: {str(e)}",
+            "msg": f"获取所有路由列表失败: {str(e)}",
             "data": None
         }), 500
 
 
 @permission_bp.route('/roles', methods=['GET'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'view')
+@require_module_permission("permission_manage", 'view')
 def get_roles():
-    """获取所有角色列表，只返回不重复的role_name和对应的role_description"""
+    """获取所有角色列表"""
     try:
-        # 获取所有权限记录中的不重复角色名和描述
-        permissions = RolePermission.query.with_entities(
-            RolePermission.role_name, 
-            RolePermission.role_description
-        ).distinct().all()
+        # 获取所有角色
+        roles = SimpleRole.query.all()
         
         # 提取角色信息
-        roles = []
-        seen_roles = set()  # 避免重复角色
-        
-        for perm in permissions:
-            role_name = perm.role_name
-            role_description = perm.role_description or f"{role_name}角色"
-            
-            if role_name not in seen_roles:
-                roles.append({
-                    "role_name": role_name,
-                    "role_description": role_description
-                })
-                seen_roles.add(role_name)
-        
-        # 添加内置角色（如果不存在）
-        builtin_roles = ['admin', 'sales', 'user']
-        for builtin_role in builtin_roles:
-            if builtin_role not in seen_roles:
-                roles.append({
-                    "role_name": builtin_role,
-                    "role_description": f"{'系统管理员' if builtin_role == 'admin' else '业务员' if builtin_role == 'sales' else '普通用户'}"
-                })
-                seen_roles.add(builtin_role)
-        
+        role_list = []
+        for role in roles:
+            role_list.append({
+                "role_name": role.name,
+                "role_description": role.remark
+            })
+
         return jsonify({
             "code": 200,
             "msg": "success",
-            "data": roles
+            "data": role_list
         })
     except Exception as e:
         return jsonify({
@@ -150,9 +119,9 @@ def get_roles():
 
 
 @permission_bp.route('/update', methods=['POST'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'edit')
+@require_module_permission("permission_manage", 'edit')
 def update_permission():
-    """更新权限配置"""
+    """更新权限配置（为角色分配路由权限）"""
     try:
         data = request.get_json()
         if not data:
@@ -163,51 +132,60 @@ def update_permission():
             }), 400
 
         role_name = data.get('role_name')
-        module_name = data.get('module_name')
-        can_view = data.get('can_view', True)
-        can_edit = data.get('can_edit', False)
-        can_delete = data.get('can_delete', False)
-        role_description = data.get('role_description', None)
+        route_name = data.get('route_name')
 
-        if not role_name or not module_name:
+        if not role_name or not route_name:
             return jsonify({
                 "code": 400,
-                "msg": "角色名称和模块名称不能为空",
+                "msg": "角色名称和路由名称不能为空",
+                "data": None
+            }), 400
+
+        # 验证角色和路由是否存在
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
+            return jsonify({
+                "code": 400,
+                "msg": "角色不存在",
+                "data": None
+            }), 400
+
+        if route_name not in ALL_ROUTES:
+            return jsonify({
+                "code": 400,
+                "msg": "路由名称不存在",
                 "data": None
             }), 400
 
         # 查找现有权限记录
-        permission = RolePermission.query.filter_by(
-            role_name=role_name,
-            module_name=module_name
+        permission = SimpleRolePermission.query.filter_by(
+            role_id=role.id,
+            route_name=route_name
         ).first()
 
         if permission:
-            # 更新现有权限
-            permission.can_view = can_view
-            permission.can_edit = can_edit
-            permission.can_delete = can_delete
-            if role_description is not None:
-                permission.role_description = role_description
+            # 如果权限存在，删除它（切换权限状态）
+            db.session.delete(permission)
+            db.session.commit()
+            action = "权限已移除"
         else:
-            # 创建新权限记录
-            permission = RolePermission(
-                id=str(uuid.uuid4()),
-                role_name=role_name,
-                role_description=role_description,
-                module_name=module_name,
-                can_view=can_view,
-                can_edit=can_edit,
-                can_delete=can_delete
+            # 创建新的权限记录
+            permission = SimpleRolePermission(
+                role_id=role.id,
+                route_name=route_name
             )
             db.session.add(permission)
-
-        db.session.commit()
+            db.session.commit()
+            action = "权限已添加"
 
         return jsonify({
             "code": 200,
-            "msg": "权限更新成功",
-            "data": permission.to_dict()
+            "msg": action,
+            "data": {
+                "role_name": role_name,
+                "route_name": route_name,
+                "action": action
+            }
         })
     except Exception as e:
         db.session.rollback()
@@ -219,9 +197,9 @@ def update_permission():
 
 
 @permission_bp.route('/create-role', methods=['POST'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'edit')
+@require_module_permission("permission_manage", 'edit')
 def create_role():
-    """创建新角色并设置默认权限"""
+    """创建新角色"""
     try:
         data = request.get_json()
         if not data:
@@ -234,40 +212,25 @@ def create_role():
         role_name = data.get('role_name')
         role_description = data.get('role_description')
 
-        if not role_name or not role_description:
+        if not role_name:
             return jsonify({
                 "code": 400,
-                "msg": "角色名称和角色描述不能为空",
+                "msg": "角色名称不能为空",
                 "data": None
             }), 400
 
         # 检查角色是否已存在
-        existing_permission = RolePermission.query.filter_by(role_name=role_name).first()
-        if existing_permission:
+        existing_role = SimpleRole.query.filter_by(name=role_name).first()
+        if existing_role:
             return jsonify({
                 "code": 400,
                 "msg": "角色已存在",
                 "data": None
             }), 400
 
-        # 为新角色设置默认权限：照片管理、视频管理、订单状态管理、打卡、展示文件的查看权限
-        default_modules = [
-            'photo_manage', 'video_manage', 'order_status_manage',
-            'punch_manage', 'display_file_manage'
-        ]
-
-        for module_name in default_modules:
-            permission = RolePermission(
-                id=str(uuid.uuid4()),
-                role_name=role_name,
-                role_description=role_description,
-                module_name=module_name,
-                can_view=True,
-                can_edit=False,
-                can_delete=False
-            )
-            db.session.add(permission)
-
+        # 创建新角色
+        role = SimpleRole(name=role_name, remark=role_description or f"{role_name}角色")
+        db.session.add(role)
         db.session.commit()
 
         return jsonify({
@@ -275,7 +238,7 @@ def create_role():
             "msg": "角色创建成功",
             "data": {
                 "role_name": role_name,
-                "role_description": role_description
+                "role_description": role.remark
             }
         })
     except Exception as e:
@@ -288,7 +251,7 @@ def create_role():
 
 
 @permission_bp.route('/update-role-description', methods=['POST'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'edit')
+@require_module_permission("permission_manage", 'edit')
 def update_role_description():
     """更新角色描述"""
     try:
@@ -317,18 +280,16 @@ def update_role_description():
                 "data": None
             }), 400
 
-        # 更新该角色所有权限记录的描述
-        permissions = RolePermission.query.filter_by(role_name=role_name).all()
-        if not permissions:
+        # 更新角色描述
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
             return jsonify({
                 "code": 404,
                 "msg": "角色不存在",
                 "data": None
             }), 404
 
-        for perm in permissions:
-            perm.role_description = role_description
-
+        role.remark = role_description
         db.session.commit()
 
         return jsonify({
@@ -336,7 +297,7 @@ def update_role_description():
             "msg": "角色描述更新成功",
             "data": {
                 "role_name": role_name,
-                "role_description": role_description
+                "role_description": role.remark
             }
         })
     except Exception as e:
@@ -349,30 +310,37 @@ def update_role_description():
 
 
 @permission_bp.route('/<permission_id>', methods=['DELETE'])
-@require_module_permission(MODULE_PERMISSION_MANAGE, 'delete')
+@require_module_permission("permission_manage", 'delete')
 def delete_permission(permission_id):
-    """删除权限配置"""
+    """删除角色（简化版权限模型中删除角色及关联权限）"""
     try:
-        permission = RolePermission.query.filter_by(id=permission_id).first()
-        if not permission:
+        # 将permission_id视为角色名称
+        role_name = permission_id
+        
+        # 获取角色
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
             return jsonify({
                 "code": 404,
-                "msg": "权限记录不存在",
+                "msg": "角色不存在",
                 "data": None
             }), 404
 
-        db.session.delete(permission)
+        # 删除该角色的所有权限关联
+        SimpleRolePermission.query.filter_by(role_id=role.id).delete()
+        # 删除角色本身
+        db.session.delete(role)
         db.session.commit()
 
         return jsonify({
             "code": 200,
-            "msg": "权限删除成功",
+            "msg": "角色及关联权限删除成功",
             "data": None
         })
     except Exception as e:
         db.session.rollback()
         return jsonify({
             "code": 500,
-            "msg": f"删除权限失败: {str(e)}",
+            "msg": f"删除角色失败: {str(e)}",
             "data": None
         }), 500

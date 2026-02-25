@@ -18,6 +18,27 @@ def create_app(port=5000):
     # 解决跨域
     CORS(app, resources=r"/*")
 
+    # 添加静态文件服务路由，用于提供媒体文件服务
+    @app.route('/assets/Media/<path:filepath>')
+    def serve_media_file(filepath):
+        """提供媒体文件服务"""
+        import os
+        from flask import send_file, abort
+        # 构建完整的文件路径 - 相对于app目录，assets在同级的父目录中
+        file_path = os.path.join(app.root_path, '..', 'assets', 'Media', filepath)
+        
+        # 防止路径遍历攻击，确保路径在指定目录内
+        file_path = os.path.abspath(file_path)
+        assets_media_path = os.path.abspath(os.path.join(app.root_path, '..', 'assets', 'Media'))
+        
+        if not file_path.startswith(assets_media_path):
+            abort(404)
+        
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_file(file_path)
+        else:
+            abort(404)
+
     # 关键：在 create_app 内部导入模型（延迟导入，打破循环）
     with app.app_context():
         from .models.employee import Employee
@@ -37,31 +58,13 @@ def create_app(port=5000):
         from .models.data_change_stats import DataChangeStats
 
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
-        from .models.permission import RolePermission, init_default_permissions
+        # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
-        from .models.simple_permission_init import init_simple_permissions, create_roles_if_not_exist
-        
+
         # 初始化数据库表（如果不存在）
         db.create_all()
-        
-        # 初始化默认权限（如果表已存在且没有初始化数据）
-        try:
-            init_default_permissions()
-        except Exception as e:
-            print(f"⚠️  权限初始化时出现警告: {str(e)}")
-            # 如果权限表不存在（例如在首次运行时），则跳过初始化
-            pass
-        
-        # 初始化简化权限系统
-        try:
-            create_roles_if_not_exist()
-            init_simple_permissions()
-        except Exception as e:
-            print(f"⚠️  简化权限初始化时出现警告: {str(e)}")
-            # 如果简化权限表不存在等，跳过初始化
-            pass
-        
+
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -77,8 +80,6 @@ def create_app(port=5000):
         # 注册费用管理路由蓝图
         from .routes.expense_routes import expense_bp
         app.register_blueprint(expense_bp, url_prefix='/api')
-
-
 
         # 注册认证相关路由蓝图
         from .routes.auth_routes import auth_bp
@@ -111,8 +112,6 @@ def create_app(port=5000):
         # 注册通用日志管理相关路由蓝图
         from .routes.log_routes import log_bp
         app.register_blueprint(log_bp, url_prefix='/api')
-
-
 
         # 注册订单状态管理相关路由蓝图
         from .routes.order_status_routes import order_status_bp

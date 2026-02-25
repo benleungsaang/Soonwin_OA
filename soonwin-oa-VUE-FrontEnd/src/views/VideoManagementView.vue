@@ -365,11 +365,12 @@
         <div class="video-details-left">
           <div class="video-preview-wrapper">
             <video
-              :src="`${apiBaseUrl}/assets/Media/Videos/${selectedVideo.compressed_path || selectedVideo.original_path}`"
+              :src="currentVideoSrc || `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.compressed_path || selectedVideo.original_path}`"
               :alt="selectedVideo.title"
               controls
               class="video-preview"
               @error="onVideoError"
+              :key="selectedVideo ? selectedVideo.id : 'default'"
             />
             <!-- 预览图底部操作 -->
             <div class="preview-actions">
@@ -611,6 +612,7 @@ const machineList = ref<any[]>([]);
 // 预览相关变量
 const isShowingOriginal = ref(false);
 const currentPreviewPath = ref('');
+const currentVideoSrc = ref('');
 
 // 编辑相关变量
 const isEditingAll = ref(false);
@@ -638,12 +640,6 @@ const isAdmin = computed(() => {
 // 通用日志组件相关
 const logDialogVisible = ref(false);
 
-// 计算属性：检查当前用户是否为管理员
-const isCurrentUserAdminComputed = computed(() => {
-  return isCurrentUserAdmin();
-});
-
-// 表单验证规则
 const uploadRules = {
   title: [{ required: true, message: '请输入视频标题', trigger: 'blur' }],
   file: [{ required: true, message: '请选择视频文件', trigger: 'change' }]
@@ -708,9 +704,43 @@ const onImageError = (event: Event) => {
 };
 
 // 视频加载错误处理
+// 视频加载错误处理 - 支持路径切换（原文件vs压缩文件）
 const onVideoError = (event: Event) => {
   console.error('视频加载失败:', event);
-  ElMessage.error('视频加载失败');
+
+  if (selectedVideo.value) {
+    const videoElement = event.target as HTMLVideoElement;
+    const currentSrc = videoElement.src;
+
+    // 尝试切换到备用路径
+    let newSrc = null;
+
+    // 如果当前使用的是压缩路径，尝试切换到原始路径
+    if (selectedVideo.value.compressed_path && currentSrc.includes(selectedVideo.value.compressed_path)) {
+      if (selectedVideo.value.original_path) {
+        newSrc = `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.value.original_path}`;
+        console.log(`视频加载失败，尝试使用原始路径: ${selectedVideo.value.original_path}`);
+      }
+    }
+    // 如果当前使用的是原始路径，尝试切换到压缩路径
+    else if (selectedVideo.value.original_path && currentSrc.includes(selectedVideo.value.original_path)) {
+      if (selectedVideo.value.compressed_path) {
+        newSrc = `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.value.compressed_path}`;
+        console.log(`视频加载失败，尝试使用压缩路径: ${selectedVideo.value.compressed_path}`);
+      }
+    }
+
+    if (newSrc) {
+      // 更新视频源
+      currentVideoSrc.value = newSrc;
+      // 注意：由于Vue的响应式机制，这里可能需要触发重新渲染
+      // 通过给video元素添加key来强制重新创建元素
+    } else {
+      ElMessage.error('视频加载失败，未找到可用的备用路径');
+    }
+  } else {
+    ElMessage.error('视频加载失败');
+  }
 };
 
 // 获取视频列表
@@ -945,6 +975,15 @@ const viewVideoDetails = (video: any) => {
   // 初始化标签显示
   const tagsString = video?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+
+  // 设置视频源路径：优先使用压缩路径，如果不存在则使用原始路径
+  if (video.compressed_path) {
+    currentVideoSrc.value = `${apiBaseUrl.value}/assets/Media/Videos/${video.compressed_path}`;
+  } else if (video.original_path) {
+    currentVideoSrc.value = `${apiBaseUrl.value}/assets/Media/Videos/${video.original_path}`;
+  } else {
+    currentVideoSrc.value = '';
+  }
 
   // 重置编辑状态
   isEditingAll.value = false;
@@ -1293,8 +1332,7 @@ const handleLogJump = async (id: number) => {
 };
 // 显示视频日志
 const showVideoLogs = () => {
-  if (!isCurrentUserAdminComputed.value) {
-    ElMessage.error('您没有权限查看日志');
+          if (!isAdmin.value) {    ElMessage.error('您没有权限查看日志');
     return;
   }
   // 先重置日志组件的状态，再显示对话框

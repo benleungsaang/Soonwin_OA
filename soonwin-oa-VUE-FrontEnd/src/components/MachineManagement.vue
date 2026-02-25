@@ -28,7 +28,7 @@
           <el-table-column label="操作" width="200">
               <template #default="{ row }">
                 <el-button size="small" @click="showEditMachineDialog(row)">编辑</el-button>
-                <el-button v-if="props.isCurrentUserAdmin" size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
+                <el-button v-if="props.isAdmin" size="small" type="danger" @click="deleteMachine(row.model)">删除</el-button>
               </template>
           </el-table-column>    </el-table>
 
@@ -81,7 +81,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!props.isCurrentUserAdmin"
+                :disabled="!props.isAdmin"
               />
             </el-form-item>
           </el-col>
@@ -93,7 +93,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!props.isCurrentUserAdmin"
+                :disabled="!props.isAdmin"
               />
             </el-form-item>
           </el-col>
@@ -241,7 +241,7 @@ const machineForm = reactive({
 
 const props = defineProps({
   // 是否为管理员
-  isCurrentUserAdmin: {
+  isAdmin: {
     type: Boolean,
     required: true, // 必填，确保父组件传递
     default: false  // 默认值（防止未传递时出错）

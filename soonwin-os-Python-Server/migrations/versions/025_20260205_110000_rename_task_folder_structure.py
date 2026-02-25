@@ -15,7 +15,7 @@ from extensions import db
 import logging
 
 # revision identifiers
-revision = '025_20260205_110000'
+revision = '025_20260205_110000_rename_task_folder_structure'
 down_revision = '024_20260204_100000_add_order_status_tables'
 branch_labels = None
 depends_on = None
@@ -50,9 +50,9 @@ def upgrade():
                 continue
                 
             # 构建旧路径（使用名称）
-            old_contract_no = order.contract_no.replace('/', '_').replace('\\', '_')
-            old_status_log_folder = f"{status_log.id}_{status_log.status.replace('/', '_').replace('\\', '_')}"
-            old_task_folder = f"{task.id}_{task.name.replace('/', '_').replace('\\', '_')}"
+            old_contract_no = order.contract_no.replace('/', '_').replace(chr(92), '_')
+            old_status_log_folder = f"{status_log.id}_{status_log.status.replace('/', '_').replace(chr(92), '_')}"
+            old_task_folder = f"{task.id}_{task.name.replace('/', '_').replace(chr(92), '_')}"
             
             old_upload_dir = os.path.join(UPLOAD_FOLDER, old_contract_no, old_status_log_folder, old_task_folder)
             
@@ -94,8 +94,8 @@ def upgrade():
                 continue
                 
             # 构建旧路径（使用名称）
-            old_contract_no = order.contract_no.replace('/', '_').replace('\\', '_')
-            old_status_log_folder = f"{status_log.id}_{status_log.status.replace('/', '_').replace('\\', '_')}"
+            old_contract_no = order.contract_no.replace('/', '_').replace(chr(92), '_')
+            old_status_log_folder = f"{status_log.id}_{status_log.status.replace('/', '_').replace(chr(92), '_')}"
             
             old_dir = os.path.join(UPLOAD_FOLDER, old_contract_no, old_status_log_folder)
             

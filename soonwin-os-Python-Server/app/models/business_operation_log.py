@@ -13,7 +13,7 @@ class BusinessOperationLog(db.Model):
     通用业务操作日志表（适配询盘/视频/图片/人员等所有管理功能）
     """
     __tablename__ = "business_operation_log"  # 统一表名，避免模块专属命名
-    
+
     # 通用核心字段（所有模块必选）
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")
     module = db.Column(db.String(50), nullable=False, comment="业务模块：inquiry(询盘)/video(视频)/image(图片)/employee(人员)")
@@ -69,7 +69,7 @@ def add_inquiry_log(inquiry_id, operation_type, operator_id, details):
             details_dict = {"raw_details": details}
     else:
         details_dict = details if details else {}
-    
+
     log = BusinessOperationLog(
         module="inquiry",  # 模块标识：询盘
         biz_id=str(inquiry_id),  # 统一转为字符串，兼容不同模块主键类型
@@ -101,7 +101,7 @@ def add_video_log(video_id, operation_type, operator_id, details):
             details_dict = {"raw_details": details}
     else:
         details_dict = details if details else {}
-    
+
     log = BusinessOperationLog(
         module="video",  # 模块标识：视频
         biz_id=str(video_id),
@@ -133,7 +133,7 @@ def add_employee_log(emp_id, operation_type, operator_id, details):
             details_dict = {"raw_details": details}
     else:
         details_dict = details if details else {}
-    
+
     log = BusinessOperationLog(
         module="employee",  # 模块标识：人员
         biz_id=str(emp_id),
@@ -165,7 +165,7 @@ def add_photo_log(photo_id, operation_type, operator_id, details):
             details_dict = {"raw_details": details}
     else:
         details_dict = details if details else {}
-    
+
     log = BusinessOperationLog(
         module="photo",  # 模块标识：图片
         biz_id=str(photo_id),
@@ -194,7 +194,7 @@ def get_logs_by_module(module_name, page=1, size=10, operation_type=None, operat
     :return: 日志列表和总数
     """
     query = BusinessOperationLog.query.filter(BusinessOperationLog.module == module_name)
-    
+
     # 应用筛选条件
     if operation_type:
         query = query.filter(BusinessOperationLog.operation_type.contains(operation_type))
@@ -228,7 +228,7 @@ def delete_logs_by_module(module_name, log_id=None):
         )
     else:
         query = BusinessOperationLog.query.filter(BusinessOperationLog.module == module_name)
-    
+
     deleted_count = query.delete()
     db.session.commit()
     return deleted_count

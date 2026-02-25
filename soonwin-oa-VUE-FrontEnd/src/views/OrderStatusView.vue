@@ -1187,23 +1187,34 @@ const addTask = async () => {
 
     if (response) {
       ElMessage.success('任务添加成功');
-      // 将服务器返回的任务对象转换为前端期望的结构
+      // 从response.data中获取完整的任务信息（因为API返回格式为{code, data, msg}，request.ts会自动解包data部分）
+      // 根据API响应格式，response应该是包含任务详细信息的对象
+      const taskResponse = response; // request.ts已解包data部分
+      
+      // 构建任务项，确保包含所有必需的字段
       const taskItem = {
-        task_id: response.task_id,                 // 使用id作为task_id
-        id: response.task_id,                      // 保留id
-        name: response.name,
-        category: response.category,
-        description: response.description,
-        is_completed: response.is_completed,
-        photo_path: response.photo_path,
-        thumb_photo_path: response.thumb_photo_path,
-        status_log_id: response.status_log_id,
-        create_time: response.create_time,
-        update_time: response.update_time,
-        sort_order: response.sort,           // 将sort转换为sort_order
-        parent_id: response.status_log_id,   // 将status_log_id作为parent_id
-        item_type: 'sub'                     // 固定为sub类型
+        id: taskResponse.id || taskResponse.task_id,                      // 使用返回的ID作为id
+        task_id: taskResponse.id || taskResponse.task_id,                 // 使用返回的ID作为task_id
+        name: taskResponse.name || newTaskForm.value.name,
+        category: taskResponse.category || newTaskForm.value.category,
+        description: taskResponse.description || newTaskForm.value.description,
+        is_completed: taskResponse.is_completed || false,
+        photo_path: taskResponse.photo_path || '',
+        thumb_photo_path: taskResponse.thumb_photo_path || '',
+        status_log_id: taskResponse.status_log_id || currentTaskStatusLogId.value,
+        create_time: taskResponse.create_time,
+        update_time: taskResponse.update_time,
+        sort_order: taskResponse.sort || taskResponse.sort_order || 0,    // 兼容不同的排序字段名
+        parent_id: taskResponse.status_log_id || currentTaskStatusLogId.value, // 兼容不同的父级字段名
+        item_type: 'sub',                                                 // 固定为sub类型
+        // 添加新的媒体文件字段
+        media_files: taskResponse.media_files || [],
+        images: taskResponse.images || [],
+        videos: taskResponse.videos || [],
+        image_count: taskResponse.image_count || 0,
+        video_count: taskResponse.video_count || 0
       };
+      
       tasks.value.push(taskItem);
 
       // 关闭模态框并重置表单
@@ -1214,6 +1225,9 @@ const addTask = async () => {
         category: '',
         status_log_id: null
       };
+      
+      // 重新加载订单状态详情，以确保所有数据同步
+      await loadOrderStatusDetails();
     }
   } catch (error) {
     console.error('添加任务失败:', error);
@@ -1676,45 +1690,93 @@ const showImageUploadPreviewForTask = (taskId: number) => {
 };
 
 // ===================== 修改媒体上传成功回调 =====================
+
 const onMediaUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
+
   ElMessage.success(`${files.length} 个媒体文件上传成功`);
 
+
+
   // 如果有返回的媒体文件信息，直接更新本地状态，避免重新加载
+
   if (mediaFiles && mediaFiles.length > 0) {
-            // 更新本地任务数据中的媒体文件
-            // 首先找到对应的task ID
-            const currentTaskId = currentImageUploadTaskId.value;
-            if (currentTaskId) {
-              const taskIndex = tasks.value.findIndex(t =>
-                Number(t.task_id || t.id || 0) === Number(currentTaskId || 0)
-              );
 
-              if (taskIndex > -1) {
-                const newTasks = [...tasks.value];
-                const currentTask = newTasks[taskIndex];
+    // 更新本地任务数据中的媒体文件
 
-                // 将新上传的媒体文件添加到现有媒体文件列表中
-                const updatedMediaFiles = [...(currentTask.media_files || []), ...mediaFiles];
+    // 首先找到对应的task ID
 
-                newTasks[taskIndex] = {
-                  ...currentTask,
-                  media_files: updatedMediaFiles,
-                  images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
-                  videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
-                  image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
-                  video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
-                };
+    const currentTaskId = currentImageUploadTaskId.value;
 
-                tasks.value = newTasks;
-              }
-            }  } else {
+    if (currentTaskId) {
+
+      const taskIndex = tasks.value.findIndex(t =>
+
+        Number(t.task_id || t.id || 0) === Number(currentTaskId || 0)
+
+      );
+
+
+
+      if (taskIndex > -1) {
+
+        const newTasks = [...tasks.value];
+
+        const currentTask = newTasks[taskIndex];
+
+
+
+        // 将新上传的媒体文件添加到现有媒体文件列表中
+
+        const updatedMediaFiles = [...(currentTask.media_files || []), ...mediaFiles];
+
+
+
+        newTasks[taskIndex] = {
+
+          ...currentTask,
+
+          media_files: updatedMediaFiles,
+
+          images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+
+          videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+
+          image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+
+          video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+
+        };
+
+
+
+        tasks.value = newTasks;
+
+      }
+
+    } else {
+
+      // 如果没有有效的任务ID，重新加载订单状态详情
+
+      await loadOrderStatusDetails();
+
+    }
+
+  } else {
+
     // 如果没有返回媒体文件信息，则重新加载订单状态详情
+
     await loadOrderStatusDetails();
+
   }
 
+
+
   // 隐藏上传组件
+
   showImageUploadPreview.value = false;
+
   currentImageUploadTaskId.value = null;
+
 };
 
 // 媒体上传失败回调

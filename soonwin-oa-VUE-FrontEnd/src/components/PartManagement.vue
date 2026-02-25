@@ -82,7 +82,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!props.isCurrentUserAdmin"
+                :disabled="!props.isAdmin"
               />
             </el-form-item>
           </el-col>
@@ -94,7 +94,7 @@
                 :min="0"
                 :controls=false
                 style="width: 100%;"
-                :disabled="!props.isCurrentUserAdmin"
+                :disabled="!props.isAdmin"
               />
             </el-form-item>
           </el-col>
@@ -151,7 +151,7 @@ const partRules = {
 
 const props = defineProps({
   // 是否为管理员
-  isCurrentUserAdmin: {
+  isAdmin: {
     type: Boolean,
     required: true, // 必填，确保父组件传递
     default: false  // 默认值（防止未传递时出错）

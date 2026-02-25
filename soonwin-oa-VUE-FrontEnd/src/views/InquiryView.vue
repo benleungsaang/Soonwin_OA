@@ -50,7 +50,7 @@
         <el-icon><Plus /></el-icon>
         新增询盘
       </el-button>
-      <el-button @click="showInquiryLogs" v-if="isCurrentUserAdmin">
+      <el-button @click="showInquiryLogs" v-if="isAdmin">
         <el-icon><Document /></el-icon>
         查看日志
       </el-button>
@@ -243,7 +243,7 @@
                 <el-icon @click="deleteCommunication(comm.id)" class="el-icon delete"><Delete /></el-icon>
               </div>
             </div>
-            <div class="communication-company" v-if="comm.company_name">公司：{{ comm.company_name }}</div>
+            <!-- <div class="communication-company" v-if="comm.company_name">公司：{{ comm.company_name }}</div> -->
             <div class="communication-content">{{ comm.content }}</div>
           </el-card>
           <div v-if="communications.length === 0" class="no-communications">
@@ -379,7 +379,7 @@ const router = useRouter();
 const route = useRoute();
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => {
+const isAdmin = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole === 'admin';
 });
@@ -506,41 +506,75 @@ const logDialogVisible = ref(false);
 const inquiryFormRef = ref();
 const communicationFormRef = ref();
 
-// 表单验证规则
-const inquiryRules = {
-  area: [
-    { required: true, message: '请输入地区', trigger: 'blur' }
-  ],
-  inquiry_date: [
-    { required: true, message: '请选择询盘日期', trigger: 'change' }
-  ],
-  inquiry_source: [
-    { required: true, message: '请输入询盘来源', trigger: 'blur' }
-  ],
-  company_name: [
-    { required: true, message: '请输入公司名称', trigger: 'blur' }
-  ],
-  contact_person: [
-    { required: true, message: '请输入联系人', trigger: 'blur' }
-  ],
-  phone: [
-    { required: true, message: '请输入电话', trigger: 'blur' }
-  ],
-  email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    {
-      type: 'email',
-      message: '请输入正确的邮箱格式',
-      trigger: 'blur'
-    }
-  ],
-  packaging_product: [
-    { required: true, message: '请输入包装产品', trigger: 'blur' }
-  ],
-  machine_type: [
-    { required: true, message: '请输入需求机器类型', trigger: 'blur' }
-  ]
+// 表单验证规则 - 初始为空数组，通过setValidationRules函数动态设置
+const inquiryRules = ref({
+  area: [],
+  inquiry_date: [],
+  inquiry_source: [],
+  company_name: [],
+  contact_person: [],
+  phone: [],
+  email: [],
+  packaging_product: [],
+  machine_type: []
+});
+
+// 动态设置验证规则 - 根据是否为编辑模式决定是否启用验证
+const setValidationRules = (isEditing: boolean = false) => {
+  if (isEditing) {
+    // 编辑模式下启用完整验证
+    inquiryRules.value = {
+      area: [
+        { required: true, message: '请输入地区', trigger: 'blur' }
+      ],
+      inquiry_date: [
+        { required: true, message: '请选择询盘日期', trigger: 'change' }
+      ],
+      inquiry_source: [
+        { required: true, message: '请输入询盘来源', trigger: 'blur' }
+      ],
+      company_name: [
+        { required: true, message: '请输入公司名称', trigger: 'blur' }
+      ],
+      contact_person: [
+        { required: true, message: '请输入联系人', trigger: 'blur' }
+      ],
+      phone: [
+        { required: true, message: '请输入电话', trigger: 'blur' }
+      ],
+      email: [
+        { required: true, message: '请输入邮箱', trigger: 'blur' },
+        {
+          type: 'email',
+          message: '请输入正确的邮箱格式',
+          trigger: 'blur'
+        }
+      ],
+      packaging_product: [
+        { required: true, message: '请输入包装产品', trigger: 'blur' }
+      ],
+      machine_type: [
+        { required: true, message: '请输入需求机器类型', trigger: 'blur' }
+      ]
+    };
+  } else {
+    // 新增模式下不设置验证规则（只在提交时验证）
+    inquiryRules.value = {
+      area: [],
+      inquiry_date: [],
+      inquiry_source: [],
+      company_name: [],
+      contact_person: [],
+      phone: [],
+      email: [],
+      packaging_product: [],
+      machine_type: []
+    };
+  }
 };
+
+// 初始化验证规则为不启用状态（新增模式）
+setValidationRules(false);
 
 const communicationRules = {
   subject: [
@@ -567,6 +601,8 @@ const showAddInquiryDialog = () => {
   inquiryForm.value = { ...emptyForm };
   // 保存初始表单值用于比较
   initialInquiryForm.value = JSON.parse(JSON.stringify(emptyForm));
+  // 设置验证规则：新增模式下不启用实时验证
+  setValidationRules(false);
   inquiryDialogVisible.value = true;
 };
 
@@ -593,6 +629,8 @@ const viewInquiry = async (id: number) => {
       inquiryDialogTitle.value = '查看详情/编辑';
       // 加载沟通记录
       await loadCommunications(id);
+      // 设置验证规则：编辑模式下启用验证
+      setValidationRules(true);
       inquiryDialogVisible.value = true;
     } else {
       // 如果后端返回了错误格式的响应
@@ -635,6 +673,12 @@ const submitInquiry = async () => {
     inquiryDialogVisible.value = false;
     return;
   }
+
+  // 在提交前启用完整验证规则
+  setValidationRules(true);
+
+  // 等待DOM更新后执行验证
+  await nextTick();
 
   await inquiryFormRef.value.validate(async (valid: boolean) => {
     if (valid) {
@@ -1047,8 +1091,7 @@ const handleLogJump = (id: number) => {
 
 // 显示日志对话框
 const showInquiryLogs = () => {
-  if (!isCurrentUserAdmin.value) {
-    ElMessage.error('您没有权限查看日志');
+          if (!isAdmin.value) {    ElMessage.error('您没有权限查看日志');
     return;
   }
   // 先重置日志组件的状态，再显示对话框

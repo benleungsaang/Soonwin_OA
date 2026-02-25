@@ -887,7 +887,6 @@ def get_employee_info(emp_id):
 
 
 @punch_bp.route('/api/employee-basic-info/<emp_id>', methods=['GET'])
-@route_permission(ROUTE_PUNCH)
 def get_employee_basic_info(emp_id):
     """获取员工基本信息接口（用于绑定验证器等无需认证的场景）"""
     try:

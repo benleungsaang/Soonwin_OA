@@ -6,13 +6,13 @@
       <el-tabs v-model="activeTab" type="card" @tab-change="handleTabChange">
         <el-tab-pane label="机器管理" name="machines">
           <MachineManagement
-            :is-current-user-admin="isCurrentUserAdmin"
+            :is-admin="isAdmin"
             :has-token="hasToken"
           />
         </el-tab-pane>
         <el-tab-pane label="部件管理" name="parts">
           <PartManagement
-            :is-current-user-admin="isCurrentUserAdmin"
+            :is-admin="isAdmin"
             :has-token="hasToken"
           />
         </el-tab-pane>
@@ -35,8 +35,8 @@ const handleTabChange = (tabName: string) => {
 }
 // 是否已登录（存在token）
 const hasToken = computed(() => checkHasToken());
-// 当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => {
+// 计算属性：检查当前用户是否为管理员
+const isAdmin = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole === 'admin';
 });

@@ -8,6 +8,7 @@ from ..models.photo import Photo
 from ..models.machine import Machine
 from ..models.business_operation_log import add_photo_log
 from ..utils.simple_auth_utils import route_permission
+from ..utils.auth_utils import get_user_id_from_token  # 添加这个导入
 from ..constants.simple_permission_constants import ROUTE_PHOTO, ROUTE_PHOTO_MANAGE
 from ..models.simple_permission import get_user_role_from_token
 from ..utils.upload_utils import (
@@ -274,7 +275,7 @@ def set_app_instance(app):
 @photo_bp.route('/photos', methods=['GET'])
 @route_permission(ROUTE_PHOTO)
 def get_photos():
-    """获取照片列表"""
+    """获取照片列表（正常照片，不包括已删除的）"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -305,31 +306,17 @@ def get_photos():
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
 
-        # 构建查询
-        query = Photo.query
-
-
-
-        # 如果有搜索词，添加搜索过滤条件
-        if search:
-            query = query.filter(Photo.search_field.like(f'%{search}%'))
-
-        # 机器ID筛选
-        if machine_id is not None:
-            if machine_id == -1:  # 特殊情况：型号不存在，返回空结果
-                query = query.filter(Photo.id == -1)  # 不存在的ID，确保空结果
-            elif machine_id != 0 and str(machine_id) != '0':
-                # machine_id现在可能是型号字符串或整数ID，直接匹配
-                query = query.filter(Photo.machine_id == machine_id)
-            else:  # machine_id == 0，表示查找没有关联机器的项目
-                query = query.filter((Photo.machine_id == 0) | (Photo.machine_id.is_(None)))
-
-        # 按上传时间倒序排列
-        query = query.order_by(Photo.upload_time.desc())
-
-        pagination = query.paginate(
-            page=page, per_page=per_page, error_out=False
+        # 使用模型的分页方法获取正常照片（is_deleted=0）
+        pagination = Photo.get_paginated_photos(
+            page=page,
+            per_page=per_page,
+            search=search,
+            machine_id=machine_id,
+            is_admin=is_admin,
+            uploader=user_role,
+            is_deleted=0  # 获取正常照片
         )
+
         photos = pagination.items
 
         # 根据用户权限处理数据
@@ -438,6 +425,7 @@ def batch_upload_photos():
 
                 # 创建照片记录
                 from app.models.photo import Photo
+                from datetime import datetime
                 photo = Photo(
                     title=title,
                     tags=tags,
@@ -445,6 +433,7 @@ def batch_upload_photos():
                     remark=remark,
                     search_field=search_field,
                     uploader=uploader,
+                    upload_time=datetime.utcnow(),  # 确保显式设置上传时间
                     original_path=process_result["paths"]["original"] if process_result["paths"]["original"] else None,
                     thumbnail_path=process_result["paths"]["thumbnail"],
                     normal_path=process_result["paths"]["normal"],
@@ -460,9 +449,10 @@ def batch_upload_photos():
 
                 # 记录照片创建日志
                 try:
-                    from app.models.business_operation_log import add_photo_log
-                    from ..utils.auth_utils import get_user_id_from_token
                     user_id = get_user_id_from_token()
+                    # 如果无法获取用户ID，使用默认值
+                    if not user_id:
+                        user_id = 'system'  # 使用默认操作员ID
                     add_photo_log(
                         photo_id=photo.id,
                         operation_type='create',
@@ -555,6 +545,7 @@ def upload_photo():
             remark=remark,
             search_field=search_field,
             uploader=uploader,
+            upload_time=datetime.utcnow(),  # 确保显式设置上传时间
             original_path=process_result["paths"]["original"] if process_result["paths"]["original"] else None,
             thumbnail_path=process_result["paths"]["thumbnail"],
             normal_path=process_result["paths"]["normal"],
@@ -570,6 +561,9 @@ def upload_photo():
         # 记录照片创建日志
         try:
             user_id = get_user_id_from_token()
+            # 如果无法获取用户ID，使用默认值
+            if not user_id:
+                user_id = 'system'  # 使用默认操作员ID
             add_photo_log(
                 photo_id=photo.id,
                 operation_type='create',
@@ -699,6 +693,9 @@ def update_photo(photo_id):
         if updated_fields:
             try:
                 user_id = get_user_id_from_token()
+                # 如果无法获取用户ID，使用默认值
+                if not user_id:
+                    user_id = 'system'  # 使用默认操作员ID
                 add_photo_log(
                     photo_id=photo.id,
                     operation_type='update',
@@ -732,7 +729,7 @@ def update_photo(photo_id):
 @photo_bp.route('/photos/<int:photo_id>', methods=['DELETE'])
 @route_permission(ROUTE_PHOTO)
 def delete_photo(photo_id):
-    """删除照片"""
+    """逻辑删除照片（放入回收站）"""
     try:
         photo = Photo.query.get(photo_id)
         if not photo:
@@ -741,34 +738,6 @@ def delete_photo(photo_id):
         # 获取当前用户信息
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-
-        # 移除普通用户的权限限制，允许所有用户删除照片
-        # 如果需要保留权限控制，可以在这里添加特定逻辑
-
-        # 删除物理文件
-        if photo.thumbnail_path:
-            try:
-                full_thumbnail_path = os.path.join(".", "assets","Media", "Photos", photo.thumbnail_path)
-                if os.path.exists(full_thumbnail_path):
-                    os.remove(full_thumbnail_path)
-            except Exception as e:
-                print(f"删除缩略图文件失败: {str(e)}")  # 使用print替代current_app.logger
-
-        if photo.normal_path:
-            try:
-                full_normal_path = os.path.join(".", "assets","Media", "Photos", photo.normal_path)
-                if os.path.exists(full_normal_path):
-                    os.remove(full_normal_path)
-            except Exception as e:
-                print(f"删除普通图文件失败: {str(e)}")  # 使用print替代current_app.logger
-
-        if photo.original_path:
-            try:
-                full_original_path = os.path.join(".", "assets","Media", "Photos", photo.original_path)
-                if os.path.exists(full_original_path):
-                    os.remove(full_original_path)
-            except Exception as e:
-                print(f"删除原图文件失败: {str(e)}")  # 使用print替代current_app.logger
 
         # 记录删除前的详细信息
         photo_data = {
@@ -785,13 +754,18 @@ def delete_photo(photo_id):
             "upload_time": photo.upload_time.isoformat() if photo.upload_time else None
         }
 
-        # 从数据库删除记录
-        db.session.delete(photo)
+        # 设置逻辑删除标记及相关信息，不删除物理文件
+        photo.is_deleted = 1
+        photo.delete_time = datetime.now()  # 记录删除时间
+        photo.delete_operator = user_role or 'system'  # 记录删除操作人
         db.session.commit()
 
         # 记录照片删除日志
         try:
             user_id = get_user_id_from_token()
+            # 如果无法获取用户ID，使用默认值
+            if not user_id:
+                user_id = 'system'  # 使用默认操作员ID
             add_photo_log(
                 photo_id=photo.id,
                 operation_type='delete',
@@ -807,11 +781,216 @@ def delete_photo(photo_id):
 
         return jsonify({
             'success': True,
-            'message': '照片删除成功'
+            'message': '照片已移至回收站'
         })
     except Exception as e:
         db.session.rollback()
         print(f"删除照片失败: {str(e)}")  # 使用print替代current_app.logger
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@photo_bp.route('/photos/recycle-bin', methods=['GET'])
+@route_permission(ROUTE_PHOTO_MANAGE)  # 需要管理权限才能访问回收站
+def get_deleted_photos():
+    """获取已删除的照片列表（回收站）"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '')
+        # 获取machine_id参数
+        machine_id_raw = request.args.get('machine_id')
+        
+        # 处理machine_id参数
+        machine_id = None
+        if machine_id_raw is not None and machine_id_raw != '':
+            try:
+                machine_id = int(machine_id_raw)
+            except (ValueError, TypeError):
+                machine = Machine.query.filter_by(model=machine_id_raw).first()
+                if machine:
+                    machine_id = machine.model
+                else:
+                    machine_id = -1  # 特殊标记
+
+        # 使用模型的分页方法获取已删除照片（is_deleted=1）
+        pagination = Photo.get_paginated_photos(
+            page=page,
+            per_page=per_page,
+            search=search,
+            machine_id=machine_id,
+            is_admin=is_admin,
+            uploader=user_role,
+            is_deleted=1  # 获取已删除照片
+        )
+
+        photos = pagination.items
+
+        # 根据用户权限处理数据
+        photos_data = []
+        for photo in photos:
+            photo_dict = photo.to_dict()
+            if not is_admin:
+                # 非管理员用户不显示某些字段（如果需要）
+                pass
+            photos_data.append(photo_dict)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'photos': photos_data,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'current_page': page
+            }
+        })
+    except Exception as e:
+        print(f"获取回收站照片列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@photo_bp.route('/photos/recycle-bin/<int:photo_id>/restore', methods=['PUT'])
+@route_permission(ROUTE_PHOTO_MANAGE)  # 需要管理权限才能恢复
+def restore_photo(photo_id):
+    """从回收站恢复照片"""
+    try:
+        # 获取当前用户信息
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        # 查询已删除的照片
+        photo = Photo.query.filter_by(id=photo_id, is_deleted=1).first()
+        if not photo:
+            return jsonify({'success': False, 'message': '照片不存在或不在回收站中'}), 404
+
+        # 恢复照片
+        photo.is_deleted = 0
+        photo.delete_time = None
+        photo.delete_operator = None
+        db.session.commit()
+
+        # 记录恢复日志
+        try:
+            user_id = get_user_id_from_token()
+            # 如果无法获取用户ID，使用默认值
+            if not user_id:
+                user_id = 'system'  # 使用默认操作员ID
+            add_photo_log(
+                photo_id=photo.id,
+                operation_type='restore',
+                operator_id=user_id,
+                details={
+                    "action": "restore",
+                    "user": user_role,
+                    "photo_data": photo.to_dict()
+                }
+            )
+        except Exception as log_error:
+            print(f"记录照片恢复日志失败: {str(log_error)}")
+
+        return jsonify({
+            'success': True,
+            'message': '照片恢复成功'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"恢复照片失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@photo_bp.route('/photos/permanent-delete', methods=['DELETE'])
+@route_permission(ROUTE_PHOTO_MANAGE)  # 需要管理权限才能永久删除
+def permanent_delete_photos():
+    """物理删除照片（从回收站彻底删除）"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        data = request.get_json()
+        photo_ids = data.get('photo_ids', [])
+
+        if not photo_ids:
+            return jsonify({'success': False, 'message': '未选择要删除的照片'}), 400
+
+        # 查询要删除的照片（只查询已删除的，即在回收站中的）
+        photos = Photo.query.filter(Photo.id.in_(photo_ids), Photo.is_deleted == 1).all()
+
+        if len(photos) != len(photo_ids):
+            return jsonify({'success': False, 'message': '部分照片不存在或不在回收站中'}), 400
+
+        # 获取照片详细信息用于日志记录（在删除前保存）
+        photo_details_for_logs = {}
+        for photo in photos:
+            photo_details_for_logs[photo.id] = {
+                "id": photo.id,
+                "title": photo.title,
+                "tags": photo.tags,
+                "machine_id": photo.machine_id,
+                "remark": photo.remark,
+                "thumbnail_path": photo.thumbnail_path,
+                "normal_path": photo.normal_path,
+                "original_path": photo.original_path
+            }
+
+        deleted_count = 0
+        for photo in photos:
+            try:
+                # 删除物理文件
+                if photo.thumbnail_path:
+                    full_thumbnail_path = os.path.join(".", "assets", "Media", "Photos", photo.thumbnail_path)
+                    if os.path.exists(full_thumbnail_path):
+                        os.remove(full_thumbnail_path)
+
+                if photo.normal_path:
+                    full_normal_path = os.path.join(".", "assets", "Media", "Photos", photo.normal_path)
+                    if os.path.exists(full_normal_path):
+                        os.remove(full_normal_path)
+
+                if photo.original_path:
+                    full_original_path = os.path.join(".", "assets", "Media", "Photos", photo.original_path)
+                    if os.path.exists(full_original_path):
+                        os.remove(full_original_path)
+
+                # 从数据库彻底删除记录
+                db.session.delete(photo)
+                deleted_count += 1
+
+                # 记录物理删除日志
+                try:
+                    user_id = get_user_id_from_token()
+                    # 如果无法获取用户ID，使用默认值
+                    if not user_id:
+                        user_id = 'system'  # 使用默认操作员ID
+                    add_photo_log(
+                        photo_id=photo.id,
+                        operation_type='physical_delete',
+                        operator_id=user_id,
+                        details={
+                            "action": "physical_delete",
+                            "user": user_role,
+                            "photo_data": photo_details_for_logs[photo.id]
+                        }
+                    )
+                except Exception as log_error:
+                    print(f"记录照片物理删除日志失败: {str(log_error)}")
+
+            except Exception as e:
+                print(f"删除照片 {photo.id} 时发生错误: {str(e)}")
+                # 继续处理其他照片
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'成功永久删除 {deleted_count} 张照片'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"永久删除照片失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/machines', methods=['GET'])

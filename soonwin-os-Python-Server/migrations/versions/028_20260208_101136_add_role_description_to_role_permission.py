@@ -12,7 +12,7 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '028_20260208_101136'
+revision = '028_20260208_101136_add_role_description_to_role_permission'
 down_revision = '027_20260208_101135_add_role_permission_table'
 branch_labels = None
 depends_on = None

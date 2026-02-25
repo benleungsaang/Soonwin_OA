@@ -6,31 +6,31 @@ from .. import db
 from ..models.machine import Machine, PartType
 from ..utils.json_utils import import_json_data, export_json_data
 from app.utils.simple_auth_utils import route_permission
-from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE
+from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE, ROUTE_MACHINE_LIST, ROUTE_UPLOAD_MANAGE
 from app.models.simple_permission import get_user_role_from_token
 import uuid
 
 machine_bp = Blueprint('machine_bp', __name__, url_prefix='/api')
 
 @machine_bp.route('/machines', methods=['GET'])
-@route_permission(ROUTE_MACHINE_MANAGE)
+@route_permission(ROUTE_MACHINE_LIST)
 def get_machines():
     """获取所有机器列表"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        
+
         # 使用通用函数检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         # 过滤掉已删除的机器
         query = Machine.query.filter_by(is_deleted=0)
         pagination = query.paginate(
             page=page, per_page=per_page, error_out=False
         )
         machines = pagination.items
-        
+
         # 根据用户权限处理数据
         machine_data = []
         for machine in machines:
@@ -39,7 +39,7 @@ def get_machines():
                 # 非管理员用户不显示原始价格
                 machine_dict.pop('original_price', None)
             machine_data.append(machine_dict)
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -62,17 +62,17 @@ def get_machine(model):
         # 使用通用函数检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-        
+
         # 根据用户权限处理数据
         machine_dict = machine.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格
             machine_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'data': machine_dict
@@ -90,20 +90,20 @@ def create_machine():
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         data = request.get_json()
-        
+
         # 检查机器型号是否已存在
         existing_machine = Machine.query.filter_by(model=data.get('model')).first()
         if existing_machine:
             return jsonify({'success': False, 'message': '机器型号已存在'}), 400
-        
+
         # 处理自定义属性
         custom_attrs = data.get('custom_attrs')
         if isinstance(custom_attrs, dict):
             import json as json_module
             custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
-        
+
         # 处理数值字段类型转换
         added_count = data.get('added_count', 0)
         if added_count is not None:
@@ -112,7 +112,7 @@ def create_machine():
             except:
                 current_app.logger.warning(f"added_count 转换失败: {added_count}")
                 added_count = 0
-        
+
         original_price = data.get('original_price')
         if original_price is not None:
             try:
@@ -121,7 +121,7 @@ def create_machine():
             except:
                 current_app.logger.warning(f"original_price 转换失败: {original_price}")
                 original_price = None
-        
+
         show_price = data.get('show_price')
         if show_price is not None:
             try:
@@ -130,7 +130,7 @@ def create_machine():
             except:
                 current_app.logger.warning(f"show_price 转换失败: {show_price}")
                 show_price = None
-        
+
         # 定义字段映射，用于动态创建实例
         field_values = {
             'model': data.get('model'),
@@ -148,18 +148,18 @@ def create_machine():
             'show_price': show_price,
             'custom_attrs': custom_attrs
         }
-        
+
         machine = Machine(**field_values)
-        
+
         db.session.add(machine)
         db.session.commit()
-        
+
         # 根据用户权限处理返回数据
         machine_dict = machine.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
             machine_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'message': '机器创建成功',
@@ -179,13 +179,13 @@ def update_machine(model):
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-        
+
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         data = request.get_json()
-        
+
         # 处理数值字段类型转换
         if 'original_price' in data and data['original_price'] is not None:
             try:
@@ -193,32 +193,32 @@ def update_machine(model):
                 data['original_price'] = Decimal(str(data['original_price']))
             except:
                 current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
-        
+
         if 'show_price' in data and data['show_price'] is not None:
             try:
                 from decimal import Decimal
                 data['show_price'] = Decimal(str(data['show_price']))
             except:
                 current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
-        
+
         if 'added_count' in data and data['added_count'] is not None:
             try:
                 data['added_count'] = int(data['added_count'])
             except:
                 current_app.logger.warning(f"added_count 转换失败: {data['added_count']}")
-        
+
         # 定义需要批量更新的普通字段列表
         update_fields = [
             'original_model', 'packing_speed', 'general_power', 'power_supply',
             'air_source', 'machine_weight', 'dimensions', 'package_material',
             'image', 'added_count', 'original_price', 'show_price'
         ]
-        
+
         # 批量更新普通字段
         for field in update_fields:
             if field in data:
                 setattr(machine, field, data[field])
-        
+
         # 单独处理需要特殊逻辑的字段（如 custom_attrs）
         if 'custom_attrs' in data:
             custom_attrs = data['custom_attrs']
@@ -226,15 +226,15 @@ def update_machine(model):
                 import json as json_module
                 custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
             machine.custom_attrs = custom_attrs
-        
+
         db.session.commit()
-        
+
         # 根据用户权限处理返回数据
         machine_dict = machine.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
             machine_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'message': '机器更新成功',
@@ -254,13 +254,13 @@ def delete_machine(model):
         machine = Machine.query.filter_by(model=model).first()
         if not machine:
             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-        
+
         # 设置逻辑删除标记
         machine.is_deleted = 1
         machine.delete_time = datetime.utcnow()
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': '机器已归档（逻辑删除）'
@@ -278,16 +278,16 @@ def get_parts():
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        
+
         # 使用通用函数检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         pagination = PartType.query.paginate(
             page=page, per_page=per_page, error_out=False
         )
         parts = pagination.items
-        
+
         # 根据用户权限处理数据
         parts_data = []
         for part in parts:
@@ -296,7 +296,7 @@ def get_parts():
                 # 非管理员用户不显示原始价格
                 part_dict.pop('original_price', None)
             parts_data.append(part_dict)
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -319,17 +319,17 @@ def get_part(part_type_id):
         # 使用通用函数检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         part = PartType.query.filter_by(part_type_id=part_type_id).first()
         if not part:
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-        
+
         # 根据用户权限处理数据
         part_dict = part.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格
             part_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'data': part_dict
@@ -347,14 +347,14 @@ def create_part():
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         data = request.get_json()
-        
+
         # 检查部件型号是否已存在
         existing_part = PartType.query.filter_by(part_model=data.get('part_model')).first()
         if existing_part:
             return jsonify({'success': False, 'message': '部件型号已存在'}), 400
-        
+
         # 处理数值字段类型转换
         original_price = data.get('original_price')
         if original_price is not None:
@@ -364,7 +364,7 @@ def create_part():
             except:
                 current_app.logger.warning(f"original_price 转换失败: {original_price}")
                 original_price = None
-        
+
         show_price = data.get('show_price')
         if show_price is not None:
             try:
@@ -373,7 +373,7 @@ def create_part():
             except:
                 current_app.logger.warning(f"show_price 转换失败: {show_price}")
                 show_price = None
-        
+
         # 定义字段映射，用于动态创建实例
         field_values = {
             'part_model': data.get('part_model'),
@@ -381,18 +381,18 @@ def create_part():
             'show_price': show_price,
             'image': data.get('image')
         }
-        
+
         part = PartType(**field_values)
-        
+
         db.session.add(part)
         db.session.commit()
-        
+
         # 根据用户权限处理返回数据
         part_dict = part.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
             part_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'message': '部件创建成功',
@@ -412,13 +412,13 @@ def update_part(part_type_id):
         part = PartType.query.filter_by(part_type_id=part_type_id).first()
         if not part:
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-        
+
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         data = request.get_json()
-        
+
         # 检查部件型号是否需要更新且是否已存在
         if 'part_model' in data:
             # 检查新部件型号是否已存在
@@ -426,7 +426,7 @@ def update_part(part_type_id):
             if existing_part and existing_part.part_type_id != part_type_id:
                 return jsonify({'success': False, 'message': '部件型号已存在'}), 400
             part.part_model = data['part_model']
-        
+
         # 处理数值字段类型转换
         if 'original_price' in data and data['original_price'] is not None:
             try:
@@ -434,32 +434,32 @@ def update_part(part_type_id):
                 data['original_price'] = Decimal(str(data['original_price']))
             except:
                 current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
-        
+
         if 'show_price' in data and data['show_price'] is not None:
             try:
                 from decimal import Decimal
                 data['show_price'] = Decimal(str(data['show_price']))
             except:
                 current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
-        
+
         # 定义需要批量更新的普通字段列表
         update_fields = [
             'original_price', 'show_price', 'image'
         ]
-        
+
         # 批量更新普通字段
         for field in update_fields:
             if field in data:
                 setattr(part, field, data[field])
-        
+
         db.session.commit()
-        
+
         # 根据用户权限处理返回数据
         part_dict = part.to_dict()
         if not is_admin:
             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
             part_dict.pop('original_price', None)
-        
+
         return jsonify({
             'success': True,
             'message': '部件更新成功',
@@ -479,10 +479,10 @@ def delete_part(part_type_id):
         part = PartType.query.filter_by(part_type_id=part_type_id).first()
         if not part:
             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-        
+
         db.session.delete(part)
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': '部件删除成功'
@@ -498,15 +498,11 @@ def delete_part(part_type_id):
 def import_parts_json():
     """直接从JSON数据导入部件数据（不需要文件上传）"""
     try:
-        # 检查用户权限
-        user_role = get_user_role_from_token()
-        is_admin = user_role == 'admin'
-        
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'success': False, 'message': '未提供JSON数据'}), 400
-        
+
         # 检查数据是否为列表格式
         if not isinstance(data, list):
             # 如果是单个对象，转换为列表
@@ -514,17 +510,17 @@ def import_parts_json():
                 data = [data]
             else:
                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
-        
+
         # 使用通用JSON工具导入数据
         result = import_json_data('part', data)
-        
+
         return jsonify({
             'success': result['success'],
-            'message': result['message'],
+            'message': f"成功处理 {result['total_processed']} 条数据，导入 {result['success_count']} 条，失败 {result['error_count']} 条",
             'data': {
-                'imported_count': result['imported_count'],
-                'failed_count': result['failed_count'],
-                'failed_records': result['failed_records']
+                'imported_count': result['success_count'],
+                'failed_count': result['error_count'],
+                'failed_records': result.get('errors', [])
             }
         })
     except Exception as e:
@@ -540,14 +536,14 @@ def export_parts_json():
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         # 获取过滤参数
         filters = {}
         # 可以根据需要添加过滤参数处理
-        
+
         # 使用通用JSON工具导出数据
         data = export_json_data('part', filters)
-        
+
         return jsonify({
             'success': True,
             'data': data
@@ -565,23 +561,23 @@ def import_machines():
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': '未提供文件'}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({'success': False, 'message': '未选择文件'}), 400
-        
+
         if not file.filename.lower().endswith('.json'):
             return jsonify({'success': False, 'message': '只支持JSON文件'}), 400
-        
+
         try:
             content = file.read().decode('utf-8')
             data = json.loads(content)
         except json.JSONDecodeError:
             return jsonify({'success': False, 'message': 'JSON文件格式错误'}), 400
-        
+
         # 检查数据是否为列表格式
         if not isinstance(data, list):
             # 如果是单个对象，转换为列表
@@ -589,10 +585,10 @@ def import_machines():
                 data = [data]
             else:
                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象数组'}), 400
-        
+
         # 使用通用JSON工具导入数据
         result = import_json_data('machine', data)
-        
+
         return jsonify({
             'success': result['success'],
             'message': result['message'],
@@ -608,19 +604,19 @@ def import_machines():
 
 
 @machine_bp.route('/machines/import-json', methods=['POST'])
-@route_permission(ROUTE_MACHINE_MANAGE)
+@route_permission(ROUTE_UPLOAD_MANAGE)
 def import_machines_json():
     """直接从JSON数据导入机器数据（不需要文件上传）"""
     try:
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'success': False, 'message': '未提供JSON数据'}), 400
-        
+
         # 检查数据是否为列表格式
         if not isinstance(data, list):
             # 如果是单个对象，转换为列表
@@ -628,17 +624,17 @@ def import_machines_json():
                 data = [data]
             else:
                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
-        
+
         # 使用通用JSON工具导入数据
         result = import_json_data('machine', data)
-        
+
         return jsonify({
             'success': result['success'],
-            'message': result['message'],
+            'message': f"成功处理 {result['total_processed']} 条数据，导入 {result['success_count']} 条，失败 {result['error_count']} 条",
             'data': {
-                'imported_count': result['imported_count'],
-                'failed_count': result['failed_count'],
-                'failed_records': result['failed_records']
+                'imported_count': result['success_count'],
+                'failed_count': result['error_count'],
+                'failed_records': result.get('errors', [])
             }
         })
     except Exception as e:
@@ -654,14 +650,14 @@ def export_machines_json():
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
-        
+
         # 获取过滤参数
         filters = {}
         # 可以根据需要添加过滤参数处理
-        
+
         # 使用通用JSON工具导出数据
         data = export_json_data('machine', filters)
-        
+
         return jsonify({
             'success': True,
             'data': data

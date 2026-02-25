@@ -20,6 +20,7 @@ from ..utils.upload_utils import (
     compress_video,
     generate_title_based_filename
 )
+from ..utils.auth_utils import get_user_id_from_token
 
 video_bp = Blueprint('video_bp', __name__, url_prefix='/api')
 
@@ -106,8 +107,8 @@ def update_video_after_compress(video_id, compressed_path, original_file_path):
 
 
             # 保存压缩后文件的相对路径到compressed_path字段
-
-            video.compressed_path = os.path.relpath(compressed_path, UPLOAD_CONFIG['MEDIA_BASE_FOLDER'])
+            # 使用与视频上传时相同的基础路径计算方法
+            video.compressed_path = os.path.relpath(compressed_path, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER']).replace('\\', '/')
 
             video.file_size = compressed_size  # 更新为压缩后文件大小
 
@@ -369,13 +370,42 @@ def upload_video():
         except Exception as log_error:
             print(f"记录视频创建日志失败: {str(log_error)}")
 
-        # 判断是否需要后台处理，若是则放入队列
-        file_size_mb = process_result["file_size"] / (1024 * 1024)  # 转换为MB
-        needs_compress = (file_size_mb > UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'] or
-                         process_result["original_width"] > UPLOAD_CONFIG['VIDEO_MAX_WIDTH'] or
-                         process_result["original_height"] > UPLOAD_CONFIG['VIDEO_MAX_HEIGHT'])
-
+        # ========== 核心优化部分 ==========
+        # 1. 转换文件大小为MB（保留2位小数）
+        file_size_mb = round(process_result["file_size"] / (1024 * 1024), 2)
+        size_threshold = UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD']
+        
+        # 2. 判断文件大小是否超过阈值
+        is_size_over = file_size_mb > size_threshold
+        
+        # 3. 处理分辨率判断（适配横竖屏）
+        original_w = process_result["original_width"]
+        original_h = process_result["original_height"]
+        max_w = UPLOAD_CONFIG['VIDEO_MAX_WIDTH']
+        max_h = UPLOAD_CONFIG['VIDEO_MAX_HEIGHT']
+        
+        # 区分横竖屏：宽>高为横屏，否则为竖屏
+        is_landscape = original_w > original_h
+        
+        # 横屏：宽≤1920 且 高≤1080；竖屏：宽≤1080 且 高≤1920（交换阈值）
+        if is_landscape:
+            is_resolution_over = original_w > max_w or original_h > max_h
+            resolution_desc = f"横屏 {original_w}x{original_h}"
+            resolution_threshold = f"{max_w}x{max_h}"
+        else:
+            is_resolution_over = original_w > max_h or original_h > max_w  # 竖屏用高的阈值当宽，宽的阈值当高
+            resolution_desc = f"竖屏 {original_w}x{original_h}"
+            resolution_threshold = f"{max_h}x{max_w}"  # 竖屏阈值交换
+        
+        # 4. 分开打印判断结果（清晰展示每个条件的状态）
+        print(f"视频大小判断：{file_size_mb}MB {'>' if is_size_over else '≤'} {size_threshold}MB（阈值）")
+        print(f"视频分辨率判断：{resolution_desc} {'>' if is_resolution_over else '≤'} {resolution_threshold}（阈值）")
+        
+        # 5. 最终判断是否需要压缩（任一条件满足即需要）
+        needs_compress = is_size_over or is_resolution_over
+        
         if needs_compress:
+            print(f"视频需要压缩：大小超标={is_size_over}，分辨率超标={is_resolution_over}")
             # 如果视频需要压缩，添加到压缩队列
             add_video_compress_task(
                 video_id=video.id,
@@ -394,6 +424,7 @@ def upload_video():
                 base_save_dir=process_result["base_save_dir"],
                 update_func=update_video_process_result_wrapper
             )
+        # ========== 核心优化部分结束 ==========
 
         # 返回成功响应
         return jsonify({

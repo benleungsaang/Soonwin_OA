@@ -3,7 +3,7 @@ from extensions import db
 from datetime import datetime
 
 
-class SimpleRole(db.Model):
+class SimpleRole(db.Model): 
     """角色表"""
     __tablename__ = 'role'
     id = db.Column(db.Integer, primary_key=True)
@@ -46,7 +46,7 @@ def get_user_role_from_token():
     import jwt
     import config
     from app.models.employee import Employee
-    
+
     token = request.headers.get('Authorization')
     if not token:
         return None
@@ -80,14 +80,14 @@ def user_can_access_route(route_name: str) -> bool:
     user_role = get_user_role_from_token()
     if not user_role:
         return False
-    
+
     # 管理员拥有所有权限
     if user_role == 'admin':
         return True
-    
+
     # 查询角色权限
     role = SimpleRole.query.filter_by(name=user_role).first()
     if not role:
         return False
-    
+
     return role.has_route(route_name)

@@ -8,7 +8,7 @@
           <span>员工管理</span>
           <div>
             <el-button
-              v-if="isCurrentUserAdmin"
+              v-if="isAdmin"
               type="info"
               @click="showDeviceChangeApprovalDialogFunc"
               :icon="Position"
@@ -152,6 +152,11 @@
               <span>{{ selectedEmployee.login_device && selectedEmployee.login_device.length > 50 ? selectedEmployee.login_device.substring(0, 50) + '...' : selectedEmployee.login_device || '无设备' }}</span>
             </el-tooltip>
           </el-descriptions-item>
+          <el-descriptions-item label="TOTP密钥">
+            <el-tooltip :content="selectedEmployee.totp_secret" placement="top" :disabled="!selectedEmployee.totp_secret || selectedEmployee.totp_secret.length <= 50">
+              <span>{{ selectedEmployee.totp_secret && selectedEmployee.totp_secret.length > 50 ? selectedEmployee.totp_secret.substring(0, 50) + '...' : selectedEmployee.totp_secret || '无TOTP密钥' }}</span>
+            </el-tooltip>
+          </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ selectedEmployee.create_time ? formatDateTime(selectedEmployee.create_time) : '无记录' }}</el-descriptions-item>
           <el-descriptions-item label="备注信息">{{ selectedEmployee.remarks || '无备注' }}</el-descriptions-item>
         </el-descriptions>
@@ -216,7 +221,7 @@
           <el-form-item label="角色" prop="user_role">
             <el-select v-model="editEmployee.user_role" placeholder="请选择角色">
               <el-option
-                v-for="role in roles"
+                v-for="role in rolesForEdit"
                 :key="role.role_name"
                 :label="role.description || role.role_name"
                 :value="role.role_name"
@@ -513,7 +518,7 @@ const router = useRouter();
 let originalEmpId = '';
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => {
+const isAdmin = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole === 'admin';
 });
@@ -545,6 +550,12 @@ const loadingDeviceChangeRequests = ref(false); // 加载设备更换申请的�
 const showRoleDialog = ref(false);
 const roles = ref<any[]>([]);
 const loadingRoles = ref(false);
+
+// 编辑员工时的角色列表（独立于角色管理的角色列表）
+const rolesForEdit = ref<any[]>([]);
+
+// 角色映射，用于显示角色描述
+const roleMap = ref<{[key: string]: string}>({});
 
 const roleFormRef = ref();
 const showCreateRoleDialog = ref(false);
@@ -608,15 +619,6 @@ const fetchEmployees = async () => {
     // 确保返回的数据结构正确
     if (response && response.list) {
       employees.value = response.list;
-
-      // 如果API返回了角色列表，更新角色列表
-      if (response.roles && Array.isArray(response.roles)) {
-        roles.value = response.roles.map((role: any) => ({
-          role_name: role.role_name,
-          description: role.role_description,
-          permissions_count: role.permissions_count || 0
-        }));
-      }
     } else {
       // 如果API返回的是直接的员工数组
       employees.value = response || [];
@@ -716,6 +718,8 @@ const showEditDialog = (employee: Employee) => {
     last_login_time: employee.last_login_time || '',
     login_device: employee.login_device || ''
   };
+  // 深度复制当前角色列表，避免角色管理操作影响编辑对话框
+  rolesForEdit.value = JSON.parse(JSON.stringify(roles.value));
   // 保存原始ID用于更新
   originalEmpId = employee.emp_id;
   showEditDialogVisible.value = true;
@@ -789,12 +793,12 @@ const goBack = () => {
 
 // 组件挂载时获取数据
 onMounted(async () => {
-  // 先获取员工列表，这也会获取角色列表
+  // 先获取员工列表
   await fetchEmployees();
-  // 如果角色列表为空，再调用fetchRoles获取角色列表
-  if (!roles.value || roles.value.length === 0) {
-    await fetchRoles();
-  }
+  // 获取角色列表
+  await fetchRoles();
+  // 初始化编辑员工时的角色列表
+  rolesForEdit.value = JSON.parse(JSON.stringify(roles.value));
 });
 
 // 格式化日期时间
@@ -865,19 +869,8 @@ const replaceDeviceId = async () => {
 
 // 获取角色文本
 const getRoleText = (role: string) => {
-  // 从角色列表中查找角色描述
-  const roleInfo = roles.value.find(r => r.role_name === role);
-  if (roleInfo && roleInfo.description) {
-    return roleInfo.description;
-  }
-
-  // 如果在角色列表中没找到，使用默认值
-  switch (role) {
-    case 'admin': return '管理员';
-    case 'sales': return '业务员';
-    case 'user': return '普通用户';
-    default: return role;
-  }
+  // 使用角色映射中的描述
+  return roleMap.value[role] || role;
 };
 
 // 获取角色类型
@@ -900,6 +893,7 @@ const MODULE_CONSTANTS = {
   expense_manage: '费用管理',
   inquiry_manage: '询盘管理',
   machine_manage: '机器管理',
+  machine_list: '机器列表',
   photo_manage: '照片管理',
   video_manage: '视频管理',
   display_file_manage: '展示文件管理',
@@ -1019,7 +1013,10 @@ const rejectDeviceChange = async (requestId: number) => {
 
 // 显示角色管理对话框
 const showRoleManager = async () => {
-  await fetchRoles();
+  // 只有在角色列表为空时才获取数据
+  if (!roles.value || roles.value.length === 0) {
+    await fetchRoles();
+  }
   showRoleDialog.value = true;
 };
 
@@ -1037,6 +1034,13 @@ const fetchRoles = async () => {
         description: role.role_description,
         permissions_count: role.permissions_count || 0  // 从响应中获取权限计数
       }));
+
+      // 更新角色映射
+      const newRoleMap: {[key: string]: string} = {};
+      response.forEach((role: any) => {
+        newRoleMap[role.role_name] = role.role_description || role.role_name;
+      });
+      roleMap.value = newRoleMap;
     }
   } catch (error) {
     console.error('获取角色列表失败:', error);
@@ -1046,6 +1050,13 @@ const fetchRoles = async () => {
       { role_name: 'sales', description: '业务员', permissions_count: 0 },
       { role_name: 'user', description: '普通用户', permissions_count: 0 }
     ];
+
+    // 更新角色映射为默认值
+    roleMap.value = {
+      'admin': '管理员',
+      'sales': '业务员',
+      'user': '普通用户'
+    };
   } finally {
     loadingRoles.value = false;
   }
@@ -1216,6 +1227,7 @@ const loadAllPermissionsForRole = async (roleName?: string) => {
       { route_name: 'expense_manage', route_label: '费用管理', is_active: false },
       { route_name: 'inquiry_manage', route_label: '询盘管理', is_active: false },
       { route_name: 'machine_manage', route_label: '机器管理', is_active: false },
+      { route_name: 'machine_list', route_label: '机器列表', is_active: false },
       { route_name: 'order_manage', route_label: '订单管理', is_active: false },
       { route_name: 'order_status_manage', route_label: '订单状态管理', is_active: false },
       { route_name: 'photo_manage', route_label: '照片管理', is_active: false },
@@ -1243,6 +1255,7 @@ const getModuleLabel = (moduleName: string) => {
     'expense_manage': '费用管理',
     'inquiry_manage': '询盘管理',
     'machine_manage': '机器管理',
+    'machine_list': '机器列表',
     'order_manage': '订单管理',
     'order_status_manage': '订单状态管理',
     'photo_manage': '照片管理',
@@ -1329,7 +1342,9 @@ const getModuleLabel = (moduleName: string) => {
     showRoleManagementDialog.value = false;
 
     // 重新加载角色列表
-    fetchRoles();
+    await fetchRoles();
+    // 更新编辑员工时使用的角色列表
+    rolesForEdit.value = JSON.parse(JSON.stringify(roles.value));
   } catch (error: any) {
     if (error.message) {
       ElMessage.error(error.message);
@@ -1341,10 +1356,6 @@ const getModuleLabel = (moduleName: string) => {
 
 // 删除角色
 const deleteRole = async (role: any) => {
-  if (role.role_name === 'admin' || role.role_name === 'sales' || role.role_name === 'design' || role.role_name === 'order') {
-    ElMessage.error('内置角色不能删除');
-    return;
-  }
 
   try {
     await ElMessageBox.confirm(
@@ -1363,6 +1374,8 @@ const deleteRole = async (role: any) => {
     });
 
     await fetchRoles();
+    // 更新编辑员工时使用的角色列表
+    rolesForEdit.value = JSON.parse(JSON.stringify(roles.value));
     ElMessage.success('角色删除成功');
   } catch (error: any) {
     if (error?.message?.includes('用户')) {
@@ -1377,7 +1390,6 @@ const deleteRole = async (role: any) => {
 // 关闭角色管理对话框
 const closeRoleDialog = () => {
   showRoleDialog.value = false;
-  roles.value = [];
 };
 </script>
 

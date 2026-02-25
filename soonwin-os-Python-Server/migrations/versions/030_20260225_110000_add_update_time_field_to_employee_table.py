@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from datetime import datetime
 
 # revision identifiers
-revision = '030_20260225_110000'
-down_revision = '029_20260225_100000'  # 上一个版本
+revision = '030_20260225_110000_add_update_time_field_to_employee_table'
+down_revision = '029_20260225_100000_remove_order_progress_tables'  # 上一个版本
 branch_labels = None
 depends_on = None
 

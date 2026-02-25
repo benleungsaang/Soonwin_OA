@@ -428,6 +428,11 @@ export const deletePhoto = (photoId: number) => request.delete(`/api/photos/${ph
 export const getPhotos = (params?: any) => request.get('/api/photos', { params });
 export const getMachinesForPhotos = () => request.get('/api/photos/machines');
 
+// 照片回收站相关API
+export const getDeletedPhotos = (params?: any) => request.get('/api/photos/recycle-bin', { params });
+export const restorePhoto = (photoId: number) => request.put(`/api/photos/recycle-bin/${photoId}/restore`);
+export const permanentDeletePhotos = (photoIds: number[]) => request.delete('/api/photos/permanent-delete', { data: { photo_ids: photoIds } });
+
 // 视频管理相关API - 使用特殊处理FormData的函数
 export const createVideo = (
   data: FormData,

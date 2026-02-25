@@ -1,13 +1,18 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from app.models.employee import Employee
+from app.models.totp_user import TotpUser
 from app.utils.auth_utils import require_auth_with_leeway
 from datetime import datetime, timedelta
 import jwt
 import config
+import pyotp
 
 # 创建蓝图
 auth_bp = Blueprint('auth', __name__)
+
+
+
 
 @auth_bp.route('/refresh', methods=['POST'])
 @require_auth_with_leeway  # 允许过期token在宽限时间内使用

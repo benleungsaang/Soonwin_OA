@@ -99,7 +99,7 @@ def compress_video(input_path, output_path, size_threshold=100):
     size_mb = video_info['size_mb']
     width = video_info['width']
     fps = video_info['fps']
-    is_mp4 = (video_info['format'] == 'mp4')
+    is_mp4 = (video_info['format'].lower() == 'mp4')
 
     # 2. 分场景执行一步式命令
     if size_mb > size_threshold:
@@ -647,19 +647,45 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
 
             if result_path:
                 print(f"视频压缩成功: {result_path}")
-                # 更新数据库记录
-                if app_instance:
-                    with app_instance.app_context():
+                
+                # 确认压缩文件确实存在
+                if os.path.exists(result_path) and os.path.getsize(result_path) > 0:
+                    print(f"确认压缩文件存在且非空，准备更新数据库")
+                    
+                    # 更新数据库记录
+                    if app_instance:
+                        with app_instance.app_context():
+                            update_video_after_compress(video_id, result_path, original_file_path)
+                    else:
                         update_video_after_compress(video_id, result_path, original_file_path)
-                else:
-                    update_video_after_compress(video_id, result_path, original_file_path)
 
-                # 压缩成功后，安全地删除原始文件
-                try:
-                    os.remove(original_file_path)
-                    print(f"已删除原视频文件: {original_file_path}")
-                except Exception as e:
-                    print(f"删除原视频文件失败: {str(e)}")
+                    # 数据库更新成功后，安全地删除原始文件
+                    try:
+                        os.remove(original_file_path)
+                        print(f"已删除原视频文件: {original_file_path}")
+                    except Exception as e:
+                        print(f"删除原视频文件失败: {str(e)}")
+                        # 如果删除失败，保留原文件，但仍然标记为压缩成功
+                else:
+                    print(f"压缩文件不存在或为空，压缩失败: {result_path}")
+                    # 更新数据库状态为失败
+                    if app_instance:
+                        with app_instance.app_context():
+                            # 从数据库获取视频记录并更新状态
+                            from .. import db
+                            from ..models.video import Video
+                            video = Video.query.get(video_id)
+                            if video:
+                                video.compress_status = 'failed'
+                                db.session.commit()
+                    else:
+                        # 直接操作数据库
+                        from .. import db
+                        from ..models.video import Video
+                        video = Video.query.get(video_id)
+                        if video:
+                            video.compress_status = 'failed'
+                            db.session.commit()
             else:
                 print(f"视频压缩失败")
                 # 如果压缩失败，也要尝试更新数据库状态

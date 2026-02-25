@@ -42,6 +42,7 @@
         </el-table-column>
         <el-table-column prop="order_time" label="下单时间" width="120" />
         <el-table-column prop="ship_time" label="出货时间" width="120" />
+        <el-table-column v-if="isAdmin" prop="creator_id" label="创建者ID" width="120" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
             <el-button size="small" @click.stop="showEditDialog(scope.row)">编辑</el-button>
@@ -65,7 +66,7 @@
 
 
     <!-- 费用汇总信息卡片 - 仅管理员可见 -->
-    <el-card shadow="hover" class="expense-summary-card" style="margin-bottom: 20px;" v-if="isCurrentUserAdmin">
+    <el-card shadow="hover" class="expense-summary-card" style="margin-bottom: 20px;" v-if="isAdmin">
       <template #header>
         <div class="card-header">
           <span>年度费用汇总</span>
@@ -410,7 +411,7 @@
             ></el-input-number>
             </el-form-item>
           </el-col>
-          <el-col :span="12" v-if="isCurrentUserAdmin">
+          <el-col :span="12" v-if="isAdmin">
             <el-form-item label="机器成本" prop="machine_cost">
               <el-input-number
               v-model="orderForm.machine_cost"
@@ -425,7 +426,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <!-- <el-row :gutter="20" v-if="isCurrentUserAdmin">
+        <!-- <el-row :gutter="20" v-if="isAdmin">
           <el-col :span="12">
             <el-form-item label="佣金" prop="commission">
               <el-input-number
@@ -441,7 +442,7 @@
           </el-col>
         </el-row> -->
         <el-row :gutter="20">
-          <el-col :span="12" v-if="isCurrentUserAdmin">
+          <el-col :span="12" v-if="isAdmin">
             <el-form-item label="摊分费用" prop="proportionate_cost">
               <el-input-number
               v-model="orderForm.proportionate_cost"
@@ -528,17 +529,24 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20" v-if="isAdmin">
+          <el-col :span="12">
+            <el-form-item label="创建者ID" prop="creator_id">
+              <el-input v-model="orderForm.creator_id" placeholder="创建者ID" readonly></el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
 
       <!-- 毛利和净利显示区域 -->
-      <div v-if="isCurrentUserAdmin" style="background-color: #f5f7fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+      <div v-if="isAdmin" style="background-color: #f5f7fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
 
           <div>
             <span style="font-weight: bold;">毛利：</span>
             <span :class="orderForm.gross_profit >= 0 ? 'positive' : 'negative'">¥{{ formatCurrency(orderForm.gross_profit) }}</span>
           </div>
         <div style="margin-top: 10px; font-size: 14px; color: #606266;">
-          <p v-if="isCurrentUserAdmin">合同金额（{{ formatCurrency(orderForm.contract_amount || 0) }}） - 机器成本（{{ formatCurrency(orderForm.machine_cost || 0) }}）</p>
+          <p v-if="isAdmin">合同金额（{{ formatCurrency(orderForm.contract_amount || 0) }}） - 机器成本（{{ formatCurrency(orderForm.machine_cost || 0) }}）</p>
           <p v-else>合同金额 - 成本</p>
         </div>
           <div>
@@ -546,7 +554,7 @@
             <span :class="orderForm.net_profit >= 0 ? 'positive' : 'negative'">¥{{ formatCurrency(orderForm.net_profit) }}</span>
           </div>
         <div style="margin-top: 10px; font-size: 14px; color: #606266;">
-          <p v-if="isCurrentUserAdmin">毛利（{{ formatCurrency(orderForm.gross_profit || 0) }}） - 摊分费用（{{ formatCurrency(orderForm.proportionate_cost || 0) }}） - 独立费用({{ formatCurrency(orderForm.individual_cost || 0) }}) - 佣金（{{ formatCurrency(orderForm.commission || 0) }}）</p>
+          <p v-if="isAdmin">毛利（{{ formatCurrency(orderForm.gross_profit || 0) }}） - 摊分费用（{{ formatCurrency(orderForm.proportionate_cost || 0) }}） - 独立费用({{ formatCurrency(orderForm.individual_cost || 0) }}) - 佣金（{{ formatCurrency(orderForm.commission || 0) }}）</p>
           <p v-else>毛利 - 费用</p>
         </div>
       </div>
@@ -691,7 +699,7 @@ import CommonHeader from '@/components/CommonHeader.vue';
 import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 检查当前用户是否为管理员
-const isCurrentUserAdmin = computed(() => {
+const isAdmin = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole === 'admin';
 });
@@ -834,17 +842,7 @@ const orderRules = ref<FormRules>({
     { required: true, message: '请输入名称', trigger: 'blur' }
   ],
   machine_model: [
-    {
-      required: true,
-      validator: (rule: any, value: any, callback: any) => {
-        if (!value || (Array.isArray(value) && value.length === 0)) {
-          callback(new Error('请选择机型'));
-        } else {
-          callback();
-        }
-      },
-      trigger: 'change'
-    }
+    { required: false, message: '请选择机型', trigger: 'change' }
   ],
   machine_count: [
     { required: true, message: '请输入主机数量', trigger: 'blur' },
@@ -941,24 +939,24 @@ const fetchMachineOptions = async () => {
 const fetchOrders = async () => {
   loading.value = true;
   try {
+    // 根据用户权限决定请求的字段
+    let fields = 'id,customer_name,area,contract_amount,order_time,ship_time';
+    if (isAdmin.value) {
+      // 管理员可以查看creator_id字段
+      fields += ',creator_id';
+    }
+
     const params = {
       page: pagination.value.page,
       size: pagination.value.size,
-      fields: 'id,customer_name,area,contract_amount,order_time,ship_time' // 显式请求ID和所需字段
+      fields: fields // 显式请求ID和所需字段
     };
 
     const response: any = await request.get('/api/orders', { params });
 
-    // 检查响应结构并提取数据
-    let ordersData;
-    if (response && response.data && response.data.list) {
-      // 标准响应结构：{ code: 200, msg: "...", data: { list: [...], ... } }
-      ordersData = response.data;
-    } else {
-      // 未知结构，使用默认值
-      console.warn('Unexpected response structure:', response);
-      ordersData = { list: [], total: 0, page: 1, size: 10 };
-    }
+    // 由于request.ts会自动解包data，所以response直接就是订单数据
+    // 标准响应结构：{ list: [...], total: ..., page: ..., size: ... }
+    const ordersData = response || { list: [], total: 0, page: 1, size: 10 };
 
     // 处理返回的订单数据
     const processedOrders = (ordersData.list || []);
@@ -978,25 +976,25 @@ const fetchOrders = async () => {
 const fetchOrdersByContent = async () => {
   loading.value = true;
   try {
+    // 根据用户权限决定请求的字段
+    let fields = 'id,customer_name,area,contract_amount,order_time,ship_time';
+    if (isAdmin.value) {
+      // 管理员可以查看creator_id字段
+      fields += ',creator_id';
+    }
+
     const params = {
       page: pagination.value.page,
       size: pagination.value.size,
       search: searchForm.value.search || undefined, // 使用search参数进行搜索
-      fields: 'id,customer_name,area,contract_amount,order_time,ship_time' // 显式请求ID和所需字段
+      fields: fields // 显式请求ID和所需字段
     };
 
     const response: any = await request.get('/api/orders', { params });
 
-    // 检查响应结构并提取数据
-    let ordersData;
-    if (response && response.data && response.data.list) {
-      // 标准响应结构：{ code: 200, msg: "...", data: { list: [...], ... } }
-      ordersData = response.data;
-    } else {
-      // 未知结构，使用默认值
-      console.warn('Unexpected search response structure:', response);
-      ordersData = { list: [], total: 0, page: 1, size: 10 };
-    }
+    // 由于request.ts会自动解包data，所以response直接就是订单数据
+    // 标准响应结构：{ list: [...], total: ..., page: ..., size: ... }
+    const ordersData = response || { list: [], total: 0, page: 1, size: 10 };
 
     // 处理返回的订单数据
     const processedOrders = (ordersData.list || []);
@@ -1066,15 +1064,8 @@ const showEditDialog = async (order: any) => {
     // 获取完整的订单数据，而不是只使用表格中显示的部分数据
     const response: any = await request.get(`/api/orders/${order.id}`);
 
-    // 检查响应结构并提取数据
-    let fullOrderData;
-    if (response && response.data) {
-      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
-      fullOrderData = response.data;
-    } else {
-      // 直接返回数据结构或未知结构
-      fullOrderData = response || {};
-    }
+    // 由于request.ts会自动解包data，所以response直接就是订单数据
+    const fullOrderData = response || {};
 
     dialogTitle.value = '编辑订单';
     isEdit.value = true;
@@ -1115,7 +1106,8 @@ const showEditDialog = async (order: any) => {
       order_dept: Array.isArray(fullOrderData.order_dept) ? fullOrderData.order_dept : fullOrderData.order_dept ? [fullOrderData.order_dept] : [],
       check_requirement: fullOrderData.check_requirement || '',
       attachment_imgs: fullOrderData.attachment_imgs || '',
-      attachment_videos: fullOrderData.attachment_videos || ''
+      attachment_videos: fullOrderData.attachment_videos || '',
+      creator_id: fullOrderData.creator_id || '' // 添加creator_id字段
     };
     // 编辑时自动计算利润
     setTimeout(() => {
@@ -1313,19 +1305,13 @@ const viewOrder = async (id: number) => {
   try {
     const response: any = await request.get(`/api/orders/${id}`);
 
-    // 检查响应结构并提取数据
-    let orderData;
-    if (response && response.data) {
-      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
-      orderData = response.data;
-    } else {
-      // 直接返回数据结构或未知结构
-      orderData = response || {};
-    }
+    // 由于request.ts会自动解包data，所以response直接就是订单数据
+    const orderData = response || {};
 
     // 用获取到的数据填充表单
     orderForm.value = {
-      ...orderData
+      ...orderData,
+      creator_id: orderData.creator_id || '' // 确保creator_id字段被正确设置
     };
     dialogTitle.value = '查看订单详情';
     isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
@@ -1342,19 +1328,13 @@ const viewOrderById = async (row: any) => {
   try {
     const response: any = await request.get(`/api/orders/${row.id}`);
 
-    // 检查响应结构并提取数据
-    let orderData;
-    if (response && response.data) {
-      // 标准响应结构：{ code: 200, msg: "...", data: { ... } }
-      orderData = response.data;
-    } else {
-      // 直接返回数据结构或未知结构
-      orderData = response || {};
-    }
+    // 由于request.ts会自动解包data，所以response直接就是订单数据
+    const orderData = response || {};
 
     // 用获取到的完整数据填充表单
     orderForm.value = {
-      ...orderData
+      ...orderData,
+      creator_id: orderData.creator_id || '' // 确保creator_id字段被正确设置
     };
     dialogTitle.value = '查看订单详情';
     isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
@@ -1413,7 +1393,7 @@ onMounted(async () => {
   await fetchMachineOptions(); // 获取并缓存机器选项
   hasLoadedMachineOptions.value = true; // 标记已经加载过机器选项
   fetchOrders();
-  if(!isCurrentUserAdmin){fetchExpenseSummary()}; // 获取费用汇总信息
+  if(!isAdmin){fetchExpenseSummary()}; // 获取费用汇总信息
 });
 
 // 获取费用汇总信息

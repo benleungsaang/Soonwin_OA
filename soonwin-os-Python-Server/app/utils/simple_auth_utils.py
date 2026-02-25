@@ -1,7 +1,7 @@
 """简化版权限验证工具"""
 from functools import wraps
 from flask import jsonify, request
-from app.models.simple_permission import user_can_access_route
+from app.models.simple_permission import get_user_role_from_token, user_can_access_route
 
 
 def route_permission(route_name):
@@ -13,6 +13,13 @@ def route_permission(route_name):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # 获取用户角色
+            user_role = get_user_role_from_token()
+            
+            # 如果是管理员，直接放行，不检查权限
+            if user_role == 'admin':
+                return f(*args, **kwargs)
+            
             # 检查用户是否有访问该路由的权限
             if not user_can_access_route(route_name):
                 return jsonify({
@@ -24,7 +31,6 @@ def route_permission(route_name):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
-
 
 def require_auth_simple(f):
     """

@@ -15,7 +15,7 @@ class Order(db.Model):
     order_no = db.Column(db.String(50), comment="订单编号")
     machine_no = db.Column(db.String(50), comment="包装机单号")
     machine_name = db.Column(db.String(100), nullable=False, default="包装机", comment="名称")
-    machine_model = db.Column(db.String(50), nullable=False, comment="机型")
+    machine_model = db.Column(db.String(50), nullable=True, comment="机型")
     machine_count = db.Column(db.Integer, nullable=False, default=1, comment="主机数量")
     unit = db.Column(db.String(10), nullable=False, default="set", comment="单位")
     contract_amount = db.Column(db.Numeric(12, 2), default=0, comment="合同人民币金额（元）")
@@ -39,6 +39,7 @@ class Order(db.Model):
     attachment_imgs = db.Column(db.String(500), comment="验收图片路径（多图逗号分隔）")
     attachment_videos = db.Column(db.String(500), comment="验收视频路径（多视频逗号分隔）")
     search_field = db.Column(db.Text, comment="搜索字段，由多个字段内容组合而成")
+    creator_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), comment="创建人ID")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -128,5 +129,6 @@ class Order(db.Model):
             "attachment_videos": self.attachment_videos,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
             "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
-            "search_field": self.search_field
+            "search_field": self.search_field,
+            "creator_id": self.creator_id
         }

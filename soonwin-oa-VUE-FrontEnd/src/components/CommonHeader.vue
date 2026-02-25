@@ -3,7 +3,7 @@
     <el-page-header :content="title" @back="goBack">
       <template #extra>
         <el-button @click="logout">
-          <el-icon><SwitchButton /></el-icon>用户 [ {{ currentUserEmpId ? currentUserEmpId.toString().charAt(0).toUpperCase() + currentUserEmpId.toString().slice(1) : '登录' }} ] 登出
+          <el-icon><SwitchButton /></el-icon>用户 {{ currentUserEmpId && currentUserName ? currentUserEmpId + ' [ ' + currentUserName + ' ]' : (currentUserEmpId ? currentUserEmpId : '登录') }} 登出
         </el-button>
       </template>
     </el-page-header>
@@ -55,8 +55,23 @@ const getUserInfo = () => {
   updateCurrentUserInfo();
   const userInfo = getCurrentUserInfo();
   currentUserEmpId.value = userInfo?.empId || null;
-  currentUserName.value = userInfo?.name || null;
-  currentUserRole.value = userInfo?.role || null;
+  // 从JWT token直接获取用户名，确保与HomeView一致
+  const token = localStorage.getItem('oa_token');
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      currentUserName.value = payload.name || payload.user_name || null;
+      currentUserRole.value = payload.user_role || userInfo?.role || null;
+    } catch (error) {
+      console.error('解析用户信息失败:', error);
+      // 降级处理：使用从userInfo获取的值
+      currentUserName.value = userInfo?.name || null;
+      currentUserRole.value = userInfo?.role || null;
+    }
+  } else {
+    currentUserName.value = userInfo?.name || null;
+    currentUserRole.value = userInfo?.role || null;
+  }
 };
 
 // 监听localStorage变化，以便在其他标签页登录/登出时更新信息

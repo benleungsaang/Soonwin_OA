@@ -11,7 +11,7 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '20260204_100000_add_order_status_tables'
+revision = '024_20260204_100000_add_order_status_tables'
 down_revision = '023_20260203_153000_modify_order_inspection_status_log_table_structure'
 branch_labels = None
 depends_on = None
