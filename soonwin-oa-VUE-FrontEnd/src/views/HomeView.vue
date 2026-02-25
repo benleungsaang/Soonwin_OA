@@ -107,6 +107,10 @@
                       <el-icon><Monitor /></el-icon>
                       <span>打卡</span>
                     </el-menu-item>
+                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
+                      <el-icon><Timer /></el-icon>
+                      <span>打卡记录</span>
+                    </el-menu-item>
                     <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken">
                       <el-icon><Files /></el-icon>
                       <span>展示文件</span>
@@ -180,7 +184,10 @@ onMounted(() => {
 // 所有跳转方法（保持原有功能不变）
 const goToOrder = () => router.push('/order');
 const goToPunchIn = () => router.push('/punch');
-const goToPunchRecords = () => router.push('/punch-records');
+const goToPunchRecords = () => {
+  if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问打卡记录页面！');
+  router.push('/punch-records');
+};
 const goToEmployeeManagement = () => {
   if (!isCurrentUserAdmin.value) return ElMessage.error('您没有权限访问员工管理页面！');
   router.push('/employee-management');
