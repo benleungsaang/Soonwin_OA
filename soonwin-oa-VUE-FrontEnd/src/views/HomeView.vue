@@ -107,7 +107,11 @@
                       <el-icon><Monitor /></el-icon>
                       <span>打卡</span>
                     </el-menu-item>
-                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken && hasDisplayFilesManagePermission">
+                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
+                      <el-icon><Timer /></el-icon>
+                      <span>打卡记录</span>
+                    </el-menu-item>
+                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken">
                       <el-icon><Files /></el-icon>
                       <span>展示文件</span>
                     </el-menu-item>
