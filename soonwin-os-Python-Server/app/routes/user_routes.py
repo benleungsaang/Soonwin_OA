@@ -1,24 +1,25 @@
 """用户相关的路由"""
 from flask import Blueprint, request, jsonify
 from app.models.employee import Employee
-from app.utils.auth_utils import require_auth, require_admin, require_module_permission
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_USER_MANAGE
 from extensions import db
 import hashlib
 import config
 import jwt
 from datetime import datetime, timedelta
-from app.utils.auth_utils import get_user_role_from_token, is_admin_user
+from app.models.simple_permission import get_user_role_from_token
 import traceback
 from app.models.totp_user import TotpUser
 import uuid
 from sqlalchemy import func
-from app.constants.permission_constants import MODULE_USER_MANAGE
+from app.constants.simple_permission_constants import ROUTE_USER_MANAGE
 
 # 创建蓝图
 user_bp = Blueprint('user', __name__, url_prefix='/api')
 
 @user_bp.route('/init-admin', methods=['POST'])
-@require_module_permission(MODULE_USER_MANAGE, "edit")
+@route_permission(ROUTE_USER_MANAGE)
 def init_admin():
     """初始化管理员账户"""
     try:
@@ -77,7 +78,7 @@ def init_admin():
 
 
 @user_bp.route('/employee', methods=['POST'])
-@require_module_permission(MODULE_USER_MANAGE, "edit")  # 只有管理员可以创建员工
+@route_permission(ROUTE_USER_MANAGE)
 def create_employee():
     """创建员工"""
     try:
@@ -104,8 +105,9 @@ def create_employee():
         user_role = data.get('user_role', 'user')
         remarks = data.get('remarks', '')
 
-        # 验证角色值
-        valid_roles = ['admin', 'sales', 'user']
+        # 验证角色值 - 从数据库获取所有有效角色
+        from app.models.simple_permission import SimpleRole
+        valid_roles = [role.name for role in SimpleRole.query.all()]
         if user_role not in valid_roles:
             return jsonify({
                 "code": 400,
@@ -127,6 +129,7 @@ def create_employee():
             emp_id=emp_id,
             name=name,
             dept=dept,
+            inner_ip=request.remote_addr or '127.0.0.1',  # 使用请求IP或默认本地IP
             user_role=user_role,
             status='pending_approval',  # 待审批状态
             remarks=remarks,
@@ -152,7 +155,7 @@ def create_employee():
 
 
 @user_bp.route('/employees', methods=['GET'])
-@require_module_permission(MODULE_USER_MANAGE, "view")
+@route_permission(ROUTE_USER_MANAGE)
 def get_employees():
     """获取所有员工列表"""
     try:
@@ -240,7 +243,7 @@ def get_employees():
 
 
 @user_bp.route('/employee/<emp_id>', methods=['PUT'])
-@require_module_permission(MODULE_USER_MANAGE, "edit")
+@route_permission(ROUTE_USER_MANAGE)
 def update_employee(emp_id):
     """更新员工信息"""
     try:
@@ -308,13 +311,15 @@ def update_employee(emp_id):
         if 'dept' in data:
             employee.dept = data['dept']
         if 'user_role' in data:
-            valid_roles = ['admin', 'sales', 'user']
+            # 从数据库获取所有有效角色
+            from app.models.simple_permission import SimpleRole
+            valid_roles = [role.name for role in SimpleRole.query.all()]
             if data['user_role'] in valid_roles:
                 employee.user_role = data['user_role']
             else:
                 return jsonify({
                     "code": 400,
-                    "msg": f"无效的角色值: {data['user_role']}",
+                    "msg": f"无效的角色值: {data['user_role']}，有效值为: {valid_roles}",
                     "data": None
                 }), 400
         if 'status' in data:
@@ -341,7 +346,7 @@ def update_employee(emp_id):
 
 
 @user_bp.route('/employee/<emp_id>', methods=['DELETE'])
-@require_module_permission(MODULE_USER_MANAGE, "delete")
+@route_permission(ROUTE_USER_MANAGE)
 def delete_employee(emp_id):
     """删除员工"""
     try:
@@ -383,7 +388,7 @@ def delete_employee(emp_id):
 
 
 @user_bp.route('/totp-qr', methods=['POST'])
-@require_module_permission(MODULE_USER_MANAGE, "edit")
+@route_permission(ROUTE_USER_MANAGE)
 def generate_totp_qr():
     """生成TOTP二维码"""
     try:
@@ -545,7 +550,7 @@ def totp_login():
 
 
 @user_bp.route('/verify-totp', methods=['POST'])
-@require_module_permission(MODULE_USER_MANAGE, "edit")
+@route_permission(ROUTE_USER_MANAGE)
 def verify_totp():
     """验证TOTP码（用于绑定验证器）"""
     try:
@@ -598,7 +603,7 @@ def verify_totp():
 
 
 @user_bp.route('/user/permissions', methods=['GET'])
-@require_module_permission(MODULE_USER_MANAGE, "view")
+@route_permission(ROUTE_USER_MANAGE)
 def get_user_permissions():
     """获取当前用户的权限列表"""
     try:
@@ -611,49 +616,325 @@ def get_user_permissions():
                 "data": None
             }), 401
         
-        # 管理员拥有所有权限，返回所有模块的完全权限
-        if user_role == 'admin':
-            # 返回预定义的所有模块的完全权限
-            all_modules = [
-                "employee_manage", "expense_manage", "machine_parts_manage", 
-                "photo_manage", "video_manage", "order_manage", 
-                "inquiry_manage", "order_status_manage", "punch_manage", 
-                "display_file_manage", "permission_manage", "log_manage", 
-                "report_stat", "order_progress_manage"
-            ]
-            
-            permissions = []
-            for module in all_modules:
-                permissions.append({
-                    "id": "",  # 管理员权限是虚拟的，不需要实际ID
-                    "role_name": "admin",
-                    "module_name": module,
-                    "can_view": True,
-                    "can_edit": True,
-                    "can_delete": True,
-                    "create_time": "",
-                    "update_time": None
-                })
-            
+        # 使用新的简化权限模型获取权限
+        from app.models.simple_permission import SimpleRolePermission, SimpleRole
+        
+        # 获取当前用户角色对应的路由权限
+        role = SimpleRole.query.filter_by(name=user_role).first()
+        if not role:
             return jsonify({
                 "code": 200,
                 "msg": "success",
-                "data": permissions
+                "data": []
             })
         
-        # 普通用户返回其角色的实际权限
-        from app.models.permission import RolePermission
-        permissions = RolePermission.query.filter_by(role_name=user_role).all()
-        result = [perm.to_dict() for perm in permissions]
+        # 直接获取该角色的所有路由权限
+        permissions = []
+        for rp in role.permissions:
+            permissions.append({
+                "id": rp.id,
+                "role_name": user_role,
+                "route_name": rp.route_name,
+                "create_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # 使用当前时间，因为SimpleRolePermission没有时间字段
+                "update_time": None
+            })
         
         return jsonify({
             "code": 200,
             "msg": "success",
-            "data": result
+            "data": permissions
         })
     except Exception as e:
         return jsonify({
             "code": 500,
             "msg": f"获取用户权限失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/roles', methods=['GET'])
+@route_permission(ROUTE_USER_MANAGE)
+def get_all_roles():
+    """获取所有角色列表"""
+    try:
+        from app.models.simple_permission import SimpleRole
+        
+        roles = SimpleRole.query.all()
+        role_list = []
+        
+        for role in roles:
+            # 计算该角色的权限数量
+            permission_count = len(role.permissions)
+            role_list.append({
+                "role_name": role.name,
+                "role_description": role.remark,
+                "permissions_count": permission_count
+            })
+        
+        return jsonify({
+            "code": 200,
+            "msg": "success",
+            "data": role_list
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取角色列表失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/all-routes', methods=['GET'])
+@route_permission(ROUTE_USER_MANAGE)
+def get_all_routes():
+    """获取所有可用的路由权限列表"""
+    try:
+        from app.constants.simple_permission_constants import ALL_ROUTES
+        
+        # 将权限常量转换为前端可用的格式
+        routes = []
+        route_descriptions = {
+            'display_file_manage': '文件展示',
+            'photo_manage': '照片管理',
+            'punch_manage': '打卡',
+            'upload_manage': '文件上传模块',
+            'video_manage': '视频管理',
+            'inquiry_manage': '询盘管理',
+            'order_manage': '订单管理',
+            'order_status_manage': '订单状态',
+            'expense_manage': '费用管理',
+            'log_manage': '日志管理',
+            'machine_manage': '设备管理',
+            'user_manage': '员工管理',
+            'permission_manage': '权限管理'
+        }
+        
+        for route_name in ALL_ROUTES:
+            routes.append({
+                "route_name": route_name,
+                "route_label": route_descriptions.get(route_name, route_name),
+                "is_active": True  # 假设所有路由都是可用的
+            })
+        
+        return jsonify({
+            "code": 200,
+            "msg": "success",
+            "data": routes
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取路由列表失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/role-permissions', methods=['GET'])
+@route_permission(ROUTE_USER_MANAGE)
+def get_role_permissions():
+    """获取指定角色的权限列表"""
+    try:
+        role_name = request.args.get('role_name')
+        if not role_name:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少角色名称参数",
+                "data": None
+            }), 400
+        
+        from app.models.simple_permission import SimpleRole
+        
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
+            return jsonify({
+                "code": 404,
+                "msg": "角色不存在",
+                "data": []
+            })
+        
+        permissions = [rp.route_name for rp in role.permissions]
+        
+        return jsonify({
+            "code": 200,
+            "msg": "success",
+            "data": permissions
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取角色权限失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/update-role-permissions', methods=['POST'])
+@route_permission(ROUTE_USER_MANAGE)
+def update_role_permissions():
+    """更新角色的权限列表"""
+    try:
+        data = request.get_json()
+        role_name = data.get('role_name')
+        permissions = data.get('permissions', [])
+        
+        if not role_name:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少角色名称参数",
+                "data": None
+            }), 400
+        
+        from app.models.simple_permission import SimpleRole, SimpleRolePermission
+        from app.constants.simple_permission_constants import ALL_ROUTES
+        
+        # 验证权限名称是否有效
+        valid_routes = set(ALL_ROUTES)
+        for perm in permissions:
+            if perm not in valid_routes:
+                return jsonify({
+                    "code": 400,
+                    "msg": f"无效的权限名称: {perm}",
+                    "data": None
+                }), 400
+        
+        # 获取角色
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
+            return jsonify({
+                "code": 404,
+                "msg": "角色不存在",
+                "data": None
+            }), 404
+        
+        # 删除现有权限
+        for perm in role.permissions:
+            db.session.delete(perm)
+        
+        # 添加新权限
+        for route_name in permissions:
+            new_permission = SimpleRolePermission(
+                role_id=role.id,
+                route_name=route_name
+            )
+            db.session.add(new_permission)
+        
+        db.session.commit()
+        
+        return jsonify({
+            "code": 200,
+            "msg": "权限更新成功",
+            "data": None
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"更新角色权限失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/update-role-description', methods=['POST'])
+@route_permission(ROUTE_USER_MANAGE)
+def update_role_description():
+    """更新角色描述"""
+    try:
+        data = request.get_json()
+        role_name = data.get('role_name')
+        role_description = data.get('role_description')
+        
+        if not role_name:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少角色名称参数",
+                "data": None
+            }), 400
+        
+        from app.models.simple_permission import SimpleRole
+        
+        # 检查角色是否存在，如果不存在则创建
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
+            # 创建新角色
+            role = SimpleRole(name=role_name, remark=role_description)
+            db.session.add(role)
+        else:
+            # 更新角色描述
+            role.remark = role_description
+        
+        db.session.commit()
+        
+        return jsonify({
+            "code": 200,
+            "msg": "角色描述更新成功",
+            "data": None
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"更新角色描述失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@user_bp.route('/user/permission/delete-role', methods=['POST'])
+@route_permission(ROUTE_USER_MANAGE)
+def delete_role():
+    """删除角色"""
+    try:
+        data = request.get_json()
+        role_name = data.get('role_name')
+        
+        if not role_name:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少角色名称参数",
+                "data": None
+            }), 400
+        
+        # 检查是否为内置角色，禁止删除
+        builtin_roles = ['admin', 'sales', 'design', 'user']
+        if role_name in builtin_roles:
+            return jsonify({
+                "code": 400,
+                "msg": f"内置角色 {role_name} 不能删除",
+                "data": None
+            }), 400
+        
+        from app.models.simple_permission import SimpleRole
+        from app.models.employee import Employee
+        
+        # 检查该角色下是否有用户
+        user_count = Employee.query.filter_by(user_role=role_name).count()
+        if user_count > 0:
+            return jsonify({
+                "code": 400,
+                "msg": f"角色 {role_name} 下有 {user_count} 个用户，不能删除",
+                "data": None
+            }), 400
+        
+        # 查找角色
+        role = SimpleRole.query.filter_by(name=role_name).first()
+        if not role:
+            return jsonify({
+                "code": 404,
+                "msg": "角色不存在",
+                "data": None
+            }), 404
+        
+        # 删除角色及其所有权限
+        db.session.delete(role)
+        db.session.commit()
+        
+        return jsonify({
+            "code": 200,
+            "msg": "角色删除成功",
+            "data": None
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"删除角色失败: {str(e)}",
             "data": None
         }), 500

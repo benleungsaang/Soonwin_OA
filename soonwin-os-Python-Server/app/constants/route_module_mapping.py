@@ -729,16 +729,6 @@ ROUTE_MODULE_MAP = {
     "/api/display-files/encrypt": MODULE_DISPLAY_FILE_MANAGE,
     "/api/display-files/decrypt": MODULE_DISPLAY_FILE_MANAGE,
     
-    # 订单进度管理模块
-    "/api/orders/<order_id>/progress": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/orders/<order_id>/progress/status": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/progress/items": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/progress/items/<item_id>": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/progress/media/upload": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/progress/media/<media_id>": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/orders": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/orders/<order_id>/progress/delete": MODULE_ORDER_PROGRESS_MANAGE,
-    "/api/orders/<order_id>/progress/status/clear": MODULE_ORDER_PROGRESS_MANAGE,
 }
 
 # 自动匹配模块名的装饰器

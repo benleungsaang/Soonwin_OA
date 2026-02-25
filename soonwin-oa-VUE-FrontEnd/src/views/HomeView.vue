@@ -78,10 +78,7 @@
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
-                    <el-menu-item index="16" @click="goToOrderProgress" v-if="hasToken && hasOrderProgressManagePermission">
-                      <el-icon><List /></el-icon>
-                      <span>订单进度管理</span>
-                    </el-menu-item>
+
                     <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken && hasOrderStatusManagePermission">
                       <el-icon><List /></el-icon>
                       <span>订单状态管理</span>
@@ -145,6 +142,7 @@ import { ElMessage } from 'element-plus';
 import {
   hasToken as checkHasToken,
   hasModulePermission,
+  hasRoutePermission,
   ModuleNames,
   loadUserPermissions,
   clearUserPermissions
@@ -167,55 +165,53 @@ const collapseStatus = ref({
 
 // ========== 权限判断计算属性 ==========
 const hasEmployeeManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.EMPLOYEE_MANAGE, 'view');
+  return hasRoutePermission('user_manage');
 });
 
 const hasExpenseManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.EXPENSE_MANAGE, 'view');
+  return hasRoutePermission('expense_manage');
 });
 
 const hasMachinePartsManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.MACHINE_MANAGE, 'view');
+  return hasRoutePermission('machine_manage');
 });
 
 const hasPhotoManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.PHOTO_MANAGE, 'view');
+  return hasRoutePermission('photo_manage');
 });
 
 const hasVideoManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.VIDEO_MANAGE, 'view');
+  return hasRoutePermission('video_manage');
 });
 
 const hasOrderManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.ORDER_MANAGE, 'view');
+  return hasRoutePermission('order_manage');
 });
 
 const hasInquiriesManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.INQUIRY_MANAGE, 'view');
+  return hasRoutePermission('inquiry_manage');
 });
 
 const hasOrderStatusManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.ORDER_STATUS_MANAGE, 'view');
+  return hasRoutePermission('order_status_manage');
 });
 
 const hasPunchManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.PUNCH_MANAGE, 'view');
+  return hasRoutePermission('punch_manage');
 });
 
 const hasDisplayFilesManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.DISPLAY_FILES_MANAGE, 'view');
+  return hasRoutePermission('display_file_manage');
 });
 
-const hasOrderProgressManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.ORDER_PROGRESS_MANAGE, 'view');
-});
+
 
 const hasDeviceManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.DEVICE_MANAGE, 'view');
+  return hasRoutePermission('machine_manage');
 });
 
 const hasUserManagePermission = computed(() => {
-  return hasModulePermission(ModuleNames.USER_MANAGE, 'view');
+  return hasRoutePermission('user_manage');
 });
 
 
@@ -328,13 +324,7 @@ const goToOrderStatus = () => {
   }
 };
 
-const goToOrderProgress = () => {
-  if (hasOrderProgressManagePermission.value) {
-    router.push('/order-progress');
-  } else {
-    ElMessage.error('您没有权限访问订单进度管理页面！');
-  }
-};
+
 
 // 退出登录
 const logout = () => {

@@ -30,8 +30,7 @@ MODULE_PUNCH_MANAGE = "punch_manage"
 MODULE_USER_MANAGE = "user_manage"
 # 展示文件管理模块
 MODULE_DISPLAY_FILE_MANAGE = "display_file_manage"
-# 订单进度管理模块
-MODULE_ORDER_PROGRESS_MANAGE = "order_progress_manage"
+
 
 # 所有模块列表（用于权限初始化/校验）
 ALL_MODULES = [
@@ -49,6 +48,5 @@ ALL_MODULES = [
     MODULE_VIDEO_MANAGE,
     MODULE_PUNCH_MANAGE,
     MODULE_USER_MANAGE,
-    MODULE_DISPLAY_FILE_MANAGE,
-    MODULE_ORDER_PROGRESS_MANAGE
+    MODULE_DISPLAY_FILE_MANAGE
 ]

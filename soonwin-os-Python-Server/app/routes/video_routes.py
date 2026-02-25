@@ -6,8 +6,9 @@ from .. import db
 from ..models.video import Video
 from ..models.machine import Machine
 from ..models.business_operation_log import add_video_log
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token, require_module_permission
-from ..constants.permission_constants import MODULE_VIDEO_MANAGE
+from ..models.simple_permission import get_user_role_from_token
+from ..utils.simple_auth_utils import route_permission
+from ..constants.simple_permission_constants import ROUTE_VIDEO, ROUTE_VIDEO_MANAGE
 from ..utils.upload_utils import (
     validate_file_type,
     save_uploaded_file,
@@ -218,7 +219,7 @@ def process_video(original_file, base_save_dir="./assets/Media/Videos", title=""
     }
 
 @video_bp.route('/videos', methods=['GET'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "view")
+@route_permission(ROUTE_VIDEO)
 def get_videos():
     """获取视频列表"""
     try:
@@ -286,7 +287,7 @@ def get_videos():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos', methods=['POST'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
+@route_permission(ROUTE_VIDEO)
 def upload_video():
     """视频上传接口：先入库返回，后台异步处理缩略图等"""
     try:
@@ -411,7 +412,7 @@ def upload_video():
         return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['GET'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "view")
+@route_permission(ROUTE_VIDEO)
 def get_video(video_id):
     """获取单个视频信息"""
     try:
@@ -432,7 +433,7 @@ def get_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['PUT'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
+@route_permission(ROUTE_VIDEO)
 def update_video(video_id):
     """更新视频信息"""
     try:
@@ -514,7 +515,7 @@ def update_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['DELETE'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "delete")
+@route_permission(ROUTE_VIDEO)
 def delete_video(video_id):
     """删除视频"""
     try:
@@ -571,7 +572,7 @@ def delete_video(video_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @video_bp.route('/videos/machines', methods=['GET'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "view")
+@route_permission(ROUTE_VIDEO)
 def get_machines_for_videos():
     """获取机器列表（用于视频关联）"""
     try:
@@ -595,7 +596,7 @@ def get_machines_for_videos():
 
 # 获取已删除视频（回收站功能）
 @video_bp.route('/videos/deleted', methods=['GET'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "view")
+@route_permission(ROUTE_VIDEO_MANAGE)
 def get_deleted_videos():
     """获取已删除的视频列表（回收站）"""
     try:
@@ -639,7 +640,7 @@ def get_deleted_videos():
 
 # 物理删除视频（从回收站彻底删除）
 @video_bp.route('/videos/physical_delete', methods=['DELETE'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "delete")
+@route_permission(ROUTE_VIDEO)
 def physical_delete_videos():
     """物理删除视频（从回收站彻底删除）"""
     try:
@@ -732,7 +733,7 @@ def physical_delete_videos():
 
 # 恢复已删除的视频
 @video_bp.route('/videos/restore', methods=['POST'])
-@require_module_permission(MODULE_VIDEO_MANAGE, "edit")
+@route_permission(ROUTE_VIDEO)
 def restore_videos():
     """恢复已删除的视频"""
     try:

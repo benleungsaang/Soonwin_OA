@@ -7,8 +7,9 @@ from .. import db
 from ..models.photo import Photo
 from ..models.machine import Machine
 from ..models.business_operation_log import add_photo_log
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user, get_user_id_from_token, require_module_permission
-from ..constants.permission_constants import MODULE_PHOTO_MANAGE
+from ..utils.simple_auth_utils import route_permission
+from ..constants.simple_permission_constants import ROUTE_PHOTO, ROUTE_PHOTO_MANAGE
+from ..models.simple_permission import get_user_role_from_token
 from ..utils.upload_utils import (
     generate_unique_filename,
     get_date_dir,
@@ -271,7 +272,7 @@ def set_app_instance(app):
     processing_queue.set_app_instance(app)
 
 @photo_bp.route('/photos', methods=['GET'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "view")
+@route_permission(ROUTE_PHOTO)
 def get_photos():
     """获取照片列表"""
     try:
@@ -354,7 +355,7 @@ def get_photos():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/batch-upload', methods=['POST'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
+@route_permission(ROUTE_PHOTO)
 def batch_upload_photos():
     """批量图片上传接口"""
     try:
@@ -509,7 +510,7 @@ def batch_upload_photos():
 
 
 @photo_bp.route('/photos', methods=['POST'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
+@route_permission(ROUTE_PHOTO)
 def upload_photo():
     """图片上传接口：先入库返回，后台异步压缩"""
     try:
@@ -620,7 +621,7 @@ def upload_photo():
         return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['GET'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "view")
+@route_permission(ROUTE_PHOTO_MANAGE)
 def get_photo(photo_id):
     """获取单个照片信息"""
     try:
@@ -644,7 +645,7 @@ def get_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['PUT'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "edit")
+@route_permission(ROUTE_PHOTO)
 def update_photo(photo_id):
     """更新照片信息"""
     try:
@@ -729,7 +730,7 @@ def update_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/<int:photo_id>', methods=['DELETE'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "delete")
+@route_permission(ROUTE_PHOTO)
 def delete_photo(photo_id):
     """删除照片"""
     try:
@@ -814,7 +815,7 @@ def delete_photo(photo_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @photo_bp.route('/photos/machines', methods=['GET'])
-@require_module_permission(MODULE_PHOTO_MANAGE, "view")
+@route_permission(ROUTE_PHOTO_MANAGE)
 def get_machines_for_photos():
     """获取机器列表（用于照片关联）"""
     try:

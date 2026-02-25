@@ -2,8 +2,9 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from app.models.order import Order
 from app.models.employee import Employee
-from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
-from app.constants.permission_constants import MODULE_ORDER_MANAGE
+from app.models.simple_permission import get_user_role_from_token
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_ORDER
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
@@ -12,6 +13,34 @@ from config import Config
 
 # 从expense模型导入相关类
 from app.models.expense import AnnualTarget, Expense, ExpenseAllocation, ExpenseCalculationRecord, IndividualExpense
+
+def get_user_id_from_token():
+    """从JWT token中获取用户ID信息（兼容现有系统）"""
+    from flask import request
+    import jwt
+    import config
+    from app.models.employee import Employee
+    
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+        return emp_id
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
 
 # 创建蓝图
 order_bp = Blueprint('order', __name__)
@@ -91,7 +120,7 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
     return non_sensitive_dict
 
 @order_bp.route('/orders', methods=['GET'])
-@require_module_permission(MODULE_ORDER_MANAGE, "view")
+@route_permission(ROUTE_ORDER)
 def get_orders():
     """获取订单列表，支持分页和筛选"""
     try:
@@ -158,7 +187,7 @@ def get_orders():
         }), 500
 
 @order_bp.route('/orders', methods=['POST'])
-@require_module_permission(MODULE_ORDER_MANAGE, "edit")
+@route_permission(ROUTE_ORDER)
 def create_order():
     """创建新订单"""
     try:
@@ -240,7 +269,7 @@ def create_order():
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['GET'])
-@require_module_permission(MODULE_ORDER_MANAGE, "view")
+@route_permission(ROUTE_ORDER)
 def get_order(order_id):
     """获取单个订单详情"""
     try:
@@ -271,7 +300,7 @@ def get_order(order_id):
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['PUT'])
-@require_module_permission(MODULE_ORDER_MANAGE, "edit")
+@route_permission(ROUTE_ORDER)
 def update_order(order_id):
     """更新订单信息"""
     try:
@@ -349,7 +378,7 @@ def update_order(order_id):
         }), 500
 
 @order_bp.route('/orders/<int:order_id>', methods=['DELETE'])
-@require_module_permission(MODULE_ORDER_MANAGE, "delete")
+@route_permission(ROUTE_ORDER)
 def delete_order(order_id):
     """删除订单"""
     try:
@@ -371,7 +400,7 @@ def delete_order(order_id):
         }), 500
 
 @order_bp.route('/orders/statistics', methods=['GET'])
-@require_module_permission(MODULE_ORDER_MANAGE, "view")
+@route_permission(ROUTE_ORDER)
 def get_order_statistics():
     """获取订单统计信息"""
     try:
@@ -420,7 +449,7 @@ def get_order_statistics():
 
 
 @order_bp.route('/orders/expense-summary', methods=['GET'])
-@require_module_permission(MODULE_ORDER_MANAGE, "view")
+@route_permission(ROUTE_ORDER)
 def get_order_expense_summary():
     """获取订单费用分摊汇总信息"""
     try:
@@ -501,7 +530,7 @@ def get_order_expense_summary():
 
 
 @order_bp.route('/orders/update-proportionate-cost', methods=['POST'])
-@require_module_permission(MODULE_ORDER_MANAGE, "edit")
+@route_permission(ROUTE_ORDER)
 def update_order_proportionate_cost():
     """更新订单摊分费用 - 按订单金额比例分摊到指定年度的所有订单"""
     try:

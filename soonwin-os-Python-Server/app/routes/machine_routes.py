@@ -5,14 +5,15 @@ import json
 from .. import db
 from ..models.machine import Machine, PartType
 from ..utils.json_utils import import_json_data, export_json_data
-from ..utils.auth_utils import get_user_role_from_token, is_admin_user, require_module_permission
-from ..constants.permission_constants import MODULE_MACHINE_MANAGE
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE
+from app.models.simple_permission import get_user_role_from_token
 import uuid
 
 machine_bp = Blueprint('machine_bp', __name__, url_prefix='/api')
 
 @machine_bp.route('/machines', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def get_machines():
     """获取所有机器列表"""
     try:
@@ -54,7 +55,7 @@ def get_machines():
 
 
 @machine_bp.route('/machines/<string:model>', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def get_machine(model):
     """根据型号获取单个机器"""
     try:
@@ -82,7 +83,7 @@ def get_machine(model):
 
 
 @machine_bp.route('/machines', methods=['POST'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def create_machine():
     """创建新机器"""
     try:
@@ -171,7 +172,7 @@ def create_machine():
 
 
 @machine_bp.route('/machines/<string:model>', methods=['PUT'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def update_machine(model):
     """更新机器信息"""
     try:
@@ -246,7 +247,7 @@ def update_machine(model):
 
 
 @machine_bp.route('/machines/<string:model>', methods=['DELETE'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "delete")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def delete_machine(model):
     """逻辑删除机器（归档）"""
     try:
@@ -271,7 +272,7 @@ def delete_machine(model):
 
 
 @machine_bp.route('/parts', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def get_parts():
     """获取所有部件列表"""
     try:
@@ -311,7 +312,7 @@ def get_parts():
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def get_part(part_type_id):
     """根据ID获取单个部件"""
     try:
@@ -339,7 +340,7 @@ def get_part(part_type_id):
 
 
 @machine_bp.route('/parts', methods=['POST'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def create_part():
     """创建新部件"""
     try:
@@ -404,7 +405,7 @@ def create_part():
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['PUT'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def update_part(part_type_id):
     """更新部件信息"""
     try:
@@ -471,7 +472,7 @@ def update_part(part_type_id):
 
 
 @machine_bp.route('/parts/<int:part_type_id>', methods=['DELETE'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "delete")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def delete_part(part_type_id):
     """删除部件"""
     try:
@@ -493,7 +494,7 @@ def delete_part(part_type_id):
 
 
 @machine_bp.route('/parts/import-json', methods=['POST'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def import_parts_json():
     """直接从JSON数据导入部件数据（不需要文件上传）"""
     try:
@@ -532,7 +533,7 @@ def import_parts_json():
 
 
 @machine_bp.route('/parts/export-json', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def export_parts_json():
     """导出部件数据为JSON格式"""
     try:
@@ -557,7 +558,7 @@ def export_parts_json():
 
 
 @machine_bp.route('/machines/import', methods=['POST'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def import_machines():
     """从JSON文件导入机器数据（保留原有功能）"""
     try:
@@ -607,7 +608,7 @@ def import_machines():
 
 
 @machine_bp.route('/machines/import-json', methods=['POST'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "edit")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def import_machines_json():
     """直接从JSON数据导入机器数据（不需要文件上传）"""
     try:
@@ -646,7 +647,7 @@ def import_machines_json():
 
 
 @machine_bp.route('/machines/export-json', methods=['GET'])
-@require_module_permission(MODULE_MACHINE_MANAGE, "view")
+@route_permission(ROUTE_MACHINE_MANAGE)
 def export_machines_json():
     """导出机器数据为JSON格式"""
     try:

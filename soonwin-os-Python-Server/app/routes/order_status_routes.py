@@ -7,8 +7,37 @@ from extensions import db
 from app.models.order import Order
 from app.models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
 from app.utils.upload_utils import allowed_file, get_file_type
-from app.utils.auth_utils import require_module_permission
-from app.constants.permission_constants import MODULE_ORDER_STATUS_MANAGE
+from app.models.simple_permission import get_user_role_from_token
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_ORDER_STATUS
+
+def get_user_id_from_token():
+    """从JWT token中获取用户ID信息（兼容现有系统）"""
+    from flask import request
+    import jwt
+    import config
+    from app.models.employee import Employee
+
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+        return emp_id
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
 
 order_status_bp = Blueprint('order_status_bp', __name__)
 
@@ -18,7 +47,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @order_status_bp.route('/order-status-orders', methods=['GET'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
+@route_permission(ROUTE_ORDER_STATUS)
 def get_order_status_orders():
     """获取需要进度管理的订单列表"""
     try:
@@ -74,7 +103,7 @@ def get_order_status_orders():
 
 
 @order_status_bp.route('/order-status', methods=['GET'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
+@route_permission(ROUTE_ORDER_STATUS)
 def get_order_status_by_order_no():
     """根据订单号获取进度记录"""
     try:
@@ -173,7 +202,7 @@ def get_order_status_by_order_no():
 
 
 @order_status_bp.route('/order-status', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def create_order_status():
     """创建订单进度记录"""
     try:
@@ -213,7 +242,7 @@ def create_order_status():
 
 
 @order_status_bp.route('/order-status/<int:status_id>', methods=['GET'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
+@route_permission(ROUTE_ORDER_STATUS)
 def get_order_status(status_id):
     """获取订单进度详情"""
     try:
@@ -276,7 +305,7 @@ def get_order_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>', methods=['PUT'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def update_order_status(status_id):
     """更新订单进度记录"""
     try:
@@ -308,7 +337,7 @@ def update_order_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/status', methods=['PUT'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def update_order_status_status(status_id):
     """更新订单状态"""
     try:
@@ -340,7 +369,7 @@ def update_order_status_status(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/clear', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def clear_order_status_tasks(status_id):
     """清空订单进度记录的所有任务项"""
     try:
@@ -378,7 +407,7 @@ def clear_order_status_tasks(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/batch', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def batch_update_status_tasks(status_id):
     """批量更新任务项"""
     try:
@@ -451,7 +480,7 @@ def batch_update_status_tasks(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def create_status_task(status_id):
     """创建任务项"""
     try:
@@ -492,7 +521,7 @@ def create_status_task(status_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['PUT'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def update_status_task(status_id, task_id):
     """更新任务项"""
     try:
@@ -539,7 +568,7 @@ def update_status_task(status_id, task_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>/media', methods=['DELETE'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
+@route_permission(ROUTE_ORDER_STATUS)
 def delete_status_task_media(status_id, task_id):
     """删除任务项的媒体文件"""
     try:
@@ -580,7 +609,7 @@ def delete_status_task_media(status_id, task_id):
 
 
 @order_status_bp.route('/order-status-logs/<int:log_id>', methods=['PUT'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def update_order_status_log(log_id):
     """更新订单状态日志"""
     try:
@@ -613,7 +642,7 @@ def update_order_status_log(log_id):
 
 
 @order_status_bp.route('/order-status-logs/<int:log_id>', methods=['DELETE'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
+@route_permission(ROUTE_ORDER_STATUS)
 def delete_order_status_log(log_id):
     """删除订单状态日志"""
     try:
@@ -664,7 +693,7 @@ def delete_order_status_log(log_id):
 
 
 @order_status_bp.route('/order-status/<int:status_id>/tasks/<int:task_id>', methods=['DELETE'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
+@route_permission(ROUTE_ORDER_STATUS)
 def delete_task(status_id, task_id):
     """删除任务项（单独删除任务项，不是删除状态日志）"""
     try:
@@ -730,7 +759,7 @@ def delete_task(status_id, task_id):
 
 
 @order_status_bp.route('/order-status-logs', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def create_order_status_log():
     """创建订单状态日志"""
     try:
@@ -782,7 +811,7 @@ def create_order_status_log():
 
 
 @order_status_bp.route('/order-status/<int:status_id>/report', methods=['GET'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "view")
+@route_permission(ROUTE_ORDER_STATUS)
 def get_order_status_report(status_id):
     """生成订单状态报告（目前返回JSON格式，后续可扩展为PDF等格式）"""
     try:
@@ -844,7 +873,7 @@ def get_order_status_report(status_id):
 
 
 @order_status_bp.route('/order-status-logs/batch', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def batch_create_order_status_logs():
     """批量创建订单状态日志和任务项"""
     try:
@@ -929,7 +958,7 @@ def batch_create_order_status_logs():
 
 
 @order_status_bp.route('/order-status/<int:status_id>/clear-all', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "delete")
+@route_permission(ROUTE_ORDER_STATUS)
 def clear_all_order_status_data(status_id):
     """清空订单进度记录的所有数据（包括状态日志、任务项及关联的文件）"""
     try:
@@ -1029,7 +1058,7 @@ def clear_all_order_status_data(status_id):
 
 
 @order_status_bp.route('/order-status/upload-multiple-images', methods=['POST'])
-@require_module_permission(MODULE_ORDER_STATUS_MANAGE, "edit")
+@route_permission(ROUTE_ORDER_STATUS)
 def upload_multiple_images():
     """批量上传任务项媒体文件"""
     try:
@@ -1079,17 +1108,17 @@ def upload_multiple_images():
             # 使用安全文件名确保兼容性
             safe_filename = secure_filename(file.filename)
             name, ext = os.path.splitext(safe_filename)
-            
+
             # 根据任务的category和name生成文件前缀
             category_prefix = task.category.replace('/', '_').replace('\\', '_').replace(' ', '_') if task.category else 'default'
             name_prefix = task.name.replace('/', '_').replace('\\', '_').replace(' ', '_') if task.name else 'default'
-            
+
             # 确保文件名不会过长
             if len(category_prefix) > 20:
                 category_prefix = category_prefix[:20]
             if len(name_prefix) > 20:
                 name_prefix = name_prefix[:20]
-            
+
             # 生成新的文件名 - 使用当前时间戳作为文件名后缀
             file_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             new_filename = f"{category_prefix}_{name_prefix}_{file_timestamp}{ext}"
@@ -1137,7 +1166,7 @@ def upload_multiple_images():
                     file_prefix = os.path.splitext(new_filename)[0]
                     # 生成缩略图
                     result = process_video_with_variants(file_path, UPLOAD_FOLDER, file_prefix, ext.lower())
-                    
+
                     if result['paths'].get('thumbnail'):
                         # 缩略图路径是相对于UPLOAD_FOLDER的，需要构建完整URL
                         thumb_relative_path = result['paths']['thumbnail']

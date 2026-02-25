@@ -35,9 +35,12 @@ def create_app(port=5000):
         from .models.video import Video
         from .models.business_operation_log import BusinessOperationLog
         from .models.data_change_stats import DataChangeStats
-        from .models.order_progress import OrderProgress, ProgressStatusDetail, ProgressItem, ProgressMedia
+
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
         from .models.permission import RolePermission, init_default_permissions
+        # 导入简化权限模型
+        from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
+        from .models.simple_permission_init import init_simple_permissions, create_roles_if_not_exist
         
         # 初始化数据库表（如果不存在）
         db.create_all()
@@ -48,6 +51,15 @@ def create_app(port=5000):
         except Exception as e:
             print(f"⚠️  权限初始化时出现警告: {str(e)}")
             # 如果权限表不存在（例如在首次运行时），则跳过初始化
+            pass
+        
+        # 初始化简化权限系统
+        try:
+            create_roles_if_not_exist()
+            init_simple_permissions()
+        except Exception as e:
+            print(f"⚠️  简化权限初始化时出现警告: {str(e)}")
+            # 如果简化权限表不存在等，跳过初始化
             pass
         
         # 注册路由蓝图
@@ -100,9 +112,7 @@ def create_app(port=5000):
         from .routes.log_routes import log_bp
         app.register_blueprint(log_bp, url_prefix='/api')
 
-        # 注册进度管理相关路由蓝图
-        from .routes.progress_routes import progress_bp
-        app.register_blueprint(progress_bp, url_prefix='/api')
+
 
         # 注册订单状态管理相关路由蓝图
         from .routes.order_status_routes import order_status_bp

@@ -3,8 +3,8 @@ from extensions import db
 from app.models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
 from app.models.order import Order
 from app.models.employee import Employee
-from app.utils.auth_utils import require_admin, require_module_permission
-from app.constants.permission_constants import MODULE_EXPENSE_MANAGE
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_EXPENSE_MANAGE
 from datetime import datetime, date, timedelta
 import json
 from decimal import Decimal
@@ -85,7 +85,7 @@ expense_bp = Blueprint('expense', __name__)
 
 
 @expense_bp.route('/expenses', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_expenses():
         """获取费用列表，支持分页和筛选，同时返回年度费用汇总"""
         try:
@@ -242,7 +242,7 @@ def get_expenses():
 
 
 @expense_bp.route('/expenses', methods=['POST'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def create_expense():
     """创建费用记录"""
     try:
@@ -288,7 +288,7 @@ def create_expense():
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_expense(expense_id):
     """获取单个费用详情"""
     try:
@@ -314,7 +314,7 @@ def get_expense(expense_id):
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['PUT'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def update_expense(expense_id):
     """更新费用记录"""
     try:
@@ -357,7 +357,7 @@ def update_expense(expense_id):
 
 
 @expense_bp.route('/expenses/<int:expense_id>', methods=['DELETE'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "delete")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def delete_expense(expense_id):
     """删除费用记录"""
     try:
@@ -384,7 +384,7 @@ def delete_expense(expense_id):
 
 
 @expense_bp.route('/expense-allocations', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_expense_allocations():
     """获取费用分摊列表"""
     try:
@@ -442,7 +442,7 @@ def get_expense_allocations():
 
 
 @expense_bp.route('/expense-calculation-records', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_calculation_records():
     """获取费用计算记录列表"""
     try:
@@ -497,7 +497,7 @@ def get_calculation_records():
 
 
 @expense_bp.route('/calculate-expense-allocations', methods=['POST'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def calculate_expense_allocations():
     """计算费用分摊 - 按订单金额比例分摊到指定年度的所有订单"""
     try:
@@ -724,7 +724,7 @@ def calculate_expense_allocations():
 
 
 @expense_bp.route('/get-yearly-expense-summary/<int:year>', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_yearly_expense_summary(year):
     """获取指定年份的费用汇总信息"""
     try:
@@ -832,7 +832,7 @@ def get_yearly_expense_summary(year):
 
 
 @expense_bp.route('/annual-targets', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_annual_targets():
     """获取年度目标列表"""
     try:
@@ -883,7 +883,7 @@ def get_annual_targets():
 
 
 @expense_bp.route('/annual-targets', methods=['POST'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def create_annual_target():
     """创建年度目标"""
     try:
@@ -943,7 +943,7 @@ def create_annual_target():
 
 
 @expense_bp.route('/annual-targets/<int:target_id>', methods=['PUT'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def update_annual_target(target_id):
     """更新年度目标"""
     try:
@@ -985,7 +985,7 @@ def update_annual_target(target_id):
 
 
 @expense_bp.route('/annual-targets/<int:target_id>', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_annual_target(target_id):
     """获取单个年度目标详情"""
     try:
@@ -1011,7 +1011,7 @@ def get_annual_target(target_id):
 
 
 @expense_bp.route('/annual-targets/year/<int:target_year>', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_annual_target_by_year(target_year):
     """根据年份获取年度目标"""
     try:
@@ -1046,7 +1046,7 @@ def get_annual_target_by_year(target_year):
 
 
 @expense_bp.route('/annual-targets/year/<int:target_year>', methods=['PUT'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def update_annual_target_by_year(target_year):
     """根据年份更新年度目标"""
     try:
@@ -1087,7 +1087,7 @@ def update_annual_target_by_year(target_year):
 
 
 @expense_bp.route('/individual-expenses', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_individual_expenses():
     """获取个别费用列表"""
     try:
@@ -1142,7 +1142,7 @@ def get_individual_expenses():
 
 
 @expense_bp.route('/individual-expenses', methods=['POST'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def create_individual_expense():
     """创建个别费用"""
     try:
@@ -1208,7 +1208,7 @@ def create_individual_expense():
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['PUT'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "edit")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def update_individual_expense(expense_id):
     """更新个别费用"""
     try:
@@ -1256,7 +1256,7 @@ def update_individual_expense(expense_id):
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_individual_expense(expense_id):
     """获取单个别费用详情"""
     try:
@@ -1283,7 +1283,7 @@ def get_individual_expense(expense_id):
 
 
 @expense_bp.route('/individual-expenses/<int:expense_id>', methods=['DELETE'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "delete")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def delete_individual_expense(expense_id):
     """删除个别费用"""
     try:
@@ -1312,7 +1312,7 @@ def delete_individual_expense(expense_id):
 
 
 @expense_bp.route('/orders/<int:order_id>/individual-expenses', methods=['GET'])
-@require_module_permission(MODULE_EXPENSE_MANAGE, "view")
+@route_permission(ROUTE_EXPENSE_MANAGE)
 def get_individual_expenses_by_order(order_id):
     """获取指定订单的个别费用列表"""
     try:

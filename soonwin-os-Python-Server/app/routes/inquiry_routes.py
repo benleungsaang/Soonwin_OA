@@ -5,11 +5,40 @@ from app.models.totp_user import TotpUser
 from app.models.employee import Employee
 from app.models.business_operation_log import BusinessOperationLog, add_inquiry_log
 from app.models.data_change_stats import DataChangeStats
-from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
-from app.constants.permission_constants import MODULE_INQUIRY_MANAGE
+from app.models.simple_permission import get_user_role_from_token
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_INQUIRY
 from datetime import datetime, timedelta
 import json
 from functools import wraps
+
+def get_user_id_from_token():
+    """从JWT token中获取用户ID信息（兼容现有系统）"""
+    from flask import request
+    import jwt
+    import config
+    from app.models.employee import Employee
+    
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+        return emp_id
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
 
 # 创建蓝图
 inquiry_bp = Blueprint('inquiry', __name__)
@@ -73,7 +102,7 @@ def create_inquiry_log(inquiry_id, operation_type, operator_id, details="", inqu
 
 
 @inquiry_bp.route('/inquiries', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_inquiries():
     """获取询盘列表，支持分页和筛选"""
     try:
@@ -94,6 +123,9 @@ def get_inquiries():
 
         # 获取当前用户信息
         current_user = get_current_user()
+
+        # 初始化查询对象
+        query = Inquiry.query
 
         # 应用综合搜索条件（使用新的search_field字段）
         if search:
@@ -151,7 +183,7 @@ def get_inquiries():
 
 
 @inquiry_bp.route('/inquiries', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def create_inquiry():
     """创建新询盘"""
     try:
@@ -244,7 +276,7 @@ def create_inquiry():
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_inquiry(inquiry_id):
     """获取单个询盘详情"""
     try:
@@ -278,7 +310,7 @@ def get_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['PUT'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def update_inquiry(inquiry_id):
     """更新询盘信息"""
     try:
@@ -376,7 +408,7 @@ def update_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>', methods=['DELETE'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
+@route_permission(ROUTE_INQUIRY)
 def delete_inquiry(inquiry_id):
     """删除询盘"""
     try:
@@ -442,7 +474,7 @@ def delete_inquiry(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_inquiry_communications(inquiry_id):
     """获取询盘沟通记录列表"""
     try:
@@ -494,7 +526,7 @@ def get_inquiry_communications(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def create_inquiry_communication(inquiry_id):
     """为询盘添加沟通记录"""
     try:
@@ -578,7 +610,7 @@ def create_inquiry_communication(inquiry_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications/<int:comm_id>', methods=['PUT'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def update_inquiry_communication(inquiry_id, comm_id):
     """更新询盘沟通记录"""
     try:
@@ -664,7 +696,7 @@ def update_inquiry_communication(inquiry_id, comm_id):
 
 
 @inquiry_bp.route('/inquiries/<int:inquiry_id>/communications/<int:comm_id>', methods=['DELETE'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
+@route_permission(ROUTE_INQUIRY)
 def delete_inquiry_communication(inquiry_id, comm_id):
     """删除询盘沟通记录"""
     try:
@@ -727,7 +759,7 @@ def delete_inquiry_communication(inquiry_id, comm_id):
 
 
 @inquiry_bp.route('/inquiry-logs', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_inquiry_logs():
     """获取询盘日志列表（仅管理员）"""
     try:
@@ -820,7 +852,7 @@ def get_inquiry_logs():
 
 
 @inquiry_bp.route('/inquiries/stats', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_inquiry_statistics():
     """获取询盘统计信息"""
     try:
@@ -881,7 +913,7 @@ def get_inquiry_statistics():
 
 
 @inquiry_bp.route('/inquiry-logs/<int:log_id>', methods=['DELETE'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
+@route_permission(ROUTE_INQUIRY)
 def delete_inquiry_log(log_id):
     """删除询盘操作日志（仅管理员）"""
     try:
@@ -910,7 +942,7 @@ def delete_inquiry_log(log_id):
 
 
 @inquiry_bp.route('/inquiry-logs', methods=['DELETE'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "delete")
+@route_permission(ROUTE_INQUIRY)
 def clear_all_inquiry_logs():
     """清空所有询盘操作日志（仅管理员）"""
     try:
@@ -935,7 +967,7 @@ def clear_all_inquiry_logs():
 
 
 @inquiry_bp.route('/inquiry-logs/<int:log_id>/restore', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def restore_inquiry_log(log_id):
     """根据日志恢复被删除或修改的数据（仅管理员）"""
     try:
@@ -1211,7 +1243,7 @@ def restore_inquiry_log(log_id):
 
 
 @inquiry_bp.route('/reset-stats', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def reset_statistics():
     """复位统计数字（仅管理员）- 基于新统计模型实现"""
     try:
@@ -1275,14 +1307,14 @@ def reset_statistics():
 
 
 @inquiry_bp.route('/reset-inquiry-stats', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def reset_inquiry_stats():
     """复位询盘统计数字（适配前端调用）"""
     return reset_statistics()
 
 
 @inquiry_bp.route('/monthly-stats', methods=['GET'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "view")
+@route_permission(ROUTE_INQUIRY)
 def get_monthly_stats():
     """获取本月统计数字（仅管理员）"""
     try:
@@ -1326,7 +1358,7 @@ def get_monthly_stats():
 
 
 @inquiry_bp.route('/recalculate-stats', methods=['POST'])
-@require_module_permission(MODULE_INQUIRY_MANAGE, "edit")
+@route_permission(ROUTE_INQUIRY)
 def recalculate_statistics():
     """重新计算统计数字（仅管理员）- 用于开发阶段数据校正"""
     try:

@@ -462,7 +462,7 @@
             <el-button size="small" @click="selectAllPermissions">【{{ allBtnText }}】所有权限</el-button>
           </div>
           <el-table
-            :data="selectedPermissions"
+            :data="allPermissions"
             v-loading="loadingAllPermissions"
             style="width: 100%; margin-top: 10px;"
             border
@@ -471,31 +471,10 @@
             max-height="500px"
             scrollbar-always-on
           >
-            <el-table-column prop="module_label" label="模块名称" width="200" align="center" header-align="center" />
-            <el-table-column label="查看权限" width="120" align="center" header-align="center">
+            <el-table-column prop="route_label" label="路由名称" width="200" align="center" header-align="center" />
+            <el-table-column label="拥有权限" width="120" align="center" header-align="center">
               <template #default="scope">
-                <el-checkbox v-model="scope.row.can_view" />
-              </template>
-            </el-table-column>
-            <el-table-column label="编辑权限" width="120" align="center" header-align="center">
-              <template #default="scope">
-                <el-checkbox v-model="scope.row.can_edit" />
-              </template>
-            </el-table-column>
-            <el-table-column label="删除权限" width="120" align="center" header-align="center">
-              <template #default="scope">
-                <el-checkbox v-model="scope.row.can_delete" />
-              </template>
-            </el-table-column>
-            <el-table-column label="批量操作" width="120" align="center" header-align="center">
-              <template #header>
-                <span>全选</span>
-              </template>
-              <template #default="scope">
-                <el-checkbox
-                  :model-value="scope.row.can_view && scope.row.can_edit && scope.row.can_delete"
-                  @update:model-value="setModuleAllPermissions(scope.row, $event)"
-                />
+                <el-checkbox v-model="scope.row.is_active" @change="handlePermissionChange(scope.row)" />
               </template>
             </el-table-column>
           </el-table>
@@ -578,7 +557,7 @@ const currentRole = ref({
   description: ''
 });
 const allPermissions = ref<any[]>([]); // 所有权限列表
-const selectedPermissions = ref<any[]>([]); // 选中的权限
+const selectedPermissions = ref<any[]>([]); // 与allPermissions同步的权限
 const loadingAllPermissions = ref(false);
 const allBtnText = ref('全选'); // 全选角色权限按钮
 
@@ -629,7 +608,7 @@ const fetchEmployees = async () => {
     // 确保返回的数据结构正确
     if (response && response.list) {
       employees.value = response.list;
-      
+
       // 如果API返回了角色列表，更新角色列表
       if (response.roles && Array.isArray(response.roles)) {
         roles.value = response.roles.map((role: any) => ({
@@ -891,7 +870,7 @@ const getRoleText = (role: string) => {
   if (roleInfo && roleInfo.description) {
     return roleInfo.description;
   }
-  
+
   // 如果在角色列表中没找到，使用默认值
   switch (role) {
     case 'admin': return '管理员';
@@ -1045,125 +1024,39 @@ const showRoleManager = async () => {
 };
 
 // 获取角色列表
-
 const fetchRoles = async () => {
-
   loadingRoles.value = true;
-
   try {
-
     // 获取所有角色信息，只返回不重复的role_name和对应的role_description
-
-    const response: any = await request.get('/api/permission/roles');
-
-    
-
+    const response: any = await request.get('/api/user/permission/roles');
+    // 由于request.ts会自动解包data，response直接就是数据数组
     if (response && Array.isArray(response)) {
-
       // 创建角色列表
-
       roles.value = response.map((role: any) => ({
-
         role_name: role.role_name,
-
         description: role.role_description,
-
-        permissions_count: 0  // 暂时设置为0，如果需要权限计数可以单独获取
-
+        permissions_count: role.permissions_count || 0  // 从响应中获取权限计数
       }));
-
-      
-
-      // 确保内置角色存在
-
-      const existingRoles = roles.value.map(r => r.role_name);
-
-      if (!existingRoles.includes('admin')) {
-
-        roles.value.unshift({
-
-          role_name: 'admin',
-
-          description: '系统管理员',
-
-          permissions_count: '全部'
-
-        });
-
-      }
-
-      if (!existingRoles.includes('sales')) {
-
-        roles.value.push({
-
-          role_name: 'sales',
-
-          description: '业务员',
-
-          permissions_count: 0
-
-        });
-
-      }
-
-      if (!existingRoles.includes('user')) {
-
-        roles.value.push({
-
-          role_name: 'user',
-
-          description: '普通用户',
-
-          permissions_count: 0
-
-        });
-
-      }
-
-    } else {
-
-      // 默认角色列表
-
-      roles.value = [
-
-        { role_name: 'admin', description: '系统管理员', permissions_count: '全部' },
-
-        { role_name: 'sales', description: '业务员', permissions_count: 0 },
-
-        { role_name: 'user', description: '普通用户', permissions_count: 0 }
-
-      ];
-
     }
-
   } catch (error) {
-
     console.error('获取角色列表失败:', error);
-
     // 如果API调用失败，使用默认值
-
     roles.value = [
-
       { role_name: 'admin', description: '系统管理员', permissions_count: '全部' },
-
       { role_name: 'sales', description: '业务员', permissions_count: 0 },
-
       { role_name: 'user', description: '普通用户', permissions_count: 0 }
-
     ];
-
   } finally {
-
     loadingRoles.value = false;
-
   }
-
 };
+
 
 // 获取角色权限数量
 const getRolePermissionsCount = async (roleName: string) => {
   try {
-    const response: any = await request.get('/api/permission/list', { params: { role_name: roleName } });
+    const response: any = await request.get('/api/user/permission/role-permissions', { params: { role_name: roleName } });
+    // 由于request.ts会自动解包data，response直接就是权限数组
     if (response && Array.isArray(response)) {
       return response.length;
     }
@@ -1190,84 +1083,76 @@ const showCreateRoleWithPermissions = async () => {
 
 // 创建角色
 const createRole = async () => {
-  try {
-    if (!currentRole.value.role_name || currentRole.value.role_name.length < 2) {
-      ElMessage.error('角色名至少需要2个字符');
-      return;
-    }
+        // 如果是编辑模式，只更新描述和权限
+        if (isEditingRole.value) {
+            if (!currentRole.value.role_name || currentRole.value.role_name.length < 2) {
+                ElMessage.error('角色英文名称长度至少为2个字符');
+                return;
+            }
 
-    if (currentRole.value.role_name === 'admin') {
-      ElMessage.error('不能创建管理员角色（系统内置）');
-      return;
-    }
+            // 更新角色描述
+            await request.post('/api/user/permission/update-role-description', {
+                role_name: currentRole.value.role_name,
+                role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
+            });
+        } else {
+            // 验证角色名称
+            if (!currentRole.value.role_name || currentRole.value.role_name.length < 2) {
+                ElMessage.error('角色英文名称长度至少为2个字符');
+                return;
+            }
 
-    // 首先创建角色（这会自动创建默认权限）
-    await request.post('/api/permission/create-role', {
-      role_name: currentRole.value.role_name,
-      role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
-    });
+            // 创建新角色（通过更新角色描述来创建）
+            await request.post('/api/user/permission/update-role-description', {
+                role_name: currentRole.value.role_name,
+                role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
+            });
+        }
 
-    // 然后更新该角色的具体权限
-    for (const perm of selectedPermissions.value) {
-      // 检查权限是否已存在，如果存在则更新，否则创建
-      const existingPermResponse: any = await request.get('/api/permission/list', {
-        params: { role_name: currentRole.value.role_name, module_name: perm.module_name }
-      });
-
-      if (existingPermResponse && existingPermResponse.length > 0) {
-        // 更新现有权限
-        await request.post('/api/permission/update', {
-          role_name: currentRole.value.role_name,
-          module_name: perm.module_name,
-          can_view: perm.can_view,
-          can_edit: perm.can_edit,
-          can_delete: perm.can_delete,
-          role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
+        // 更新角色权限
+        const selectedRouteNames = allPermissions.value
+            .filter(perm => perm.is_active)  // 只选择已激活的权限
+            .map(perm => perm.route_name);
+        await request.post('/api/user/permission/update-role-permissions', {
+            role_name: currentRole.value.role_name,
+            permissions: selectedRouteNames
         });
-      } else {
-        // 创建新权限
-        await request.post('/api/permission/update', {
-          role_name: currentRole.value.role_name,
-          module_name: perm.module_name,
-          can_view: perm.can_view,
-          can_edit: perm.can_edit,
-          can_delete: perm.can_delete,
-          role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
-        });
-      }
-    }
 
-    ElMessage.success('角色创建成功');
-    showRoleManagementDialog.value = false;
-
-    // 重新加载角色列表
-    fetchRoles();
-  } catch (error: any) {
-    if (error.message) {
-      ElMessage.error(error.message);
-    } else {
-      ElMessage.error('创建角色失败');
-    }
-  }
+        showRoleManagementDialog.value = false;
+        fetchRoles();
 };
+
 
 
 // 显示编辑角色对话框
+
 const showEditRoleDialog = async (role: any) => {
+
   // if (role.role_name === 'admin' || role.role_name === 'sales' || role.role_name === 'user') {
+
   //   ElMessage.warning('系统内置角色不能编辑');
+
   //   return;
+
   // }
 
+
+
   isEditingRole.value = true;
+
   currentRole.value = { ...role };
 
+
+
   // 加载所有权限并设置当前角色的权限
+
   await loadAllPermissionsForRole(role.role_name);
 
-  showRoleManagementDialog.value = true;
-};
 
+
+  showRoleManagementDialog.value = true;
+
+};
 // 编辑角色（重定向到权限管理界面并预设角色）
 const editRole = async (roleName: string) => {
   // 关闭角色管理对话框
@@ -1284,71 +1169,62 @@ const loadAllPermissionsForRole = async (roleName?: string) => {
   try {
     let permissionsData = [];
 
+    // 获取所有可用的路由权限
+    const allRoutesResponse: any = await request.get('/api/user/permission/all-routes');
+    const allRoutes = allRoutesResponse || [];
+
     if (roleName) {
-      // 如果正在编辑角色，获取该角色的所有可能模块（包括未设置的模块）
-      const response: any = await request.get('/api/permission/list', {
+      // 获取指定角色的权限
+      const response: any = await request.get('/api/user/permission/role-permissions', {
         params: { role_name: roleName }
       });
 
-      // 为每个权限项创建数据结构
-      for (const perm of response) {
-        permissionsData.push({
-          module_name: perm.module_name,
-          can_view: perm.can_view || false,
-          can_edit: perm.can_edit || false,
-          can_delete: perm.can_delete || false,
-          module_label: getModuleLabel(perm.module_name) // 显示用的模块名称
+      if (response && Array.isArray(response)) {
+        // 格式化权限数据，标记角色已有的权限
+        permissionsData = allRoutes.map((route: any) => {
+          const hasPermission = response.includes(route.route_name);
+          return {
+            route_name: route.route_name,
+            route_label: route.route_label,
+            is_active: hasPermission
+          };
         });
       }
     } else {
-      // 如果是创建新角色，获取所有可能的模块列表
-      const allModulesResponse: any = await request.get('/api/permission/all-modules');
-      const allModules = allModulesResponse.all_modules || [];
-
-      // 为每个模块创建默认权限（未设置）
-      for (const module of allModules) {
-        permissionsData.push({
-          module_name: module,
-          can_view: false,
-          can_edit: false,
-          can_delete: false,
-          module_label: getModuleLabel(module) // 显示用的模块名称
-        });
-      }
-
-      // 为新角色设置默认权限：照片管理、视频管理、订单状态管理、打卡、展示文件的查看权限
-      for (const perm of permissionsData) {
-        if (['photo_manage', 'video_manage', 'order_status_manage', 'punch_manage', 'display_file_manage'].includes(perm.module_name)) {
-          perm.can_view = true;
-          perm.can_edit = false;
-          perm.can_delete = false;
-        }
-      }
+      // 如果没有指定角色，初始化所有权限为未选择状态
+      permissionsData = allRoutes.map((route: any) => ({
+        route_name: route.route_name,
+        route_label: route.route_label,
+        is_active: false  // 默认未选择
+      }));
     }
 
-    allPermissions.value = permissionsData;
-    selectedPermissions.value = [...permissionsData]; // 初始化选中权限
+    // 设置所有权限和选中权限
+    allPermissions.value = [...permissionsData];
+    selectedPermissions.value = [...permissionsData]; // 包含所有权限
+    updateAllBtnText(); // 更新按钮文本
+
   } catch (error) {
     console.error('加载权限失败:', error);
     // 使用默认权限列表
     allPermissions.value = [
-      { module_name: 'employee_manage', module_label: '员工管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'device_manage', module_label: '设备管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'permission_manage', module_label: '权限管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'log_manage', module_label: '日志管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'report_stat', module_label: '报表统计', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'expense_manage', module_label: '费用管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'inquiry_manage', module_label: '询盘管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'machine_manage', module_label: '机器管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'order_manage', module_label: '订单管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'order_status_manage', module_label: '订单状态管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'photo_manage', module_label: '照片管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'video_manage', module_label: '视频管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'punch_manage', module_label: '打卡管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'display_file_manage', module_label: '展示文件管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'order_progress_manage', module_label: '订单进度管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'user_manage', module_label: '用户管理', can_view: false, can_edit: false, can_delete: false },
-      { module_name: 'permission_manage', module_label: '权限管理', can_view: false, can_edit: false, can_delete: false }
+      { route_name: 'employee_manage', route_label: '员工管理', is_active: false },
+      { route_name: 'device_manage', route_label: '设备管理', is_active: false },
+      { route_name: 'permission_manage', route_label: '权限管理', is_active: false },
+      { route_name: 'log_manage', route_label: '日志管理', is_active: false },
+      { route_name: 'report_stat', route_label: '报表统计', is_active: false },
+      { route_name: 'expense_manage', route_label: '费用管理', is_active: false },
+      { route_name: 'inquiry_manage', route_label: '询盘管理', is_active: false },
+      { route_name: 'machine_manage', route_label: '机器管理', is_active: false },
+      { route_name: 'order_manage', route_label: '订单管理', is_active: false },
+      { route_name: 'order_status_manage', route_label: '订单状态管理', is_active: false },
+      { route_name: 'photo_manage', route_label: '照片管理', is_active: false },
+      { route_name: 'video_manage', route_label: '视频管理', is_active: false },
+      { route_name: 'punch_manage', route_label: '打卡管理', is_active: false },
+      { route_name: 'display_file_manage', route_label: '展示文件管理', is_active: false },
+      { route_name: 'order_progress_manage', route_label: '订单进度管理', is_active: false },
+      { route_name: 'user_manage', route_label: '用户管理', is_active: false },
+      { route_name: 'permission_manage', route_label: '权限管理', is_active: false }
     ];
 
     selectedPermissions.value = [...allPermissions.value];
@@ -1382,82 +1258,73 @@ const getModuleLabel = (moduleName: string) => {
 };
 
 // 为单个模块设置所有权限
-const setModuleAllPermissions = (module: any, checked: boolean) => {
-  module.can_view = checked;
-  module.can_edit = checked;
-  module.can_delete = checked;
-};
+    const setModuleAllPermissions = (module: any, checked: boolean) => {
+        // 对于路由权限，只需设置is_active属性
+        module.is_active = checked;
+        updateAllBtnText(); // 更新按钮文本
+    };
 
-// 全选所有权限
-const selectAllPermissions = () => {
-  try {
-    if (allBtnText.value === '全选') {
-      // 全选逻辑：所有权限设为true
-      selectedPermissions.value.forEach(module => {
-        module.can_view = true;
-        module.can_edit = true;
-        module.can_delete = true;
-      });
-      allBtnText.value = '反选'; // 切换按钮文本
-    } else {
-      // 反选逻辑：所有权限设为false
-      selectedPermissions.value.forEach(module => {
-        module.can_view = false;
-        module.can_edit = false;
-        module.can_delete = false;
-      });
-      allBtnText.value = '全选'; // 切换按钮文本
-    }
-  } catch (error) {
-    console.error('全选/反选操作失败:', error);
-    ElMessage.error('操作失败，请重试');
-  }
-};
+    // 处理权限状态变化
+    const handlePermissionChange = (permission: any) => {
+        // 由于allPermissions现在用于UI显示，只需确保UI更新即可
+        // selectedPermissions用于收集所有权限，但仅在更新时筛选激活的权限
+        updateAllBtnText(); // 更新按钮文本
+    };
 
+    const selectAllPermissions = () => {
+        // 获取按钮当前状态（全选还是取消全选）
+        const allSelected = allPermissions.value.length > 0 &&
+                          allPermissions.value.every(perm => perm.is_active);
+
+        if (!allSelected) {
+            // 全选 - 更新allPermissions中所有权限的is_active为true
+            allPermissions.value.forEach(permission => {
+                permission.is_active = true;
+            });
+            // 同步更新selectedPermissions
+            selectedPermissions.value.forEach(permission => {
+                permission.is_active = true;
+            });
+        } else {
+            // 取消全选 - 更新allPermissions中所有权限的is_active为false
+            allPermissions.value.forEach(permission => {
+                permission.is_active = false;
+            });
+            // 同步更新selectedPermissions
+            selectedPermissions.value.forEach(permission => {
+                permission.is_active = false;
+            });
+        }
+        updateAllBtnText(); // 更新按钮文本
+    };
+
+    const updateAllBtnText = () => {
+        const allSelected = allPermissions.value.length > 0 &&
+                          allPermissions.value.every(perm => perm.is_active);
+        allBtnText.value = allSelected ? '取消全选' : '全选';
+    };
 // 更新角色权限
-const updateRole = async () => {
-  try {
-    if (!currentRole.value.role_name || currentRole.value.role_name.length < 2) {
-      ElMessage.error('角色名至少需要2个字符');
-      return;
-    }
+    const updateRole = async () => {
+      try {
+        if (!currentRole.value.role_name || currentRole.value.role_name.length < 2) {
+          ElMessage.error('角色名至少需要2个字符');
+          return;
+        }
 
-    // 更新角色描述
-    await request.post('/api/permission/update-role-description', {
-      role_name: currentRole.value.role_name,
-      role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
-    });
+        // 更新角色描述
+        await request.post('/api/user/permission/update-role-description', {
+          role_name: currentRole.value.role_name,
+          role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
+        });
 
-    // 获取该角色现有的所有权限
-    const allRolePermsResponse: any = await request.get('/api/permission/list', {
-      params: { role_name: currentRole.value.role_name }
-    });
-    const existingPermissions = allRolePermsResponse || [];
-
-    // 更新或创建权限配置
-    for (const perm of selectedPermissions.value) {
-      // 检查权限是否已存在，如果存在则更新，否则创建
-      const existingPerm = existingPermissions.find((p: any) => p.module_name === perm.module_name);
-
-      await request.post('/api/permission/update', {
-        role_name: currentRole.value.role_name,
-        module_name: perm.module_name,
-        can_view: perm.can_view,
-        can_edit: perm.can_edit,
-        can_delete: perm.can_delete,
-        role_description: currentRole.value.description || `${currentRole.value.role_name}角色`
-      });
-    }
-
-    // 如果有权限被移除，也应删除对应的权限记录
-    for (const existingPerm of existingPermissions) {
-      const permExists = selectedPermissions.value.find((p: any) => p.module_name === existingPerm.module_name);
-      if (!permExists) {
-        // 删除不再需要的权限
-        await request.delete(`/api/permission/${existingPerm.id}`);
-      }
-    }
-
+        // 更新角色权限
+        const selectedRouteNames = allPermissions.value
+            .filter(perm => perm.is_active)  // 只选择已激活的权限
+            .map(perm => perm.route_name);
+        await request.post('/api/user/permission/update-role-permissions', {
+          role_name: currentRole.value.role_name,
+          permissions: selectedRouteNames
+        });
     ElMessage.success('角色更新成功');
     showRoleManagementDialog.value = false;
 
@@ -1474,41 +1341,36 @@ const updateRole = async () => {
 
 // 删除角色
 const deleteRole = async (role: any) => {
-  if (role.role_name === 'admin' || role.role_name === 'sales' || role.role_name === 'user') {
-    ElMessage.warning('系统内置角色不能删除');
+  if (role.role_name === 'admin' || role.role_name === 'sales' || role.role_name === 'design' || role.role_name === 'order') {
+    ElMessage.error('内置角色不能删除');
     return;
   }
 
   try {
     await ElMessageBox.confirm(
       `确定要删除角色 ${role.role_name} 吗？此操作将同时删除该角色的所有权限配置！`,
-      '确认删除',
+      '警告',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'error'
+        type: 'warning',
       }
     );
 
-    // 获取该角色的所有权限记录并删除
-    const allPermissionsResponse: any = await request.get('/api/permission/list', {
-      params: { role_name: role.role_name }
+    // 调用后端删除角色API
+    await request.post('/api/user/permission/delete-role', {
+      role_name: role.role_name
     });
-    const allPermissions: any[] = Array.isArray(allPermissionsResponse) ? allPermissionsResponse : [];
 
-    // 逐个删除该角色的所有权限记录
-    for (const perm of allPermissions) {
-      await request.delete(`/api/permission/${perm.id}`);
-    }
-
-    // 刷新角色列表
     await fetchRoles();
-
     ElMessage.success('角色删除成功');
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('角色删除失败');
+  } catch (error: any) {
+    if (error?.message?.includes('用户')) {
+      ElMessage.error(error.message || '删除失败：角色下有用户');
+    } else if (error?.message !== '取消' && error !== 'cancel') {
+      ElMessage.error(error.message || '删除角色失败');
     }
+    console.log('取消删除或删除失败:', error);
   }
 };
 

@@ -4,10 +4,39 @@ from app.models.business_operation_log import BusinessOperationLog, get_logs_by_
 from app.models.employee import Employee
 from app.models.inquiry import Inquiry, InquiryCommunication
 from app.models.machine import Machine
-from app.utils.auth_utils import require_module_permission, get_user_role_from_token, get_user_id_from_token
-from app.constants.permission_constants import MODULE_LOG_MANAGE
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_LOG_MANAGE
+from app.models.simple_permission import get_user_role_from_token
 from datetime import datetime, timedelta
 import json
+
+def get_user_id_from_token():
+    """从JWT token中获取用户ID信息（兼容现有系统）"""
+    from flask import request
+    import jwt
+    import config
+    from app.models.employee import Employee
+    
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+
+    # 移除 "Bearer " 前缀
+    if token.startswith("Bearer "):
+        token = token[7:]
+
+    try:
+        # 解码JWT令牌
+        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
+        emp_id = payload['emp_id']
+        return emp_id
+
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    except Exception:
+        return None
 
 # 创建蓝图
 log_bp = Blueprint('log', __name__)
@@ -40,7 +69,7 @@ def get_current_user():
 
 
 @log_bp.route('/<module>-logs', methods=['GET'])
-@require_module_permission(MODULE_LOG_MANAGE, "view")
+@route_permission(ROUTE_LOG_MANAGE)
 def get_logs_by_module_endpoint(module):
     """根据模块获取日志列表（仅管理员）"""
     try:
@@ -213,7 +242,7 @@ def get_statistics_by_module(module):
 
 
 @log_bp.route('/<module>-logs/<int:log_id>', methods=['DELETE'])
-@require_module_permission(MODULE_LOG_MANAGE, "delete")
+@route_permission(ROUTE_LOG_MANAGE)
 def delete_log_by_id(module, log_id):
     """删除指定模块的特定日志（仅管理员）"""
     try:
@@ -241,7 +270,7 @@ def delete_log_by_id(module, log_id):
 
 
 @log_bp.route('/<module>-logs', methods=['DELETE'])
-@require_module_permission(MODULE_LOG_MANAGE, "delete")
+@route_permission(ROUTE_LOG_MANAGE)
 def clear_all_logs_by_module(module):
     """清空指定模块的所有日志（仅管理员）"""
     try:
@@ -263,7 +292,7 @@ def clear_all_logs_by_module(module):
 
 
 @log_bp.route('/<module>-logs/<int:log_id>/restore', methods=['POST'])
-@require_module_permission(MODULE_LOG_MANAGE, "edit")
+@route_permission(ROUTE_LOG_MANAGE)
 def restore_log_by_id(module, log_id):
     """根据日志恢复被删除或修改的数据（仅管理员）"""
     try:
@@ -784,7 +813,7 @@ def restore_employee_log(log):
 
 
 @log_bp.route('/reset-<module>-stats', methods=['POST'])
-@require_module_permission(MODULE_LOG_MANAGE, "edit")
+@route_permission(ROUTE_LOG_MANAGE)
 def reset_statistics_by_module(module):
     """复位指定模块的统计数字（仅管理员）"""
     try:

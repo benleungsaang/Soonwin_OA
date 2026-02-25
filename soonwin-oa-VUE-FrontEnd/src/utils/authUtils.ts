@@ -2,58 +2,69 @@
  * 认证相关的工具函数
  */
 
-// 定义模块权限类型
-export type PermissionType = 'view' | 'edit' | 'delete';
+// 定义路由权限类型（与后端保持一致）
+export type RouteName = 
+  | 'display_file_manage'      // 文件展示 - 全员共有
+  | 'photo_manage'             // 照片管理 - 全员共有
+  | 'punch_manage'             // 打卡 - 全员共有
+  | 'upload_manage'            // 文件上传 - 全员共有
+  | 'video_manage'             // 视频管理 - 全员共有
+  | 'inquiry_manage'           // 询盘管理 - 销售
+  | 'order_manage'             // 订单管理 - 销售
+  | 'order_status_manage'      // 订单状态 - 销售, 跟单
+  | 'expense_manage'           // 费用管理 - 仅管理员
+  | 'log_manage'               // 日志管理 - 仅管理员
+  | 'machine_manage'           // 设备管理 - 仅管理员
+  | 'user_manage'              // 员工管理 - 仅管理员;
 
-// 定义模块名称常量（与后端保持一致）
+// 为了向后兼容：定义模块名称（虽然新的权限系统使用路由名）
 export const ModuleNames = {
-  EMPLOYEE_MANAGE: 'employee_manage',
-  DEVICE_MANAGE: 'device_manage',
-  EXPENSE_MANAGE: 'expense_manage',
-  MACHINE_MANAGE: 'machine_manage',
-  PHOTO_MANAGE: 'photo_manage',
-  VIDEO_MANAGE: 'video_manage',
-  ORDER_MANAGE: 'order_manage',
-  INQUIRY_MANAGE: 'inquiry_manage',
-  ORDER_STATUS_MANAGE: 'order_status_manage',
-  PUNCH_MANAGE: 'punch_manage',
-  DISPLAY_FILES_MANAGE: 'display_file_manage',
-  PERMISSION_MANAGE: 'permission_manage',
-  LOG_MANAGE: 'log_manage',
-  REPORT_STAT: 'report_stat',
-  ORDER_PROGRESS_MANAGE: 'order_progress_manage',
-  USER_MANAGE: 'user_manage'
-} as const;
+  EMPLOYEE_MANAGE: 'user_manage' as RouteName,  // 员工管理对应user_manage路由
+  ORDER_MANAGE: 'order_manage' as RouteName,    // 订单管理对应order_manage路由
+  INQUIRY_MANAGE: 'inquiry_manage' as RouteName, // 询盘管理对应inquiry_manage路由
+  MACHINE_MANAGE: 'machine_manage' as RouteName, // 设备管理对应machine_manage路由
+  PHOTO_MANAGE: 'photo_manage' as RouteName,     // 照片管理对应photo_manage路由
+  VIDEO_MANAGE: 'video_manage' as RouteName,     // 视频管理对应video_manage路由
+  DISPLAY_FILE_MANAGE: 'display_file_manage' as RouteName, // 文件展示对应display_file_manage路由
+  PUNCH_MANAGE: 'punch_manage' as RouteName,     // 打卡对应punch_manage路由
+  UPLOAD_MANAGE: 'upload_manage' as RouteName,   // 文件上传对应upload_manage路由
+  ORDER_STATUS_MANAGE: 'order_status_manage' as RouteName, // 订单状态对应order_status_manage路由
+  EXPENSE_MANAGE: 'expense_manage' as RouteName, // 费用管理对应expense_manage路由
+  LOG_MANAGE: 'log_manage' as RouteName          // 日志管理对应log_manage路由
+};
+
+// 为了向后兼容：模拟hasModulePermission函数，将其转换为hasRoutePermission
+export function hasModulePermission(moduleName: RouteName, action: string = 'view'): boolean {
+  // 将模块名映射到路由权限检查
+  return hasRoutePermission(moduleName);
+}
 
 // 定义权限配置接口
-interface ModulePermission {
+interface RoutePermission {
   id: string;
   role_name: string;
-  module_name: string;
-  can_view: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
+  route_name: string;
   create_time: string;
   update_time: string | null;
 }
 
 // 模拟从后端获取的权限配置（实际项目中应从接口获取）
-// 生产环境建议：登录后请求 /api/user/permissions 获取当前用户的权限列表并缓存
-let userPermissions: ModulePermission[] = [];
+// 生产环境建议：登录后请求后端API获取当前用户的权限列表并缓存
+let userRoutePermissions: string[] = [];
 
 /**
  * 初始化用户权限（登录后调用）
  * @param permissions 从后端获取的权限列表
  */
-export function initUserPermissions(permissions: ModulePermission[]): void {
-  userPermissions = permissions;
+export function initUserPermissions(permissions: RoutePermission[]): void {
+  userRoutePermissions = permissions.map(item => item.route_name);
 }
 
 /**
  * 清空用户权限（退出登录时调用）
  */
 export function clearUserPermissions(): void {
-  userPermissions = [];
+  userRoutePermissions = [];
 }
 
 /**
@@ -92,15 +103,11 @@ export function getCurrentUserRole(): string | null {
 }
 
 /**
- * 检查当前用户是否拥有指定模块的指定权限
- * @param moduleName 模块名称
- * @param permissionType 权限类型（view/edit/delete）
+ * 检查当前用户是否拥有指定路由的权限
+ * @param routeName 路由名称
  * @returns boolean - 是否拥有该权限
  */
-export function hasModulePermission(
-  moduleName: string,
-  permissionType: PermissionType = 'view'
-): boolean {
+export function hasRoutePermission(routeName: RouteName): boolean {
   // 未登录用户无任何权限
   if (!hasToken()) {
     return false;
@@ -112,24 +119,8 @@ export function hasModulePermission(
     return true;
   }
 
-  // 查找该模块的权限配置
-  const modulePerm = userPermissions.find(item => item.module_name === moduleName);
-
-  if (!modulePerm) {
-    return false;
-  }
-
-  // 根据权限类型返回结果
-  switch (permissionType) {
-    case 'view':
-      return modulePerm.can_view;
-    case 'edit':
-      return modulePerm.can_edit;
-    case 'delete':
-      return modulePerm.can_delete;
-    default:
-      return false;
-  }
+  // 检查用户是否有该路由的权限
+  return userRoutePermissions.includes(routeName);
 }
 
 /**
@@ -215,6 +206,7 @@ export async function loadUserPermissions(): Promise<void> {
     const response: any = await request.get('/api/user/permissions');
 
     if (response && Array.isArray(response)) {
+      // 假设后端返回的权限数据格式为包含 route_name 字段的数组
       initUserPermissions(response);
     } else {
       console.error('权限数据格式错误:', response);
@@ -224,87 +216,47 @@ export async function loadUserPermissions(): Promise<void> {
     console.error('加载用户权限失败:', error);
     // 降级处理：基于角色赋予默认权限
     const userRole = getCurrentUserRole();
-    const defaultPermissions: ModulePermission[] = [];
+    const defaultPermissions: RoutePermission[] = [];
 
     // 为不同角色设置默认权限
     if (userRole === 'sales') {
       defaultPermissions.push(
-        {
-          id: '',
-          role_name: 'sales',
-          module_name: ModuleNames.ORDER_MANAGE,
-          can_view: true,
-          can_edit: true,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        },
-        {
-          id: '',
-          role_name: 'sales',
-          module_name: ModuleNames.INQUIRY_MANAGE,
-          can_view: true,
-          can_edit: true,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        },
-        {
-          id: '',
-          role_name: 'sales',
-          module_name: ModuleNames.PHOTO_MANAGE,
-          can_view: true,
-          can_edit: false,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        },
-        {
-          id: '',
-          role_name: 'sales',
-          module_name: ModuleNames.VIDEO_MANAGE,
-          can_view: true,
-          can_edit: false,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        }
+        { id: '', role_name: 'sales', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'inquiry_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'order_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'sales', route_name: 'order_status_manage', create_time: new Date().toISOString(), update_time: null }
       );
-    } else if (userRole === 'user') {
+    } else if (userRole === 'follow') {  // 跟单角色
       defaultPermissions.push(
-        {
-          id: '',
-          role_name: 'user',
-          module_name: ModuleNames.PUNCH_MANAGE,
-          can_view: true,
-          can_edit: false,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        },
-        {
-          id: '',
-          role_name: 'user',
-          module_name: ModuleNames.DISPLAY_FILES_MANAGE,
-          can_view: true,
-          can_edit: false,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        },
-        {
-          id: '',
-          role_name: 'user',
-          module_name: ModuleNames.ORDER_MANAGE,
-          can_view: true,
-          can_edit: false,
-          can_delete: false,
-          create_time: new Date().toISOString(),
-          update_time: null
-        }
+        { id: '', role_name: 'follow', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'follow', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'follow', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'follow', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'follow', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'follow', route_name: 'order_status_manage', create_time: new Date().toISOString(), update_time: null }
+      );
+    } else if (userRole === 'design') {  // 设计角色
+      defaultPermissions.push(
+        { id: '', role_name: 'design', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'design', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'design', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'design', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'design', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null }
+      );
+    } else if (userRole === 'user') {  // 普通用户（如果保留此角色）
+      defaultPermissions.push(
+        { id: '', role_name: 'user', route_name: 'display_file_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'user', route_name: 'photo_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'user', route_name: 'punch_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'user', route_name: 'upload_manage', create_time: new Date().toISOString(), update_time: null },
+        { id: '', role_name: 'user', route_name: 'video_manage', create_time: new Date().toISOString(), update_time: null }
       );
     }
 
     initUserPermissions(defaultPermissions);
   }
-}
+}

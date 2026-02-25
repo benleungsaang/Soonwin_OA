@@ -9,8 +9,9 @@ from extensions import db
 from app.models.employee import Employee, UserStatus
 from app.models.employee_device import EmployeeDevice
 from app.models.punch_record import PunchRecord
-from app.utils.auth_utils import require_admin, require_auth, require_module_permission
-from app.constants.permission_constants import MODULE_PUNCH_MANAGE
+from app.utils.auth_utils import require_admin, require_auth
+from app.utils.simple_auth_utils import route_permission
+from app.constants.simple_permission_constants import ROUTE_PUNCH
 from datetime import datetime, timedelta
 
 
@@ -691,7 +692,7 @@ def device_clock_in():
 
 
 @punch_bp.route('/api/request-device-change', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")
+@route_permission(ROUTE_PUNCH)
 def request_device_change():
     """请求更换设备的API端点"""
     try:
@@ -749,7 +750,7 @@ def request_device_change():
 
 
 @punch_bp.route('/api/approve-device-change', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")
+@route_permission(ROUTE_PUNCH)
 def approve_device_change():
     """管理员批准设备更换申请"""
     try:
@@ -794,7 +795,7 @@ def approve_device_change():
 
 
 @punch_bp.route('/api/reject-device-change', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")
+@route_permission(ROUTE_PUNCH)
 def reject_device_change():
     """管理员拒绝设备更换申请"""
     try:
@@ -822,7 +823,7 @@ def reject_device_change():
 
 
 @punch_bp.route('/api/employee-info/<emp_id>', methods=['GET'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "view")
+@route_permission(ROUTE_PUNCH)
 def get_employee_info(emp_id):
     """获取员工信息接口（包含备注字段）"""
     try:
@@ -886,7 +887,7 @@ def get_employee_info(emp_id):
 
 
 @punch_bp.route('/api/employee-basic-info/<emp_id>', methods=['GET'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "view")
+@route_permission(ROUTE_PUNCH)
 def get_employee_basic_info(emp_id):
     """获取员工基本信息接口（用于绑定验证器等无需认证的场景）"""
     try:
@@ -928,7 +929,7 @@ def get_employee_basic_info(emp_id):
 
 
 @punch_bp.route('/api/replace-device-mac', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")  # 只有管理员可以替换设备MAC
+@route_permission(ROUTE_PUNCH)
 def replace_device_mac():
     """替换设备MAC地址：将临时员工的设备MAC转移到正式员工，并删除临时员工"""
     try:
@@ -1009,7 +1010,7 @@ def replace_device_mac():
 
 
 @punch_bp.route('/api/update-employee-remarks', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")
+@route_permission(ROUTE_PUNCH)
 def update_employee_remarks():
     """更新员工备注信息接口"""
     try:
@@ -1049,7 +1050,7 @@ def update_employee_remarks():
 
 
 @punch_bp.route('/api/device-management/devices', methods=['GET'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "view")  # 只有管理员可以查看设备管理信息
+@route_permission(ROUTE_PUNCH)
 def get_devices():
     """获取所有设备信息，用于设备管理"""
     try:
@@ -1085,7 +1086,7 @@ def get_devices():
 
 
 @punch_bp.route('/api/device-management/unbind-temp-device', methods=['POST'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "edit")  # 只有管理员可以解绑临时设备
+@route_permission(ROUTE_PUNCH)
 def unbind_temp_device():
     """解绑临时设备，删除临时员工记录"""
     try:
@@ -1124,7 +1125,7 @@ def unbind_temp_device():
 
 
 @punch_bp.route('/api/punch-records', methods=['GET'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "view")  # 只有管理员可以查看打卡记录
+@route_permission(ROUTE_PUNCH)
 def get_punch_records():
     """获取打卡记录接口，支持分页和筛选"""
     try:
@@ -1205,7 +1206,7 @@ def get_punch_records():
 
 
 @punch_bp.route('/api/punch-records/<int:record_id>', methods=['DELETE'])
-@require_module_permission(MODULE_PUNCH_MANAGE, "delete")  # 只有管理员可以删除打卡记录
+@route_permission(ROUTE_PUNCH)
 def delete_punch_record(record_id):
     """删除打卡记录接口"""
     try:

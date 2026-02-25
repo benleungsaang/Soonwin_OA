@@ -18,7 +18,6 @@ const VideoManagementView = () => import('@/views/VideoManagementView.vue');
 const LogManagementView = () => import('@/views/LogManagement.vue');
 const OrderStatusView =() => import ('@/views/OrderStatusView.vue')
 const OrderStatusReportView = () => import('@/views/OrderStatusReportView.vue');
-const OrderProgressView = () => import('@/views/OrderProgressView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -138,12 +137,6 @@ const routes: RouteRecordRaw[] = [
     name: 'orderStatusReport',
     component: OrderStatusReportView,
     meta: { title: '订单进度报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  },
-  {
-    path: '/order-progress',
-    name: 'orderProgress',
-    component: OrderProgressView,
-    meta: { title: '订单进度管理', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 ];
 

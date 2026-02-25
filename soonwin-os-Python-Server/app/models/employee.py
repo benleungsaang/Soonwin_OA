@@ -23,6 +23,7 @@ class Employee(db.Model):
     last_login_time = db.Column(db.DateTime, comment="上次登录时间")
     login_device = db.Column(db.String(100), comment="登录设备")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
     # 定义序列化方法，便于接口返回JSON数据
     def to_dict(self):
@@ -38,5 +39,6 @@ class Employee(db.Model):
             "remarks": self.remarks,
             "last_login_time": self.last_login_time.strftime("%Y-%m-%d %H:%M:%S") if self.last_login_time else None,
             "login_device": self.login_device,
-            "create_time": self.create_time.strftime("%Y-%m-%d %H:%M:%S")
+            "create_time": self.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "update_time": self.update_time.strftime("%Y-%m-%d %H:%M:%S") if self.update_time else None
         }

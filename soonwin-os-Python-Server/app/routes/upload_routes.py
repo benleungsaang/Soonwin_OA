@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
+from werkzeug.utils import secure_filename
 import os
 import uuid
 from datetime import datetime
 import shutil
+from ..utils.simple_auth_utils import route_permission
+from ..constants.simple_permission_constants import ROUTE_UPLOAD
 # 临时上传目录
 TEMP_UPLOAD_FOLDER = 'assets/TempFiles'
 # 已删除文件目录
@@ -47,6 +50,7 @@ def set_app_instance(app):
     processing_queue.set_app_instance(app)
 
 @upload_bp.route('/upload', methods=['POST'])
+@route_permission(ROUTE_UPLOAD)
 def upload_file():
     """上传文件到临时位置"""
     try:
@@ -112,6 +116,7 @@ def upload_file():
         }), 500
 
 @upload_bp.route('/upload/move', methods=['POST'])
+@route_permission(ROUTE_UPLOAD)
 def move_file():
     """移动文件位置"""
     try:
@@ -168,6 +173,7 @@ def move_file():
         }), 500
 
 @upload_bp.route('/upload/delete', methods=['POST'])
+@route_permission(ROUTE_UPLOAD)
 def delete_file():
     """删除指定路径文件（实际上是移动到删除文件目录）"""
     try:
@@ -233,6 +239,7 @@ def delete_file():
         }), 500
 
 @upload_bp.route('/upload/chunk', methods=['POST'])
+@route_permission(ROUTE_UPLOAD)
 def upload_chunk():
     """分块上传文件"""
     try:

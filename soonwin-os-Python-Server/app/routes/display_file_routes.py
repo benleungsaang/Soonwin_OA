@@ -15,8 +15,8 @@ sys.path.insert(0, str(components_path))
 
 from ..models.display_file import DisplayFile
 from ..models.employee import Employee
-from ..utils.auth_utils import require_auth as login_required, require_admin as admin_required, require_module_permission
-from ..constants.permission_constants import MODULE_DISPLAY_FILE_MANAGE
+from ..utils.simple_auth_utils import route_permission
+from ..constants.simple_permission_constants import ROUTE_DISPLAY_FILE
 import json
 
 # 调整为256KB（覆盖99%的PDF元数据，避免解析失败）
@@ -72,7 +72,7 @@ def create_display_file_directories():
     os.makedirs(display_path, exist_ok=True)
 
 @display_file_bp.route('/display-file/upload', methods=['POST'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "edit")
+@route_permission(ROUTE_DISPLAY_FILE)
 def upload_display_file():
     """上传展示文件（仅管理员）"""
     try:
@@ -268,7 +268,7 @@ def upload_display_file():
         }), 500
 
 @display_file_bp.route('/display-file/list', methods=['GET'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "view")
+@route_permission(ROUTE_DISPLAY_FILE)
 def get_display_file_list():
     """获取展示文件列表"""
     try:
@@ -311,7 +311,7 @@ def get_display_file_list():
         }), 500
 
 @display_file_bp.route('/display-file/<int:file_id>', methods=['GET'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "view")
+@route_permission(ROUTE_DISPLAY_FILE)
 def get_display_file(file_id):
     """获取单个展示文件详情"""
     try:
@@ -330,7 +330,7 @@ def get_display_file(file_id):
         }), 500
 
 @display_file_bp.route('/display-file/<string:uuid>', methods=['GET'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "view")
+@route_permission(ROUTE_DISPLAY_FILE)
 def get_display_file_by_uuid(uuid):
     """通过UUID获取展示文件详情（用于前端展示，不需登录）"""
     try:
@@ -349,7 +349,7 @@ def get_display_file_by_uuid(uuid):
         }), 500
 
 @display_file_bp.route('/display-file/<string:uuid>/images', methods=['GET'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "view")
+@route_permission(ROUTE_DISPLAY_FILE)
 def get_image_group(uuid):
     """获取图片组中的所有图片（用于前端展示）"""
     try:
@@ -411,7 +411,7 @@ def get_image_group(uuid):
         }), 500
 
 @display_file_bp.route('/display-file/<int:file_id>', methods=['PUT'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "edit")
+@route_permission(ROUTE_DISPLAY_FILE)
 def update_display_file(file_id):
     """更新展示文件信息（仅管理员）"""
     try:
@@ -448,7 +448,7 @@ def update_display_file(file_id):
         }), 500
 
 @display_file_bp.route('/display-file/<int:file_id>/page-count', methods=['PUT'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "edit")
+@route_permission(ROUTE_DISPLAY_FILE)
 def update_display_file_page_count(file_id):
     """更新展示文件页数（仅管理员）"""
     try:
@@ -495,7 +495,7 @@ def update_display_file_page_count(file_id):
         }), 500
 
 @display_file_bp.route('/display-file/<int:file_id>', methods=['DELETE'])
-@require_module_permission(MODULE_DISPLAY_FILE_MANAGE, "delete")
+@route_permission(ROUTE_DISPLAY_FILE)
 def delete_display_file(file_id):
     """删除展示文件（仅管理员）"""
     try:

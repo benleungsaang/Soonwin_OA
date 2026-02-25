@@ -1,0 +1,108 @@
+"""简化版权限常量定义"""
+
+# 全体共有权限的路由
+ROUTE_DISPLAY_FILE_MANAGE = "display_file_manage"  # 文件展示
+ROUTE_PHOTO_MANAGE = "photo_manage"                # 照片管理
+ROUTE_PUNCH_MANAGE = "punch_manage"                # 打卡
+ROUTE_UPLOAD_MANAGE = "upload_manage"              # 文件上传模块
+ROUTE_VIDEO_MANAGE = "video_manage"                # 视频管理
+
+# 销售角色权限
+ROUTE_INQUIRY_MANAGE = "inquiry_manage"            # 询盘管理
+ROUTE_ORDER_MANAGE = "order_manage"                # 订单管理
+ROUTE_ORDER_STATUS_MANAGE = "order_status_manage"  # 订单状态
+
+# 跟单角色权限
+# ROUTE_ORDER_STATUS_FOLLOW_MANAGE = "order_status_follow_manage"  # 订单状态（跟单专用，实际与订单状态是同一模块）
+
+# 管理员独有权限
+ROUTE_EXPENSE_MANAGE = "expense_manage"            # 费用管理
+ROUTE_LOG_MANAGE = "log_manage"                    # 日志管理
+ROUTE_MACHINE_MANAGE = "machine_manage"            # 设备管理
+ROUTE_USER_MANAGE = "user_manage"                  # 员工信息/管理
+ROUTE_PERMISSION_MANAGE = "permission_manage"      # 权限管理（如果保留的话）
+
+# 为了兼容性，添加旧的命名方式
+ROUTE_DISPLAY_FILE = ROUTE_DISPLAY_FILE_MANAGE
+ROUTE_PHOTO = ROUTE_PHOTO_MANAGE
+ROUTE_PUNCH = ROUTE_PUNCH_MANAGE
+ROUTE_UPLOAD = ROUTE_UPLOAD_MANAGE
+ROUTE_VIDEO = ROUTE_VIDEO_MANAGE
+ROUTE_INQUIRY = ROUTE_INQUIRY_MANAGE
+ROUTE_ORDER = ROUTE_ORDER_MANAGE
+ROUTE_ORDER_STATUS = ROUTE_ORDER_STATUS_MANAGE
+# ROUTE_ORDER_STATUS_FOLLOW = ROUTE_ORDER_STATUS_FOLLOW_MANAGE
+ROUTE_EXPENSE = ROUTE_EXPENSE_MANAGE
+ROUTE_LOG = ROUTE_LOG_MANAGE
+ROUTE_MACHINE = ROUTE_MACHINE_MANAGE
+ROUTE_USER = ROUTE_USER_MANAGE
+ROUTE_PERMISSION = ROUTE_PERMISSION_MANAGE
+
+# 所有路由列表
+ALL_ROUTES = [
+    ROUTE_DISPLAY_FILE_MANAGE,
+    ROUTE_PHOTO_MANAGE,
+    ROUTE_PUNCH_MANAGE,
+    ROUTE_UPLOAD_MANAGE,
+    ROUTE_VIDEO_MANAGE,
+    ROUTE_INQUIRY_MANAGE,
+    ROUTE_ORDER_MANAGE,
+    ROUTE_ORDER_STATUS_MANAGE,
+    # ROUTE_ORDER_STATUS_FOLLOW_MANAGE,
+    ROUTE_EXPENSE_MANAGE,
+    ROUTE_LOG_MANAGE,
+    ROUTE_MACHINE_MANAGE,
+    ROUTE_USER_MANAGE,
+    ROUTE_PERMISSION_MANAGE
+]
+
+# 角色权限映射
+ROLE_PERMISSIONS = {
+    # 管理员：所有权限
+    "admin": [
+        ROUTE_DISPLAY_FILE_MANAGE,
+        ROUTE_PHOTO_MANAGE,
+        ROUTE_PUNCH_MANAGE,
+        ROUTE_UPLOAD_MANAGE,
+        ROUTE_VIDEO_MANAGE,
+        ROUTE_INQUIRY_MANAGE,
+        ROUTE_ORDER_MANAGE,
+        ROUTE_ORDER_STATUS_MANAGE,
+        ROUTE_EXPENSE_MANAGE,
+        ROUTE_LOG_MANAGE,
+        ROUTE_MACHINE_MANAGE,
+        ROUTE_USER_MANAGE,
+        ROUTE_PERMISSION_MANAGE
+    ],
+
+    # 销售：全体共有 + 销售专属
+    "sales": [
+        ROUTE_DISPLAY_FILE_MANAGE,
+        ROUTE_PHOTO_MANAGE,
+        ROUTE_PUNCH_MANAGE,
+        ROUTE_UPLOAD_MANAGE,
+        ROUTE_VIDEO_MANAGE,
+        ROUTE_INQUIRY_MANAGE,
+        ROUTE_ORDER_MANAGE,
+        ROUTE_ORDER_STATUS_MANAGE
+    ],
+
+    # 设计：仅全体共有
+    "design": [
+        ROUTE_DISPLAY_FILE_MANAGE,
+        ROUTE_PHOTO_MANAGE,
+        ROUTE_PUNCH_MANAGE,
+        ROUTE_UPLOAD_MANAGE,
+        ROUTE_VIDEO_MANAGE
+    ],
+
+    # 跟单：全体共有 + 跟单专属，使用user角色作为跟单角色
+    "user": [
+        ROUTE_DISPLAY_FILE_MANAGE,
+        ROUTE_PHOTO_MANAGE,
+        ROUTE_PUNCH_MANAGE,
+        ROUTE_UPLOAD_MANAGE,
+        ROUTE_VIDEO_MANAGE,
+        ROUTE_ORDER_STATUS_MANAGE
+    ]
+}
