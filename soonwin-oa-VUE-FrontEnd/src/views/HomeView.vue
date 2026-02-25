@@ -107,7 +107,7 @@
                       <el-icon><Monitor /></el-icon>
                       <span>打卡</span>
                     </el-menu-item>
-                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && isCurrentUserAdmin">
+                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && hasPunchManagePermission">
                       <el-icon><Timer /></el-icon>
                       <span>打卡记录</span>
                     </el-menu-item>
