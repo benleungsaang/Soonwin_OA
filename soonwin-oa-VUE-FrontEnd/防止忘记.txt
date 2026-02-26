@@ -1,0 +1,5 @@
+yarn dev
+启动服务
+
+yarn build:prod
+生成静态文件

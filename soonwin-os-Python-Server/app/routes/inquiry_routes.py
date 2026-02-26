@@ -8,61 +8,57 @@ from app.models.data_change_stats import DataChangeStats
 from app.models.simple_permission import get_user_role_from_token
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_INQUIRY
+from app.utils.auth_utils import get_user_id_from_token
 from datetime import datetime, timedelta
 import json
 from functools import wraps
 
-def get_user_id_from_token():
-    """从JWT token中获取用户ID信息（兼容现有系统）"""
-    from flask import request
-    import jwt
-    import config
-    from app.models.employee import Employee
-    
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
-
-    # 移除 "Bearer " 前缀
-    if token.startswith("Bearer "):
-        token = token[7:]
-
-    try:
-        # 解码JWT令牌
-        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload['emp_id']
-        return emp_id
-
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-    except Exception:
-        return None
-
 # 创建蓝图
+
 inquiry_bp = Blueprint('inquiry', __name__)
 
+
+
 def get_current_user():
+
     """获取当前用户信息的辅助函数"""
+
+    from app.models.employee import Employee
+
     emp_id = get_user_id_from_token()
+
     user_role = get_user_role_from_token()
+
     user_name = "system"  # 默认名称
+
     
+
     # 尝试从数据库获取用户信息以获取真实姓名
+
     if emp_id:
-        from app.models.employee import Employee
+
         employee = Employee.query.filter_by(emp_id=emp_id).first()
+
         if employee:
+
             user_name = employee.name
+
     
+
     # 创建模拟用户对象
+
     current_user = type('User', (), {
+
         'emp_id': emp_id,
+
         'user_role': user_role,
+
         'name': user_name
+
     })()
+
     
+
     return current_user
 
 

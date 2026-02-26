@@ -32,6 +32,7 @@
               {{ formatDate(scope.row.ship_time) }}
             </template>
           </el-table-column>
+          <el-table-column prop="creator_id" label="订单负责人" width="120" />
           <el-table-column label="任务完成进度" width="150">
             <template #default="scope">
               <div
@@ -212,7 +213,7 @@
                       <el-button
                         class="delete-img-btn"
                         size="small"
-                        @click="deleteMediaFromTemplate(statusTask, mediaIndex)"
+                        @click="deleteMediaFromTemplate(statusTask, Number(mediaIndex))"
                       >
                         <el-icon><Close /></el-icon>
                       </el-button>
@@ -1190,7 +1191,7 @@ const addTask = async () => {
       // 从response.data中获取完整的任务信息（因为API返回格式为{code, data, msg}，request.ts会自动解包data部分）
       // 根据API响应格式，response应该是包含任务详细信息的对象
       const taskResponse = response; // request.ts已解包data部分
-      
+
       // 构建任务项，确保包含所有必需的字段
       const taskItem = {
         id: taskResponse.id || taskResponse.task_id,                      // 使用返回的ID作为id
@@ -1214,7 +1215,7 @@ const addTask = async () => {
         image_count: taskResponse.image_count || 0,
         video_count: taskResponse.video_count || 0
       };
-      
+
       tasks.value.push(taskItem);
 
       // 关闭模态框并重置表单
@@ -1225,7 +1226,7 @@ const addTask = async () => {
         category: '',
         status_log_id: null
       };
-      
+
       // 重新加载订单状态详情，以确保所有数据同步
       await loadOrderStatusDetails();
     }
@@ -1646,7 +1647,7 @@ const loadOrderStatusDetails = async () => {
 // 组件挂载
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
-    await fetchUserInfo();
+  await fetchUserInfo();
   fetchOrders();
 });
 
@@ -1813,7 +1814,7 @@ const onUploadClipboardMedia = async (file: File, taskId: number) => {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      onUploadProgress: (progressEvent: ProgressEvent) => {
+      onUploadProgress: (progressEvent: any) => {
         if (progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           // 这里可以显示上传进度，例如使用 ElMessage 或其他UI组件

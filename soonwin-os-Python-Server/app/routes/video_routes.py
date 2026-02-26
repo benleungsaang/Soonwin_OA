@@ -820,6 +820,8 @@ def restore_videos():
         print(f"恢复视频失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+
 # 全局变量来存储应用实例
 app_instance = None
 

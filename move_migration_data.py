@@ -15,7 +15,7 @@ BASE_DIR = r"E:\Soonwin_OA"                           # OA根目录
 # 迁移包目录配置
 DEPLOY_ROOT = Path(os.path.expanduser("~")) / "Desktop" / "Soonwin_OA"
 BACK_DEPLOY = DEPLOY_ROOT / "SoonwinOA_Backend"       # 迁移包内后端文件夹
-FRONT_DEPLOY = DEPLOY_ROOT / "Soonwin_OA_Frontend"     # 迁移包内前端文件夹
+FRONT_DEPLOY = DEPLOY_ROOT / "SoonwinOA_Frontend"     # 迁移包内前端文件夹
 
 # 需要复制的后端根文件（新增run.py、wsgi.py）
 BACKEND_ROOT_FILES = [

@@ -12,9 +12,8 @@ from datetime import datetime
 import uuid
 
 # revision identifiers
-revision = '023_20260203_153000_modify_order_inspection_status_log_table_structure'
-down_revision = '022_add_data_change_stats_table'
-branch_labels = None
+revision = '20260203_153000'
+down_revision = '022_add_data_change_stats_table'branch_labels = None
 depends_on = None
 
 def upgrade():

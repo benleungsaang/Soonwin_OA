@@ -59,7 +59,7 @@
             </div>
 
             <!-- 订单跟进：PC中（order2），移动端第1（order1） -->
-            <div class="menu-column order-column" v-if="userRole === 'admin' || userRole === 'sales'">
+            <div class="menu-column order-column" v-if="hasOrderMenu">
               <div class="column-header" @click="toggleCollapse('order')">
                 <h3 class="column-title">订单跟进</h3>
                 <el-icon class="collapse-icon">
@@ -203,13 +203,17 @@ const permissionMap = {
 // 动态生成权限计算属性（替代原来的多个零散computed）
 const permissions = computed(() => {
   const result: Record<string, boolean> = {};
-  Object.entries(permissionMap).forEach(([key, { key: permissionKey }]) => {
-    result[key] = hasRoutePermission(permissionKey);
-  });
-  return result;
+      Object.entries(permissionMap).forEach(([key, { key: permissionKey }]) => {
+      result[key] = hasRoutePermission(permissionKey as any);
+    });  return result;
 });
 
-
+// 订单跟进栏目是否有可显示的菜单项
+const hasOrderMenu = computed(() => {
+  if (!hasToken.value) return false; // 未登录时不显示
+  // 判断订单跟进下的所有权限项是否有至少一个为true
+  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage;
+});
 
 // ========== 方法定义 ==========
 // ========== 优化2：封装通用跳转方法（自动处理权限检查） ==========
@@ -220,7 +224,7 @@ const permissions = computed(() => {
  */
 const navigateToPage = (permissionKey: keyof typeof permissionMap, tipName?: string) => {
   const { key, name, path } = permissionMap[permissionKey];
-  if (hasRoutePermission(key)) {
+  if (hasRoutePermission(key as any)) {
     router.push(path);
   } else {
     ElMessage.error(`您没有权限访问${tipName || name}页面！`);
@@ -263,13 +267,13 @@ onMounted(async () => {
         initUserPermissions(response);
       } else {
         // 如果没有获取到权限数据，使用降级处理
-        userRole.value = getCurrentUserRole();
+        userRole.value = null;
         await loadUserPermissions(); // 调用原有逻辑
       }
     } catch (error) {
       console.error('加载用户权限和角色失败:', error);
       // 降级处理：尝试从token中获取角色并加载权限
-      userRole.value = getCurrentUserRole();
+      userRole.value = null;
       await loadUserPermissions();
     }
 

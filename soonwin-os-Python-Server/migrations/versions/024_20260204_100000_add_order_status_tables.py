@@ -12,7 +12,7 @@ import uuid
 
 # revision identifiers
 revision = '024_20260204_100000_add_order_status_tables'
-down_revision = '023_20260203_153000_modify_order_inspection_status_log_table_structure'
+down_revision = '20260203_153000'
 branch_labels = None
 depends_on = None
 

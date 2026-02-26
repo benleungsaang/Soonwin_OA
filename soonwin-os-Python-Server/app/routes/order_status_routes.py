@@ -10,37 +10,9 @@ from app.utils.upload_utils import allowed_file, get_file_type
 from app.models.simple_permission import get_user_role_from_token
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_ORDER_STATUS
-
-def get_user_id_from_token():
-    """从JWT token中获取用户ID信息（兼容现有系统）"""
-    from flask import request
-    import jwt
-    import config
-    from app.models.employee import Employee
-
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
-
-    # 移除 "Bearer " 前缀
-    if token.startswith("Bearer "):
-        token = token[7:]
-
-    try:
-        # 解码JWT令牌
-        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload['emp_id']
-        return emp_id
-
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-    except Exception:
-        return None
+from app.utils.auth_utils import get_user_id_from_token
 
 order_status_bp = Blueprint('order_status_bp', __name__)
-
 # 上传文件配置
 UPLOAD_FOLDER = 'assets/OrderStatus'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -55,8 +27,19 @@ def get_order_status_orders():
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
 
+        # 获取当前用户信息
+        user_role = get_user_role_from_token()
+        user_emp_id = get_user_id_from_token()
+
         # 构建查询
         query = Order.query
+
+        # 检查是否为管理员，如果不是管理员则只查询自己创建的数据
+        if user_role != 'admin' and user_role != 'orderfollow':
+            query = query.filter(
+                Order.creator_id == user_emp_id,
+                Order.creator_id.isnot(None)
+                )
 
         # 计算总数
         total = query.count()
@@ -78,6 +61,7 @@ def get_order_status_orders():
                 'machine_name': order.machine_name,
                 'machine_model': order.machine_model,
                 'machine_count': order.machine_count,
+                'creator_id': order.creator_id,
                 'order_time': order.order_time.strftime('%Y-%m-%d') if order.order_time else None,
                 'ship_time': order.ship_time.strftime('%Y-%m-%d') if order.ship_time else None,
                 'status_id': status_record.id if status_record else None,
@@ -85,8 +69,9 @@ def get_order_status_orders():
                 'current_status_time': status_record.current_status_time.strftime('%Y-%m-%d') if status_record and status_record.current_status_time else None,
                 'progress_percent': status_record.progress_percent if status_record else 0,
                 'total_tasks': status_record.total_tasks if status_record else 0,
-                'completed_tasks': status_record.completed_tasks if status_record else 0
+                'completed_tasks': status_record.completed_tasks if status_record else 0,
             }
+
             result.append(order_data)
 
         return jsonify({
@@ -1105,10 +1090,11 @@ def upload_multiple_images():
             return jsonify({'code': 404, 'msg': '关联的订单信息不完整'})
 
         # 构建上传路径：./assets/OrderStatus/合同编号_下单日期/
-        # 使用合同编号和下单日期作为文件夹名
-        contract_no = order.contract_no.replace('/', '_').replace('\\', '_')  # 替换路径分隔符
+        # 使用合同编号和下单日期作为文件夹名，清理特殊字符避免路径问题
+        import re
+        contract_no_clean = re.sub(r'[^\w\-_]', '_', order.contract_no) if order.contract_no else 'default'
         order_date = order.order_time.strftime('%Y%m%d') if order.order_time else datetime.now().strftime('%Y%m%d')
-        order_folder = f"{contract_no}_{order_date}"
+        order_folder = f"{contract_no_clean}_{order_date}"
 
         upload_dir = os.path.join(UPLOAD_FOLDER, order_folder)
         os.makedirs(upload_dir, exist_ok=True)
@@ -1125,9 +1111,15 @@ def upload_multiple_images():
             safe_filename = secure_filename(file.filename)
             name, ext = os.path.splitext(safe_filename)
 
-            # 根据任务的category和name生成文件前缀
-            category_prefix = task.category.replace('/', '_').replace('\\', '_').replace(' ', '_') if task.category else 'default'
-            name_prefix = task.name.replace('/', '_').replace('\\', '_').replace(' ', '_') if task.name else 'default'
+            # 根据任务的category和name生成文件前缀（移除特殊字符并URL编码安全）
+            import urllib.parse
+            import re
+            # 使用正则表达式只保留字母、数字、下划线、连字符
+            category_clean = re.sub(r'[^\w\-_]', '_', task.category) if task.category else 'default'
+            name_clean = re.sub(r'[^\w\-_]', '_', task.name) if task.name else 'default'
+            
+            category_prefix = category_clean.replace('/', '_').replace('\\', '_')
+            name_prefix = name_clean.replace('/', '_').replace('\\', '_')
 
             # 确保文件名不会过长
             if len(category_prefix) > 20:

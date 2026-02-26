@@ -579,6 +579,12 @@ const newEmployee = ref({
   user_role: 'user' as 'user' | 'admin' | 'sales',
   remarks: ''
 });
+
+// 添加newRole响应式变量
+const newRole = ref({
+  role_name: '',
+  description: ''
+});
 const editEmployee = ref({
   emp_id: '',
   name: '',

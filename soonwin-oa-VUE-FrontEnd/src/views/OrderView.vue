@@ -821,7 +821,8 @@ const orderForm = ref({
   order_dept: [] as string[],  // 修改为数组类型以支持多选
   check_requirement: '',
   attachment_imgs: '',
-  attachment_videos: ''
+  attachment_videos: '',
+  creator_id: '' // 添加creator_id字段
 });
 
 // 表单校验规则
@@ -1165,7 +1166,8 @@ const resetForm = () => {
     order_dept: [],  // 修改为数组类型以支持多选
     check_requirement: '',
     attachment_imgs: '',
-    attachment_videos: ''
+    attachment_videos: '',
+    creator_id: ''
   };
   // 重置表单后计算利润
   setTimeout(() => {

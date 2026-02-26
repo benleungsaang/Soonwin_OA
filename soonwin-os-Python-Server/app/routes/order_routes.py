@@ -5,6 +5,7 @@ from app.models.employee import Employee
 from app.models.simple_permission import get_user_role_from_token
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_ORDER
+from app.utils.auth_utils import get_user_id_from_token
 from datetime import datetime, timedelta
 import json
 from decimal import Decimal
@@ -14,56 +15,27 @@ from config import Config
 # 从expense模型导入相关类
 from app.models.expense import AnnualTarget, Expense, ExpenseAllocation, ExpenseCalculationRecord, IndividualExpense
 
-def get_user_id_from_token():
-    """从JWT token中获取用户ID信息（兼容现有系统）"""
-    from flask import request
-    import jwt
-    import config
-    from app.models.employee import Employee
-    
-    token = request.headers.get('Authorization')
-    if not token:
-        return None
-
-    # 移除 "Bearer " 前缀
-    if token.startswith("Bearer "):
-        token = token[7:]
-
-    try:
-        # 解码JWT令牌
-        payload = jwt.decode(token, config.Config.JWT_SECRET_KEY, algorithms=['HS256'])
-        emp_id = payload['emp_id']
-        return emp_id
-
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
-    except Exception:
-        return None
-
 # 创建蓝图
 order_bp = Blueprint('order', __name__)
-
 def get_current_user():
     """获取当前用户信息的辅助函数"""
     emp_id = get_user_id_from_token()
     user_role = get_user_role_from_token()
     user_name = "system"  # 默认名称
-    
+
     # 尝试从数据库获取用户信息以获取真实姓名
     if emp_id:
         employee = Employee.query.filter_by(emp_id=emp_id).first()
         if employee:
             user_name = employee.name
-    
+
     # 创建模拟用户对象
     current_user = type('User', (), {
         'emp_id': emp_id,
         'user_role': user_role,
         'name': user_name
     })()
-    
+
     return current_user
 
 class DecimalEncoder(json.JSONEncoder):
@@ -285,10 +257,10 @@ def get_order(order_id):
     """获取单个订单详情"""
     try:
         order = Order.query.get_or_404(order_id)
-        
+
         # 获取当前用户
         current_user = get_current_user()
-        
+
         # 检查权限：管理员可以查看所有，普通用户只能查看自己创建的
         if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
             return jsonify({
@@ -296,7 +268,7 @@ def get_order(order_id):
                 "msg": "无权限访问该订单",
                 "data": None
             }), 403
-            
+
         # 获取字段过滤参数
         fields = request.args.get('fields')
         # 获取当前用户信息以确定是否为管理员
@@ -327,10 +299,10 @@ def update_order(order_id):
     """更新订单信息"""
     try:
         order = Order.query.get_or_404(order_id)
-        
+
         # 获取当前用户
         current_user = get_current_user()
-        
+
         # 检查权限：管理员可以修改所有，普通用户只能修改自己创建的
         if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
             return jsonify({
@@ -417,10 +389,10 @@ def delete_order(order_id):
     """删除订单"""
     try:
         order = Order.query.get_or_404(order_id)
-        
+
         # 获取当前用户
         current_user = get_current_user()
-        
+
         # 检查权限：管理员可以删除所有，普通用户只能删除自己创建的
         if current_user.user_role != 'admin' and order.creator_id != current_user.emp_id:
             return jsonify({
@@ -669,7 +641,7 @@ def update_order_proportionate_cost():
         )
         if current_user.user_role != 'admin':
             orders_query = orders_query.filter(Order.creator_id == current_user.emp_id)
-            
+
         orders = orders_query.all()
 
         if not orders:

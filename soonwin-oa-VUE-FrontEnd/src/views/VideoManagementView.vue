@@ -33,6 +33,15 @@
           上传视频
         </el-button>
 
+        <el-button
+          v-if="!showingRecycleBin && !isMultiSelectMode"
+          type="success"
+          @click="showBatchUploadDialog = true"
+        >
+          <el-icon><UploadFilled /></el-icon>
+          批量上传
+        </el-button>
+
         <!-- 普通视频列表多选模式按钮组 -->
         <div v-if="!showingRecycleBin && isMultiSelectMode" class="multi-select-buttons">
           <el-button @click="toggleSelectAllNormal">
@@ -520,6 +529,20 @@
       log-type="video"
       :handle-jump="handleLogJump"
     />
+
+    <!-- 批量上传视频对话框 -->
+    <el-dialog
+      v-model="showBatchUploadDialog"
+      title="批量上传视频"
+      width="80%"
+      :before-close="handleBatchUploadDialogClose"
+      class="mobile-dialog batch-upload-dialog"
+    >
+      <BatchVideoUpload 
+        ref="batchUploadComponent" 
+        @upload-complete="handleBatchUploadComplete" 
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -530,6 +553,7 @@ import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, 
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
+import BatchVideoUpload from '@/components/BatchVideoUpload.vue';
 import { uploadFile } from '@/utils/upload';
 import { getCurrentUserRole } from '@/utils/authUtils';
 import request, {
@@ -603,6 +627,10 @@ watch(inputValueString, (newVal) => {
 
 // 表单引用
 const uploadFormRef = ref();
+
+// 批量上传相关
+const showBatchUploadDialog = ref(false);
+const batchUploadComponent = ref();
 
 const selectedVideo = ref<any>(null);
 const previewVideoData = ref<any>(null);
@@ -830,6 +858,18 @@ const handleUploadDialogClose = (done: () => void) => {
     return;
   }
   done();
+};
+
+// 关闭批量上传对话框
+const handleBatchUploadDialogClose = (done: () => void) => {
+  // 这里可以添加确认提示，如果批量上传正在进行中
+  done();
+};
+
+// 处理批量上传完成事件
+const handleBatchUploadComplete = () => {
+  // 刷新视频列表数据
+  fetchVideos();
 };
 
 // 添加标签函数

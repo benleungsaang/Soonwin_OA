@@ -330,7 +330,7 @@ const confirmUpload = async () => {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      onUploadProgress: (progressEvent: ProgressEvent) => {
+      onUploadProgress: (progressEvent: any) => {
         if (progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           // 更新整体上传进度
