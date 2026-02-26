@@ -57,7 +57,7 @@ def get_video_info(video_path):
                 # 作为最后手段，使用latin-1编码
                 result = subprocess.check_output(cmd, stderr=subprocess.PIPE)
                 result = result.decode('latin-1', errors='replace')
-        
+
         info = json.loads(result)
 
         # 提取核心信息（仅基于原始文件）
@@ -183,8 +183,8 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
 
 def sanitize_filename(filename):
     """清理文件名，确保在Windows中合法"""
-    # 移除Windows不支持的字符
-    invalid_chars = '<>:"/\\|?*'
+    # 移除Windows不支持的字符，包括换行符和制表符
+    invalid_chars = '<>:"/\\|?*\r\n\t'
     for char in invalid_chars:
         filename = filename.replace(char, '_')
 
@@ -202,19 +202,19 @@ def generate_title_based_filename(title, original_filename):
     """根据标题生成文件名，格式：标题_年月日时分秒"""
     # 获取文件扩展名
     ext = original_filename.split('.')[-1].lower()
-    
-    # 清理标题，移除Windows不支持的字符
-    invalid_chars = '<>:"/\\|?*'
+
+    # 清理标题，移除Windows不支持的字符，包括换行符
+    invalid_chars = '<>:"/\\|?*\r\n\t'
     for char in invalid_chars:
         title = title.replace(char, '_')
-    
+
     # 限制标题长度，避免文件名过长
     if len(title) > 80:
         title = title[:80]
-    
+
     # 添加时间戳
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    
+
     # 生成文件名
     filename = f"{title}_{timestamp}.{ext}"
     return filename
@@ -379,7 +379,7 @@ def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
                 import locale
                 encoding = locale.getpreferredencoding()
                 stdout_str = res.stdout.decode(encoding, errors='replace')
-            
+
             video_info = json.loads(stdout_str)
             # 简化：合并时长/宽高获取逻辑，减少嵌套
             for stream in video_info.get('streams', []):
@@ -647,11 +647,11 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
 
             if result_path:
                 print(f"视频压缩成功: {result_path}")
-                
+
                 # 确认压缩文件确实存在
                 if os.path.exists(result_path) and os.path.getsize(result_path) > 0:
                     print(f"确认压缩文件存在且非空，准备更新数据库")
-                    
+
                     # 更新数据库记录
                     if app_instance:
                         with app_instance.app_context():

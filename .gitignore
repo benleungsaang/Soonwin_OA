@@ -60,6 +60,14 @@ __pycache__/
 *.so
 .Python
 
+# 常见的多媒体文件
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.jpg
+*.png
+
 # 数据库文件 (项目里有 soonwin_oa.db，必忽略，防止提交本地数据库)
 *.db
 *.sqlite

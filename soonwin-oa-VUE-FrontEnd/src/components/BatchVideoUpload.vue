@@ -31,6 +31,7 @@
       <div class="section-header">
         <h4>已选择的文件</h4>
         <div class="file-actions">
+          <el-button @click="directUpload" size="small" type="primary">直接上传</el-button>
           <el-button @click="clearAllFiles" size="small" type="danger">清空全部</el-button>
           <el-button
             v-if="hasVideoAndJson && !isMatching"
@@ -54,6 +55,15 @@
       </div>
 
       <el-table :data="fileList" style="width: 100%" border>
+        <el-table-column label="上传进度" width="150" v-if="isUploadingDirectly">
+          <template #default="{ row }">
+            <div v-if="isVideoFile(row.name)" style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 4px;">
+              <div :style="{width: `${getUploadProgress(row.name)}%`, height: '100%', backgroundColor: getProgressColor(row.name), borderRadius: '4px', transition: 'width 0.3s ease'}"></div>
+            </div>
+            <div v-if="isVideoFile(row.name)" style="text-align: right; margin-top: 2px; font-size: 12px; color: #606266;">{{ getUploadProgress(row.name) }}%</div>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="文件名" width="300">
           <template #default="{ row }">
             <div class="file-info">
@@ -87,15 +97,15 @@
             <div class="match-result-header">
               <p>共有 <strong>{{ matchedVideos.length }}</strong> 个视频匹配成功</p>
               <div class="match-actions">
-                <el-button 
-                  @click="selectAllForUpload" 
+                <el-button
+                  @click="selectAllForUpload"
                   size="small"
                   :icon="CircleCheck"
                 >
                   全选
                 </el-button>
-                <el-button 
-                  @click="unselectAllForUpload" 
+                <el-button
+                  @click="unselectAllForUpload"
                   size="small"
                   :icon="Remove"
                 >
@@ -146,7 +156,7 @@
         <el-table-column label="备注" prop="remark" width="200" />
                 <el-table-column label="状态" prop="status" width="120">
                   <template #default="{ row }">
-                    <el-tag 
+                    <el-tag
                       :type="getStatusType(row.status)"
                     >
                       {{ getStatusText(row.status) }}
@@ -192,6 +202,7 @@ const matchResults = ref<any[]>([]);
 const selectedForUpload = ref<any[]>([]);
 const isMatching = ref(false);
 const isUploading = ref(false);
+const isUploadingDirectly = ref(false);
 const uploadProgressMap = ref<Record<string, number>>({});
 
 // 计算属性
@@ -361,54 +372,26 @@ const matchFiles = async () => {
             }    }
 
         matchResults.value = results;
-
-            matchResults.value = results;
-
-                matchResults.value = results;
-
-
-
-                showMatchResultDialog.value = true;
-
-
-
-                // 在对话框显示后，下一帧自动勾选所有匹配成功的视频
-
-                nextTick(() => {
-
-                  // 使用表格ref来设置默认选中项
-
-                  if (tableRef.value) {
-
-                    // 等待表格渲染完成
-
-                    setTimeout(() => {
-
-                      // 获取表格实例的选择方法
-
-                      const matchedResults = results.filter(item => item.status === 'matched');
-
-                      selectedForUpload.value = matchedResults;
-
-
-
-                      // 手动设置表格行的选中状态
-
-                      results.forEach((row, index) => {
-
-                        if (row.status === 'matched') {
-
-                          tableRef.value.toggleRowSelection(row, true);
-
-                        }
-
-                      });
-
-                    }, 100);
-
-                  }
-
-                });      } catch (error) {
+        showMatchResultDialog.value = true;
+        // 在对话框显示后，下一帧自动勾选所有匹配成功的视频
+        nextTick(() => {
+          // 使用表格ref来设置默认选中项
+          if (tableRef.value) {
+            // 等待表格渲染完成
+            setTimeout(() => {
+              // 获取表格实例的选择方法
+              const matchedResults = results.filter(item => item.status === 'matched');
+              selectedForUpload.value = matchedResults;
+              // 手动设置表格行的选中状态
+              results.forEach((row, index) => {
+                if (row.status === 'matched') {
+                  tableRef.value.toggleRowSelection(row, true);
+                }
+              });
+            }, 100);
+          }
+        });
+      } catch (error) {
         console.error('匹配文件失败:', error);
         ElMessage.error('匹配文件失败，请检查JSON文件格式');
       } finally {
@@ -448,15 +431,6 @@ const getTagsArray = (tags: string) => {
 const isRowSelectable = (row: any) => {
   // 只有匹配成功的行才可选择
   return row.status === 'matched';
-};
-
-const getUploadProgress = (filename: string) => {
-  return uploadProgressMap.value[filename] || 0;
-};
-
-const getProgressColor = (filename: string) => {
-  const progress = getUploadProgress(filename);
-  return progress === 100 ? '#67c23a' : '#409eff'; // 完成时绿色，其他时候蓝色
 };
 
 const handleSelectionChange = (selection: any[]) => {
@@ -530,11 +504,11 @@ const batchUpload = async () => {
         } else {
           ElMessage.success(`成功上传 ${successCount} 个视频`);
         }
-        
+
         // 关闭对话框并重置状态
         showMatchResultDialog.value = false;
         clearAllFiles();
-        
+
         // 触发上传完成事件，通知父组件刷新数据
         emit('upload-complete');
       } catch (error) {
@@ -552,6 +526,131 @@ const batchUpload = async () => {
     return;
   }
   done();
+};
+
+// 直接上传方法
+const directUpload = async () => {
+  // 获取视频文件
+  const videoFiles = fileList.value.filter(file => isVideoFile(file.name));
+
+  if (videoFiles.length === 0) {
+    ElMessage.warning('没有可上传的视频文件');
+    return;
+  }
+
+  // 计算总大小
+  const totalSize = videoFiles.reduce((sum, file) => sum + (file.size || 0), 0);
+
+  // 显示确认弹窗
+  try {
+    await ElMessageBox.confirm(
+      `确认直接上传 ${videoFiles.length} 个视频文件，总大小 ${formatFileSize(totalSize)}？<br/>
+      文件将使用文件名（不带后缀）作为标题进行上传。`,
+      '确认直接上传',
+      {
+        confirmButtonText: '确认上传',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true
+      }
+    );
+
+    // 开始上传
+    await performDirectUpload(videoFiles);
+  } catch (error) {
+    // 用户取消上传
+    console.log('用户取消直接上传');
+  }
+};
+
+// 执行直接上传
+const performDirectUpload = async (videoFiles: any[]) => {
+  isUploadingDirectly.value = true;
+
+  // 初始化所有视频文件的进度为0
+  videoFiles.forEach(file => {
+    uploadProgressMap.value[file.name] = 0;
+  });
+
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of videoFiles) {
+      try {
+        // 从文件名获取标题（不带后缀名）
+        const title = file.name.substring(0, file.name.lastIndexOf('.'));
+
+        const formData = new FormData();
+        formData.append('file', file.raw);
+        formData.append('title', title);
+        // 直接上传时标签和备注为空
+        formData.append('tags', '');
+        formData.append('remark', '');
+
+        // 从token中解析用户信息作为上传者
+        const token = localStorage.getItem('oa_token');
+        let uploader = 'system';
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            uploader = payload.emp_id || payload.employee_id || payload.username || payload.user || 'system';
+          } catch (error) {
+            console.error('解析用户信息失败:', error);
+          }
+        }
+        formData.append('uploader', uploader);
+
+        // 使用createVideo函数支持进度回调
+        await createVideo(formData, (progressEvent) => {
+          if (progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            uploadProgressMap.value[file.name] = progress;
+          }
+        });
+
+        successCount++;
+      } catch (uploadError) {
+        console.error(`上传视频 ${file.name} 失败:`, uploadError);
+        errorCount++;
+      } finally {
+        // 无论成功还是失败，都把进度设为100，表示已完成
+        uploadProgressMap.value[file.name] = 100;
+      }
+    }
+
+    if (errorCount > 0) {
+      ElMessage.warning(`直接上传完成: ${successCount} 个成功, ${errorCount} 个失败`);
+    } else {
+      ElMessage.success(`成功上传 ${successCount} 个视频`);
+    }
+
+    // 上传完成后清空文件列表
+    clearAllFiles();
+
+    // 触发上传完成事件，通知父组件刷新数据
+    emit('upload-complete');
+  } catch (error) {
+    console.error('直接上传失败:', error);
+    ElMessage.error('直接上传失败');
+  } finally {
+    isUploadingDirectly.value = false;
+    // 重置进度
+    Object.keys(uploadProgressMap.value).forEach(key => {
+      uploadProgressMap.value[key] = 0;
+    });
+  }
+};
+
+// 获取上传进度
+const getUploadProgress = (filename: string) => {
+  return uploadProgressMap.value[filename] || 0;
+};
+
+// 获取进度条颜色
+const getProgressColor = (filename: string) => {
+  const progress = getUploadProgress(filename);
+  return progress === 100 ? '#67c23a' : '#409eff'; // 完成时绿色，其他时候蓝色
 };
 
 // 暴露方法给父组件使用
@@ -580,6 +679,14 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .file-info {

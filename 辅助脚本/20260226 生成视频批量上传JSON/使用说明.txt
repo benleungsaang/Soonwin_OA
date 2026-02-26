@@ -1,0 +1,66 @@
+视频批量上传处理工具使用说明
+========================
+
+该工具可以：
+1. 扫描当前目录中的所有视频文件
+2. 生成符合指定格式的JSON文件
+3. 生成Excel文件
+4. 实现JSON与Excel文件之间的相互转换
+
+包含的文件
+---------
+- video_processor.py: 核心处理脚本（交互式菜单）
+- 视频批量上传_最终版.json: 生成的JSON文件（title和filePath有值，其他字段为空）
+- 视频批量上传_最终版.xlsx: 生成的Excel文件（只包含title, tagNames, remark字段，无格式）
+- test_final.py: 最终版功能测试脚本
+
+使用方法
+-------
+
+### 1. 运行交互式菜单
+```
+python video_processor.py
+```
+然后根据菜单选择要执行的任务：
+- 1: 从当前目录视频文件生成JSON
+- 2: 从当前目录视频文件生成Excel（只包含title, tagNames, remark字段）
+- 3: JSON文件转换为Excel（只包含title, tagNames, remark字段）
+- 4: Excel文件转换为JSON
+- 5: 退出
+
+### 2. 生成的文件特点
+- JSON文件：保留所有字段，但只有 "title" 和 "filePath" 包含实际值
+- Excel文件：只包含 "title", "tagNames", "remark" 三个字段，按此顺序排列
+- "title": 视频文件名（不含扩展名）
+- "filePath": 视频文件的完整路径（在转换Excel到JSON时自动填入）
+- "tagNames": 标签数组，Excel中以逗号分隔的字符串形式存储
+- "remark": 备注信息
+
+### 3. 转换功能
+- JSON转Excel：json_to_excel(json_path, excel_path) - 只保留4个字段
+- Excel转JSON：excel_to_json(excel_path, json_path) - 自动填入filePath并处理tagNames
+
+功能特点
+-------
+- 读取目录中所有常见格式的视频文件（.mp4, .avi, .mov, .wmv, .flv, .mkv, .webm, .m4v等）
+- 自动提取不带后缀的文件名作为标题
+- 使用真实的文件路径
+- 保留参考JSON格式的所有字段，但只填写必要的字段
+- Excel文件只保留title, tagNames, remark字段（按此顺序），所有单元格设置为文本格式
+- 使用批量设置方式优化单元格格式设置效率（批量获取区域并遍历设置格式）
+- tagNames字段支持中文逗号替换为英文逗号（提高代码健壮性）
+- Excel转JSON时自动填入filePath字段（根据视频文件名匹配）
+- 正确处理数据类型转换，确保remark字段保存为字符串
+- 正确提取tagNames字段内容并转换为数组格式
+- 使用openpyxl库生成Excel文件，确保单元格格式为文本（解决数字+逗号被识别为数字格式的问题）
+- 支持JSON与Excel之间的双向转换
+- 正确处理特殊字符（如中文文件名）
+- 提供用户确认机制，避免误操作
+- 支持循环执行任务
+
+注意事项
+-------
+- 确保安装了必要的库：pandas, openpyxl
+- 生成的文件将保存在当前工作目录中
+- 路径使用正斜杠(/)格式以提高兼容性
+- 中文逗号在Excel中会自动替换为英文逗号，然后转换为JSON数组格式
