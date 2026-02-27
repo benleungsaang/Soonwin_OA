@@ -163,7 +163,7 @@ const handleLogin = async () => {
 
     // 调用登录接口（将工号转换为小写以实现不区分大小写）
     const res: any = await request.post<LoginResponse>('/api/totp/login', {
-      emp_id: loginForm.empId.toLowerCase(),
+      emp_id: loginForm.empId.replace(/\s+/g, '').toLowerCase(),
       totp_code: loginForm.totpCode,
     });
 

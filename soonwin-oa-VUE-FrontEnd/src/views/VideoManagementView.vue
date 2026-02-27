@@ -868,6 +868,8 @@ const handleBatchUploadDialogClose = (done: () => void) => {
 
 // 处理批量上传完成事件
 const handleBatchUploadComplete = () => {
+  // 关闭批量上传对话框
+  showBatchUploadDialog.value = false;
   // 刷新视频列表数据
   fetchVideos();
 };

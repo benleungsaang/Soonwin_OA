@@ -102,11 +102,11 @@
     <FolderPairs>
         <Pair>
             <Left>C:\Users\Administrator\Desktop\Soonwin_OA\SoonwinOA_Backend</Left>
-            <Right>V:\SoonwinOA_Backend</Right>
+            <Right>\\192.168.30.64@8866\DavWWWRoot\tfdav\SoonwinOA_Backend</Right>
         </Pair>
         <Pair>
             <Left>C:\Users\Administrator\Desktop\Soonwin_OA\SoonwinOA_Frontend</Left>
-            <Right>V:\SoonwinOA_Frontend</Right>
+            <Right>\\192.168.30.64@8866\DavWWWRoot\tfdav\SoonwinOA_Frontend</Right>
         </Pair>
     </FolderPairs>
     <Errors Ignore="false" Retry="0" Delay="5"/>

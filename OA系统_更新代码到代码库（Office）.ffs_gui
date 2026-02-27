@@ -91,6 +91,7 @@
             <Item>\nginx-1.28.1\</Item>
             <Item>*\dist\</Item>
             <Item>*\.history\</Item>
+            <Item>*.mp4</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
