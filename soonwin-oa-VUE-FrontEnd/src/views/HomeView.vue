@@ -112,6 +112,10 @@
                       <el-icon><Files /></el-icon>
                       <span>展示文件</span>
                     </el-menu-item>
+                    <el-menu-item index="17" @click="goToAttendanceSystem" v-if="hasToken && permissions.attendanceManage">
+                      <el-icon><Clock /></el-icon>
+                      <span>考勤系统</span>
+                    </el-menu-item>
                   </el-menu>
                   <!-- 登录按钮：未登录时显示在其它功能列底部 -->
                   <el-menu class="menu-list login-menu" v-if="!hasToken">
@@ -197,7 +201,8 @@ const permissionMap = {
   punchRecordsManage: { key: 'punch_manage', name: '打卡记录', path: '/punch-records' },
   displayFilesManage: { key: 'display_file_manage', name: '展示文件', path: '/display-files' },
   deviceManage: { key: 'machine_manage', name: '设备管理', path: '/machine-parts-management' },
-  userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' }
+  userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' },
+  attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -244,6 +249,7 @@ const goToMachinePartsManagement = () => navigateToPage('machinePartsManage');
 const goToPhotoManagement = () => navigateToPage('photoManage');
 const goToVideoManagement = () => navigateToPage('videoManage');
 const goToOrderStatus = () => navigateToPage('orderStatusManage');
+const goToAttendanceSystem = () => navigateToPage('attendanceManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {

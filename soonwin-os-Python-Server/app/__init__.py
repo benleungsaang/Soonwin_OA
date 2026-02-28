@@ -58,6 +58,7 @@ def create_app(port=5000):
         from .models.data_change_stats import DataChangeStats
 
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
+        from .models.attendance_operation import AttendanceOperation
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
@@ -120,6 +121,10 @@ def create_app(port=5000):
         # 注册权限管理相关路由蓝图
         from .routes.permission_routes import permission_bp
         app.register_blueprint(permission_bp)
+
+        # 注册考勤管理相关路由蓝图
+        from .routes.attendance_routes import attendance_bp
+        app.register_blueprint(attendance_bp, url_prefix='/api')
 
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance

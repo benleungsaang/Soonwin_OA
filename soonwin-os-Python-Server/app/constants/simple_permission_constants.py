@@ -7,6 +7,7 @@ ROUTE_PUNCH_MANAGE = "punch_manage"                # 打卡
 ROUTE_UPLOAD_MANAGE = "upload_manage"              # 文件上传模块
 ROUTE_VIDEO_MANAGE = "video_manage"                # 视频管理
 ROUTE_MACHINE_LIST = "machine_list"                # 设备列表
+ROUTE_ATTENDANCE_MANAGE = "attendance_manage"      # 考勤管理
 
 # 销售角色权限
 ROUTE_INQUIRY_MANAGE = "inquiry_manage"            # 询盘管理
@@ -34,6 +35,7 @@ ROUTE_LOG = ROUTE_LOG_MANAGE
 ROUTE_MACHINE = ROUTE_MACHINE_MANAGE
 ROUTE_USER = ROUTE_USER_MANAGE
 ROUTE_PERMISSION = ROUTE_PERMISSION_MANAGE
+ROUTE_ATTENDANCE = ROUTE_ATTENDANCE_MANAGE  # 考勤管理
 
 # 所有路由列表
 ALL_ROUTES = [
@@ -50,5 +52,6 @@ ALL_ROUTES = [
     ROUTE_MACHINE_MANAGE,
     ROUTE_MACHINE_LIST,
     ROUTE_USER_MANAGE,
-    ROUTE_PERMISSION_MANAGE
+    ROUTE_PERMISSION_MANAGE,
+    ROUTE_ATTENDANCE_MANAGE
 ]

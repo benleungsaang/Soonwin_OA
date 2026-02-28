@@ -162,17 +162,19 @@ import request from '@/utils/request';
 // 定义组件的 props
 interface Props {
   taskId?: number;
+  uploadImmediately?: boolean; // 控制是否立即上传，默认为true，保持向后兼容
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  taskId: undefined
+  taskId: undefined,
+  uploadImmediately: true // 默认立即上传，保持向后兼容
 });
 
 // 定义组件的事件
 const emit = defineEmits<{
-  'upload-success': [files: File[], mediaFiles: any[]]; // 修改：传递原始文件和媒体文件信息
+  'upload-success': [files: File[], mediaFiles: any[]]; // 传递原始文件和媒体文件信息（上传时）或空数组（不上传时）
   'upload-failure': [error: any];
-  'upload-clipboard-image': [file: File, taskId: number]; // 新增：上传剪贴板媒体事件
+  'upload-clipboard-image': [response: any, file: File, taskId: number]; // 上传剪贴板媒体事件
 }>();
 
 // 响应式数据
@@ -300,11 +302,6 @@ const toggleSelectAll = () => {
 
 // 确认上传
 const confirmUpload = async () => {
-  if (!props.taskId) {
-    ElMessage.error('未指定任务ID');
-    return;
-  }
-
   // 获取选中的文件
   const selectedFiles = selectedMedia.value
     .filter(media => media.selected)
@@ -315,45 +312,61 @@ const confirmUpload = async () => {
     return;
   }
 
-  try {
-    isUploading.value = true;
-    
-    // 创建FormData对象并添加所有选定的文件
-    const formData = new FormData();
-    selectedFiles.forEach(file => {
-      formData.append('files', file); // 后端使用getlist获取多个文件
-    });
-    formData.append('task_id', props.taskId.toString());
+  // 如果需要立即上传且有任务ID
+  if (props.uploadImmediately) {
+    if (!props.taskId) {
+      ElMessage.error('未指定任务ID');
+      return;
+    }
 
-    // 创建带进度的请求
-    const response: any = await request.post('/api/order-status/upload-multiple-images', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
-      onUploadProgress: (progressEvent: any) => {
-        if (progressEvent.total) {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          // 更新整体上传进度
-          uploadProgress.value[0] = progress; // 使用0作为整体进度的key
+    try {
+      isUploading.value = true;
+      
+      // 创建FormData对象并添加所有选定的文件
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+        formData.append('files', file); // 后端使用getlist获取多个文件
+      });
+      formData.append('task_id', props.taskId.toString());
+
+      // 创建带进度的请求
+      const response: any = await request.post('/api/order-status/upload-multiple-images', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent: any) => {
+          if (progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            // 更新整体上传进度
+            uploadProgress.value[0] = progress; // 使用0作为整体进度的key
+          }
         }
-      }
-    });
+      });
 
-    ElMessage.success(`${selectedFiles.length} 个媒体文件上传成功`);
-    // 发送新上传的媒体文件信息，而不是只发送原始文件
-    emit('upload-success', selectedFiles, response.data?.media_files || []);
+      ElMessage.success(`${selectedFiles.length} 个媒体文件上传成功`);
+      // 发送新上传的媒体文件信息，而不是只发送原始文件
+      emit('upload-success', selectedFiles, response?.media_files || []);
 
-    // 清空已选择的媒体
+      // 清空已选择的媒体
+      clearSelectedMedia();
+      closeConfirmDialog();
+    } catch (error) {
+      console.error('上传失败:', error);
+      ElMessage.error('媒体文件上传失败');
+      emit('upload-failure', error);
+    } finally {
+      isUploading.value = false;
+      // 清空进度
+      uploadProgress.value = {};
+    }
+  } else {
+    // 不立即上传，只返回选中的文件
+    ElMessage.success(`已选择 ${selectedFiles.length} 个文件，待稍后统一上传`);
+    emit('upload-success', selectedFiles, []); // 传递选中的文件，但不包含上传的媒体文件信息
+
+    // 清空已选择的媒体，因为只是缓存
     clearSelectedMedia();
     closeConfirmDialog();
-  } catch (error) {
-    console.error('上传失败:', error);
-    ElMessage.error('媒体文件上传失败');
-    emit('upload-failure', error);
-  } finally {
-    isUploading.value = false;
-    // 清空进度
-    uploadProgress.value = {};
   }
 };
 
@@ -584,32 +597,41 @@ const confirmUploadClipboardMedia = async () => {
     throw new Error('没有可上传的媒体文件');
   }
 
-  if (!props.taskId) {
-    throw new Error('未指定任务ID');
-  }
+  // 如果需要立即上传且有任务ID
+  if (props.uploadImmediately) {
+    if (!props.taskId) {
+      throw new Error('未指定任务ID');
+    }
 
-  try {
-    // 创建FormData对象
-    const formData = new FormData();
-    formData.append('file', clipboardMediaFile.value);
-    formData.append('task_id', props.taskId.toString());
+    try {
+      // 创建FormData对象
+      const formData = new FormData();
+      formData.append('file', clipboardMediaFile.value);
+      formData.append('task_id', props.taskId.toString());
 
-    // 调用后端上传API - 保持原始接口不变
-    const response: any = await request.post(`/api/order-status/${props.taskId}/tasks/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+      // 调用后端上传API - 保持原始接口不变
+      const response: any = await request.post(`/api/order-status/${props.taskId}/tasks/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
-    // 触发上传媒体文件事件，让父组件处理具体上传逻辑
-    emit('upload-clipboard-image', clipboardMediaFile.value, props.taskId);
+      // 触发上传媒体文件事件，传递上传响应给父组件
+      emit('upload-clipboard-image', response, clipboardMediaFile.value, props.taskId);
+
+      // 清理并关闭对话框
+      handleClipboardDialogClose();
+    } catch (error) {
+      console.error('剪贴板媒体上传失败:', error);
+      emit('upload-failure', error);
+      throw error;
+    }
+  } else {
+    // 不立即上传，只返回文件
+    emit('upload-clipboard-image', clipboardMediaFile.value, clipboardMediaFile.value, 0); // 传递文件对象而非上传响应
 
     // 清理并关闭对话框
     handleClipboardDialogClose();
-  } catch (error) {
-    console.error('剪贴板媒体上传失败:', error);
-    emit('upload-failure', error);
-    throw error;
   }
 };
 

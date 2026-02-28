@@ -333,16 +333,16 @@ def get_employees():
     try:
         # 使用JOIN查询获取员工及其TOTP信息
         from sqlalchemy import and_
-        
+
         # 获取所有员工及其TOTP信息
         results = db.session.query(
             Employee,
             TotpUser.totp_secret
         ).outerjoin(
-            TotpUser, 
+            TotpUser,
             Employee.emp_id == TotpUser.emp_id
         ).all()
-        
+
         employee_list = []
         for emp, totp_secret in results:
             employee_data = {
@@ -531,12 +531,14 @@ def get_all_routes():
             "expense_manage": "费用管理",
             "log_manage": "日志管理",
             "machine_manage": "机器管理",
+            "machine_list": "机器管理",
             "user_manage": "用户管理",
             "permission_manage": "权限管理",
             "report_stat": "报表统计",
             "device_manage": "设备管理",
             "order_progress_manage": "订单进度管理",
-            "auth_manage": "认证管理"
+            "auth_manage": "认证管理",
+            "attendance_manage": "考勤管理",
         }
 
         # 从常量中获取所有路由
@@ -974,7 +976,7 @@ def get_current_user_permissions():
                     # 没有 create_time 和 update_time 字段
                     perm_id = getattr(perm, 'id', None)
                     route_name = getattr(perm, 'route_name', '')
-                    
+
                     permissions.append({
                         "id": str(perm_id) if perm_id else "",
                         "role_name": user_role,
@@ -1113,7 +1115,7 @@ def update_role_description():
                 "msg": "角色名称不能为空字符串",
                 "data": None
             }), 400
-            
+
         # 检查是否是纯空白字符
         if not role_name or role_name.isspace():
             return jsonify({

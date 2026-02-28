@@ -154,7 +154,7 @@ export function getCurrentUserName(): string | null {
 
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.user_name || null;
+    return payload.name || payload.user_name || null;
   } catch (error) {
     console.error('解析用户名失败:', error);
     return null;

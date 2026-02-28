@@ -313,3 +313,74 @@ def upload_chunk():
             "msg": f"分块上传失败: {str(e)}",
             "data": None
         }), 500
+
+@upload_bp.route('/upload/attendance', methods=['POST'])
+@route_permission(ROUTE_UPLOAD)
+def upload_attendance_attachment():
+    """上传考勤附件到特定目录"""
+    try:
+        create_upload_directories()
+        
+        if 'file' not in request.files:
+            return jsonify({
+                "code": 400,
+                "msg": "没有文件被上传",
+                "data": None
+            }), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({
+                "code": 400,
+                "msg": "没有选择文件",
+                "data": None
+            }), 400
+
+        # 获取考勤操作相关信息
+        emp_id = request.form.get('emp_id', 'unknown')
+        operation_type = request.form.get('operation_type', 'unknown')
+
+        # 验证文件类型
+        is_valid, msg = validate_file_type(file)
+        if not is_valid:
+            return jsonify({
+                "code": 400,
+                "msg": msg,
+                "data": None
+            }), 400
+
+        # 生成考勤附件存储路径
+        current_date = datetime.now().strftime('%Y%m%d')
+        attendance_folder = os.path.join(current_app.root_path, '..', 'assets', 'attendance', current_date)
+        os.makedirs(attendance_folder, exist_ok=True)
+
+        # 生成唯一文件名：emp_id+operation_type+时间缀
+        timestamp = datetime.now().strftime('%H%M%S_%f')[:-3]  # 包含毫秒的时间戳
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'file'
+        unique_filename = f"{emp_id}_{operation_type}_{timestamp}.{file_ext}"
+        
+        save_path = os.path.join(attendance_folder, unique_filename)
+
+        # 保存文件
+        file.save(save_path)
+
+        # 返回文件路径信息
+        relative_path = os.path.relpath(save_path, os.path.join(current_app.root_path, '..'))
+
+        return jsonify({
+            "code": 200,
+            "msg": "考勤附件上传成功",
+            "data": {
+                "original_filename": file.filename,
+                "filename": unique_filename,
+                "path": relative_path,
+                "size": os.path.getsize(save_path)
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"上传考勤附件失败: {str(e)}",
+            "data": None
+        }), 500

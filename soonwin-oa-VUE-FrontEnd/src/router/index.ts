@@ -18,6 +18,10 @@ const VideoManagementView = () => import('@/views/VideoManagementView.vue');
 const LogManagementView = () => import('@/views/LogManagement.vue');
 const OrderStatusView =() => import ('@/views/OrderStatusView.vue')
 const OrderStatusReportView = () => import('@/views/OrderStatusReportView.vue');
+const AttendanceSystemView = () => import('@/views/AttendanceSystemView.vue');
+const AttendanceApplyView = () => import('@/views/AttendanceApplyView.vue');
+
+
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
@@ -138,6 +142,20 @@ const routes: RouteRecordRaw[] = [
     component: OrderStatusReportView,
     meta: { title: '订单进度报告', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
+  {
+    path: '/attendance-system',
+    name: 'attendanceSystem',
+    component: AttendanceSystemView,
+    meta: { title: '考勤系统', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/attendance/apply',
+    name: 'attendanceApply',
+    component: AttendanceApplyView,
+    meta: { title: '申请考勤操作', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+
+
 ];
 
 // 创建路由实例

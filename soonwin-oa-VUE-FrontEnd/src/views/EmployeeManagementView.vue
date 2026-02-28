@@ -890,32 +890,32 @@ const getRoleType = (role: string) => {
 };
 
 // 定义模块名称常量
-const MODULE_CONSTANTS = {
-  employee_manage: '员工管理',
-  device_manage: '设备管理',
-  log_manage: '日志管理',
-  report_stat: '报表统计',
-  order_manage: '订单管理',
-  expense_manage: '费用管理',
-  inquiry_manage: '询盘管理',
-  machine_manage: '机器管理',
-  machine_list: '机器列表',
-  photo_manage: '照片管理',
-  video_manage: '视频管理',
-  display_file_manage: '展示文件管理',
-  order_progress_manage: '订单进度管理',
-  order_status_manage: '订单状态管理',
-  punch_manage: '打卡管理',
-  auth_manage: '认证管理',
-  upload_manage: '上传管理',
-  user_manage: '用户管理',
-  permission_manage: '权限管理'
-};
+// const MODULE_CONSTANTS = {
+//   employee_manage: '员工管理',
+//   device_manage: '设备管理',
+//   log_manage: '日志管理',
+//   report_stat: '报表统计',
+//   order_manage: '订单管理',
+//   expense_manage: '费用管理',
+//   inquiry_manage: '询盘管理',
+//   machine_manage: '机器管理',
+//   machine_list: '机器列表',
+//   photo_manage: '照片管理',
+//   video_manage: '视频管理',
+//   display_file_manage: '展示文件管理',
+//   order_progress_manage: '订单进度管理',
+//   order_status_manage: '订单状态管理',
+//   punch_manage: '打卡管理',
+//   auth_manage: '认证管理',
+//   upload_manage: '上传管理',
+//   user_manage: '用户管理',
+//   permission_manage: '权限管理'
+// };
 
-// 获取模块名称显示文本
-const getModuleNameText = (moduleName: string) => {
-  return MODULE_CONSTANTS[moduleName as keyof typeof MODULE_CONSTANTS] || moduleName;
-};
+// // 获取模块名称显示文本
+// const getModuleNameText = (moduleName: string) => {
+//   return MODULE_CONSTANTS[moduleName as keyof typeof MODULE_CONSTANTS] || moduleName;
+// };
 
 // 显示详情
 const showDetails = (employee: Employee) => {

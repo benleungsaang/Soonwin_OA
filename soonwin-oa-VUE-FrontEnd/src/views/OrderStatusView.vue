@@ -1787,7 +1787,7 @@ const onMediaUploadFailure = (error: any) => {
 };
 
 // 上传剪贴板媒体回调
-const onUploadClipboardMedia = async (file: File, taskId: number) => {
+const onUploadClipboardMedia = async (response: any, file: File, taskId: number) => {
   try {
     // 检查文件类型 - 支持图片和视频
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {

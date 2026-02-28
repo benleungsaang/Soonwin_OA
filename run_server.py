@@ -145,7 +145,7 @@ http {{
         proxy_buffer_size 64K;
         proxy_buffers 4 64K;
 
-        rewrite ^/assets/(Media|OrderStatus|TemplateImg)/(.*)$ /backend-assets/$1/$2 last;
+        rewrite ^/assets/(Media|OrderStatus|TemplateImg|attendance)/(.*)$ /backend-assets/$1/$2 last;
 
         # ~* 正则匹配优先级高于 ^~ 前缀匹配，确保脚本先被处理
         location ~* ^/assets/(.*)\.(css|js|mjs|png|jpg|jpeg|ico|svg|woff|woff2|ttf)$ {{
