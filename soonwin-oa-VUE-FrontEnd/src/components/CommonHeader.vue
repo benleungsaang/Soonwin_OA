@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, onMounted, provide, onUnmounted } from 'vue';
 import { SwitchButton } from '@element-plus/icons-vue';
@@ -33,6 +33,7 @@ interface Props {
 
 defineProps<Props>();
 
+const route = useRoute();
 const router = useRouter();
 
 // 用户信息
@@ -45,9 +46,19 @@ provide('currentUserEmpId', currentUserEmpId);
 provide('currentUserName', currentUserName);
 provide('currentUserRole', currentUserRole);
 
-// 返回上一页
+// 返回上一级路由（基于路由层级，非历史记录）
 const goBack = () => {
-  router.go(-1);
+  // 获取当前路由匹配的层级列表
+  const matchedRoutes = route.matched;
+  if (matchedRoutes.length >= 2) {
+    // 取倒数第二个层级（上一级）的路径
+    const parentPath = matchedRoutes[matchedRoutes.length - 2].path;
+    // 跳转到父级路由
+    router.push({ path: parentPath });
+  } else {
+    // 无父级时的兜底（比如首页），可跳转到默认页
+    router.push({ path: '/' });
+  }
 };
 
 // 获取用户信息

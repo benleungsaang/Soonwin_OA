@@ -42,6 +42,8 @@ class Order(db.Model):
     creator_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), comment="创建人ID")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+    inquiry_id = db.Column(db.Integer, db.ForeignKey('Inquiry.id'), comment="关联询盘ID", nullable=True)
+    inquiry = db.relationship('Inquiry', backref=db.backref('orders', lazy=True))
 
 
 
@@ -130,5 +132,7 @@ class Order(db.Model):
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
             "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
             "search_field": self.search_field,
-            "creator_id": self.creator_id
+            "creator_id": self.creator_id,
+            "inquiry_id": self.inquiry_id,
+            "inquiry": self.inquiry.to_dict() if self.inquiry else None
         }

@@ -110,6 +110,7 @@ def get_inquiries():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         inquiry_source = request.args.get('inquiry_source')
+        include_associated = request.args.get('include_associated', 'true').lower() == 'true'  # 是否包含已关联订单的询盘
 
         # 获取当前用户信息
         current_user = get_current_user()
@@ -146,6 +147,13 @@ def get_inquiries():
         if end_date:
             end_datetime = datetime.strptime(end_date, '%Y-%m-%d').date()
             query = query.filter(Inquiry.inquiry_date <= end_date)
+
+        # 如果需要排除已关联订单的询盘
+        if not include_associated:
+            # 查询所有已关联订单的询盘ID
+            from app.models.order import Order
+            associated_inquiry_ids = db.session.query(Order.inquiry_id).filter(Order.inquiry_id.isnot(None)).distinct()
+            query = query.filter(~Inquiry.id.in_([id[0] for id in associated_inquiry_ids if id[0] is not None]))
 
         # 计算总数
         total = query.count()
@@ -418,6 +426,31 @@ def delete_inquiry(inquiry_id):
                 "msg": "无权限删除该询盘",
                 "data": None
             }), 403
+
+        # 检查询盘是否已关联订单
+        from app.models.order import Order
+        associated_orders = Order.query.filter_by(inquiry_id=inquiry_id).all()
+        
+        if associated_orders:
+            # 如果询盘已关联订单，返回已关联订单的基础信息并提示不能删除
+            associated_order_info = []
+            for order in associated_orders:
+                order_info = {
+                    "id": order.id,
+                    "customer_name": order.customer_name,
+                    "contract_no": order.contract_no,
+                    "order_time": order.order_time.strftime('%Y-%m-%d') if order.order_time else None,
+                    "contract_amount": float(order.contract_amount) if order.contract_amount else 0.0
+                }
+                associated_order_info.append(order_info)
+            
+            return jsonify({
+                "code": 400,
+                "msg": "该询盘已关联订单，不能删除",
+                "data": {
+                    "associated_orders": associated_order_info
+                }
+            }), 400
 
         # 记录完整询盘数据及关联的沟通记录
         inquiry_data = inquiry.to_dict()

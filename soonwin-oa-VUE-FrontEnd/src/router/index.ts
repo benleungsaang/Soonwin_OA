@@ -20,6 +20,7 @@ const OrderStatusView =() => import ('@/views/OrderStatusView.vue')
 const OrderStatusReportView = () => import('@/views/OrderStatusReportView.vue');
 const AttendanceSystemView = () => import('@/views/AttendanceSystemView.vue');
 const AttendanceApplyView = () => import('@/views/AttendanceApplyView.vue');
+const AttendanceJsonExportView = () => import('@/views/AttendanceJsonExportView.vue');
 
 
 
@@ -153,6 +154,12 @@ const routes: RouteRecordRaw[] = [
     name: 'attendanceApply',
     component: AttendanceApplyView,
     meta: { title: '申请考勤操作', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/attendance/json-export',
+    name: 'attendanceJsonExport',
+    component: AttendanceJsonExportView,
+    meta: { title: '考勤数据JSON导出', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
 
 

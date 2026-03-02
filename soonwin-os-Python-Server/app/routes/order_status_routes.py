@@ -942,6 +942,57 @@ def batch_create_order_status_logs():
         return jsonify({'code': 500, 'msg': f'批量创建失败: {str(e)}'})
 
 
+@order_status_bp.route('/order-status/<int:status_id>', methods=['DELETE'])
+@route_permission(ROUTE_ORDER_STATUS)
+def delete_order_status(status_id):
+    """删除订单状态记录及其所有关联数据"""
+    try:
+        # 获取订单状态记录
+        status_record = OrderStatus.query.get(status_id)
+        if not status_record:
+            return jsonify({'code': 404, 'msg': '订单状态记录不存在'})
+
+        # 获取关联的订单信息
+        order = Order.query.get(status_record.order_id)
+        if not order:
+            return jsonify({'code': 404, 'msg': '关联订单不存在'})
+
+        # 删除所有关联的任务项（包括其媒体文件）
+        tasks = StatusTask.query.filter_by(order_status_id=status_id).all()
+        for task in tasks:
+            # 删除任务的媒体文件
+            media_files = TaskMediaFile.query.filter_by(status_task_id=task.id).all()
+            for media_file in media_files:
+                try:
+                    # 删除实际文件
+                    if media_file.file_path and os.path.exists(media_file.file_path.lstrip('/')):
+                        os.remove(media_file.file_path.lstrip('/'))
+                    if media_file.thumb_path and os.path.exists(media_file.thumb_path.lstrip('/')):
+                        os.remove(media_file.thumb_path.lstrip('/'))
+                except Exception as e:
+                    print(f"删除媒体文件失败: {str(e)}")
+                
+                # 删除数据库记录
+                db.session.delete(media_file)
+            
+            # 删除任务项
+            db.session.delete(task)
+
+        # 删除所有关联的状态日志
+        status_logs = OrderStatusLog.query.filter_by(order_status_id=status_id).all()
+        for log in status_logs:
+            db.session.delete(log)
+
+        # 删除订单状态记录本身
+        db.session.delete(status_record)
+        db.session.commit()
+
+        return jsonify({'code': 200, 'msg': '订单状态记录及其所有关联数据删除成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'code': 500, 'msg': f'删除订单状态记录失败: {str(e)}'})
+
+
 @order_status_bp.route('/order-status/<int:status_id>/clear-all', methods=['POST'])
 @route_permission(ROUTE_ORDER_STATUS)
 def clear_all_order_status_data(status_id):

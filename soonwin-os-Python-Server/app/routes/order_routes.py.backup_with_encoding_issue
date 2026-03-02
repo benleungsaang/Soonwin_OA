@@ -287,10 +287,6 @@ def create_order():
         DataChangeStats.increment_stats('order', 'new', 1)
         DataChangeStats.increment_stats('order', 'total', 1)
 
-        # 导入json模块
-        import json
-        from flask import Response
-        
         # 创建操作日志
         # 记录完整的订单数据
         order_data = new_order.to_dict()
@@ -314,6 +310,8 @@ def create_order():
         # 序列化创建的订单
         order_data = serialize_order(new_order, is_admin=is_admin)
 
+        import json
+        from flask import Response
         response_data = {
             "code": 200,
             "msg": "订单创建成功",
@@ -473,10 +471,6 @@ def update_order(order_id):
         order.search_field = order.generate_search_field()
         db.session.commit()
 
-        # 导入json模块
-        import json
-        from flask import Response
-        
         # 创建操作日志
         # 记录修改的字段
         updated_fields = {}
@@ -516,6 +510,8 @@ def update_order(order_id):
 
         order_data = serialize_order(order, is_admin=is_admin)
 
+        import json
+        from flask import Response
         response_data = {
             "code": 200,
             "msg": "订单更新成功",
@@ -573,9 +569,6 @@ def delete_order(order_id):
         # 减少订单总统计数据
         DataChangeStats.increment_stats('order', 'total', -1)
 
-        # 导入json模块
-        import json
-        
         # 删除订单
         db.session.delete(order)
         db.session.commit()

@@ -1,13 +1,51 @@
 <template>
   <div class="order-status-report-container">
     <!-- 公共头部 -->
-    <CommonHeader :title="`订单进度报告 - ${orderInfo?.contract_no || ''}`" />
-
+    <!-- <CommonHeader :title="`订单进度报告 - ${orderInfo?.contract_no || ''}`" /> -->
+    <span><h1>订单 [ {{ orderInfo?.contract_no || '' }} ] 进度报告</h1></span>
     <div v-if="loading" class="loading-container">
       <el-skeleton :rows="10" animated />
     </div>
 
     <div v-else-if="orderInfo" class="report-content">
+      <!-- 询盘信息（仅在需要时显示） -->
+      <el-card v-if="showInquiryDetails && inquiryInfo" class="report-section">
+        <template #header>
+          <div class="card-header">
+            <span>关联询盘信息</span>
+          </div>
+        </template>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="询盘地区">{{ inquiryInfo.area || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="询盘日期">{{ formatDate(inquiryInfo.inquiry_date) || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="询盘来源">{{ inquiryInfo.inquiry_source || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="公司名称">{{ inquiryInfo.company_name || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="联系人">{{ inquiryInfo.contact_person || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="电话">{{ inquiryInfo.phone || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="邮箱">{{ inquiryInfo.email || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="包装产品">{{ inquiryInfo.packaging_product || '暂无信息' }}</el-descriptions-item>
+          <el-descriptions-item label="机器类型" :span="2">{{ inquiryInfo.machine_type || '暂无信息' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <!-- 询盘沟通记录 -->
+        <div v-if="inquiryInfo.communications && inquiryInfo.communications.length > 0" class="inquiry-communications-section" style="margin-top: 20px;">
+          <h4>询盘沟通记录</h4>
+          <el-table :data="inquiryInfo.communications" style="width: 100%; margin-top: 10px;">
+            <el-table-column prop="communication_date" label="日期" width="120">
+              <template #default="scope">
+                {{ formatDate(scope.row.update_time || scope.row.communication_date) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="subject" label="主题" width="200" />
+            <el-table-column prop="content" label="内容" />
+            <el-table-column prop="creator_name" label="沟通人" width="120" />
+          </el-table>
+        </div>
+        <div v-else class="no-communications-message" style="margin-top: 20px; color: #909399; font-style: italic;">
+          暂无沟通记录
+        </div>
+      </el-card>
+
       <!-- 订单基础信息 -->
       <el-card class="report-section">
         <template #header>
@@ -207,11 +245,15 @@ const statusLogs = ref<any[]>([]);
 const tasks = ref<any[]>([]);
 const loading = ref(false);
 
+// 询盘相关信息
+const inquiryInfo = ref<any>(null);
+const showInquiryDetails = ref(false);
+
 // 视频播放相关
 const showVideoPlayer = ref(false);
 const currentVideoSrc = ref('');
 
-// 获取URL参数中的订单ID
+// 获取URL参数中的订单ID和其他参数
 const orderId = ref<number | null>(null);
 
 // 计算属性和方法
@@ -392,6 +434,54 @@ const fetchOrderStatusReport = async () => {
       }
     } else {
       tasks.value = [];
+    }
+
+    // 检查是否需要获取询盘详情
+    const withInquiryValue = route.query.withInquiry;
+    const withInquiry = (typeof withInquiryValue === 'string' && withInquiryValue === 'true') || 
+                       (typeof withInquiryValue === 'boolean' && withInquiryValue === true) || 
+                       withInquiryValue === '1';
+    if (withInquiry) {
+      // 通过订单信息获取关联的询盘ID
+      if (orderInfo.value && orderInfo.value.inquiry_id) {
+        try {
+          const inquiryResponse: any = await request.get(`/api/inquiries/${orderInfo.value.inquiry_id}`);
+          inquiryInfo.value = inquiryResponse;
+
+          // 获取关联的沟通记录
+          const communicationsResponse: any = await request.get(`/api/inquiries/${orderInfo.value.inquiry_id}/communications`);
+          inquiryInfo.value.communications = (communicationsResponse.list || []).reverse();
+
+          showInquiryDetails.value = true;
+        } catch (inquiryError) {
+          console.error('获取询盘详情失败:', inquiryError);
+          ElMessage.warning('获取关联询盘详情失败');
+          showInquiryDetails.value = false;
+        }
+      } else {
+        // 如果订单没有关联询盘，尝试通过URL参数获取
+        const inquiryId = route.query.inquiryId;
+        if (inquiryId) {
+          try {
+            const inquiryIdNum = typeof inquiryId === 'string' ? parseInt(inquiryId, 10) : inquiryId;
+            const inquiryResponse: any = await request.get(`/api/inquiries/${inquiryIdNum}`);
+            inquiryInfo.value = inquiryResponse;
+
+            // 获取关联的沟通记录
+            const communicationsResponse: any = await request.get(`/api/inquiries/${inquiryIdNum}/communications`);
+            inquiryInfo.value.communications = (communicationsResponse.list || []).reverse();
+
+            showInquiryDetails.value = true;
+          } catch (inquiryError) {
+            console.error('获取询盘详情失败:', inquiryError);
+            ElMessage.warning('获取关联询盘详情失败');
+            showInquiryDetails.value = false;
+          }
+        } else {
+          ElMessage.info('该订单未关联询盘');
+          showInquiryDetails.value = false;
+        }
+      }
     }
   } catch (error) {
     console.error('获取订单进度报告失败:', error);

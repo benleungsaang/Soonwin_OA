@@ -20,6 +20,16 @@
         >
           <el-icon style="margin-right: 5px;"><DocumentAdd /></el-icon> 申请考勤操作
         </el-button>
+
+        <!-- 考勤数据JSON导出 - 仅管理员可见 -->
+        <el-button
+          v-if="isCurrentUserAdmin"
+          type="success"
+          class="function-btn"
+          @click="goToJsonExportAttendance"
+        >
+          <el-icon style="margin-right: 5px;"><Download /></el-icon> 导出考勤JSON
+        </el-button>
       </div>
     </el-card>
 
@@ -287,7 +297,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { DocumentAdd, Search, CircleCheck, CircleClose, Document, Delete, Memo } from '@element-plus/icons-vue';
+import { DocumentAdd, Search, Document, Delete, Memo, Download } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 import { hasModulePermission, ModuleNames, getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils';
 import { getOperations, approveOperation as apiApproveOperation, deleteOperation as apiDeleteOperation } from '@/api/attendance';
@@ -630,6 +640,11 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
+
+// 跳转到考勤JSON导出页面
+const goToJsonExportAttendance = () => {
+  router.push('/attendance/json-export');
+};
 
 // 判断是否为图片文件
 const isImageFile = (file: string) => {

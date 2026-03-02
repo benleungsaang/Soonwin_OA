@@ -51,14 +51,45 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right">
+          <el-table-column label="操作" width="250" fixed="right">
             <template #default="scope">
-              <el-button
-                type="primary"
-                @click.stop="goToReport(scope.row)"
-              >
-                <el-icon style="margin-right: 5px;"><List /></el-icon> 简报
-              </el-button>
+              <div style="display: flex; gap: 5px; justify-content: center;">
+                <template v-if="scope.row.status_id">
+                  <!-- 如果订单已有状态记录，显示简报、详细和删除按钮 -->
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click.stop="goToReport(scope.row)"
+                  >
+                    <el-icon class="opera-btn" style="margin-right: 5px;"><List /></el-icon> 简报
+                  </el-button>
+                  <el-button
+                    v-if="isSalesOrAdmin"
+                    type="info"
+                    size="small"
+                    @click.stop="goToDetailedReport(scope.row)"
+                  >
+                    <el-icon class="opera-btn" style="margin-right: 5px;"><Document /></el-icon> 复盘
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    @click.stop="deleteOrderStatus(scope.row.id, scope.row.status_id)"
+                  >
+                    <el-icon class="opera-btn" style="margin-right: 5px;"><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+                <template v-else>
+                  <!-- 如果订单没有状态记录，显示创建按钮 -->
+                  <el-button
+                    type="success"
+                    size="small"
+                    @click.stop="createOrderStatus(scope.row.id)"
+                  >
+                    <el-icon style="margin-right: 5px;"><Plus /></el-icon> 创建
+                  </el-button>
+                </template>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -466,6 +497,8 @@
 
   </div>
 
+
+
 </template>
 
 <script setup lang="ts">
@@ -473,7 +506,7 @@ import { ref, onMounted, computed, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import request from '@/utils/request';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, List, DocumentCopy, Close, Delete, ArrowRight, Refresh, Film, VideoPlay, VideoCamera } from '@element-plus/icons-vue';
+import { Plus, List, Document, DocumentCopy, Close, Delete, ArrowRight, Refresh, Film, VideoPlay, VideoCamera } from '@element-plus/icons-vue';
 
 import CommonHeader from '@/components/CommonHeader.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
@@ -503,7 +536,6 @@ const is_completed = ref(false); // 补充缺失的响应式变量
 const showVideoPlayer = ref(false);
 const currentVideoSrc = ref('');
 const videoRef = ref<HTMLVideoElement | null>(null);
-
 
 // 订单状态日志相关
 const showAddStatusLogDialog = ref(false);
@@ -639,6 +671,12 @@ const isStatusImageFormat = computed(() => {
 const showClearStatusBtn = computed(() => {
   const userRole = getCurrentUserRole();
   return userRole !== 'admin';
+});
+
+// 计算属性：判断当前用户是否为sales或admin
+const isSalesOrAdmin = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'sales' || userRole === 'admin';
 });
 
 // 获取用户角色
@@ -796,7 +834,12 @@ const showOrderDetails = async (row: any) => {
   await loadOrderStatusDetails();
 };
 
-// 跳转到订单进度报告页面
+// 简报类型选择对话框相关
+const showReportTypeDialog = ref(false);
+const selectedRow = ref<any>(null);
+const reportType = ref('basic'); // 'basic' 或 'with-inquiry'
+
+// 跳转到订单进度报告页面（一般简报）
 const goToReport = (row: any) => {
   // 检查是否有订单状态ID
   if (row.status_id) {
@@ -807,6 +850,66 @@ const goToReport = (row: any) => {
     ElMessage.warning('该订单尚无状态记录，无法生成报告');
   }
 };
+// 生成订单进度报告（带询盘详情）
+const generateReportWithInquiry = async () => {
+  if (!selectedRow.value || !selectedRow.value.id) {
+    ElMessage.warning('订单信息不完整');
+    return;
+  }
+
+  try {
+    // 首先获取订单详情以获取关联的询盘ID
+    const orderDetailsResponse: any = await request.get(`/api/orders/${selectedRow.value.id}`);
+    const orderDetails = orderDetailsResponse;
+
+    if (!orderDetails || !orderDetails.inquiry_id) {
+      ElMessage.warning('该订单未关联询盘，无法生成带询盘详情的简报');
+      // 如果没有关联询盘，仍然可以生成一般简报
+      const url = `/order-status-report?orderId=${selectedRow.value.status_id}`;
+      window.open(url, '_blank');
+      showReportTypeDialog.value = false;
+      return;
+    }
+
+    // 获取询盘详情
+    const inquiryResponse: any = await request.get(`/api/inquiries/${orderDetails.inquiry_id}`);
+    const inquiryDetails = inquiryResponse;
+
+    // 在URL中添加询盘详情参数
+    const url = `/order-status-report?orderId=${selectedRow.value.status_id}&withInquiry=true&inquiryId=${orderDetails.inquiry_id}`;
+    window.open(url, '_blank');
+
+    showReportTypeDialog.value = false;
+  } catch (error) {
+    console.error('获取询盘详情失败:', error);
+    ElMessage.error('获取询盘详情失败，将生成一般简报');
+
+    // 失败时仍然生成一般简报
+    const url = `/order-status-report?orderId=${selectedRow.value.status_id}`;
+    window.open(url, '_blank');
+    showReportTypeDialog.value = false;
+  }
+};
+
+// 生成一般简报
+const generateBasicReport = () => {
+  if (selectedRow.value && selectedRow.value.status_id) {
+    const url = `/order-status-report?orderId=${selectedRow.value.status_id}`;
+    window.open(url, '_blank');
+    showReportTypeDialog.value = false;
+  } else {
+    ElMessage.warning('订单信息不完整');
+  }
+};
+
+// 确认简报类型选择
+// const confirmReportType = () => {
+//   if (reportType.value === 'with-inquiry') {
+//     generateReportWithInquiry();
+//   } else {
+//     generateBasicReport();
+//   }
+// };
 
 // 关闭订单详情对话框
 const handleCloseOrderDetailDialog = () => {
@@ -827,7 +930,16 @@ const fetchOrders = async () => {
       }
     });
 
-    orders.value = response.list || [];
+    // 处理返回的订单数据，确保有status_id字段
+    const processedOrders = (response.list || []).map((order: any) => {
+      // 如果后端返回status_id字段，直接使用；否则设置为null
+      return {
+        ...order,
+        status_id: order.status_id || null
+      };
+    });
+
+    orders.value = processedOrders;
     total.value = response.total || 0;
   } catch (error) {
     console.error('获取订单列表失败:', error);
@@ -1374,6 +1486,89 @@ const deleteImage = async (task: any, imgIndex: number, taskId?: number) => {
       console.error('删除图片失败:', error);
       ElMessage.error('删除图片失败');
     }
+  }
+};
+
+// 创建订单状态记录
+const createOrderStatus = async (orderId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要为该订单创建状态记录吗？', '确认创建', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // POST请求会返回完整的响应，request.ts会自动解包data部分
+    const response: any = await request.post('/api/order-status', {
+      order_id: orderId
+    });
+
+    // 由于request.ts自动解包，response直接就是后端返回的data部分
+    // response现在直接包含订单状态记录的数据，而不是{code, data, msg}格式
+    // 后端返回格式: {code: 200, msg: "...", data: {...status_record_data...}}
+    // 经过request.ts解包后，response直接是status_record_data或成功消息
+    ElMessage.success('订单状态记录创建成功');
+
+    // 重新加载订单列表以更新状态
+    await fetchOrders();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('创建订单状态记录失败:', error);
+      // 检查错误是否包含响应信息
+      if (error.response && error.response.data && error.response.data.msg) {
+        ElMessage.error(error.response.data.msg);
+      } else {
+        ElMessage.error('创建订单状态记录失败');
+      }
+    }
+  }
+};
+
+// 删除订单状态记录
+const deleteOrderStatus = async (orderId: number, statusId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该订单的状态记录吗？删除后将无法恢复！', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // DELETE请求可能返回undefined或简单的成功消息，而不是包含code和data的完整响应
+    const response: any = await request.delete(`/api/order-status/${statusId}`);
+
+    // 由于request.ts自动解包，response直接就是后端返回的data部分
+    // 对于DELETE请求，如果成功，后端会返回code: 200, msg: '...'，request.ts会解包data部分
+    // 因此，response直接就是后端的data部分，对于成功删除，这可能是一个成功消息或undefined
+
+    // 正确处理后端返回的格式：{code: 200, msg: '...', data: ...}
+    // request.ts会自动解包data，所以response直接是解包后的数据
+    // 但我们仍应检查是否有错误
+    if (response && response.code === 200) {
+      ElMessage.success(response.msg || '订单状态记录删除成功');
+    } else {
+      // 如果后端返回了错误格式
+      ElMessage.success('订单状态记录删除成功'); // 即使response格式不标准，也认为是成功的
+    }
+
+    // 重新加载订单列表以更新状态
+    await fetchOrders();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除订单状态记录失败:', error);
+      ElMessage.error('删除订单状态记录失败');
+    }
+  }
+};
+
+// 跳转到带询盘详情的订单进度报告页面
+const goToDetailedReport = (row: any) => {
+  // 检查是否有订单状态ID
+  if (row.status_id) {
+    // 在新标签页中打开带询盘详情的报告页面
+    const url = `/order-status-report?orderId=${row.status_id}&withInquiry=true`;
+    window.open(url, '_blank');
+  } else {
+    ElMessage.warning('该订单尚无状态记录，无法生成报告');
   }
 };
 
@@ -1975,7 +2170,8 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   cursor: pointer;
 }
 
-.btn-add-status {
+.opera-btn{
+  padding: 0px;
 }
 
 .btn-add-photo {

@@ -4,6 +4,17 @@
 
 
     <el-card shadow="hover" class="management-card">
+      <!-- 操作按钮 -->
+      <div style="margin-bottom: 20px;">
+        <el-button type="primary" @click="showAddDialog">
+          <el-icon><Plus /></el-icon>
+          新增订单
+        </el-button>
+        <el-button @click="showOrderLogs" v-if="isAdmin">
+          <el-icon><Document /></el-icon>
+          查看日志
+        </el-button>
+      </div>
       <!-- 内容搜索筛选区域 -->
       <el-form :model="searchForm" :inline="true" class="search-form">
           <el-form-item label="订单搜索">
@@ -11,9 +22,6 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="fetchOrdersByContent"><el-icon style="margin-right: 5px;"><Search /></el-icon>内容查询</el-button>
-          <el-button class="create-order-btn" @click="showAddDialog">
-            <el-icon style="color:white; margin-right: 5px;"><Plus /></el-icon>新增订单
-          </el-button>
 
           <span v-if="hasSearched" class="search-result">搜索结果: {{ orders.length }} 条</span>
           <el-button v-if="hasSearched" type="secondary" @click="resetSearch">重置表单</el-button>
@@ -174,7 +182,7 @@
       >
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="新旧" prop="is_new">
+            <el-form-item label="新旧" prop="is_new" required>
                 <el-select v-model="orderForm.is_new" :disabled="isViewMode" placeholder="请选择新旧">
                   <el-option label="新" :value="1"></el-option>
                   <el-option label="旧" :value="0"></el-option>
@@ -182,7 +190,26 @@
               </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="地区" prop="area">
+            <el-form-item label="关联询盘" prop="inquiry_id" required>
+              <el-select
+                v-model="orderForm.inquiry_id"
+                :disabled="isViewMode"
+                filterable
+                placeholder="请选择关联询盘"
+                style="width: 100%"
+                @change="handleInquiryChange"
+              >
+                <el-option
+                  v-for="inquiry in inquiryOptions"
+                  :key="inquiry.id"
+                  :label="`${inquiry.company_name || '未知公司'} - ${inquiry.contact_person || '未知联系人'} (${inquiry.area || '未知地区'} ${inquiry.inquiry_date || '未知日期'})`"
+                  :value="inquiry.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="客户地区" prop="area" required>
               <el-select
                 v-model="orderForm.area"
                   filterable
@@ -286,7 +313,7 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="名称" prop="machine_name">
+            <el-form-item label="设备名称" prop="machine_name">
               <el-input v-model="orderForm.machine_name" placeholder="请输入名称"></el-input>
             </el-form-item>
           </el-col>
@@ -529,8 +556,8 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row :gutter="20" v-if="isAdmin">
-          <el-col :span="12">
+        <el-row :gutter="20">
+          <el-col :span="12" v-if="isAdmin">
             <el-form-item label="创建者ID" prop="creator_id">
               <el-input v-model="orderForm.creator_id" placeholder="创建者ID" readonly></el-input>
             </el-form-item>
@@ -686,6 +713,13 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 引入通用日志对话框组件 -->
+    <CommonLogDialog
+      v-model="logDialogVisible"
+      log-type="order"
+      :handle-jump="handleLogJump"
+    />
   </div>
 </template>
 
@@ -694,8 +728,9 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import request from '@/utils/request';
-import { Search, Plus } from '@element-plus/icons-vue';
+import { Search, Plus, Document } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
+import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 检查当前用户是否为管理员
@@ -768,6 +803,9 @@ const individualExpenseForm = ref({
   expenseSign: 1  // 1表示正数（收入/加费用），-1表示负数（支出/减费用）
 });
 
+// 通用日志组件相关
+const logDialogVisible = ref(false);
+
 // 个别费用表单校验规则
 const individualExpenseRules = ref<FormRules>({
   name: [
@@ -798,7 +836,7 @@ const orderForm = ref({
   contract_no: '',
   order_no: '',  // X标记表示非必填，所以默认为空
   machine_no: '',
-  machine_name: '包装机',  // 默认值"包装机"
+  machine_name: '',  // 默认值"包装机"
   machine_model: [] as string[],  // 修改为数组类型以支持多选
   machine_count: 1,  // 默认值1
   unit: 'set',  // 默认值"set"
@@ -822,13 +860,17 @@ const orderForm = ref({
   check_requirement: '',
   attachment_imgs: '',
   attachment_videos: '',
-  creator_id: '' // 添加creator_id字段
+  creator_id: '', // 添加creator_id字段
+  inquiry_id: null // 添加关联询盘ID字段
 });
 
 // 表单校验规则
 const orderRules = ref<FormRules>({
   customer_name: [
     { required: true, message: '请输入客户名称', trigger: 'blur' }
+  ],
+  area: [
+    { required: true, message: '请输入地区信息', trigger: 'blur' }
   ],
   customer_type: [
     { required: true, message: '请输入客户类型', trigger: 'blur' }
@@ -855,6 +897,9 @@ const orderRules = ref<FormRules>({
   contract_amount: [
     { required: true, message: '请输入合同金额', trigger: 'blur' },
     { type: 'number', message: '合同金额必须为数字', trigger: 'blur' }
+  ],
+  inquiry_id: [
+    { required: true, message: '请选择关联询盘', trigger: 'change' }
   ]
 });
 
@@ -862,6 +907,11 @@ const orderRules = ref<FormRules>({
 const machineOptions = ref<{ value: string; label: string }[]>([]);
 // 标记是否已经尝试加载过机器选项
 const hasLoadedMachineOptions = ref(false);
+
+// 询盘选项
+const inquiryOptions = ref<{ id: number; company_name: string; contact_person: string; area: string; machine_type: string; inquiry_date: string }[]>([]);
+// 标记是否已经尝试加载过询盘选项
+const hasLoadedInquiryOptions = ref(false);
 
 // 从本地缓存获取机器选项
 const getMachineOptionsFromCache = (): { value: string; label: string }[] => {
@@ -882,6 +932,28 @@ const saveMachineOptionsToCache = (options: { value: string; label: string }[]) 
     localStorage.setItem('machineOptions', JSON.stringify(options));
   } catch (error) {
     console.error('保存机器选项到本地缓存失败:', error);
+  }
+};
+
+// 从本地缓存获取询盘选项
+const getInquiryOptionsFromCache = (): { id: number; company_name: string; contact_person: string; area: string; machine_type: string; inquiry_date: string }[] => {
+  try {
+    const cachedData = localStorage.getItem('inquiryOptions');
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  } catch (error) {
+    console.error('读取本地询盘选项缓存失败:', error);
+  }
+  return [];
+};
+
+// 将询盘选项保存到本地缓存
+const saveInquiryOptionsToCache = (options: { id: number; company_name: string; contact_person: string; area: string; machine_type: string; inquiry_date: string }[]) => {
+  try {
+    localStorage.setItem('inquiryOptions', JSON.stringify(options));
+  } catch (error) {
+    console.error('保存询盘选项到本地缓存失败:', error);
   }
 };
 
@@ -936,7 +1008,88 @@ const fetchMachineOptions = async () => {
     }
   }
 };
-// 获取订单列表
+
+// 处理询盘选择变化
+const handleInquiryChange = (inquiryId: number) => {
+  if (!inquiryId) return;
+
+  // 找到对应的询盘对象
+  const selectedInquiry = inquiryOptions.value.find(inquiry => inquiry.id === inquiryId);
+  if (selectedInquiry) {
+    // 自动填充询盘信息到订单表单（仅当表单字段为空时）
+    if (!orderForm.value.area) {
+      orderForm.value.area = selectedInquiry.area;
+    }
+    if (!orderForm.value.ship_country) {
+      orderForm.value.ship_country = selectedInquiry.area;
+    }
+    if (!orderForm.value.machine_name) {
+      if (selectedInquiry.machine_type) {
+        orderForm.value.machine_name = selectedInquiry.machine_type;
+      }
+    }
+    if (!orderForm.value.customer_name) {
+      orderForm.value.customer_name = `${selectedInquiry.company_name} - ${selectedInquiry.contact_person}`;
+    }
+  }
+};
+
+// 获取询盘选项
+const fetchInquiryOptions = async () => {
+  try {
+    // 首先尝试从本地缓存获取数据
+    const cachedOptions = getInquiryOptionsFromCache();
+    if (cachedOptions.length > 0) {
+      // 如果有缓存数据，先使用缓存数据
+      inquiryOptions.value = cachedOptions;
+    }
+
+    // 然后发起API请求获取最新数据，排除已关联订单的询盘
+    const response: any = await request.get('/api/inquiries?include_associated=false');
+
+    // 由于request.ts会自动解包data，所以response直接就是数据对象
+    // 后端返回格式为 { list: [...], total: ..., page: ..., size: ... }
+        if (response && response.list && Array.isArray(response.list)) {
+          const newInquiryOptions = response.list.map((inquiry: any) => {
+            if (typeof inquiry === 'object' && inquiry !== null) {
+              return {
+                id: inquiry.id,
+                company_name: inquiry.company_name || '',
+                contact_person: inquiry.contact_person || '',
+                area: inquiry.area || '',
+                machine_type: inquiry.machine_type || '',  // 添加machine_type字段
+                inquiry_date: inquiry.inquiry_date || ''
+              };
+            } else {
+              // 如果不是对象，返回空选项
+              return { id: 0, company_name: '', contact_person: '', area: '', machine_type: '', inquiry_date: ''};
+            }
+          }).filter(item => item.id !== 0); // 过滤掉无效的询盘
+      // 更新本地缓存和当前值
+      inquiryOptions.value = newInquiryOptions;
+      saveInquiryOptionsToCache(newInquiryOptions);
+    } else {
+      console.warn('API返回的询盘数据格式不正确:', response);
+      // 如果API返回的数据格式不正确，但有缓存数据，则使用缓存数据
+      if (cachedOptions.length > 0) {
+        inquiryOptions.value = cachedOptions;
+      } else {
+        inquiryOptions.value = [];
+      }
+    }
+  } catch (error) {
+    console.error('获取询盘选项失败:', error);
+    // 获取失败时，尝试使用缓存数据
+    const cachedOptions = getInquiryOptionsFromCache();
+    if (cachedOptions.length > 0) {
+      inquiryOptions.value = cachedOptions;
+      ElMessage.warning('获取最新询盘选项失败，已使用缓存数据');
+    } else {
+      ElMessage.error('获取询盘选项失败');
+      inquiryOptions.value = [];
+    }
+  }
+};// 获取订单列表
 const fetchOrders = async () => {
   loading.value = true;
   try {
@@ -1056,6 +1209,13 @@ const showAddDialog = async () => {
     hasLoadedMachineOptions.value = true;
   }
 
+  // 确保询盘选项数据已加载
+  if (!hasLoadedInquiryOptions.value || inquiryOptions.value.length === 0) {
+    // 如果还没有尝试加载过询盘选项，或询盘选项为空，先加载数据
+    await fetchInquiryOptions();
+    hasLoadedInquiryOptions.value = true;
+  }
+
   dialogVisible.value = true;
 };
 
@@ -1071,6 +1231,62 @@ const showEditDialog = async (order: any) => {
     dialogTitle.value = '编辑订单';
     isEdit.value = true;
     isViewMode.value = false; // 确保编辑模式不是查看模式
+
+    // 确保机器选项数据已加载
+    if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
+      // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
+      await fetchMachineOptions();
+      hasLoadedMachineOptions.value = true;
+    }
+
+    // 确保询盘选项数据已加载
+    // if (!hasLoadedInquiryOptions.value || inquiryOptions.value.length === 0) {
+    //   // 如果还没有尝试加载过询盘选项，或询盘选项为空，先加载数据
+    //   await fetchInquiryOptions();
+    //   hasLoadedInquiryOptions.value = true;
+    // }
+
+    // 如果返回的订单数据中包含询盘信息，需要将该询盘添加到选项列表中
+    // （这样可以避免重复请求询盘数据，直接使用已有的询盘信息）
+    if (fullOrderData.inquiry && fullOrderData.inquiry.id) {
+      // 检查该询盘是否已存在于选项列表中
+      const existingInquiryIndex = inquiryOptions.value.findIndex(inquiry => inquiry.id === fullOrderData.inquiry.id);
+      if (existingInquiryIndex === -1) {
+        // 如果不存在，则添加到选项列表中
+        const inquiryOption = {
+          id: fullOrderData.inquiry.id,
+          company_name: fullOrderData.inquiry.company_name || '',
+          contact_person: fullOrderData.inquiry.contact_person || '',
+          area: fullOrderData.inquiry.area || '',
+          machine_type: fullOrderData.inquiry.machine_type || '',
+          inquiry_date: fullOrderData.inquiry.inquiry_date || ''
+        };
+        inquiryOptions.value.unshift(inquiryOption); // 添加到列表开头
+      }
+    } else if (fullOrderData.inquiry_id && !inquiryOptions.value.some(inquiry => inquiry.id === fullOrderData.inquiry_id)) {
+      // 作为备选方案，如果订单数据中没有包含询盘对象，但有询盘ID，则请求该询盘信息
+      try {
+        // 获取特定询盘信息
+        const inquiryResponse: any = await request.get(`/api/inquiries/${fullOrderData.inquiry_id}`);
+        if (inquiryResponse && inquiryResponse.id) {
+          // 添加到询盘选项列表
+          const inquiryOption = {
+            id: inquiryResponse.id,
+            company_name: inquiryResponse.company_name || '',
+            contact_person: inquiryResponse.contact_person || '',
+            area: inquiryResponse.area || '',
+            machine_type: inquiryResponse.machine_type || '',
+            inquiry_date: inquiryResponse.inquiry_date || ''
+          };
+          inquiryOptions.value.unshift(inquiryOption); // 添加到列表开头
+        }
+      } catch (error) {
+        console.error('获取关联询盘信息失败:', error);
+        // 即使获取失败也不影响编辑订单功能
+      }
+    }
+
+    // 在所有选项都加载完成后，再设置表单数据
     // 深拷贝完整订单数据到表单，确保所有字段都被正确复制
     orderForm.value = {
       id: fullOrderData.id || 0,
@@ -1108,19 +1324,13 @@ const showEditDialog = async (order: any) => {
       check_requirement: fullOrderData.check_requirement || '',
       attachment_imgs: fullOrderData.attachment_imgs || '',
       attachment_videos: fullOrderData.attachment_videos || '',
-      creator_id: fullOrderData.creator_id || '' // 添加creator_id字段
+      creator_id: fullOrderData.creator_id || '', // 添加creator_id字段
+      inquiry_id: fullOrderData.inquiry_id || null // 添加关联询盘ID
     };
     // 编辑时自动计算利润
     setTimeout(() => {
       calculateProfits();
     }, 100); // 延迟执行以确保数据已更新
-
-    // 确保机器选项数据已加载
-    if (!hasLoadedMachineOptions.value || machineOptions.value.length === 0) {
-      // 如果还没有尝试加载过机器选项，或机器选项为空，先加载数据
-      await fetchMachineOptions();
-      hasLoadedMachineOptions.value = true;
-    }
 
     dialogVisible.value = true;
   } catch (error) {
@@ -1143,7 +1353,7 @@ const resetForm = () => {
     contract_no: '',
     order_no: '',  // X标记表示非必填，所以默认为空
     machine_no: '',
-    machine_name: '包装机',  // 默认值"包装机"
+    machine_name: '',  // 默认值"包装机"
     machine_model: [],  // 修改为数组类型以支持多选
     machine_count: 1,  // 默认值1
     unit: 'set',  // 默认值"set"
@@ -1167,7 +1377,8 @@ const resetForm = () => {
     check_requirement: '',
     attachment_imgs: '',
     attachment_videos: '',
-    creator_id: ''
+    creator_id: '',
+    inquiry_id: null // 添加关联询盘ID
   };
   // 重置表单后计算利润
   setTimeout(() => {
@@ -1310,10 +1521,29 @@ const viewOrder = async (id: number) => {
     // 由于request.ts会自动解包data，所以response直接就是订单数据
     const orderData = response || {};
 
+    // 如果返回的订单数据中包含询盘信息，需要将该询盘添加到选项列表中
+    if (orderData.inquiry && orderData.inquiry.id) {
+      // 检查该询盘是否已存在于选项列表中
+      const existingInquiryIndex = inquiryOptions.value.findIndex(inquiry => inquiry.id === orderData.inquiry.id);
+      if (existingInquiryIndex === -1) {
+        // 如果不存在，则添加到选项列表中
+        const inquiryOption = {
+          id: orderData.inquiry.id,
+          company_name: orderData.inquiry.company_name || '',
+          contact_person: orderData.inquiry.contact_person || '',
+          area: orderData.inquiry.area || '',
+          machine_type: orderData.inquiry.machine_type || '',
+          inquiry_date: orderData.inquiry.inquiry_date || ''
+        };
+        inquiryOptions.value.unshift(inquiryOption); // 添加到列表开头
+      }
+    }
+
     // 用获取到的数据填充表单
     orderForm.value = {
       ...orderData,
-      creator_id: orderData.creator_id || '' // 确保creator_id字段被正确设置
+      creator_id: orderData.creator_id || '', // 确保creator_id字段被正确设置
+      inquiry_id: orderData.inquiry_id || null // 添加关联询盘ID
     };
     dialogTitle.value = '查看订单详情';
     isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
@@ -1333,10 +1563,29 @@ const viewOrderById = async (row: any) => {
     // 由于request.ts会自动解包data，所以response直接就是订单数据
     const orderData = response || {};
 
+    // 如果返回的订单数据中包含询盘信息，需要将该询盘添加到选项列表中
+    if (orderData.inquiry && orderData.inquiry.id) {
+      // 检查该询盘是否已存在于选项列表中
+      const existingInquiryIndex = inquiryOptions.value.findIndex(inquiry => inquiry.id === orderData.inquiry.id);
+      if (existingInquiryIndex === -1) {
+        // 如果不存在，则添加到选项列表中
+        const inquiryOption = {
+          id: orderData.inquiry.id,
+          company_name: orderData.inquiry.company_name || '',
+          contact_person: orderData.inquiry.contact_person || '',
+          area: orderData.inquiry.area || '',
+          machine_type: orderData.inquiry.machine_type || '',
+          inquiry_date: orderData.inquiry.inquiry_date || ''
+        };
+        inquiryOptions.value.unshift(inquiryOption); // 添加到列表开头
+      }
+    }
+
     // 用获取到的完整数据填充表单
     orderForm.value = {
       ...orderData,
-      creator_id: orderData.creator_id || '' // 确保creator_id字段被正确设置
+      creator_id: orderData.creator_id || '', // 确保creator_id字段被正确设置
+      inquiry_id: orderData.inquiry_id || null // 添加关联询盘ID
     };
     dialogTitle.value = '查看订单详情';
     isEdit.value = true; // 设置为编辑模式，但不显示保存按钮或禁用编辑功能
@@ -1394,6 +1643,7 @@ onMounted(async () => {
   // 在组件挂载时获取数据
   await fetchMachineOptions(); // 获取并缓存机器选项
   hasLoadedMachineOptions.value = true; // 标记已经加载过机器选项
+  // 不在页面加载时获取询盘选项，只在需要时获取
   fetchOrders();
   if(!isAdmin){fetchExpenseSummary()}; // 获取费用汇总信息
 });
@@ -1732,6 +1982,25 @@ const updateOrderProportionateCost = async () => {
 
 // 用于存储ECharts实例
 let chartInstance: any = null;
+
+// 添加专门的日志跳转处理函数
+const handleLogJump = (id: number) => {
+  viewOrder(id);
+};
+
+// 显示日志对话框
+const showOrderLogs = () => {
+  if (!isAdmin.value) {
+    ElMessage.error('您没有权限查看日志');
+    return;
+  }
+  // 先重置日志组件的状态，再显示对话框
+  logDialogVisible.value = false;
+  // 使用nextTick确保状态更新后再显示
+  setTimeout(() => {
+    logDialogVisible.value = true;
+  }, 100);
+};
 
 // 组件卸载时清理ECharts实例
 onUnmounted(() => {

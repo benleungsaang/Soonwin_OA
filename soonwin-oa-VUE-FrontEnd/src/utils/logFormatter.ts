@@ -95,6 +95,45 @@ const MODULE_CONFIGS = {
       change_role: '更改角色',
       restore: '恢复'
     } as const
+  },
+  order: {
+    name: '订单',
+    actionMap: {
+      create: '创建',
+      update: '修改',
+      delete: '删除',
+      restore: '恢复'
+    } as const,
+    fieldMap: {
+      area: '地区',
+      customer_name: '客户名称',
+      customer_type: '客户类型',
+      order_time: '下单时间',
+      ship_time: '出货时间',
+      ship_country: '发运国家',
+      contract_no: '合同编号',
+      order_no: '订单编号',
+      machine_name: '机器名称',
+      machine_model: '机器型号',
+      machine_count: '主机数量',
+      contract_amount: '合同金额',
+      deposit: '定金',
+      balance: '尾款',
+      tax_rate: '税率',
+      tax_refund_amount: '退税金额',
+      currency_amount: '原始发票价',
+      payment_received: '回款',
+      machine_cost: '机器成本',
+      net_profit: '净利',
+      gross_profit: '毛利',
+      pay_type: '付款方式',
+      commission: '佣金',
+      proportionate_cost: '摊分费用',
+      individual_cost: '个别费用',
+      latest_ship_date: '最迟装运期',
+      expected_delivery: '预计交期',
+      order_dept: '下单部门'
+    } as const
   }
 } as const;
 
@@ -204,6 +243,10 @@ const LOG_FORMAT_STRATEGIES = {
   },
   employee: {
     generic: formatEmployeeLogFromGeneric,
+    legacy: formatDefaultLog
+  },
+  order: {
+    generic: formatOrderLogFromGeneric,
     legacy: formatDefaultLog
   }
 } as const;
@@ -328,7 +371,7 @@ function formatPhotoLogFromGeneric(logData: GenericLog, userName: string, operat
  */
 function formatPhotoUpdateLog(details: Record<string, any>, userName: string, actionText: string): string {
   const { changeDetails, companyName } = formatUpdatedFields(details.updated_fields, MODULE_CONFIGS.photo.fieldMap);
-  
+
   if (changeDetails.length === 0) {
     const title = fallbackValue(details.title || details.photo_data?.title || '');
     return `${userName} [ ${actionText} ] 了 [ ${title} ] 照片，但未修改任何内容。`;
@@ -419,7 +462,7 @@ function formatCreateLog(logData: GenericLog, userName: string, actionText: stri
  */
 function formatUpdateLog(logData: GenericLog, userName: string, actionText: string): string {
   const { changeDetails, companyName } = formatUpdatedFields(logData.updated_fields, MODULE_CONFIGS.inquiry.fieldMap);
-  
+
   if (changeDetails.length === 0) {
     return `${userName} [ ${actionText} ] 了一条 [ ${companyName || ''} ] 公司的询盘，但未修改任何内容。`;
   }
@@ -540,7 +583,7 @@ function formatResetStatsLog(logData: GenericLog, userName: string, actionText: 
  */
 function formatRestoreLog(logData: GenericLog, userName: string, actionText: string): string {
   const restoredDataType = logData.restored_data_type;
-  
+
   if (restoredDataType === 'communication' || restoredDataType === 'communication_update') {
     // 恢复沟通记录
     const communicationData = logData.restored_communication_data || {};
@@ -552,7 +595,7 @@ function formatRestoreLog(logData: GenericLog, userName: string, actionText: str
     return `${userName} [ ${actionText} ] 了一条来自[ ${fallbackValue(inquiryData.area, '')} ]的询盘，询盘来源[ ${fallbackValue(inquiryData.inquiry_source, '')} ]，公司为[ ${fallbackValue(inquiryData.company_name, '')} ]，联系人[ ${fallbackValue(inquiryData.contact_person, '')} ]，电话[ ${fallbackValue(inquiryData.phone, '')} ]，邮箱[ ${fallbackValue(inquiryData.email, '')} ]，包装产品[ ${fallbackValue(inquiryData.packaging_product, '')} ]，需求机器类型[ ${fallbackValue(inquiryData.machine_type, '')} ]。`;
   } else if (restoredDataType === 'inquiry_update') {
     // 恢复询盘修改
-    const inquiryData = logData.inquiry_data || {}; 
+    const inquiryData = logData.inquiry_data || {};
     const restoredFields = logData.restored_fields || [];
     const companyName = fallbackValue(inquiryData.company_name, '未知公司');
     return `${userName} [ ${actionText} ] 了[ ${companyName} ]公司的询盘修改，恢复字段: [ ${restoredFields.join(', ') || '无'} ]。`;
@@ -568,13 +611,89 @@ function formatDefaultGenericLog(logData: GenericLog): string {
   const module = fallbackValue(logData.module, '未知模块');
   const operationType = fallbackValue(logData.operation_type, '未知操作');
   const bizId = fallbackValue(logData.biz_id, '未知ID');
-  
+
   return `${userName} 对 ${module} 模块的ID为 ${bizId} 的记录执行了 [${operationType}] 操作`;
+}
+
+/**
+ * 从通用日志格式格式化订单日志
+ */
+function formatOrderLogFromGeneric(logData: GenericLog, userName: string, operationType: string): string {
+  const details = logData.operation_details || {};
+  const bizId = fallbackValue(logData.biz_id);
+  const actionText = getActionText('order', operationType);
+
+  switch (operationType) {
+    case 'create':
+      return formatOrderCreateLog(details, userName, actionText);
+    case 'update':
+      return formatOrderUpdateLog(details, userName, actionText);
+    case 'delete':
+      return formatOrderDeleteLog(details, userName, actionText);
+    case 'restore':
+      return formatOrderRestoreLog(details, userName, actionText);
+    default:
+      return `${userName} 对订单ID为 ${bizId} 的记录执行了 [${actionText}] 操作`;
+  }
+}
+
+/**
+ * 格式化创建订单日志
+ */
+function formatOrderCreateLog(details: Record<string, any>, userName: string, actionText: string): string {
+  const data = details.order_data || {};
+  const customerName = fallbackValue(data.customer_name, '');
+  const area = fallbackValue(data.area, '');
+  const contractNo = fallbackValue(data.contract_no, '');
+  const contractAmount = fallbackValue(data.contract_amount, '0');
+
+  return `${userName} [ ${actionText} ] 了 ${area} 地区的订单，客户为 [ ${customerName} ]，合同编号 [ ${contractNo} ]，合同金额 [ ${contractAmount} ]。`;
+}
+
+/**
+ * 格式化更新订单日志
+ */
+function formatOrderUpdateLog(details: Record<string, any>, userName: string, actionText: string): string {
+  const { changeDetails, customerName: extractedCustomerName } = formatUpdatedFields(details.updated_fields, MODULE_CONFIGS.order.fieldMap);
+  
+  // 优先使用从字段变更中提取的客户名称，如果没有则从order_data中获取
+  const customerName = extractedCustomerName || fallbackValue(details.customer_name || details.order_data?.customer_name || '', '');
+  
+  if (changeDetails.length === 0) {
+    return `${userName} [ ${actionText} ] 了 [ ${customerName || ''} ] 公司的订单，但未修改任何内容。`;
+  }
+
+  return `${userName} [ ${actionText} ] 了 [ ${customerName || ''} ] 公司的订单，具体修改如下：${changeDetails.join('，')}。`;
+}
+
+/**
+ * 格式化删除订单日志
+ */
+function formatOrderDeleteLog(details: Record<string, any>, userName: string, actionText: string): string {
+  const data = details.order_data || {};
+  const customerName = fallbackValue(data.customer_name, '');
+  const area = fallbackValue(data.area, '');
+  const contractNo = fallbackValue(data.contract_no, '');
+  const contractAmount = fallbackValue(data.contract_amount, '0');
+
+  return `${userName} [ ${actionText} ] 了 ${area} 地区的订单，客户为 [ ${customerName} ]，合同编号 [ ${contractNo} ]，合同金额 [ ${contractAmount} ]。`;
+}
+
+/**
+ * 格式化恢复订单日志
+ */
+function formatOrderRestoreLog(details: Record<string, any>, userName: string, actionText: string): string {
+  const data = details.order_data || {};
+  const customerName = fallbackValue(data.customer_name, '');
+  const area = fallbackValue(data.area, '');
+  const contractNo = fallbackValue(data.contract_no, '');
+
+  return `${userName} [ ${actionText} ] 了 ${area} 地区的订单，客户为 [ ${customerName} ]，合同编号 [ ${contractNo} ]。`;
 }
 
 function formatDefaultLog(logData: GenericLog): string {
   const userName = fallbackValue(logData.user, '未知用户');
   const action = fallbackValue(logData.action, '未知操作');
-  
+
   return `${userName} [ ${action} ] 了一条未知类型的记录`;
 }

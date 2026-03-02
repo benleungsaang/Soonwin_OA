@@ -221,6 +221,7 @@ const logTypeText = computed(() => {
     'inquiry': '询盘',
     'video': '视频',
     'image': '图片',
+    'order': '订单',
     'user': '人员'
   };
   return typeMap[props.logType] || props.logType;
@@ -231,6 +232,7 @@ const mainTypeText = computed(() => {
     'inquiry': '询盘',
     'video': '视频',
     'image': '图片',
+    'order': '订单',
     'user': '人员'
   };
   return typeMap[props.logType] || props.logType;

@@ -56,6 +56,12 @@ class Inquiry(db.Model):
         # 过滤空值并连接成搜索字段
         self.search_field = ' '.join(filter(None, search_values))
 
+    def has_associated_orders(self):
+        """检查此询盘是否已关联订单"""
+        from app.models.order import Order
+        associated_orders = Order.query.filter_by(inquiry_id=self.id).all()
+        return len(associated_orders) > 0
+
 
 class InquiryCommunication(db.Model):
     __tablename__ = "InquiryCommunication"

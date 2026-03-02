@@ -270,8 +270,8 @@
       </div>
 
         </div>
-        
-        
+
+
         <!-- 回收站照片列表 -->
         <div v-if="isRecycleBinMode && deletedPhotos.length > 0" class="photo-grid">
 
@@ -403,7 +403,7 @@
         </div>
 
             <!-- 无搜索结果提示 -->
-        <div v-else class="no-results">
+        <div v-else class="no-results" v-if="photos.length === 0">
           <el-empty
             :description="isRecycleBinMode ? (searchQuery ? '回收站中没有找到匹配的照片' : '回收站中暂无照片') : (searchQuery || selectedMachine ? '没有找到匹配的照片' : '暂无照片')"
             :image-size="100">
@@ -1675,7 +1675,7 @@ const batchPermanentDeletePhotos = async () => {
 
     const response = await permanentDeletePhotosAPI(selectedDeletedPhotoIds.value);
     ElMessage.success(response.message || `成功永久删除 ${selectedDeletedPhotoIds.value.length} 张照片`);
-    
+
     // 重置选择状态并刷新列表
     selectedDeletedPhotoIds.value = [];
     await fetchDeletedPhotos();
@@ -2332,6 +2332,7 @@ onMounted(() => {
 
 .no-results {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 300px;

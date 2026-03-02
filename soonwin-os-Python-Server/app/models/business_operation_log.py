@@ -179,6 +179,38 @@ def add_photo_log(photo_id, operation_type, operator_id, details):
 
 
 # ------------------------------
+# 订单管理日志适配器函数
+# ------------------------------
+def add_order_log(order_id, operation_type, operator_id, details):
+    """
+    新增订单日志
+    :param order_id: 订单ID
+    :param operation_type: 操作类型（create/update/delete等）
+    :param operator_id: 操作人ID
+    :param details: 订单专属详情（dict），如订单信息、变更字段等
+    """
+    # 确保details是字典格式
+    if isinstance(details, str):
+        try:
+            details_dict = json.loads(details)
+        except json.JSONDecodeError:
+            details_dict = {"raw_details": details}
+    else:
+        details_dict = details if details else {}
+
+    log = BusinessOperationLog(
+        module="order",  # 模块标识：订单
+        biz_id=str(order_id),
+        operation_type=operation_type,
+        operator_id=operator_id,
+        operation_details=json.dumps(details_dict, ensure_ascii=False)
+    )
+    db.session.add(log)
+    db.session.commit()
+    return log
+
+
+# ------------------------------
 # 通用查询函数
 # ------------------------------
 def get_logs_by_module(module_name, page=1, size=10, operation_type=None, operator_name=None, start_date=None, end_date=None):

@@ -359,6 +359,42 @@
           log-type="inquiry"
           :handle-jump="handleLogJump"
         />
+        
+        <!-- 删除失败提示模态框 -->
+        <el-dialog
+          title="删除失败"
+          v-model="deleteFailDialogVisible"
+          width="60%"
+          :close-on-click-modal="false"
+        >
+          <div>
+            <p style="color: #f56c6c; margin-bottom: 15px;">
+              <el-icon><Warning /></el-icon>
+              该询盘已关联订单，无法删除！
+            </p>
+            <p>关联的订单信息如下：</p>
+            <el-table
+              :data="associatedOrders"
+              style="width: 100%; margin-top: 10px;"
+              border
+            >
+              <el-table-column prop="id" label="订单ID" width="80" />
+              <el-table-column prop="contract_no" label="合同编号" width="150" />
+              <el-table-column prop="customer_name" label="客户名称" width="200" />
+              <el-table-column prop="order_time" label="下单时间" width="120" />
+              <el-table-column prop="contract_amount" label="合同金额" width="120">
+                <template #default="scope">
+                  ¥{{ scope.row.contract_amount ? scope.row.contract_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00' }}
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button type="primary" @click="deleteFailDialogVisible = false">确定</el-button>
+            </span>
+          </template>
+        </el-dialog>
       </div>
 </template>
 
@@ -368,7 +404,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import request from '@/utils/request';
 import axios from 'axios';
-import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding } from '@element-plus/icons-vue';
+import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding, Warning } from '@element-plus/icons-vue';
 import { formatBusinessLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
@@ -501,6 +537,10 @@ const communicationForm = ref({
 
 // 通用日志组件相关
 const logDialogVisible = ref(false);
+
+// 删除失败提示相关
+const deleteFailDialogVisible = ref(false);
+const associatedOrders = ref<any[]>([]);
 
 // 表单引用
 const inquiryFormRef = ref();
@@ -744,10 +784,17 @@ const deleteInquiry = async (id: number) => {
     await request.delete(`/api/inquiries/${id}`);
     ElMessage.success('询盘删除成功');
     loadInquiries();
-  } catch (error) {
+  } catch (error: any) {
     console.error('删除询盘失败:', error);
     if (error !== 'cancel') {
-      ElMessage.error('删除询盘失败');
+      // 检查错误响应是否包含关联订单信息
+      if (error.response && error.response.data && error.response.data.data && error.response.data.data.associated_orders) {
+        // 显示删除失败的模态框，包含关联订单信息
+        associatedOrders.value = error.response.data.data.associated_orders;
+        deleteFailDialogVisible.value = true;
+      } else {
+        ElMessage.error(error.response?.data?.msg || '删除询盘失败');
+      }
     }
   }
 };

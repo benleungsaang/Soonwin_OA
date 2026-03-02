@@ -17,6 +17,7 @@
         </Include>
         <Exclude>
             <Item>*.tmp</Item>
+            <Item>*.db</Item>
             <Item>*.temp</Item>
             <Item>*~</Item>
             <Item>\System Volume Information\</Item>
@@ -63,7 +64,6 @@
             <Item>*.pid</Item>
             <Item>*.seed</Item>
             <Item>*.pid.lock</Item>
-            <Item>*.db</Item>
             <Item>*.sqlite</Item>
             <Item>*.sqlite3</Item>
             <Item>data\</Item>

@@ -12,7 +12,7 @@ export function uploadAttendanceAttachment(file: File, empId: string, operationT
   formData.append('file', file);
   formData.append('emp_id', empId);
   formData.append('operation_type', operationType);
-  
+
   return request.post('/api/upload/attendance', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
