@@ -198,10 +198,12 @@ const getActionText = (module: string, operationType: string): string => {
 const formatUpdatedFields = (updatedFields?: Record<string, any>, fieldMap?: LogFieldMap): {
   changeDetails: string[];
   companyName: string;
+  customerName: string;
 } => {
   const changeDetails: string[] = [];
   let companyName = '';
-  if (!updatedFields || !fieldMap) return { changeDetails, companyName };
+  let customerName = '';
+  if (!updatedFields || !fieldMap) return { changeDetails, companyName, customerName };
 
   // 定义 value 的类型
   interface FieldValue {
@@ -222,9 +224,13 @@ const formatUpdatedFields = (updatedFields?: Record<string, any>, fieldMap?: Log
     if (field === 'company_name') {
       companyName = oldValue || newValue;
     }
+    
+    if (field === 'customer_name') {
+      customerName = oldValue || newValue;
+    }
   });
 
-  return { changeDetails, companyName };
+  return { changeDetails, companyName, customerName };
 };
 
 // 策略模式 - 模块格式化策略

@@ -194,86 +194,6 @@
               :column="3"
               border
             >
-            <el-descriptions-item :span="3" label="照片">
-                <div class="task-img-container">
-                  <!-- 修改：使用解析后的媒体文件数组渲染，包含图片和视频缩略图 -->
-                  <template v-if="getTaskMediaFiles(statusTask).length">
-                    <div
-                      v-for="(media, mediaIndex) in getTaskMediaFiles(statusTask)"
-                      :key="`media-${statusTask.id}-${mediaIndex}`"
-                      style="display: flex; margin-right: 10px; position: relative;"
-                    >
-                      <!-- 图片文件显示 -->
-                      <el-image
-                        v-if="media.file_type === 'image'"
-                        :src="media.thumb || media.url"
-                        :preview-src-list="getTaskMediaUrls(statusTask)"
-                        :initial-index="mediaIndex"
-                        preview-teleported
-                        close-on-press-esc
-                        hide-on-click-modal
-                        class="thumb-img"
-                      />
-                      <!-- 视频文件显示 -->
-                      <div
-                        v-else-if="media.file_type === 'video'"
-                        class="video-container"
-                        style="position: relative; display: inline-block;"
-                      >
-                        <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
-                        <img
-                          v-if="media.thumb"
-                          :src="media.thumb"
-                          class="thumb-img video-thumb"
-                          style="cursor: pointer;"
-                          @click="$event.stopPropagation(); playVideo(media.url)"
-                        />
-                        <!-- 如果没有缩略图，显示默认背景和图标 -->
-                        <div
-                          v-else
-                          class="thumb-img video-thumb"
-                          style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
-                          @click="playVideo(media.url)"
-                        >
-                          <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
-                        </div>
-                                              <!-- 播放按钮覆盖层 -->
-                                              <div class="video-play-overlay" @click.stop="playVideo(media.url)">
-                                                <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
-                                              </div>                      </div>
-                      <el-button
-                        class="delete-img-btn"
-                        size="small"
-                        @click="deleteMediaFromTemplate(statusTask, Number(mediaIndex))"
-                      >
-                        <el-icon><Close /></el-icon>
-                      </el-button>
-                      <!-- 显示文件类型图标 -->
-                      <div v-if="media.file_type === 'video'" class="file-type-indicator">
-                        <el-icon><VideoCamera /></el-icon>
-                      </div>
-                    </div>
-                  </template>
-
-                  <!-- 原有上传组件不变 -->
-                  <el-tooltip content="可直接拖入图片或视频" placement="bottom">
-                    <ImageUploadPreview
-                      :ref="setUploadPreviewRef(statusTask)"
-                      :task-id="getValidTaskId(statusTask)"
-                      @upload-success="onMediaUploadSuccess"
-                      @upload-failure="onMediaUploadFailure"
-                      @upload-clipboard-image="onUploadClipboardMedia"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
-                    <el-input
-                      style="margin-left: 5px;width:130px;"
-                      @paste="(e) => handleInputPaste(e, getValidTaskId(statusTask))"
-                      placeholder="粘贴图片(Ctrl+V)"
-                    ></el-input>
-                  </el-tooltip>
-                </div>
-              </el-descriptions-item>
 
               <el-descriptions-item :span="1" width="150px" label="项目名" >
                 <span class="clickable-field" @click.stop="openEditFieldDialog(statusTask, 'name', '修改任务名称', updateStatusTask)">{{ statusTask.name || '点击添加标题' }}</span>
@@ -291,6 +211,92 @@
                 />
                 <el-icon class="btn-del-task" @click="deleteTask(statusTask.task_id)"><Delete /></el-icon>
               </el-descriptions-item>
+            <el-descriptions-item :span="3" label="照片">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- 上传控件区域 -->
+                <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                  <el-tooltip content="可直接拖入图片或视频" placement="bottom">
+                    <ImageUploadPreview
+                      style="width:130px;margin: 5px 15px;"
+                      :ref="setUploadPreviewRef(statusTask)"
+                      :task-id="getValidTaskId(statusTask)"
+                      @upload-success="onMediaUploadSuccess"
+                      @upload-failure="onMediaUploadFailure"
+                      @upload-clipboard-image="onUploadClipboardMedia"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
+                    <el-input
+                      style="width:130px;"
+                      @paste="(e) => handleInputPaste(e, getValidTaskId(statusTask))"
+                      placeholder="粘贴图片(Ctrl+V)"
+                    ></el-input>
+                  </el-tooltip>
+                </div>
+
+                <!-- 媒体文件网格展示区域 -->
+                <div class="task-img-container" v-if="getTaskMediaFiles(statusTask).length">
+                  <!-- 修改：使用解析后的媒体文件数组渲染，包含图片和视频缩略图 -->
+                  <div
+                    v-for="(media, mediaIndex) in getTaskMediaFiles(statusTask)"
+                    :key="`media-${statusTask.id}-${mediaIndex}`"
+                    style="display: flex; position: relative;"
+                  >
+                    <!-- 图片文件显示 -->
+                    <el-image
+                      v-if="media.file_type === 'image'"
+                      :src="media.thumb || media.url"
+                      :preview-src-list="getTaskMediaUrls(statusTask)"
+                      :initial-index="mediaIndex"
+                      preview-teleported
+                      close-on-press-esc
+                      hide-on-click-modal
+                      class="thumb-img"
+                    />
+                    <!-- 视频文件显示 -->
+                    <div
+                      v-else-if="media.file_type === 'video'"
+                      class="video-container"
+                      style="position: relative; display: inline-block;"
+                    >
+                      <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
+                      <img
+                        v-if="media.thumb"
+                        :src="media.thumb"
+                        class="thumb-img video-thumb"
+                        style="cursor: pointer;"
+                        @click="$event.stopPropagation(); playVideo(media.url)"
+                      />
+                      <!-- 如果没有缩略图，显示默认背景和图标 -->
+                      <div
+                        v-else
+                        class="thumb-img video-thumb"
+                        style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+                        @click="playVideo(media.url)"
+                      >
+                        <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
+                      </div>
+                      <!-- 播放按钮覆盖层 -->
+                      <div class="video-play-overlay" @click.stop="playVideo(media.url)">
+                        <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
+                      </div>
+                    </div>
+                    <el-button
+                      class="delete-img-btn"
+                      size="small"
+                      @click="deleteMediaFromTemplate(statusTask, Number(mediaIndex))"
+                    >
+                      <el-icon><Close /></el-icon>
+                    </el-button>
+                    <!-- 显示文件类型图标 -->
+                    <div v-if="media.file_type === 'video'" class="file-type-indicator">
+                      <el-icon><VideoCamera /></el-icon>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-descriptions-item>
+
             </el-descriptions>
           </div>
         </el-card>
@@ -2454,11 +2460,10 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
 }
 
 .task-img-container {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start; /* 内容靠左 */
-  overflow-x: auto;
-  white-space: nowrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  max-width: 100%;
   padding: 5px 10px;
   border:rgba(167, 167, 167, 0.1) solid 1px;
   background-color: rgba(167, 167, 167, 0.1);
@@ -2539,12 +2544,15 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   /* 可选：重置默认间距 */
   margin: 0;
   padding: 0;
+  min-width: 50px; /* 确保在网格中有最小宽度 */
 }
 
 /* 图片容器样式，用于实现hover显示删除按钮 */
 .task-img-container div[style*="position: relative"] {
   position: relative;
-  display: inline-block;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* 删除图片按钮样式 */
@@ -2668,6 +2676,7 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  min-width: 50px; /* 确保在网格中有最小宽度 */
 }
 
 /* 视频播放覆盖层 */
