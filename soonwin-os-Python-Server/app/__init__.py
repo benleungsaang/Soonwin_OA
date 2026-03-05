@@ -51,6 +51,7 @@ def create_app(port=5000):
         from .models.order_inspection import OrderInspection, InspectionItem
         from .models.display_file import DisplayFile
         from .models.inquiry import Inquiry, InquiryCommunication
+        from .models.inquiry_communication_media import InquiryCommunicationMedia
         from .models.machine import Machine, PartType
         from .models.photo import Photo
         from .models.video import Video

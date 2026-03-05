@@ -44,6 +44,8 @@
         border
         :header-cell-style="{ 'text-align': 'center' }"
         :cell-style="{ 'text-align': 'center', 'vertical-align': 'middle' }"
+        @row-click="showDetails"
+        :row-style="{ cursor: 'pointer' }"
       >
         <el-table-column prop="emp_id" label="员工ID" width="120" align="center" header-align="center" />
         <el-table-column prop="name" label="姓名" width="120" align="center" header-align="center" />
@@ -71,14 +73,14 @@
             <el-button
               size="small"
               type="primary"
-              @click="showDetails(scope.row)"
+              @click.stop="showDetails(scope.row)"
               :icon="View"
               circle
             />
             <el-button
               size="small"
               type="info"
-              @click="showEditDialog(scope.row)"
+              @click.stop="showEditDialog(scope.row)"
               :icon="Edit"
               circle
             />
@@ -87,14 +89,14 @@
               <el-button
                 size="small"
                 type="warning"
-                @click="showReplaceDeviceDialogFunc(scope.row)"
+                @click.stop="showReplaceDeviceDialogFunc(scope.row)"
                 :icon="Position"
                 circle
               />
               <el-button
                 size="small"
                 type="danger"
-                @click="deleteEmployee(scope.row)"
+                @click.stop="deleteEmployee(scope.row)"
                 :icon="Delete"
                 circle
               />
@@ -104,7 +106,7 @@
               <el-button
                 size="small"
                 type="danger"
-                @click="deleteEmployee(scope.row)"
+                @click.stop="deleteEmployee(scope.row)"
                 :icon="Delete"
                 circle
               />
@@ -112,7 +114,7 @@
                 size="small"
                 type="primary"
                 v-if="scope.row.status === 'pending_approval'"
-                @click="activateEmployee(scope.row)"
+                @click.stop="activateEmployee(scope.row)"
                 :icon="CircleCheck"
                 circle
               />

@@ -415,11 +415,6 @@ def predict_compression_effect(video_info):
     - 目标码率：{target_bitrate} kbps | 帧率：{fps}→25 fps
     - 分辨率：{video_info['width']}x{video_info['height']}
     """
-    """
-    预判压缩效果（优化版本）
-    :param video_info: 视频信息字典
-    :return: (预估压缩率%, 建议等级, 推荐CRF值, 建议说明)
-    """
 
 
 def print_compression_prediction(video_info):
@@ -1062,7 +1057,7 @@ class VideoCompressGUI:
         button_text = (
             f"📹 {video_info['file_name']}\n"
             f"📊 大小: {video_info['size_mb']}MB | 分辨率: {video_info['width']}x{video_info['height']} | "
-            f"码率: {video_info['bit_rate_kbps']}kbps\n"
+            f"码率: {video_info['bit_rate_kbps']}kbps | 编码: {video_info['video_codec']}\n"
             f"⚡ 预判压缩率: {compression_rate}% | 推荐CRF: {recommended_crf} | {suggestion}"
         )
 
@@ -1317,7 +1312,7 @@ class VideoCompressGUI:
             if original_info:
                 logger('info', f"原始信息 - 大小: {original_info['size_mb']}MB, "
                            f"分辨率: {original_info['width']}x{original_info['height']}, "
-                           f"码率: {original_info['bit_rate_kbps']}kbps")
+                           f"码率: {original_info['bit_rate_kbps']}kbps | 编码: {video_info['video_codec']}")
 
             # 执行压缩
             def update_progress(progress):
@@ -1391,7 +1386,7 @@ class VideoCompressGUI:
                     logger('info', f"压缩率: {compression_rate}%, 用时: {compress_time}秒")
                     logger('info', f"压缩后信息 - 大小: {compressed_info['size_mb']}MB, "
                                f"分辨率: {compressed_info['width']}x{compressed_info['height']}, "
-                               f"码率: {compressed_info['bit_rate_kbps']}kbps")
+                               f"码率: {compressed_info['bit_rate_kbps']}kbps | 编码: {video_info['video_codec']}")
                     logger('info', "="*60)
 
                     # 将所有日志条目作为整体写入文件

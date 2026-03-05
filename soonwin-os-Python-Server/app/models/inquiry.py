@@ -78,6 +78,9 @@ class InquiryCommunication(db.Model):
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
     def to_dict(self):
+        # 获取关联的媒体文件
+        media_files = [media.to_dict() for media in self.media_files] if self.media_files else []
+        
         return {
             "id": self.id,
             "inquiry_id": self.inquiry_id,
@@ -89,5 +92,10 @@ class InquiryCommunication(db.Model):
             "creator_name": self.creator.name if self.creator else None,
             "creator_role": self.creator.user_role if self.creator else None,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
-            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None
+            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
+            "media_files": media_files,
+            "images": [media for media in media_files if media['file_type'] == 'image'],
+            "videos": [media for media in media_files if media['file_type'] == 'video'],
+            "image_count": len([media for media in media_files if media['file_type'] == 'image']),
+            "video_count": len([media for media in media_files if media['file_type'] == 'video'])
         }

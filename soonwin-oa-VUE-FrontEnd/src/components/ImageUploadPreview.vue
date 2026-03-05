@@ -162,12 +162,16 @@ import request from '@/utils/request';
 // 定义组件的 props
 interface Props {
   taskId?: number;
+  communicationId?: number; // 沟通记录ID，用于询盘沟通记录上传
   uploadImmediately?: boolean; // 控制是否立即上传，默认为true，保持向后兼容
+  uploadPath?: string; // 自定义上传路径
 }
 
 const props = withDefaults(defineProps<Props>(), {
   taskId: undefined,
-  uploadImmediately: true // 默认立即上传，保持向后兼容
+  communicationId: undefined,
+  uploadImmediately: false, // 修改为默认不立即上传，符合新要求
+  uploadPath: '/api/order-status/upload-multiple-images' // 默认上传路径，保持向后兼容
 });
 
 // 定义组件的事件
@@ -327,10 +331,19 @@ const confirmUpload = async () => {
       selectedFiles.forEach(file => {
         formData.append('files', file); // 后端使用getlist获取多个文件
       });
-      formData.append('task_id', props.taskId.toString());
+      
+      // 根据传入的ID类型添加相应参数
+      if (props.communicationId !== undefined && props.communicationId !== null) {
+        formData.append('communication_id', props.communicationId.toString());
+      } else if (props.taskId !== undefined && props.taskId !== null) {
+        formData.append('task_id', props.taskId.toString());
+      } else {
+        ElMessage.error('缺少必要的ID参数');
+        return;
+      }
 
       // 创建带进度的请求
-      const response: any = await request.post('/api/order-status/upload-multiple-images', formData, {
+      const response: any = await request.post(props.uploadPath, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -597,42 +610,11 @@ const confirmUploadClipboardMedia = async () => {
     throw new Error('没有可上传的媒体文件');
   }
 
-  // 如果需要立即上传且有任务ID
-  if (props.uploadImmediately) {
-    if (!props.taskId) {
-      throw new Error('未指定任务ID');
-    }
+  // 不立即上传，只返回文件
+  emit('upload-clipboard-image', clipboardMediaFile.value, clipboardMediaFile.value, 0); // 传递文件对象而非上传响应
 
-    try {
-      // 创建FormData对象
-      const formData = new FormData();
-      formData.append('file', clipboardMediaFile.value);
-      formData.append('task_id', props.taskId.toString());
-
-      // 调用后端上传API - 保持原始接口不变
-      const response: any = await request.post(`/api/order-status/${props.taskId}/tasks/upload`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      // 触发上传媒体文件事件，传递上传响应给父组件
-      emit('upload-clipboard-image', response, clipboardMediaFile.value, props.taskId);
-
-      // 清理并关闭对话框
-      handleClipboardDialogClose();
-    } catch (error) {
-      console.error('剪贴板媒体上传失败:', error);
-      emit('upload-failure', error);
-      throw error;
-    }
-  } else {
-    // 不立即上传，只返回文件
-    emit('upload-clipboard-image', clipboardMediaFile.value, clipboardMediaFile.value, 0); // 传递文件对象而非上传响应
-
-    // 清理并关闭对话框
-    handleClipboardDialogClose();
-  }
+  // 清理并关闭对话框
+  handleClipboardDialogClose();
 };
 
 // 暴露方法给父组件

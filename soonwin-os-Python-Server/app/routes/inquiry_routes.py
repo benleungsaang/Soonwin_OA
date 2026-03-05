@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from app.models.inquiry import Inquiry, InquiryCommunication
+from app.models.inquiry_communication_media import InquiryCommunicationMedia
 from app.models.totp_user import TotpUser
 from app.models.employee import Employee
 from app.models.business_operation_log import BusinessOperationLog, add_inquiry_log
@@ -11,6 +12,10 @@ from app.constants.simple_permission_constants import ROUTE_INQUIRY
 from app.utils.auth_utils import get_user_id_from_token
 from datetime import datetime, timedelta
 import json
+import os
+from werkzeug.utils import secure_filename
+from PIL import Image
+import uuid
 from functools import wraps
 
 # 创建蓝图
@@ -935,5 +940,237 @@ def get_inquiry_statistics():
         return jsonify({
             "code": 500,
             "msg": f"获取询盘统计失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+def allowed_file(filename):
+    """检查文件扩展名是否允许"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def create_thumbnail(image_path, thumb_path, size=(200, 200)):
+    """创建缩略图"""
+    try:
+        with Image.open(image_path) as img:
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            img.save(thumb_path, "JPEG", quality=70, optimize=True)
+        return True
+    except Exception as e:
+        print(f"创建缩略图失败: {e}")
+        return False
+
+
+@inquiry_bp.route('/inquiries/upload-communication-media', methods=['POST'])
+@route_permission(ROUTE_INQUIRY)
+def upload_communication_media():
+    """上传沟通记录媒体文件"""
+    try:
+        communication_id = request.form.get('communication_id') or request.form.get('task_id')
+        
+        if not communication_id:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少沟通记录ID或任务ID",
+                "data": None
+            }), 400
+
+        # 获取当前用户
+        current_user = get_current_user()
+
+        # 获取沟通记录
+        communication = InquiryCommunication.query.filter_by(id=communication_id).first()
+        if not communication:
+            # 尝试按任务ID查找（为了兼容性）
+            from app.models.order_status import StatusTask
+            task = StatusTask.query.filter_by(id=communication_id).first()
+            if not task:
+                return jsonify({
+                    "code": 404,
+                    "msg": "沟通记录或任务不存在",
+                    "data": None
+                }), 404
+            # 如果是任务，则使用不同的处理逻辑（这里返回错误，因为我们应该使用专门的端点）
+            return jsonify({
+                "code": 400,
+                "msg": "请使用订单状态相关API上传到任务",
+                "data": None
+            }), 400
+
+        # 检查权限
+        if current_user.user_role != 'admin' and communication.creator_id != current_user.emp_id:
+            return jsonify({
+                "code": 403,
+                "msg": "无权限上传媒体文件到该沟通记录",
+                "data": None
+            }), 403
+
+        # 检查是否有文件
+        if 'file' not in request.files and 'files' not in request.files:
+            return jsonify({
+                "code": 400,
+                "msg": "没有上传文件",
+                "data": None
+            }), 400
+
+        # 获取上传的文件列表
+        uploaded_files = []
+        if 'files' in request.files:  # 多个文件
+            uploaded_files = request.files.getlist('files')
+        elif 'file' in request.files:  # 单个文件
+            uploaded_files = [request.files['file']]
+
+        if not uploaded_files or all(f.filename == '' for f in uploaded_files):
+            return jsonify({
+                "code": 400,
+                "msg": "没有选择文件",
+                "data": None
+            }), 400
+
+        # 存储上传成功的媒体文件信息
+        uploaded_media_files = []
+
+        # 创建文件保存路径
+        # 路径格式: assets/Media/inquiries/沟通记录ID/
+        media_dir = os.path.join('assets', 'Media', 'inquiries', str(communication_id))
+        os.makedirs(media_dir, exist_ok=True)
+
+        for file in uploaded_files:
+            if file.filename == '':
+                continue  # 跳过空文件名
+
+            # 检查文件是否允许
+            if not allowed_file(file.filename):
+                return jsonify({
+                    "code": 400,
+                    "msg": f"不支持的文件格式: {file.filename}",
+                    "data": None
+                }), 400
+
+            # 获取文件扩展名
+            filename = secure_filename(file.filename)
+            file_ext = filename.rsplit('.', 1)[1].lower()
+
+            # 生成唯一文件名（使用UUID + 时间戳）
+            unique_filename = f"{uuid.uuid4().hex}_{int(datetime.now().timestamp())}.{file_ext}"
+            file_path = os.path.join(media_dir, unique_filename)
+
+            # 保存文件
+            file.save(file_path)
+
+            # 获取文件大小
+            file_size = os.path.getsize(file_path)
+
+            # 判断文件类型
+            file_type = 'image' if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] else 'video'
+
+            # 创建缩略图（仅对图片文件）
+            thumb_path = None
+            if file_type == 'image':
+                thumb_filename = f"thumb_{unique_filename}"
+                thumb_path = os.path.join(media_dir, thumb_filename)
+                create_thumbnail(file_path, thumb_path)
+
+            # 创建媒体文件记录
+            media_file = InquiryCommunicationMedia(
+                communication_id=communication_id,
+                file_name=filename,
+                file_path=file_path.replace('\\', '/'),  # 统一使用正斜杠
+                thumb_path=thumb_path.replace('\\', '/') if thumb_path else None,
+                file_size=file_size,
+                file_type=file_type
+            )
+            db.session.add(media_file)
+            db.session.flush()  # 获取ID但不提交事务
+
+            # 添加到返回列表
+            uploaded_media_files.append(media_file.to_dict())
+
+        # 提交所有更改
+        db.session.commit()
+
+        return jsonify({
+            "code": 200,
+            "msg": f"成功上传 {len(uploaded_media_files)} 个媒体文件",
+            "data": {
+                "media_files": uploaded_media_files
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"媒体文件上传失败: {str(e)}",
+            "data": None
+        }), 500
+
+
+@inquiry_bp.route('/inquiries/communications/<int:comm_id>/media', methods=['DELETE'])
+@route_permission(ROUTE_INQUIRY)
+def delete_communication_media(comm_id):
+    """删除沟通记录媒体文件"""
+    try:
+        data = request.get_json()
+        media_file_id = data.get('media_file_id') if data else None
+
+        if not media_file_id:
+            return jsonify({
+                "code": 400,
+                "msg": "缺少媒体文件ID",
+                "data": None
+            }), 400
+
+        # 获取当前用户
+        current_user = get_current_user()
+
+        # 获取媒体文件记录
+        media_file = InquiryCommunicationMedia.query.filter_by(id=media_file_id).first()
+        if not media_file:
+            return jsonify({
+                "code": 404,
+                "msg": "媒体文件不存在",
+                "data": None
+            }), 404
+
+        # 获取关联的沟通记录
+        communication = InquiryCommunication.query.filter_by(id=media_file.communication_id).first()
+        if not communication:
+            return jsonify({
+                "code": 404,
+                "msg": "关联的沟通记录不存在",
+                "data": None
+            }), 404
+
+        # 检查权限
+        if current_user.user_role != 'admin' and communication.creator_id != current_user.emp_id:
+            return jsonify({
+                "code": 403,
+                "msg": "无权限删除该媒体文件",
+                "data": None
+            }), 403
+
+        # 记录媒体文件信息
+        media_file_info = media_file.to_dict()
+
+        # 删除实际文件
+        media_file.delete_file()
+
+        # 从数据库删除记录
+        db.session.delete(media_file)
+        db.session.commit()
+
+        return jsonify({
+            "code": 200,
+            "msg": "媒体文件删除成功",
+            "data": media_file_info
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "code": 500,
+            "msg": f"删除媒体文件失败: {str(e)}",
             "data": None
         }), 500

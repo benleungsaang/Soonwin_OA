@@ -102,6 +102,35 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
         # 重新计算净利，减去费用分摊
         order_dict['net_profit_with_expense'] = order_dict['gross_profit'] - order_dict['proportionate_cost'] - order_dict['individual_cost'] - order_dict['total_expense_allocation']
 
+    # 控制询盘信息的显示 - 非管理员不能看到敏感的询盘信息
+    if 'inquiry' in order_dict and order_dict['inquiry']:
+        original_inquiry = order_dict['inquiry']
+        if is_admin:
+            # 管理员可以看到完整信息
+            safe_inquiry = original_inquiry
+        else:
+            # 非管理员只能看到非敏感字段
+            safe_inquiry = {}
+            
+            # 只保留非敏感字段
+            non_sensitive_inquiry_fields = [
+                'id', 'area', 'inquiry_date', 'inquiry_source', 'company_name', 
+                'packaging_product', 'machine_type', 'search_field', 
+                'create_time', 'update_time'
+            ]
+            
+            for field in non_sensitive_inquiry_fields:
+                if field in original_inquiry:
+                    safe_inquiry[field] = original_inquiry[field]
+            
+            # 设置creator相关字段为隐藏
+            safe_inquiry['creator_id'] = '***'
+            safe_inquiry['creator_name'] = '***'
+            safe_inquiry['creator_role'] = '***'
+        
+        # 替换询盘信息
+        order_dict['inquiry'] = safe_inquiry
+
     # 如果指定了字段列表，则只返回这些字段
     if fields:
         field_list = [f.strip() for f in fields.split(',')]
@@ -114,12 +143,10 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
                 filtered_dict[field] = order_dict[field]
         return filtered_dict
 
-    # 如果没有指定字段列表，返回非敏感的完整字段
-    non_sensitive_dict = {}
-    for key, value in order_dict.items():
-        if key not in sensitive_fields:
-            non_sensitive_dict[key] = value
-    return non_sensitive_dict
+    # 如果没有指定字段列表，根据用户权限返回字段
+    # 对于管理员，返回所有字段
+    # 对于非管理员，敏感字段已经设置为0.0，这里返回完整的字典
+    return order_dict
 
 @order_bp.route('/orders', methods=['GET'])
 @route_permission(ROUTE_ORDER)

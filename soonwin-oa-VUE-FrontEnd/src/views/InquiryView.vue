@@ -215,43 +215,195 @@
         </el-row>
       </el-form>
 
-      <!-- 沟通记录部分 -->
-      <div v-if="inquiryForm.id" class="communication-section">
-        <el-divider />
-        <div class="communication-header">
-          <h3>沟通记录 ({{ communications.length }})</h3>
-          <el-button type="primary" size="large" @click="showAddCommunicationDialog">
-            添加沟通记录
-            <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
-          </el-button>
-        </div>
+              <!-- 沟通记录部分 -->
+              <div v-if="inquiryForm.id" class="communication-section">
+                <el-divider />
+                <div class="communication-header">
+                  <h3>沟通记录 ({{ communications.length }})</h3>
+                  <el-button type="primary" size="large" @click="showAddCommunicationDialog">
+                    添加沟通记录
+                    <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
+                  </el-button>
+                </div>
 
-        <!-- 沟通记录列表 -->
-        <div class="communication-list">
-          <el-card
-            v-for="comm in communications"
-            :key="comm.id"
-            class="communication-item"
-            shadow="hover"
-            body-style="padding:10px"
-          >
-            <div class="communication-content-header">
-              <span class="subject">主题：{{ comm.subject }}</span>
-              <div class="communication-footer"><span class="creator">{{ comm.creator_name }}</span>
-                <span class="time">{{ comm.create_time }}</span>
-                <el-icon @click="editCommunication(comm)" class="el-icon edit"><Edit /></el-icon>
-                <el-icon @click="deleteCommunication(comm.id)" class="el-icon delete"><Delete /></el-icon>
+                        <!-- 沟通记录列表 -->
+
+                        <div class="communication-list">
+
+                          <el-card
+
+                            v-for="comm in communications"
+
+                            :key="comm.id"
+
+                            class="communication-item"
+
+                            shadow="hover"
+
+                            body-style="padding:10px"
+
+                          >
+
+                            <div class="communication-content-header">
+
+                              <span class="subject">主题：{{ comm.subject }}</span>
+
+                              <div class="communication-footer"><span class="creator">{{ comm.creator_name }}</span>
+
+                                <span class="time">{{ comm.create_time }}</span>
+
+                                <el-icon @click="editCommunication(comm)" class="el-icon edit"><Edit /></el-icon>
+
+                                <el-icon @click="deleteCommunication(comm.id)" class="el-icon delete"><Delete /></el-icon>
+
+                              </div>
+
+                            </div>
+
+                            <!-- <div class="communication-company" v-if="comm.company_name">公司：{{ comm.company_name }}</div> -->
+
+                            <div class="communication-content">{{ comm.content }}</div>
+
+
+
+                            <!-- 沟通记录的图片附件 -->
+
+                            <div v-if="getCommunicationMediaFiles(comm).length > 0" class="communication-media-container">
+
+                              <div class="task-img-container">
+
+                                <div
+
+                                  v-for="(media, mediaIndex) in getCommunicationMediaFiles(comm)"
+
+                                  :key="`comm-media-${comm.id}-${mediaIndex}`"
+
+                                  class="thumb-wrapper"
+
+                                >
+
+                                  <!-- 内层容器：裁剪图片内容 -->
+
+                                  <div class="thumb-inner-container">
+
+                                    <!-- 图片文件显示 -->
+
+                                    <el-image
+
+                                      v-if="media.file_type === 'image'"
+
+                                      :src="media.thumb || media.url"
+
+                                      :preview-src-list="getCommunicationMediaUrls(comm)"
+
+                                      :initial-index="mediaIndex"
+
+                                      preview-teleported
+
+                                      close-on-press-esc
+
+                                      hide-on-click-modal
+
+                                      class="thumb-img"
+
+                                    />
+
+                                    <!-- 视频文件显示 -->
+
+                                    <div
+
+                                      v-else-if="media.file_type === 'video'"
+
+                                      class="video-container"
+
+                                    >
+
+                                      <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
+
+                                      <img
+
+                                        v-if="media.thumb"
+
+                                        :src="media.thumb"
+
+                                        class="thumb-img video-thumb"
+
+                                        style="cursor: pointer;"
+
+                                        @click="$event.stopPropagation(); playVideo(media.url)"
+
+                                      />
+
+                                      <!-- 如果没有缩略图，显示默认背景和图标 -->
+
+                                      <div
+
+                                        v-else
+
+                                        class="thumb-img video-thumb"
+
+                                        style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+
+                                        @click="playVideo(media.url)"
+
+                                      >
+
+                                        <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
+
+                                      </div>
+
+                                    </div>
+
+                                  </div>
+
+                                  <!-- 删除按钮：定位到外层容器，不会被裁剪 -->
+
+                                  <el-button
+
+                                    class="delete-img-btn"
+
+                                    size="small"
+
+                                    @click="deleteMediaFromCommunication(comm, Number(mediaIndex))"
+
+                                  >
+
+                                    <el-icon><Close /></el-icon>
+
+                                  </el-button>
+
+                                  <!-- 文件类型指示器：定位到外层容器，不会被裁剪 -->
+
+                                  <div v-if="media.file_type === 'video'" class="file-type-indicator">
+
+                                    <el-icon><VideoCamera /></el-icon>
+
+                                  </div>
+
+                                  <!-- 播放按钮覆盖层：仅对视频显示 -->
+
+                                  <div v-if="media.file_type === 'video'" class="video-play-overlay" @click.stop="playVideo(media.url)">
+
+                                    <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
+
+                                  </div>
+
+                                </div>
+
+                              </div>
+
+                            </div>
+
+                          </el-card>
+
+                          <div v-if="communications.length === 0" class="no-communications">
+
+                            暂无沟通记录
+
+                          </div>
+
+                        </div>
               </div>
-            </div>
-            <!-- <div class="communication-company" v-if="comm.company_name">公司：{{ comm.company_name }}</div> -->
-            <div class="communication-content">{{ comm.content }}</div>
-          </el-card>
-          <div v-if="communications.length === 0" class="no-communications">
-            暂无沟通记录
-          </div>
-        </div>
-      </div>
-
       <template #footer>
         <span class="dialog-footer">
           <!-- 这里不放按钮，按钮已移到表单内部 -->
@@ -259,7 +411,7 @@
       </template>
     </el-dialog>
           <!-- 新增/编辑沟通记录对话框 -->
-          <el-dialog :title="communicationDialogTitle" v-model="addCommunicationDialogVisible" width="50%">
+          <el-dialog :title="communicationDialogTitle" v-model="addCommunicationDialogVisible" width="60%" class="communication-media-dialog">
             <el-form :model="communicationForm" :rules="communicationRules" ref="communicationFormRef" label-width="100px">
               <el-form-item label="主题" prop="subject">
                 <el-input v-model="communicationForm.subject" placeholder="请输入沟通主题" />
@@ -281,6 +433,94 @@
                   value-format="YYYY-MM-DD"
                   style="width: 100%;"
                 />
+              </el-form-item>
+
+              <!-- 多媒体上传功能 -->
+              <el-form-item label="附件上传" class="media-upload-full-width">
+                <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                  <el-tooltip content="可直接拖入图片或视频" placement="bottom">
+                    <ImageUploadPreview
+                      :ref="setCommunicationUploadPreviewRef"
+                      :communication-id="currentCommunicationId"
+                      :upload-path="`/api/inquiries/upload-communication-media`"
+                      @upload-success="onCommunicationMediaUploadSuccess"
+                      @upload-failure="onCommunicationMediaUploadFailure"
+                      @upload-clipboard-image="onUploadClipboardCommunicationMedia"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
+                    <el-input
+                      style="width:130px;"
+                      @paste="(e) => handleCommunicationInputPaste(e)"
+                      placeholder="粘贴图片(Ctrl+V)"
+                    ></el-input>
+                  </el-tooltip>
+                </div>
+
+                <!-- 已上传的媒体文件列表 -->
+                <div v-if="currentCommunicationMediaFiles.length > 0" class="communication-media-container">
+                  <div class="task-img-container">
+                    <div
+                      v-for="(media, mediaIndex) in currentCommunicationMediaFiles"
+                      :key="`current-comm-media-${mediaIndex}`"
+                      class="thumb-wrapper"
+                    >
+                      <!-- 内层容器：裁剪图片内容 -->
+                      <div class="thumb-inner-container">
+                        <!-- 图片文件显示 -->
+                        <el-image
+                          v-if="media.file_type === 'image'"
+                          :src="media.thumb || media.url"
+                          :preview-src-list="getCommunicationMediaUrls('current')"
+                          :initial-index="mediaIndex"
+                          preview-teleported
+                          close-on-press-esc
+                          hide-on-click-modal
+                          class="thumb-img"
+                        />
+                        <!-- 视频文件显示 -->
+                        <div
+                          v-else-if="media.file_type === 'video'"
+                          class="video-container"
+                        >
+                          <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
+                          <img
+                            v-if="media.thumb"
+                            :src="media.thumb"
+                            class="thumb-img video-thumb"
+                            style="cursor: pointer;"
+                            @click="$event.stopPropagation(); playVideo(media.url)"
+                          />
+                          <!-- 如果没有缩略图，显示默认背景和图标 -->
+                          <div
+                            v-else
+                            class="thumb-img video-thumb"
+                            style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+                            @click="playVideo(media.url)"
+                          >
+                            <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 删除按钮：定位到外层容器，不会被裁剪 -->
+                      <el-button
+                        class="delete-img-btn"
+                        size="small"
+                        @click="deleteCurrentCommunicationMedia(mediaIndex)"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                      <!-- 文件类型指示器：定位到外层容器，不会被裁剪 -->
+                      <div v-if="media.file_type === 'video'" class="file-type-indicator">
+                        <el-icon><VideoCamera /></el-icon>
+                      </div>
+                      <!-- 播放按钮覆盖层：仅对视频显示 -->
+                      <div v-if="media.file_type === 'video'" class="video-play-overlay" @click.stop="playVideo(media.url)">
+                        <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </el-form-item>
             </el-form>
             <template #footer>
@@ -315,51 +555,16 @@
           <el-button @click="closeCommunicationDialog">关闭</el-button>
         </span>
       </template>
-    </el-dialog>
 
-    <!-- 新增/编辑沟通记录对话框 -->
-    <el-dialog :title="communicationDialogTitle" v-model="addCommunicationDialogVisible" width="50%">
-      <el-form :model="communicationForm" :rules="communicationRules" ref="communicationFormRef" label-width="100px">
-        <el-form-item label="公司名">
-          <el-input v-model="inquiryForm.company_name" placeholder="自动填充公司名" readonly />
-        </el-form-item>
-        <el-form-item label="主题" prop="subject">
-          <el-input v-model="communicationForm.subject" placeholder="请输入沟通主题" />
-        </el-form-item>
-        <el-form-item label="内容" prop="content">
-          <el-input
-            v-model="communicationForm.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入沟通内容"
-          />
-        </el-form-item>
-        <el-form-item label="沟通日期" prop="communication_date">
-          <el-date-picker
-            v-model="communicationForm.communication_date"
-            type="date"
-            placeholder="选择日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%;"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="cancelCommunication">取消</el-button>
-          <el-button type="primary" @click="submitCommunication" :loading="communicationSubmitting">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
 
+      </el-dialog>
         <!-- 引入通用日志对话框组件 -->
         <CommonLogDialog
           v-model="logDialogVisible"
           log-type="inquiry"
           :handle-jump="handleLogJump"
         />
-        
+
         <!-- 删除失败提示模态框 -->
         <el-dialog
           title="删除失败"
@@ -395,19 +600,38 @@
             </span>
           </template>
         </el-dialog>
+
+        <!-- 全局视频播放模态框 -->
+        <div v-if="showVideoPlayer" class="video-modal-overlay" @click="closeVideoPlayer">
+          <div class="video-modal-content" @click.stop>
+            <video
+              ref="videoRef"
+              :src="currentVideoSrc"
+              controls
+              autoplay
+              class="video-player"
+              @click.stop
+              @error="onVideoError"
+            ></video>
+            <div class="video-controls">
+              <button class="close-btn" @click="closeVideoPlayer">关闭</button>
+            </div>
+          </div>
+        </div>
       </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import request from '@/utils/request';
 import axios from 'axios';
-import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding, Warning } from '@element-plus/icons-vue';
+import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding, Warning, Close, VideoPlay, VideoCamera } from '@element-plus/icons-vue';
 import { formatBusinessLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
+import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { getCurrentUserRole } from '@/utils/authUtils';
 
 // 路由
@@ -535,12 +759,26 @@ const communicationForm = ref({
   company_name: ''
 });
 
+// 沟通记录媒体文件相关
+const currentCommunicationId = ref<number | null>(null); // 用于标识当前编辑的沟通记录
+const currentCommunicationMediaFiles = ref<any[]>([]); // 当前沟通记录的媒体文件
+const pendingMediaFiles = ref<File[]>([]); // 待上传的媒体文件
+const communicationUploadPreviewRefs = ref<{[key: number]: any}>({}); // 存储通信图片上传预览组件引用
+
+// 用于跟踪媒体文件的上传状态
+const mediaUploadStatus = ref<{[key: number]: any}>({}); // 用于跟踪每个沟通记录的媒体文件
+
 // 通用日志组件相关
 const logDialogVisible = ref(false);
 
 // 删除失败提示相关
 const deleteFailDialogVisible = ref(false);
 const associatedOrders = ref<any[]>([]);
+
+// 视频播放相关
+const showVideoPlayer = ref(false);
+const currentVideoSrc = ref('');
+const videoRef = ref<HTMLVideoElement | null>(null);
 
 // 表单引用
 const inquiryFormRef = ref();
@@ -989,6 +1227,396 @@ const handleDialogClose = (done: () => void) => {
     // 取消操作
   });
 };
+
+// ===================== 沟通记录媒体文件处理 =====================
+
+// 获取沟通记录的媒体文件
+const getCommunicationMediaFiles = (source: any) => {
+  // 如果是当前编辑的沟通记录（有本地预览文件）
+  if (source === 'current') {
+    return currentCommunicationMediaFiles.value.map((file: any) => ({
+      url: file.url || file.file_path,
+      thumb: file.thumb || file.thumb_path || file.file_path, // 如果没有缩略图，使用原图或文件路径
+      id: file.id,  // 媒体文件ID，用于删除操作
+      file_type: file.file_type,  // 文件类型：image或video
+      is_local_preview: file.is_local_preview // 标记是否为本地预览
+    }));
+  }
+
+  if (!source) return [];
+
+  // 仅使用新的media_files字段
+  if (source.media_files && Array.isArray(source.media_files)) {
+    return source.media_files
+      .filter((file: any) => file.file_type === 'image' || file.file_type === 'video') // 获取图片和视频
+      .map((file: any) => ({
+        url: file.file_path,
+        thumb: file.thumb_path || file.file_path, // 如果没有缩略图，使用原图
+        id: file.id,  // 媒体文件ID，用于删除操作
+        file_type: file.file_type  // 文件类型：image或video
+      }));
+  }
+
+  // 如果没有新格式数据，返回空数组
+  return [];
+};
+
+// 获取沟通记录的媒体文件URL列表（用于预览）
+const getCommunicationMediaUrls = (source: any) => {
+  if (source === 'current') {
+    // 对于当前编辑的沟通记录，只返回图片类型的URL用于预览
+    return currentCommunicationMediaFiles.value
+      .filter(file => file.file_type === 'image')
+      .map(file => file.file_path);
+  }
+
+  return getCommunicationMediaFiles(source).map(media => media.url); // 总是返回原图用于预览
+};
+
+// 设置沟通记录上传预览组件引用
+const setCommunicationUploadPreviewRef = (el: any) => {
+  if (!editingCommunicationId.value && !currentCommunicationId.value) return;
+
+  const commId = editingCommunicationId.value || currentCommunicationId.value;
+  if (!commId) return;
+
+  // 当el为null时，表示组件被卸载，应从引用中移除
+  if (el) {
+    communicationUploadPreviewRefs.value[commId] = el;
+  } else {
+    // 确保删除对应的沟通记录ID引用
+    delete communicationUploadPreviewRefs.value[commId];
+  }
+};
+
+// 处理沟通记录输入框的粘贴事件
+const handleCommunicationInputPaste = (e: ClipboardEvent) => {
+  try {
+    // 检查是否有有效的沟通记录ID
+    const commId = editingCommunicationId.value || currentCommunicationId.value;
+    if (!commId) {
+      ElMessage.error('无法粘贴媒体文件：未指定有效的沟通记录ID');
+      return;
+    }
+
+    let file = null;
+
+    // 方案1：使用 clipboardData.items
+    if (e.clipboardData && e.clipboardData.items) {
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+          file = item.getAsFile();
+          break;
+        }
+      }
+    }
+
+    // 方案2：使用 clipboardData.files
+    if (!file && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+      const candidate = e.clipboardData.files[0];
+      if (candidate.type.startsWith('image/') || candidate.type.startsWith('video/')) {
+        file = candidate;
+      }
+    }
+
+    if (file) {
+      // 验证文件类型
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+      const allowedVideoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v'];
+
+      if (allowedImageExts.includes(ext) || allowedVideoExts.includes(ext)) {
+        // 查找对应的uploadPreviewRef并调用addClipboardMedia方法
+        const uploadPreviewRef = communicationUploadPreviewRefs.value[commId];
+        if (uploadPreviewRef && uploadPreviewRef.addClipboardMedia) {
+          uploadPreviewRef.addClipboardMedia(file);
+          const fileType = file.type.startsWith('image/') ? '图片' : '视频';
+          ElMessage.success(`已检测到${fileType}: ${file.name}，已添加到上传队列...`);
+        } else {
+          ElMessage.warning(`找不到沟通记录ID为 ${commId} 的上传组件，请确保该记录有上传组件`);
+        }
+      } else {
+        ElMessage.warning(`检测到文件但格式不支持: ${ext}，仅支持: ${[...allowedImageExts, ...allowedVideoExts].join(', ')}`);
+      }
+    } else {
+      // 检查是否是文本内容
+      const pastedText = e.clipboardData?.getData('text') || '';
+      if (pastedText) {
+        ElMessage.info('检测到文本内容，此功能主要用于媒体文件粘贴');
+      } else {
+        ElMessage.warning('剪贴板中未检测到媒体文件');
+      }
+    }
+  } catch (error) {
+    console.warn('处理粘贴事件时出错:', error);
+    ElMessage.error('处理粘贴事件失败');
+  }
+};
+
+// 沟通记录媒体上传成功回调
+const onCommunicationMediaUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
+  ElMessage.success(`${files.length} 个媒体文件添加成功（待上传）`);
+
+  // 为每个新添加的文件生成预览URL并添加到当前媒体文件列表
+  const newMediaPreviews = files.map((file: File) => {
+    const filePreviewUrl = URL.createObjectURL(file);
+    const thumbPreviewUrl = file.type.startsWith('image/') ? filePreviewUrl : null;
+
+    return {
+      id: null, // 待上传文件没有ID
+      file_name: file.name,
+      file_path: filePreviewUrl, // 创建临时预览URL
+      thumb_path: thumbPreviewUrl, // 图片使用原图作为缩略图
+      url: filePreviewUrl, // 用于模板显示
+      thumb: thumbPreviewUrl, // 用于模板显示
+      file_type: file.type.startsWith('image/') ? 'image' : 'video',
+      file_size: file.size,
+      upload_time: new Date().toISOString(),
+      is_local_preview: true // 标记为本地预览文件
+    };
+  });
+
+  // 将预览文件添加到当前媒体文件列表
+  currentCommunicationMediaFiles.value = [
+    ...currentCommunicationMediaFiles.value,
+    ...newMediaPreviews
+  ];
+
+  // 将文件添加到待上传列表
+  pendingMediaFiles.value = [...pendingMediaFiles.value, ...files];
+
+  // 如果有已上传的媒体文件信息（从服务器返回的），也添加到当前列表
+  if (mediaFiles && mediaFiles.length > 0) {
+    const uploadedMediaPreviews = mediaFiles.map((mediaFile: any) => ({
+      id: mediaFile.id,
+      file_name: mediaFile.file_name || files[mediaFiles.indexOf(mediaFile)].name,
+      file_path: mediaFile.file_path,
+      thumb_path: mediaFile.thumb_path,
+      url: mediaFile.file_path, // 用于模板显示
+      thumb: mediaFile.thumb_path || mediaFile.file_path, // 用于模板显示
+      file_type: mediaFile.file_type,
+      file_size: mediaFile.file_size,
+      upload_time: mediaFile.upload_time,
+      is_local_preview: false // 标记为服务器文件
+    }));
+
+    currentCommunicationMediaFiles.value = [
+      ...currentCommunicationMediaFiles.value,
+      ...uploadedMediaPreviews
+    ];
+  }
+};
+
+// 沟通记录媒体上传失败回调
+const onCommunicationMediaUploadFailure = (error: any) => {
+  console.error('沟通记录媒体文件上传失败：', error);
+  ElMessage.error('沟通记录媒体文件上传失败');
+};
+
+// 上传剪贴板沟通记录媒体回调
+const onUploadClipboardCommunicationMedia = async (response: any, file: File, commId: number) => {
+  try {
+    // 检查文件类型 - 支持图片和视频
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      ElMessage.error('请选择图片或视频文件');
+      return;
+    }
+
+    // 验证文件类型
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    const allowedVideoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v'];
+
+    if (!allowedImageExts.includes(ext) && !allowedVideoExts.includes(ext)) {
+      ElMessage.error(`不支持的媒体格式：${ext}，支持的格式：${[...allowedImageExts, ...allowedVideoExts].join(', ')}`);
+      return;
+    }
+
+    // 将文件添加到待上传列表
+    pendingMediaFiles.value = [...pendingMediaFiles.value, file];
+
+    // 显示成功消息
+    const fileType = file.type.startsWith('image/') ? '图片' : '视频';
+    ElMessage.success(`已添加${fileType}: ${file.name}（待上传）`);
+  } catch (error) {
+    console.error('添加剪贴板媒体失败:', error);
+    ElMessage.error('添加剪贴板媒体失败');
+  }
+};
+
+// 删除当前沟通记录中的媒体文件
+const deleteCurrentCommunicationMedia = async (mediaIndex: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个媒体文件吗？删除后将无法恢复。', '确认删除', {
+      type: 'warning'
+    });
+
+    // 边界校验
+    if (mediaIndex < 0 || mediaIndex >= currentCommunicationMediaFiles.value.length) {
+      ElMessage.error('媒体文件索引超出范围');
+      return;
+    }
+
+    const mediaToDelete = currentCommunicationMediaFiles.value[mediaIndex];
+
+    // 检查是否为本地预览文件，如果是则需要释放URL对象
+    if (mediaToDelete.is_local_preview) {
+      // 释放临时预览URL
+      URL.revokeObjectURL(mediaToDelete.file_path);
+      if (mediaToDelete.thumb_path) {
+        URL.revokeObjectURL(mediaToDelete.thumb_path);
+      }
+
+      // 从待上传文件列表中移除对应的文件
+      const fileIndex = pendingMediaFiles.value.findIndex((file, idx) => {
+        // 根据文件名和大小进行匹配
+        return file.name === mediaToDelete.file_name && file.size === mediaToDelete.file_size;
+      });
+
+      if (fileIndex !== -1) {
+        // 创建新的待上传文件数组，排除被删除的文件
+        const newPendingFiles = [...pendingMediaFiles.value];
+        newPendingFiles.splice(fileIndex, 1);
+        pendingMediaFiles.value = newPendingFiles;
+      }
+    } else if (mediaToDelete.id) {
+      // 如果是服务器文件且有ID，尝试从服务器删除
+      if (!editingCommunicationId.value) {
+        // 如果是新建记录，直接从本地删除
+        currentCommunicationMediaFiles.value.splice(mediaIndex, 1);
+        ElMessage.success('媒体文件删除成功');
+        return;
+      }
+
+      // 尝试从服务器删除
+      const response: any = await request.delete(`/api/inquiries/communications/${editingCommunicationId.value}/media`, {
+        data: { media_file_id: mediaToDelete.id }
+      });
+
+      if (response) {
+        // 从本地列表中移除媒体文件
+        currentCommunicationMediaFiles.value.splice(mediaIndex, 1);
+
+        // 同时更新communications数组中对应记录的媒体文件信息
+        if (editingCommunicationId.value) {
+          const commIndex = communications.value.findIndex(c => c.id === editingCommunicationId.value);
+          if (commIndex > -1) {
+            // 从原数组中移除对应的媒体文件
+            const updatedMediaFiles = communications.value[commIndex].media_files?.filter((file: any) => file.id !== mediaToDelete.id) || [];
+
+            // 更新该记录的媒体文件信息
+            communications.value[commIndex] = {
+              ...communications.value[commIndex],
+              media_files: updatedMediaFiles,
+              images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+              videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+              image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+              video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+            };
+          }
+        }
+
+        ElMessage.success('媒体文件删除成功');
+        return;
+      }
+    }
+
+    // 从本地列表中移除媒体文件
+    currentCommunicationMediaFiles.value.splice(mediaIndex, 1);
+    ElMessage.success('媒体文件删除成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除媒体文件失败:', error);
+      ElMessage.error('删除媒体文件失败');
+    }
+  }
+};
+// 从沟通记录中删除媒体文件
+const deleteMediaFromCommunication = async (communication: any, mediaIndex: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个媒体文件吗？删除后将无法恢复。', '确认删除', {
+      type: 'warning'
+    });
+
+    // 解析当前媒体文件为结构化数组
+    const currentMediaFiles = getCommunicationMediaFiles(communication);
+
+    // 边界校验
+    if (mediaIndex < 0 || mediaIndex >= currentMediaFiles.length) {
+      ElMessage.error('媒体文件索引超出范围');
+      return;
+    }
+
+    // 获取要删除的媒体文件信息
+    const mediaToDelete = currentMediaFiles[mediaIndex];
+
+    // 验证任务ID是否有效
+    if (!mediaToDelete.id) {
+      ElMessage.error('无法删除媒体文件：缺少媒体文件ID');
+      return;
+    }
+
+    // 使用媒体文件ID进行删除
+    const response: any = await request.delete(`/api/inquiries/communications/${communication.id}/media`, {
+      data: { media_file_id: mediaToDelete.id }
+    });
+
+    if (response) {
+      // 更新本地沟通记录数据
+      const commIndex = communications.value.findIndex(c => c.id === communication.id);
+      if (commIndex > -1) {
+        const newCommunications = [...communications.value];
+
+        // 从media_files数组中移除对应的媒体文件
+        const updatedMediaFiles = newCommunications[commIndex].media_files?.filter((file: any) => file.id !== mediaToDelete.id) || [];
+
+        newCommunications[commIndex] = {
+          ...newCommunications[commIndex],
+          media_files: updatedMediaFiles,
+          images: updatedMediaFiles.filter((file: any) => file.file_type === 'image'),
+          videos: updatedMediaFiles.filter((file: any) => file.file_type === 'video'),
+          image_count: updatedMediaFiles.filter((file: any) => file.file_type === 'image').length,
+          video_count: updatedMediaFiles.filter((file: any) => file.file_type === 'video').length
+        };
+
+        communications.value = newCommunications;
+      }
+
+      // 如果当前正在编辑的就是这个沟通记录，同时更新currentCommunicationMediaFiles
+      if (editingCommunicationId.value === communication.id) {
+        const updatedCurrentMediaFiles = currentCommunicationMediaFiles.value.filter((file: any) => file.id !== mediaToDelete.id);
+        currentCommunicationMediaFiles.value = updatedCurrentMediaFiles;
+      }
+
+      ElMessage.success('媒体文件删除成功');
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除媒体文件失败:', error);
+      ElMessage.error('删除媒体文件失败');
+    }
+  }
+};
+
+// 播放视频函数
+const playVideo = (videoUrl: string) => {
+  if (!videoUrl) {
+    ElMessage.error('视频URL无效');
+    return;
+  }
+  // 替换反斜杠为正斜杠
+  const correctedUrl = videoUrl.replace(/\\/g, '/');
+  currentVideoSrc.value = correctedUrl;
+  showVideoPlayer.value = true;
+
+  // 确保视频在打开后能够播放
+  nextTick(() => {
+    if (videoRef.value) {
+      videoRef.value.play().catch(e => console.error('自动播放失败:', e));
+    }
+  });
+};
 // 加载沟通记录
 const loadCommunications = async (inquiryId: number) => {
   try {
@@ -1018,6 +1646,7 @@ const closeCommunicationDialog = () => {
 const showAddCommunicationDialog = () => {
   communicationDialogTitle.value = '添加沟通记录';
   editingCommunicationId.value = null;
+  currentCommunicationId.value = -1; // 使用负数表示新的沟通记录
   communicationForm.value = {
     id: null,
     subject: '',
@@ -1025,6 +1654,8 @@ const showAddCommunicationDialog = () => {
     communication_date: '',
     company_name: inquiryForm.value.company_name // Auto-populate from parent inquiry
   };
+  currentCommunicationMediaFiles.value = []; // 重置媒体文件列表
+  pendingMediaFiles.value = []; // 重置待上传文件列表
   addCommunicationDialogVisible.value = true;
 };
 
@@ -1032,6 +1663,7 @@ const showAddCommunicationDialog = () => {
 const editCommunication = (comm: any) => {
   communicationDialogTitle.value = '编辑沟通记录';
   editingCommunicationId.value = comm.id;
+  currentCommunicationId.value = comm.id;
   communicationForm.value = {
     id: comm.id,
     subject: comm.subject,
@@ -1039,6 +1671,21 @@ const editCommunication = (comm: any) => {
     communication_date: comm.communication_date,
     company_name: comm.company_name // Use the company_name from the communication record
   };
+  // 设置当前沟通记录的媒体文件 - 使用服务器返回的文件信息
+  currentCommunicationMediaFiles.value = (comm.media_files || []).map((file: any) => ({
+    id: file.id,
+    file_name: file.file_name,
+    file_path: file.file_path,
+    thumb_path: file.thumb_path,
+    url: file.file_path,  // 添加url属性以匹配模板使用
+    thumb: file.thumb_path || file.file_path,  // 添加thumb属性以匹配模板使用
+    file_type: file.file_type,
+    file_size: file.file_size,
+    upload_time: file.upload_time,
+    is_local_preview: false // 标记为服务器文件
+  }));
+  // 清空待上传文件列表
+  pendingMediaFiles.value = [];
   addCommunicationDialogVisible.value = true;
 };
 
@@ -1056,12 +1703,15 @@ const submitCommunication = async () => {
       communicationSubmitting.value = true;
       try {
         let response;
+        let communicationId;
+
         if (editingCommunicationId.value) {
           // 更新沟通记录
           response = await request.put(
             `/api/inquiries/${editingInquiryId.value}/communications/${editingCommunicationId.value}`,
             communicationForm.value
           );
+          communicationId = editingCommunicationId.value;
           ElMessage.success('沟通记录更新成功');
         } else {
           // 创建沟通记录
@@ -1069,7 +1719,39 @@ const submitCommunication = async () => {
             `/api/inquiries/${editingInquiryId.value}/communications`,
             communicationForm.value
           );
+          communicationId = response.id || response.data.id;
           ElMessage.success('沟通记录创建成功');
+        }
+
+        // 如果有待上传的媒体文件，则上传它们
+        if (pendingMediaFiles.value.length > 0) {
+          const formData = new FormData();
+
+          // 添加所有待上传的文件
+          pendingMediaFiles.value.forEach((file, index) => {
+            formData.append('files', file);
+          });
+
+          // 添加通信ID
+          formData.append('communication_id', communicationId.toString());
+
+          try {
+            // 上传媒体文件
+            const mediaResponse: any = await request.post('/api/inquiries/upload-communication-media', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+
+            ElMessage.success(`成功上传 ${pendingMediaFiles.value.length} 个媒体文件`);
+
+            // 清空待上传文件列表
+            pendingMediaFiles.value = [];
+          } catch (uploadError) {
+            console.error('媒体文件上传失败:', uploadError);
+            ElMessage.error('部分媒体文件上传失败，但沟通记录已保存');
+            // 即使媒体上传失败，也要继续
+          }
         }
 
         // 关闭对话框并重新加载列表
@@ -1085,6 +1767,20 @@ const submitCommunication = async () => {
           company_name: ''
         };
         editingCommunicationId.value = null;
+
+        // 释放本地预览文件的URL对象
+        currentCommunicationMediaFiles.value.forEach(file => {
+          if (file.is_local_preview && file.file_path) {
+            URL.revokeObjectURL(file.file_path);
+          }
+          if (file.is_local_preview && file.thumb_path) {
+            URL.revokeObjectURL(file.thumb_path);
+          }
+        });
+
+        // 清空当前沟通记录的媒体文件和待上传文件
+        currentCommunicationMediaFiles.value = [];
+        pendingMediaFiles.value = [];
       } catch (error) {
         console.error('提交沟通记录失败:', error);
         ElMessage.error('提交沟通记录失败');
@@ -1108,6 +1804,19 @@ const cancelCommunication = () => {
     company_name: ''
   };
   editingCommunicationId.value = null;
+
+  // 释放本地预览文件的URL对象
+  currentCommunicationMediaFiles.value.forEach(file => {
+    if (file.is_local_preview && file.file_path) {
+      URL.revokeObjectURL(file.file_path);
+    }
+    if (file.is_local_preview && file.thumb_path) {
+      URL.revokeObjectURL(file.thumb_path);
+    }
+  });
+
+  currentCommunicationMediaFiles.value = [];
+  pendingMediaFiles.value = []; // 清空待上传文件
 };
 
 // 删除沟通记录
@@ -1148,6 +1857,36 @@ const showInquiryLogs = () => {
     logDialogVisible.value = true;
   });
 };
+
+// 关闭视频播放器
+const closeVideoPlayer = () => {
+  showVideoPlayer.value = false;
+  if (videoRef.value) {
+    videoRef.value.pause();
+  }
+};
+
+// 视频错误处理
+const onVideoError = (event: Event) => {
+  ElMessage.error('视频加载失败');
+};
+
+// ESC键关闭视频播放器
+const handleEscKey = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showVideoPlayer.value) {
+    closeVideoPlayer();
+  }
+};
+
+// 监听键盘事件
+onMounted(() => {
+  document.addEventListener('keydown', handleEscKey);
+});
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscKey);
+});
 
 
 
@@ -1521,4 +2260,212 @@ const showInquiryLogs = () => {
   margin: 0px 5px;
 }
 
+/* ============ 核心修复：缩略图样式 ============ */
+/* 外层容器 - 用于承载操作按钮，不裁剪 */
+.thumb-wrapper {
+  position: relative !important;  /* 操作按钮的定位容器 */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 85px !important;         /* 与grid列宽匹配 */
+  height: 85px !important;        /* 与grid行高匹配 */
+  box-sizing: border-box !important;
+}
+
+/* 内层裁剪容器 - 只裁剪图片内容 */
+.thumb-inner-container {
+  width: 80px !important;         /* 图片显示尺寸 */
+  height: 80px !important;        /* 图片显示尺寸 */
+  border-radius: 5px !important;
+  overflow: hidden !important;    /* 只裁剪图片，不影响外层按钮 */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+
+/* 图片/视频缩略图样式 - 彻底解决拉伸 */
+.thumb-img, .video-thumb {
+  box-sizing: border-box !important;
+  width: 100% !important;         /* 宽度填满内层容器 */
+  height: 100% !important;        /* 高度填满内层容器 */
+  object-fit: cover !important;   /* 保持宽高比，填充容器 */
+  object-position: center center !important; /* 居中裁剪 */
+  border-radius: 5px !important;
+  border: rgba(123, 175, 235, 0.2) solid 3px !important;
+  display: block !important;      /* 确保是块级元素 */
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  /* 额外重置可能导致拉伸的属性 */
+  min-width: unset !important;
+  min-height: unset !important;
+  max-width: unset !important;
+  max-height: unset !important;
+}
+
+/* ============ 操作按钮样式修复 ============ */
+/* 删除图片按钮样式 - 定位到外层容器 */
+.delete-img-btn {
+  position: absolute !important;
+  top: 0px !important;            /* 调整位置，避免超出可视区域 */
+  right: 0px !important;          /* 调整位置，避免超出可视区域 */
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
+  background-color: #f56c6c !important;
+  border: 1px solid white !important;
+  transform: scale(0.8) !important;
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
+}
+
+.delete-img-btn .el-icon {
+  font-size: 12px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* hover时显示删除按钮 */
+.thumb-wrapper:hover .delete-img-btn {
+  opacity: 1 !important;
+}
+
+.delete-img-btn:hover {
+  background-color: #ff5a5a !important;
+}
+
+/* 文件类型指示器 - 定位到外层容器 */
+.file-type-indicator {
+  position: absolute !important;
+  top: 0px !important;            /* 调整位置，避免超出可视区域 */
+  left: 0px !important;           /* 调整位置，避免超出可视区域 */
+  width: 16px !important;
+  height: 16px !important;
+  background-color: #409eff !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
+}
+
+.file-type-indicator .el-icon {
+  font-size: 10px !important;
+  color: white !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 视频播放覆盖层 */
+.video-play-overlay {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  border-radius: 50% !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
+  z-index: 5 !important;
+}
+
+.thumb-wrapper:hover .video-play-overlay {
+  opacity: 1 !important;
+}
+
+/* 简易视频播放模态框样式 */
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+
+.video-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 90vh;
+  z-index: 100000;
+}
+
+.video-player {
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 8px;
+  background: #000;
+}
+
+.video-controls {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.close-btn {
+  padding: 8px 16px;
+  background-color: #409eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* 视频容器样式 */
+.video-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* 沟通记录媒体容器 */
+.communication-media-container {
+  margin-top: 10px;
+  width:100%;
+}
+
+.task-img-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));  /* 横向自动填充布局 */
+  gap: 10px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border:rgba(167, 167, 167, 0.1) solid 1px;
+  background-color: rgba(167, 167, 167, 0.1);
+  border-radius: 2px;
+  grid-auto-rows: 85px; /* 固定行高 */
+  align-items: start; /* 顶部对齐 */
+  justify-items: center; /* 居中对齐 */
+  min-width: 0; /* 允许内容压缩 */
+}
+
+/* 内容对齐样式额外，使内容列造和左边对齐 */
+:deep(.el-form-item.media-upload-full-width .el-form-item__content) {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* 暴露响应式传煤对话框宽度优化 */
+:deep(.communication-media-dialog .el-dialog__body) {
+  max-height: 70vh;
+  overflow-y: auto;
+}
 </style>

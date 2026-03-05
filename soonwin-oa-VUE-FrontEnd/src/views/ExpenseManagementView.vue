@@ -30,6 +30,16 @@
             ></el-option>
           </el-select>
         </el-form-item>
+        <el-form-item label="发生日期">
+          <el-date-picker
+            v-model="searchForm.occurredDate"
+            type="date"
+            placeholder="请选择发生日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width:150px;"
+          ></el-date-picker>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="fetchExpenses">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
@@ -42,6 +52,8 @@
         style="width: 100%"
         stripe
         border
+        @row-click="showEditDialog"
+        :row-style="{ cursor: 'pointer' }"
       >
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="name" label="费用名称" width="150" />
@@ -54,6 +66,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="target_year" label="目标年份" width="100" />
+        <el-table-column prop="occurred_date" label="发生日期" width="120">
+          <template #default="scope">
+            {{ scope.row.occurred_date || '未设置' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="remark" label="备注信息" width="200">
           <template #default="scope">
             <span v-if="scope.row.remark && scope.row.remark.length > 30">
@@ -86,7 +103,7 @@
             <el-button
               size="small"
               type="danger"
-              @click="deleteExpense(scope.row)"
+              @click.stop="deleteExpense(scope.row)"
             >
               删除
             </el-button>
@@ -175,8 +192,8 @@
           </el-input>
           <div class="expense-type-selector">
             <el-radio-group v-model="newExpense.expenseSign" style="margin-top: 5px;">
-              <el-radio :label="1">支出</el-radio>
-              <el-radio :label="-1">收入</el-radio>
+              <el-radio :value="1">支出</el-radio>
+              <el-radio :value="-1">收入</el-radio>
             </el-radio-group>
           </div>
         </el-form-item>
@@ -189,6 +206,15 @@
               :value="year"
             ></el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item label="发生日期">
+          <el-date-picker
+            v-model="newExpense.occurredDate"
+            type="date"
+            placeholder="请选择发生日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+          ></el-date-picker>
         </el-form-item>
         <el-form-item label="备注信息">
           <el-input
@@ -218,11 +244,10 @@
             <template #append>元</template>
           </el-input>
           <div class="expense-type-selector">
-            <el-radio-group v-model="editExpense.expenseSign" style="margin-top: 5px;">
-              <el-radio :label="1">支出</el-radio>
-              <el-radio :label="-1">收入</el-radio>
-            </el-radio-group>
-          </div>
+              <el-radio-group v-model="editExpense.expenseSign" style="margin-top: 5px;">
+                <el-radio :value="1">支出</el-radio>
+                <el-radio :value="-1">收入</el-radio>
+              </el-radio-group>          </div>
         </el-form-item>
         <el-form-item label="目标年份" prop="targetYear">
           <el-select v-model="editExpense.targetYear" placeholder="请选择年份">
@@ -233,6 +258,15 @@
               :value="year"
             ></el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item label="发生日期">
+          <el-date-picker
+            v-model="editExpense.occurredDate"
+            type="date"
+            placeholder="请选择发生日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+          ></el-date-picker>
         </el-form-item>
         <el-form-item label="备注信息">
           <el-input
@@ -320,6 +354,7 @@ const pagination = ref({
 const searchForm = ref({
   name: '',
   targetYear: null as number | null,
+  occurredDate: null as string | null,
   expenseType: ''
 });
 
@@ -351,6 +386,7 @@ const newExpense = ref({
   amount: 0,
   expenseType: '全面分摊',
   targetYear: currentYear,
+  occurredDate: null as string | null,
   remark: '',
   expenseSign: 1  // 1表示支出，-1表示收入
 });
@@ -362,6 +398,7 @@ const editExpense = ref({
   amount: 0,
   expenseType: '全面分摊',
   targetYear: currentYear,
+  occurredDate: null as string | null,
   remark: '',
   expenseSign: 1  // 1表示支出，-1表示收入
 });
@@ -393,6 +430,7 @@ const fetchExpenses = async () => {
       size: pagination.value.size,
       name: searchForm.value.name || undefined,
       target_year: searchForm.value.targetYear || undefined,
+      occurred_date: searchForm.value.occurredDate || undefined,
       expense_type: searchForm.value.expenseType || undefined,
     };
 
@@ -423,6 +461,7 @@ const resetSearch = () => {
   searchForm.value = {
     name: '',
     targetYear: null,
+    occurredDate: null,
     expenseType: ''
   };
   pagination.value.page = 1;
@@ -447,6 +486,7 @@ const createExpense = async () => {
       amount: finalAmount,
       expense_type: newExpense.value.expenseType,
       target_year: newExpense.value.targetYear,
+      occurred_date: newExpense.value.occurredDate,
       remark: newExpense.value.remark
     });
 
@@ -459,6 +499,7 @@ const createExpense = async () => {
       amount: 0,
       expenseType: '全面分摊',
       targetYear: currentYear,
+      occurredDate: null,
       remark: '',
       expenseSign: 1
     };
@@ -505,6 +546,7 @@ const showEditDialog = (expense: any) => {
     amount: Math.abs(expense.amount),  // 使用绝对值
     expenseType: expense.expense_type,
     targetYear: expense.target_year,
+    occurredDate: expense.occurred_date || null,
     remark: expense.remark || '',
     expenseSign: expense.amount >= 0 ? 1 : -1  // 正数为支出(-1)，负数为收入(1)
   };
@@ -524,6 +566,7 @@ const updateExpense = async () => {
       amount: finalAmount,
       expense_type: editExpense.value.expenseType,
       target_year: editExpense.value.targetYear,
+      occurred_date: editExpense.value.occurredDate,
       remark: editExpense.value.remark
     });
 

@@ -197,8 +197,8 @@ const getActionText = (module: string, operationType: string): string => {
  */
 const formatUpdatedFields = (updatedFields?: Record<string, any>, fieldMap?: LogFieldMap): {
   changeDetails: string[];
-  companyName: string;
-  customerName: string;
+  companyName?: string;
+  customerName?: string;
 } => {
   const changeDetails: string[] = [];
   let companyName = '';

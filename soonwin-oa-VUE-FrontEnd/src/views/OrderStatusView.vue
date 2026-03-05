@@ -194,6 +194,93 @@
               :column="3"
               border
             >
+            <el-descriptions-item :span="3" label="照片">
+              <div class="upload-container">
+                <el-tooltip content="可直接拖入图片或视频" placement="bottom">
+                    <ImageUploadPreview
+                      :ref="setUploadPreviewRef(statusTask)"
+                      :task-id="getValidTaskId(statusTask)"
+                      @upload-success="onMediaUploadSuccess"
+                      @upload-failure="onMediaUploadFailure"
+                      @upload-clipboard-image="onUploadClipboardMedia"
+                    />
+                  </el-tooltip>
+                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
+                    <el-input
+                      style="margin: 5px;width:100%;"
+                      @paste="(e) => handleInputPaste(e, getValidTaskId(statusTask))"
+                      placeholder="粘贴图片(Ctrl+V)"
+                    ></el-input>
+                  </el-tooltip>
+                </div>
+
+                <div class="task-img-container"> <!-- 原有上传组件不变 -->
+                  <!-- 修改：使用解析后的媒体文件数组渲染，包含图片和视频缩略图 -->
+                  <template v-if="getTaskMediaFiles(statusTask).length">
+                    <div
+                      v-for="(media, mediaIndex) in getTaskMediaFiles(statusTask)"
+                      :key="`media-${statusTask.id}-${mediaIndex}`"
+                      class="thumb-wrapper"
+                    >
+                      <!-- 内层容器：裁剪图片内容 -->
+                      <div class="thumb-inner-container">
+                        <!-- 图片文件显示 -->
+                        <el-image
+                          v-if="media.file_type === 'image'"
+                          :src="media.thumb || media.url"
+                          :preview-src-list="getTaskMediaUrls(statusTask)"
+                          :initial-index="mediaIndex"
+                          preview-teleported
+                          close-on-press-esc
+                          hide-on-click-modal
+                          class="thumb-img"
+                        />
+                        <!-- 视频文件显示 -->
+                        <div
+                          v-else-if="media.file_type === 'video'"
+                          class="video-container"
+                        >
+                          <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
+                          <img
+                            v-if="media.thumb"
+                            :src="media.thumb"
+                            class="thumb-img video-thumb"
+                            style="cursor: pointer;"
+                            @click="$event.stopPropagation(); playVideo(media.url)"
+                          />
+                          <!-- 如果没有缩略图，显示默认背景和图标 -->
+                          <div
+                            v-else
+                            class="thumb-img video-thumb"
+                            style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+                            @click="playVideo(media.url)"
+                          >
+                            <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 删除按钮：定位到外层容器，不会被裁剪 -->
+                      <el-button
+                        class="delete-img-btn"
+                        size="small"
+                        @click="deleteMediaFromTemplate(statusTask, Number(mediaIndex))"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                      <!-- 文件类型指示器：定位到外层容器，不会被裁剪 -->
+                      <div v-if="media.file_type === 'video'" class="file-type-indicator">
+                        <el-icon><VideoCamera /></el-icon>
+                      </div>
+                      <!-- 播放按钮覆盖层：仅对视频显示 -->
+                      <div v-if="media.file_type === 'video'" class="video-play-overlay" @click.stop="playVideo(media.url)">
+                        <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
+                      </div>
+                    </div>
+                  </template>
+
+
+                </div>
+              </el-descriptions-item>
 
               <el-descriptions-item :span="1" width="150px" label="项目名" >
                 <span class="clickable-field" @click.stop="openEditFieldDialog(statusTask, 'name', '修改任务名称', updateStatusTask)">{{ statusTask.name || '点击添加标题' }}</span>
@@ -211,92 +298,6 @@
                 />
                 <el-icon class="btn-del-task" @click="deleteTask(statusTask.task_id)"><Delete /></el-icon>
               </el-descriptions-item>
-            <el-descriptions-item :span="3" label="照片">
-              <div style="display: flex; flex-direction: column; gap: 10px;">
-                <!-- 上传控件区域 -->
-                <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                  <el-tooltip content="可直接拖入图片或视频" placement="bottom">
-                    <ImageUploadPreview
-                      style="width:130px;margin: 5px 15px;"
-                      :ref="setUploadPreviewRef(statusTask)"
-                      :task-id="getValidTaskId(statusTask)"
-                      @upload-success="onMediaUploadSuccess"
-                      @upload-failure="onMediaUploadFailure"
-                      @upload-clipboard-image="onUploadClipboardMedia"
-                    />
-                  </el-tooltip>
-                  <el-tooltip content="点击输入框后按CTRL+V，可以粘贴剪切的图片" placement="bottom">
-                    <el-input
-                      style="width:130px;"
-                      @paste="(e) => handleInputPaste(e, getValidTaskId(statusTask))"
-                      placeholder="粘贴图片(Ctrl+V)"
-                    ></el-input>
-                  </el-tooltip>
-                </div>
-
-                <!-- 媒体文件网格展示区域 -->
-                <div class="task-img-container" v-if="getTaskMediaFiles(statusTask).length">
-                  <!-- 修改：使用解析后的媒体文件数组渲染，包含图片和视频缩略图 -->
-                  <div
-                    v-for="(media, mediaIndex) in getTaskMediaFiles(statusTask)"
-                    :key="`media-${statusTask.id}-${mediaIndex}`"
-                    style="display: flex; position: relative;"
-                  >
-                    <!-- 图片文件显示 -->
-                    <el-image
-                      v-if="media.file_type === 'image'"
-                      :src="media.thumb || media.url"
-                      :preview-src-list="getTaskMediaUrls(statusTask)"
-                      :initial-index="mediaIndex"
-                      preview-teleported
-                      close-on-press-esc
-                      hide-on-click-modal
-                      class="thumb-img"
-                    />
-                    <!-- 视频文件显示 -->
-                    <div
-                      v-else-if="media.file_type === 'video'"
-                      class="video-container"
-                      style="position: relative; display: inline-block;"
-                    >
-                      <!-- 视频缩略图作为封面，与图片缩略图保持一致的样式 -->
-                      <img
-                        v-if="media.thumb"
-                        :src="media.thumb"
-                        class="thumb-img video-thumb"
-                        style="cursor: pointer;"
-                        @click="$event.stopPropagation(); playVideo(media.url)"
-                      />
-                      <!-- 如果没有缩略图，显示默认背景和图标 -->
-                      <div
-                        v-else
-                        class="thumb-img video-thumb"
-                        style="background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; cursor: pointer;"
-                        @click="playVideo(media.url)"
-                      >
-                        <el-icon style="font-size: 20px; color: #999;"><VideoCamera /></el-icon>
-                      </div>
-                      <!-- 播放按钮覆盖层 -->
-                      <div class="video-play-overlay" @click.stop="playVideo(media.url)">
-                        <el-icon style="color: white; font-size: 16px;"><VideoPlay /></el-icon>
-                      </div>
-                    </div>
-                    <el-button
-                      class="delete-img-btn"
-                      size="small"
-                      @click="deleteMediaFromTemplate(statusTask, Number(mediaIndex))"
-                    >
-                      <el-icon><Close /></el-icon>
-                    </el-button>
-                    <!-- 显示文件类型图标 -->
-                    <div v-if="media.file_type === 'video'" class="file-type-indicator">
-                      <el-icon><VideoCamera /></el-icon>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </el-descriptions-item>
-
             </el-descriptions>
           </div>
         </el-card>
@@ -2274,6 +2275,17 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   gap: 20px;
 }
 
+.upload-container {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px;
+  background-color: rgba(2, 0, 129, 0.08);
+  margin: 5px;
+  width: 400px;
+  border-radius: 10px;
+}
+
 /* 底部操作区域 */
 .bottom-actions {
   display: flex;
@@ -2461,13 +2473,15 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
 
 .task-img-container {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));  /* 考虑边框和间距，设置为85px */
   gap: 10px;
   max-width: 100%;
   padding: 5px 10px;
   border:rgba(167, 167, 167, 0.1) solid 1px;
   background-color: rgba(167, 167, 167, 0.1);
   border-radius: 2px;
+  /* 移除自动行高，统一用固定尺寸 */
+  grid-auto-rows: 85px;
 }
 
 /* 状态日志卡片 */
@@ -2531,85 +2545,129 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   font-size: 20px;
 }
 
-.thumb-img{
-  /* padding:2px; */
-  box-sizing: border-box;
-  width: 50px;
-  height: 50px;
-  object-fit: cover;
-  border-radius: 5px;
-  border: rgba(123, 175, 235, 0.2) solid 3px;
-  /* 确保图片是块级元素，避免行内元素的基线对齐干扰 */
-  display: block;
-  /* 可选：重置默认间距 */
-  margin: 0;
-  padding: 0;
-  min-width: 50px; /* 确保在网格中有最小宽度 */
+/* ============ 核心修复：缩略图样式 ============ */
+/* 外层容器 - 用于承载操作按钮，不裁剪 */
+.thumb-wrapper {
+  position: relative !important;  /* 操作按钮的定位容器 */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 85px !important;         /* 与grid列宽匹配 */
+  height: 85px !important;        /* 与grid行高匹配 */
+  box-sizing: border-box !important;
 }
 
-/* 图片容器样式，用于实现hover显示删除按钮 */
-.task-img-container div[style*="position: relative"] {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+/* 内层裁剪容器 - 只裁剪图片内容 */
+.thumb-inner-container {
+  width: 80px !important;         /* 图片显示尺寸 */
+  height: 80px !important;        /* 图片显示尺寸 */
+  border-radius: 5px !important;
+  overflow: hidden !important;    /* 只裁剪图片，不影响外层按钮 */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
 }
 
-/* 删除图片按钮样式 */
+/* 图片/视频缩略图样式 - 彻底解决拉伸 */
+.thumb-img, .video-thumb {
+  box-sizing: border-box !important;
+  width: 100% !important;         /* 宽度填满内层容器 */
+  height: 100% !important;        /* 高度填满内层容器 */
+  object-fit: cover !important;   /* 保持宽高比，填充容器 */
+  object-position: center center !important; /* 居中裁剪 */
+  border-radius: 5px !important;
+  border: rgba(123, 175, 235, 0.2) solid 3px !important;
+  display: block !important;      /* 确保是块级元素 */
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  /* 额外重置可能导致拉伸的属性 */
+  min-width: unset !important;
+  min-height: unset !important;
+  max-width: unset !important;
+  max-height: unset !important;
+}
+
+/* ============ 操作按钮样式修复 ============ */
+/* 删除图片按钮样式 - 定位到外层容器 */
 .delete-img-btn {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
+  position: absolute !important;
+  top: 0px !important;            /* 调整位置，避免超出可视区域 */
+  right: 0px !important;          /* 调整位置，避免超出可视区域 */
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
   background-color: #f56c6c !important;
-  border: 1px solid white;
-  transform: scale(0.8);
-  opacity: 0;
-  transition: opacity 0.3s;
+  border: 1px solid white !important;
+  transform: scale(0.8) !important;
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
 }
 
 .delete-img-btn .el-icon {
-  font-size: 12px;
-  margin: 0;
-  padding: 0;
+  font-size: 12px !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* hover时显示删除按钮 */
-.task-img-container div[style*="position: relative"]:hover .delete-img-btn {
-  opacity: 1;
+.thumb-wrapper:hover .delete-img-btn {
+  opacity: 1 !important;
 }
 
 .delete-img-btn:hover {
   background-color: #ff5a5a !important;
 }
 
-/* 文件类型指示器 */
+/* 文件类型指示器 - 定位到外层容器 */
 .file-type-indicator {
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  width: 16px;
-  height: 16px;
-  background-color: #409eff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
+  position: absolute !important;
+  top: 0px !important;            /* 调整位置，避免超出可视区域 */
+  left: 0px !important;           /* 调整位置，避免超出可视区域 */
+  width: 16px !important;
+  height: 16px !important;
+  background-color: #409eff !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
 }
 
 .file-type-indicator .el-icon {
-  font-size: 10px;
-  color: white;
-  margin: 0;
-  padding: 0;
+  font-size: 10px !important;
+  color: white !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 视频播放覆盖层 */
+.video-play-overlay {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  border-radius: 50% !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
+  z-index: 5 !important;
+}
+
+.thumb-wrapper:hover .video-play-overlay {
+  opacity: 1 !important;
 }
 
 /* 简易视频播放模态框样式 */
@@ -2661,43 +2719,5 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
 .video-container {
   position: relative;
   display: inline-block;
-}
-
-/* 视频缩略图样式 - 与图片缩略图保持一致 */
-.video-thumb {
-  width: 50px !important;
-  height: 50px !important;
-  object-fit: cover;
-  border-radius: 5px;
-  border: rgba(123, 175, 235, 0.2) solid 3px;
-  /* 确保图片是块级元素，避免行内元素的基线对齐干扰 */
-  display: block;
-  /* 可选：重置默认间距 */
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  min-width: 50px; /* 确保在网格中有最小宽度 */
-}
-
-/* 视频播放覆盖层 */
-.video-play-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(0, 0, 0, 0.5);
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.video-container:hover .video-play-overlay {
-  opacity: 1;
 }
 </style>

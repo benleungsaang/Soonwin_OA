@@ -1,5 +1,7 @@
-前端项目位置@soonwin-oa-VUE-FrontEnd，开发端口 5173，
-后端项目位置@soonwin-os-Python-Server，开发端口 5001
+生产服务器IP为：http://192.168.30.64/，前端端口5183，后端端口5000
+开发服务器IP为：http://192.168.110.13/
+开发项目前端项目位置@soonwin-oa-VUE-FrontEnd，开发端口 5173，模拟生产端口5183
+开发项目后端项目位置@soonwin-os-Python-Server，开发端口 5001，模拟生产端口5000
 
 模型文件夹 ./app/models
 路由文件夹 ./app/routes

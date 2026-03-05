@@ -37,8 +37,66 @@
               </template>
             </el-table-column>
             <el-table-column prop="subject" label="主题" width="200" />
-            <el-table-column prop="content" label="内容" />
+            <el-table-column prop="content" label="内容" width="200">
+                <template #default="scope">
+                  <el-popover
+                  effect="light"
+                  trigger="hover"
+                  placement="top"
+                  :width="300"
+                >
+                  <template #reference>
+                    {{ scope.row.content.substring(0, 30) }}
+                  </template>
+                  <div>{{ scope.row.content }}</div>
+                </el-popover>
+                </template>
+              </el-table-column>
+            <el-table-column label="媒体文件" width="250">
+              <template #default="scope">
+                <div class="communication-media-container">
+                  <template v-if="getCommunicationMediaFiles(scope.row).length > 0">
+                    <div
+                      v-for="(media, mediaIndex) in getCommunicationMediaFiles(scope.row)"
+                      :key="'comm-media-' + scope.row.id + '-' + mediaIndex"
+                      style="position: relative; display: inline-block; margin-right: 5px;"
+                    >
+                      <template v-if="media.file_type === 'image'">
+                        <el-image
+                          :src="media.thumb || media.url"
+                          :preview-src-list="getCommunicationImageUrls(scope.row)"
+                          :preview-teleported="true"
+                          :hide-on-click-modal="true"
+                          :close-on-press-esc="true"
+                          style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px; cursor: pointer;"
+                          fit="cover"
+                        />
+                        <div class="file-type-indicator" style="top: -3px; right: -3px;background-color: #67c23a;">
+                          <el-icon><Picture /></el-icon>
+                        </div>
+                      </template>
+
+                      <template v-else-if="media.file_type === 'video'">
+                        <img
+                          :src="media.thumb || media.url || '/assets/default-video-thumbnail.jpg'"
+                          style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px; cursor: pointer;"
+                          @click="playVideo(media.url)"
+                        />
+                        <div class="file-type-indicator" style="top: -3px; right: -3px;">
+                          <el-icon><VideoCamera /></el-icon>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <span style="color: #999; font-size: 12px;">暂无媒体文件</span>
+                  </template>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="creator_name" label="沟通人" width="120" />
+
           </el-table>
         </div>
         <div v-else class="no-communications-message" style="margin-top: 20px; color: #909399; font-style: italic;">
@@ -122,9 +180,9 @@
                           <el-image
                             :src="media.thumb || media.url"
                             :preview-src-list="getTaskImageUrls(scope.row)"
-                            preview-teleported
-                            hide-on-click-modal
-                            close-on-press-esc
+                            :preview-teleported="true"
+                            :hide-on-click-modal="true"
+                            :close-on-press-esc="true"
                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 3px; cursor: pointer;"
                             fit="cover"
                           />
@@ -336,6 +394,67 @@ const getTaskImageUrls = (task: any) => {
     .map((media: any) => media.url); // 总是返回原图用于预览
 };
 
+/**
+ * 将沟通记录的媒体文件解析为结构化数组
+ * @param communication 沟通记录对象
+ * @returns 媒体文件对象数组 [{ url: '', thumb: '', file_type: '' }, ...]
+ */
+const getCommunicationMediaFiles = (communication: any) => {
+  if (!communication) return [];
+
+  // 使用新的media_files字段
+  if (communication.media_files && Array.isArray(communication.media_files)) {
+    return communication.media_files
+      .filter((file: any) => file.file_type === 'image' || file.file_type === 'video') // 获取图片和视频
+      .map((file: any) => ({
+        url: file.file_path,
+        thumb: file.thumb_path || file.file_path, // 如果没有缩略图，使用原图
+        id: file.id,  // 媒体文件ID
+        file_type: file.file_type  // 文件类型：image或video
+      }));
+  }
+
+  // 兼容旧字段结构
+  const mediaFiles = [];
+
+  // 检查旧的images字段
+  if (communication.images && Array.isArray(communication.images)) {
+    communication.images.forEach((img: any) => {
+      mediaFiles.push({
+        url: img.file_path || img.url,
+        thumb: img.thumb_path || img.url,
+        id: img.id,
+        file_type: 'image'
+      });
+    });
+  }
+
+  // 检查旧的videos字段
+  if (communication.videos && Array.isArray(communication.videos)) {
+    communication.videos.forEach((vid: any) => {
+      mediaFiles.push({
+        url: vid.file_path || vid.url,
+        thumb: vid.thumb_path || vid.url,
+        id: vid.id,
+        file_type: 'video'
+      });
+    });
+  }
+
+  return mediaFiles;
+};
+
+/**
+ * 获取沟通记录的图片URL列表（用于预览）
+ * @param communication 沟通记录对象
+ * @returns 图片URL数组
+ */
+const getCommunicationImageUrls = (communication: any) => {
+  return getCommunicationMediaFiles(communication)
+    .filter((media: any) => media.file_type === 'image')
+    .map((media: any) => media.url); // 总是返回原图用于预览
+};
+
 const getOrderProgress = () => {
   const completed = statusInfo.value?.completed_tasks || 0;
   const total = statusInfo.value?.total_tasks || 0;
@@ -438,8 +557,8 @@ const fetchOrderStatusReport = async () => {
 
     // 检查是否需要获取询盘详情
     const withInquiryValue = route.query.withInquiry;
-    const withInquiry = (typeof withInquiryValue === 'string' && withInquiryValue === 'true') || 
-                       (typeof withInquiryValue === 'boolean' && withInquiryValue === true) || 
+    const withInquiry = (typeof withInquiryValue === 'string' && withInquiryValue === 'true') ||
+                       (typeof withInquiryValue === 'boolean' && withInquiryValue === true) ||
                        withInquiryValue === '1';
     if (withInquiry) {
       // 通过订单信息获取关联的询盘ID
@@ -450,7 +569,23 @@ const fetchOrderStatusReport = async () => {
 
           // 获取关联的沟通记录
           const communicationsResponse: any = await request.get(`/api/inquiries/${orderInfo.value.inquiry_id}/communications`);
-          inquiryInfo.value.communications = (communicationsResponse.list || []).reverse();
+          // 处理沟通记录中的媒体文件
+          const communicationsWithMedia = (communicationsResponse.list || []).reverse().map((comm: any) => {
+            // 确保沟通记录包含媒体文件信息
+            if (!comm.media_files) {
+              comm.media_files = comm.media_files || [];
+            }
+            if (!comm.images) {
+              comm.images = comm.media_files.filter((file: any) => file.file_type === 'image');
+            }
+            if (!comm.videos) {
+              comm.videos = comm.media_files.filter((file: any) => file.file_type === 'video');
+            }
+            comm.image_count = comm.images.length;
+            comm.video_count = comm.videos.length;
+            return comm;
+          });
+          inquiryInfo.value.communications = communicationsWithMedia;
 
           showInquiryDetails.value = true;
         } catch (inquiryError) {
@@ -469,7 +604,23 @@ const fetchOrderStatusReport = async () => {
 
             // 获取关联的沟通记录
             const communicationsResponse: any = await request.get(`/api/inquiries/${inquiryIdNum}/communications`);
-            inquiryInfo.value.communications = (communicationsResponse.list || []).reverse();
+            // 处理沟通记录中的媒体文件
+            const communicationsWithMedia = (communicationsResponse.list || []).reverse().map((comm: any) => {
+              // 确保沟通记录包含媒体文件信息
+              if (!comm.media_files) {
+                comm.media_files = comm.media_files || [];
+              }
+              if (!comm.images) {
+                comm.images = comm.media_files.filter((file: any) => file.file_type === 'image');
+              }
+              if (!comm.videos) {
+                comm.videos = comm.media_files.filter((file: any) => file.file_type === 'video');
+              }
+              comm.image_count = comm.images.length;
+              comm.video_count = comm.videos.length;
+              return comm;
+            });
+            inquiryInfo.value.communications = communicationsWithMedia;
 
             showInquiryDetails.value = true;
           } catch (inquiryError) {

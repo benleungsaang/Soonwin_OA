@@ -22,12 +22,39 @@ class DecimalEncoder(json.JSONEncoder):
 
 def serialize_expense(expense):
     """将费用对象转换为字典格式"""
+    occurred_date_str = None
+    if expense.occurred_date:
+        # 处理不同的日期格式
+        date_value = expense.occurred_date
+        if isinstance(date_value, str):
+            # 处理字符串格式的日期
+            if ' ' in date_value and len(date_value) > 10:  # 包含时间部分
+                try:
+                    # 尝试解析完整的日期时间字符串
+                    from datetime import datetime
+                    parsed_datetime = datetime.fromisoformat(date_value.replace('Z', '+00:00').replace(' ', 'T'))
+                    occurred_date_str = parsed_datetime.strftime('%Y-%m-%d')
+                except ValueError:
+                    # 如果解析失败，尝试简单分割
+                    occurred_date_str = date_value.split(' ')[0]
+            else:
+                # 日期格式，直接使用
+                occurred_date_str = date_value
+        else:
+            # 如果是date或datetime对象，则格式化
+            try:
+                occurred_date_str = date_value.strftime('%Y-%m-%d')
+            except AttributeError:
+                # 处理其他可能的类型
+                occurred_date_str = str(date_value).split(' ')[0]
+    
     return {
         'id': expense.id,
         'name': expense.name,
         'amount': float(expense.amount) if expense.amount else 0.0,
         'expense_type': expense.expense_type,
         'target_year': expense.target_year,
+        'occurred_date': occurred_date_str,
         'remark': expense.remark,
         'create_time': expense.create_time.strftime('%Y-%m-%d %H:%M:%S') if expense.create_time else None,
         'update_time': expense.update_time.strftime('%Y-%m-%d %H:%M:%S') if expense.update_time else None
@@ -99,7 +126,7 @@ def get_expenses():
             expense_type = request.args.get('expense_type')
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
-
+            occurred_date = request.args.get('occurred_date')
             # 如果没有指定年份，则默认使用当前年份
             if not target_year:
                 target_year = datetime.now().year
@@ -120,6 +147,9 @@ def get_expenses():
             if end_date:
                 end_datetime = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
                 query = query.filter(Expense.create_time < end_datetime)
+            if occurred_date:
+                occurred_datetime = datetime.strptime(occurred_date, '%Y-%m-%d').date()
+                query = query.filter(Expense.occurred_date == occurred_datetime)
 
             # 计算总数
             total = query.count()
@@ -254,12 +284,31 @@ def create_expense():
                 "data": None
             }), 400
 
+        # 处理occurred_date字段
+        occurred_date = None
+        if data.get('occurred_date'):
+            from datetime import datetime
+            date_str = str(data.get('occurred_date'))
+            try:
+                # 尝试解析不同格式的日期
+                if ' ' in date_str and len(date_str) > 10:  # 包含时间
+                    occurred_date = datetime.fromisoformat(date_str.replace('Z', '+00:00').replace('T', ' ')).date()
+                else:  # 纯日期格式
+                    occurred_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({
+                    "code": 400,
+                    "msg": "日期格式错误，应为YYYY-MM-DD",
+                    "data": None
+                }), 400
+
         # 创建费用记录
         new_expense = Expense(
             name=data.get('name'),
             amount=data.get('amount'),
             expense_type=data.get('expense_type', '全面分摊'),
             target_year=data.get('target_year'),
+            occurred_date=occurred_date,
             remark=data.get('remark')
         )
         db.session.add(new_expense)
@@ -326,6 +375,26 @@ def update_expense(expense_id):
                 "msg": "请求数据不能为空",
                 "data": None
             }), 400
+
+        # 处理occurred_date字段
+        if 'occurred_date' in data:
+            from datetime import datetime
+            if data.get('occurred_date'):
+                date_str = str(data.get('occurred_date'))
+                try:
+                    # 尝试解析不同格式的日期
+                    if ' ' in date_str and len(date_str) > 10:  # 包含时间
+                        expense.occurred_date = datetime.fromisoformat(date_str.replace('Z', '+00:00').replace('T', ' ')).date()
+                    else:  # 纯日期格式
+                        expense.occurred_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({
+                        "code": 400,
+                        "msg": "日期格式错误，应为YYYY-MM-DD",
+                        "data": None
+                    }), 400
+            else:
+                expense.occurred_date = None
 
         # 更新费用字段
         if 'name' in data: expense.name = data['name']

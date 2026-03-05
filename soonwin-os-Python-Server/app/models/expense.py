@@ -28,6 +28,7 @@ class Expense(db.Model):
     amount = db.Column(db.Numeric(12, 2), nullable=False, comment="费用金额（元，可正可负）")
     expense_type = db.Column(db.String(20), nullable=False, comment="费用类型（全面分摊）")
     target_year = db.Column(db.Integer, nullable=False, comment="目标年份")
+    occurred_date = db.Column(db.Date, comment="费用发生日期")
     remark = db.Column(db.Text, comment="备注信息")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
