@@ -53,6 +53,7 @@ def create_app(port=5000):
         from .models.inquiry import Inquiry, InquiryCommunication
         from .models.inquiry_communication_media import InquiryCommunicationMedia
         from .models.machine import Machine, PartType
+        from .models.machine_new import MachineNew
         from .models.photo import Photo
         from .models.video import Video
         from .models.business_operation_log import BusinessOperationLog

@@ -21,6 +21,7 @@ const OrderStatusReportView = () => import('@/views/OrderStatusReportView.vue');
 const AttendanceSystemView = () => import('@/views/AttendanceSystemView.vue');
 const AttendanceApplyView = () => import('@/views/AttendanceApplyView.vue');
 const AttendanceJsonExportView = () => import('@/views/AttendanceJsonExportView.vue');
+const MachineManagementNewView = () => import('@/views/MachineManagementNewView.vue');
 
 
 
@@ -161,6 +162,12 @@ const routes: RouteRecordRaw[] = [
     component: AttendanceJsonExportView,
     meta: { title: '考勤数据JSON导出', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
+  {
+    path: '/machine-management-new',
+    name: 'machineManagementNew',
+    component: MachineManagementNewView,
+    meta: { title: '设备管理（新版）', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+  }
 
 
 ];

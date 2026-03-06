@@ -4,6 +4,7 @@ import os
 import json
 from .. import db
 from ..models.machine import Machine, PartType
+from ..models.machine_new import MachineNew
 from ..utils.json_utils import import_json_data, export_json_data
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE, ROUTE_MACHINE_LIST, ROUTE_UPLOAD_MANAGE
@@ -664,4 +665,350 @@ def export_machines_json():
         })
     except Exception as e:
         current_app.logger.error(f"导出机器数据失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new', methods=['GET'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def get_machines_new():
+    """获取所有新机器列表（支持搜索）"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        search = request.args.get('search', '', type=str)  # 搜索关键词
+
+        # 使用通用函数检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        # 构建查询
+        query = MachineNew.query.filter_by(is_deleted=0)
+
+        # 如果提供搜索关键词，则在search_key中搜索
+        if search:
+            query = query.filter(MachineNew.search_key.like(f'%{search}%'))
+
+        pagination = query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        machines = pagination.items
+
+        # 根据用户权限处理数据
+        machine_data = []
+        for machine in machines:
+            # 根据用户权限决定是否包含价格字段
+            include_price = is_admin
+            machine_dict = machine.to_dict(include_price=include_price)
+            machine_data.append(machine_dict)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'machines': machine_data,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'current_page': page
+            }
+        })
+    except Exception as e:
+        current_app.logger.error(f"获取新机器列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/<int:id>', methods=['GET'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def get_machine_new(id):
+    """根据ID获取单个新机器"""
+    try:
+        # 使用通用函数检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        machine = MachineNew.query.filter_by(id=id, is_deleted=0).first()
+        if not machine:
+            return jsonify({'success': False, 'message': '机器不存在'}), 404
+
+        # 根据用户权限决定是否包含价格字段
+        include_price = is_admin
+        machine_dict = machine.to_dict(include_price=include_price)
+
+        return jsonify({
+            'success': True,
+            'data': machine_dict
+        })
+    except Exception as e:
+        current_app.logger.error(f"获取机器信息失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new', methods=['POST'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def create_machine_new():
+    """创建新机器"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        data = request.get_json()
+
+        # 检查机器型号是否已存在
+        existing_machine = MachineNew.query.filter_by(model=data.get('model')).first()
+        if existing_machine:
+            return jsonify({'success': False, 'message': '机器型号已存在'}), 400
+
+        # 处理自定义属性
+        custom_attrs = data.get('custom_attrs')
+        if isinstance(custom_attrs, dict):
+            import json as json_module
+            custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
+
+        # 处理数值字段类型转换
+        added_count = data.get('added_count', 0)
+        if added_count is not None:
+            try:
+                added_count = int(added_count)
+            except:
+                current_app.logger.warning(f"added_count 转换失败: {added_count}")
+                added_count = 0
+
+        original_price = data.get('original_price')
+        if original_price is not None:
+            try:
+                from decimal import Decimal
+                original_price = Decimal(str(original_price))
+            except:
+                current_app.logger.warning(f"original_price 转换失败: {original_price}")
+                original_price = None
+
+        show_price = data.get('show_price')
+        if show_price is not None:
+            try:
+                from decimal import Decimal
+                show_price = Decimal(str(show_price))
+            except:
+                current_app.logger.warning(f"show_price 转换失败: {show_price}")
+                show_price = None
+
+        machine_type = data.get('machine_type', 0)
+        if machine_type is not None:
+            try:
+                machine_type = int(machine_type)
+            except:
+                current_app.logger.warning(f"machine_type 转换失败: {machine_type}")
+                machine_type = 0
+
+        # 创建机器对象
+        machine = MachineNew(
+            model=data.get('model'),
+            original_model=data.get('original_model'),
+            machine_weight=data.get('machine_weight'),
+            dimensions=data.get('dimensions'),
+            general_power=data.get('general_power'),
+            power_supply=data.get('power_supply'),
+            image=data.get('image'),
+            added_count=added_count,
+            show_price=show_price,
+            original_price=original_price,
+            machine_type=machine_type,
+            remark=data.get('remark'),
+            brand=data.get('brand'),
+            custom_attrs=custom_attrs
+        )
+
+        # 自动生成搜索关键词
+        machine.search_key = machine._generate_search_key()
+
+        db.session.add(machine)
+        db.session.commit()
+
+        # 根据用户权限决定是否包含价格字段
+        include_price = is_admin
+        machine_dict = machine.to_dict(include_price=include_price)
+
+        return jsonify({
+            'success': True,
+            'message': '机器创建成功',
+            'data': machine_dict
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"创建新机器失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/<int:id>', methods=['PUT'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def update_machine_new(id):
+    """更新新机器信息"""
+    try:
+        machine = MachineNew.query.filter_by(id=id, is_deleted=0).first()
+        if not machine:
+            return jsonify({'success': False, 'message': '机器不存在'}), 404
+
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        data = request.get_json()
+
+        # 检查机器型号是否需要更新且是否已存在其他机器使用该型号
+        if 'model' in data:
+            existing_machine = MachineNew.query.filter_by(model=data['model']).first()
+            if existing_machine and existing_machine.id != id:
+                return jsonify({'success': False, 'message': '机器型号已存在'}), 400
+            machine.model = data['model']
+
+        # 处理数值字段类型转换
+        if 'original_price' in data and data['original_price'] is not None:
+            try:
+                from decimal import Decimal
+                machine.original_price = Decimal(str(data['original_price']))
+            except:
+                current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
+
+        if 'show_price' in data and data['show_price'] is not None:
+            try:
+                from decimal import Decimal
+                machine.show_price = Decimal(str(data['show_price']))
+            except:
+                current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
+
+        if 'added_count' in data and data['added_count'] is not None:
+            try:
+                machine.added_count = int(data['added_count'])
+            except:
+                current_app.logger.warning(f"added_count 转换失败: {data['added_count']}")
+
+        if 'machine_type' in data and data['machine_type'] is not None:
+            try:
+                machine.machine_type = int(data['machine_type'])
+            except:
+                current_app.logger.warning(f"machine_type 转换失败: {data['machine_type']}")
+
+        # 定义需要批量更新的普通字段列表
+        update_fields = [
+            'original_model', 'machine_weight', 'dimensions', 'general_power',
+            'power_supply', 'image', 'remark', 'brand'
+        ]
+
+        # 批量更新普通字段
+        for field in update_fields:
+            if field in data:
+                setattr(machine, field, data[field])
+
+        # 单独处理需要特殊逻辑的字段（如 custom_attrs）
+        if 'custom_attrs' in data:
+            custom_attrs = data['custom_attrs']
+            if isinstance(custom_attrs, dict):
+                import json as json_module
+                custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
+            machine.custom_attrs = custom_attrs
+
+        # 重新生成搜索关键词
+        machine.search_key = machine._generate_search_key()
+
+        db.session.commit()
+
+        # 根据用户权限决定是否包含价格字段
+        include_price = is_admin
+        machine_dict = machine.to_dict(include_price=include_price)
+
+        return jsonify({
+            'success': True,
+            'message': '机器更新成功',
+            'data': machine_dict
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新新机器失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/<int:id>', methods=['DELETE'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def delete_machine_new(id):
+    """逻辑删除新机器（归档）"""
+    try:
+        machine = MachineNew.query.filter_by(id=id, is_deleted=0).first()
+        if not machine:
+            return jsonify({'success': False, 'message': '机器不存在'}), 404
+
+        # 设置逻辑删除标记
+        machine.is_deleted = 1
+        machine.delete_time = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '机器已归档（逻辑删除）'
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"归档新机器失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/import-json', methods=['POST'])
+@route_permission(ROUTE_UPLOAD_MANAGE)
+def import_machines_new_json():
+    """直接从JSON数据导入新机器数据（不需要文件上传）"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'success': False, 'message': '未提供JSON数据'}), 400
+
+        # 检查数据是否为列表格式
+        if not isinstance(data, list):
+            # 如果是单个对象，转换为列表
+            if isinstance(data, dict):
+                data = [data]
+            else:
+                return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
+
+        # 使用通用JSON工具导入数据
+        result = import_json_data('machine_new', data)
+
+        return jsonify({
+            'success': result['success'],
+            'message': f"成功处理 {result['total_processed']} 条数据，导入 {result['success_count']} 条，失败 {result['error_count']} 条",
+            'data': {
+                'imported_count': result['success_count'],
+                'failed_count': result['error_count'],
+                'failed_records': result.get('errors', [])
+            }
+        })
+    except Exception as e:
+        current_app.logger.error(f"导入新机器JSON数据失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/export-json', methods=['GET'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def export_machines_new_json():
+    """导出新机器数据为JSON格式"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        # 获取过滤参数
+        filters = {}
+        # 可以根据需要添加过滤参数处理
+
+        # 使用通用JSON工具导出数据
+        data = export_json_data('machine_new', filters, is_admin=is_admin)
+
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        current_app.logger.error(f"导出新机器数据失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500

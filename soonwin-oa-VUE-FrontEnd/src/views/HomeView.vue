@@ -45,6 +45,10 @@
                       <el-icon><Tools /></el-icon>
                       <span>机器零部件管理</span>
                     </el-menu-item>
+                    <el-menu-item index="15" @click="goToMachineManagementNew" v-if="hasToken && permissions.machineManage">
+                      <el-icon><Tools /></el-icon>
+                      <span>设备管理（新版）</span>
+                    </el-menu-item>
                     <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && permissions.expenseManage">
                       <el-icon><Money /></el-icon>
                       <span>运营费用</span>
@@ -201,6 +205,7 @@ const permissionMap = {
   punchRecordsManage: { key: 'punch_manage', name: '打卡记录', path: '/punch-records' },
   displayFilesManage: { key: 'display_file_manage', name: '展示文件', path: '/display-files' },
   deviceManage: { key: 'machine_manage', name: '设备管理', path: '/machine-parts-management' },
+  machineManage: { key: 'machine_manage', name: '设备管理（新版）', path: '/machine-management-new' },
   userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' },
   attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' }
 };
@@ -250,6 +255,7 @@ const goToPhotoManagement = () => navigateToPage('photoManage');
 const goToVideoManagement = () => navigateToPage('videoManage');
 const goToOrderStatus = () => navigateToPage('orderStatusManage');
 const goToAttendanceSystem = () => navigateToPage('attendanceManage');
+const goToMachineManagementNew = () => navigateToPage('machineManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {

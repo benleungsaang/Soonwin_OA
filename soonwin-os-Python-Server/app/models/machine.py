@@ -34,7 +34,7 @@ class Machine(db.Model):
                 custom_attrs_dict = json.loads(self.custom_attrs)
             except (json.JSONDecodeError, TypeError):
                 custom_attrs_dict = {}
-        
+
         return {
             'model': self.model,
             'original_model': self.original_model,

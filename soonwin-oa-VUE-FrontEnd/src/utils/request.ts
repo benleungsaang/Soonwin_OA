@@ -320,6 +320,15 @@ export const deletePart = (partTypeId: number) => request.delete(`/api/parts/${p
 // 部件JSON导入导出API
 export const importPartsJson = (data: any) => request.post('/api/parts/import-json', data);
 export const exportPartsJson = () => request.get('/api/parts/export-json');
+
+// MachineNew相关API
+export const getMachinesNew = (params?: any) => request.get('/api/machines_new', { params });
+export const getMachineNew = (id: number) => request.get(`/api/machines_new/${id}`);
+export const createMachineNew = (data: any) => request.post('/api/machines_new', data);
+export const updateMachineNew = (id: number, data: any) => request.put(`/api/machines_new/${id}`, data);
+export const deleteMachineNew = (id: number) => request.delete(`/api/machines_new/${id}`);
+export const importMachinesNewJson = (data: any) => request.post('/api/machines_new/import-json', data);
+export const exportMachinesNewJson = () => request.get('/api/machines_new/export-json');
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),

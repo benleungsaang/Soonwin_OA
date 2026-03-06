@@ -1,0 +1,920 @@
+<template>
+  <div class="machine-management-container">
+    <!-- 通用头部 -->
+    <CommonHeader title="设备管理" />
+
+    <div class="content-wrapper">
+      <!-- 搜索和操作区域 -->
+      <div class="search-and-actions">
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-input
+              v-model="searchQuery"
+              placeholder="请输入搜索关键词"
+              clearable
+              @clear="handleSearchClear"
+              @keyup.enter="handleSearch"
+            >
+              <template #append>
+                <el-button @click="handleSearch">
+                  <el-icon><Search /></el-icon>
+                </el-button>
+              </template>
+            </el-input>
+          </el-col>
+          <el-col :span="16" class="text-right">
+            <el-button
+              v-if="hasRoutePermission('upload_manage')"
+              type="success"
+              @click="openImportDialog"
+            >
+              <el-icon><Upload /></el-icon>
+              批量导入
+            </el-button>
+            <el-button
+              v-if="hasRoutePermission('machine_manage')"
+              type="warning"
+              @click="handleExport"
+            >
+              <el-icon><Download /></el-icon>
+              批量导出
+            </el-button>
+            <el-button
+              v-if="hasRoutePermission('machine_manage')"
+              type="primary"
+              @click="openCreateDialog"
+            >
+              <el-icon><Plus /></el-icon>
+              新增设备
+            </el-button>
+          </el-col>
+        </el-row>
+      </div>
+
+      <!-- 设备列表 -->
+      <el-table
+        :data="machines"
+        style="width: 100%"
+        v-loading="loading"
+        row-key="id"
+        :row-style="{ cursor: 'pointer' }"
+        @row-click="handleRowClick"
+      >
+        <el-table-column prop="image" label="缩略图" width="120">
+          <template #default="{ row }">
+            <el-image
+              :src="row.image"
+              :preview-src-list="[row.image]"
+              fit="cover"
+              style="width: 60px; height: 60px; border-radius: 4px;"
+              :preview-teleported="true"
+              hide-on-click-modal
+              @click.stop
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="brand" label="品牌" width="120" />
+        <el-table-column label="设备型号" width="200">
+          <template #default="{ row }">
+            <div>{{ row.model }}</div>
+            <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="show_price" label="展示价格" width="120">
+          <template #default="{ row }">
+            ¥{{ row.show_price || 0 }}
+          </template>
+        </el-table-column>
+        <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
+          <template #default="{ row }">
+            ¥{{ row.original_price || 0 }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="hasRoutePermission('machine_manage')"
+              size="small"
+              @click="openEditDialog(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-if="hasRoutePermission('machine_manage')"
+              size="small"
+              type="danger"
+              @click="confirmDelete(row)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </div>
+
+    <!-- 新增/编辑对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      width="600px"
+      :before-close="handleDialogClose"
+    >
+      <el-form
+        :model="formModel"
+        :rules="formRules"
+        ref="formRef"
+        label-width="120px"
+      >
+        <el-form-item label="设备型号" prop="model">
+          <el-input
+            v-model="formModel.model"
+            :disabled="!!formModel.id"
+            placeholder="请输入设备型号"
+          />
+        </el-form-item>
+        <el-form-item label="原厂型号" prop="original_model">
+          <el-input v-model="formModel.original_model" placeholder="请输入原厂型号" />
+        </el-form-item>
+        <el-form-item label="品牌" prop="brand">
+          <el-input v-model="formModel.brand" placeholder="请输入品牌" />
+        </el-form-item>
+        <el-form-item label="设备重量" prop="machine_weight">
+          <el-input v-model="formModel.machine_weight" placeholder="请输入设备重量" />
+        </el-form-item>
+        <el-form-item label="设备尺寸" prop="dimensions">
+          <el-input v-model="formModel.dimensions" placeholder="请输入设备尺寸" />
+        </el-form-item>
+        <el-form-item label="总功率" prop="general_power">
+          <el-input v-model="formModel.general_power" placeholder="请输入总功率" />
+        </el-form-item>
+        <el-form-item label="供电规格" prop="power_supply">
+          <el-input v-model="formModel.power_supply" placeholder="请输入供电规格" />
+        </el-form-item>
+        <el-form-item label="设备类型" prop="machine_type">
+          <el-select v-model="formModel.machine_type" placeholder="请选择设备类型">
+            <el-option :value="0" label="主机" />
+            <el-option :value="1" label="配件" />
+            <el-option :value="2" label="工具" />
+            <el-option :value="3" label="耗材" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="展示价格" prop="show_price">
+          <el-input-number
+            v-model="formModel.show_price"
+            :precision="2"
+            :min="0"
+            placeholder="请输入展示价格"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item v-if="isCurrentUserAdmin()" label="原始价格" prop="original_price">
+          <el-input-number
+            v-model="formModel.original_price"
+            :precision="2"
+            :min="0"
+            placeholder="请输入原始价格"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="使用次数" prop="added_count">
+          <el-input-number
+            v-model="formModel.added_count"
+            :min="0"
+            placeholder="请输入使用次数"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input
+            v-model="formModel.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注"
+          />
+        </el-form-item>
+        <el-form-item label="自定义属性" prop="custom_attrs">
+          <!-- JSON格式校验提示 -->
+          <div v-if="customAttrsError" class="custom-attr-error">
+            {{ customAttrsError }}
+          </div>
+
+          <!-- 动态生成的自定义字段表单项 -->
+          <div v-for="(item, index) in customAttrsList" :key="index" class="custom-attr-item">
+            <el-row :gutter="10">
+              <el-col :span="8">
+                <el-input
+                  v-model="item.key"
+                  placeholder="字段名（如：WorkingStations）"
+                  @input="syncCustomAttrsToJson"
+                />
+              </el-col>
+              <el-col :span="12">
+                <el-input
+                  v-model="item.value"
+                  placeholder="字段值（如：6）"
+                  @input="syncCustomAttrsToJson"
+                />
+              </el-col>
+              <el-col :span="4">
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="removeCustomAttr(index)"
+                  :icon="Delete"
+                >
+                </el-button>
+              </el-col>
+            </el-row>
+          </div>
+
+          <!-- 新增自定义字段按钮 -->
+          <el-button
+            type="primary"
+            @click="addCustomAttr"
+            :icon="Plus"
+            size="small"
+            style="margin-top: 10px"
+          >
+            新增自定义字段
+          </el-button>
+
+          <!-- 保留原始JSON文本框（可选，用于调试/兼容） -->
+          <el-input
+            v-model="formModel.custom_attrs"
+            type="textarea"
+            :rows="3"
+            placeholder="JSON格式（自动同步，无需手动编辑）"
+            style="margin-top: 10px; display: none;"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="handleDialogClose">取消</el-button>
+          <el-button type="primary" @click="handleSave">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 导入对话框 -->
+    <el-dialog
+      v-model="importDialogVisible"
+      title="批量导入设备"
+      width="800px"
+      :before-close="handleImportDialogClose"
+    >
+      <el-steps :active="importStep" align-center>
+        <el-step title="上传文件" />
+        <el-step title="数据预览" />
+        <el-step title="导入完成" />
+      </el-steps>
+
+      <!-- 步骤1：上传JSON数据 -->
+      <div v-if="importStep === 0" class="import-step-content">
+        <p>请粘贴JSON格式的设备数据：</p>
+        <el-input
+          v-model="importJsonData"
+          type="textarea"
+          :rows="10"
+          placeholder='示例格式：[{"Model": "VP-BF-180-06", "OriginalModel": "GDS180-06", ...}]'
+        />
+        <div class="import-tips">
+          <p><strong>数据格式说明：</strong></p>
+          <ul>
+            <li>支持驼峰命名（如Model, OriginalModel）或下划线命名（如model, original_model）</li>
+            <li>非标准字段将自动存储在custom_attrs中</li>
+            <li>数据格式应为数组：[{"Model": "设备型号", ...}, {...}]</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 步骤2：数据预览 -->
+      <div v-if="importStep === 1" class="import-step-content">
+        <p>数据预览（前5条）：</p>
+        <el-table :data="importPreviewData" max-height="300">
+          <el-table-column prop="model" label="设备型号" width="150" />
+          <el-table-column prop="original_model" label="原厂型号" width="150" />
+          <el-table-column prop="brand" label="品牌" width="120" />
+          <el-table-column prop="machine_weight" label="设备重量" width="120" />
+          <el-table-column prop="show_price" label="展示价格" width="120" />
+        </el-table>
+        <p class="preview-info">总共 {{ importPreviewTotal }} 条数据待导入</p>
+      </div>
+
+      <!-- 步骤3：导入结果 -->
+      <div v-if="importStep === 2" class="import-step-content">
+        <el-result
+          v-if="importResult.success"
+          icon="success"
+          title="导入成功"
+          :sub-title="`成功导入 ${importResult.imported_count} 条，失败 ${importResult.failed_count} 条`"
+        >
+          <template #extra>
+            <el-button type="primary" @click="handleImportDialogClose">确定</el-button>
+          </template>
+        </el-result>
+        <el-result
+          v-else
+          icon="error"
+          title="导入失败"
+          :sub-title="importResult.message || '导入过程中发生错误'"
+        >
+          <template #extra>
+            <el-button type="primary" @click="handleImportDialogClose">确定</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button v-if="importStep > 0" @click="prevImportStep">上一步</el-button>
+          <el-button
+            v-if="importStep < 2"
+            type="primary"
+            @click="nextImportStep"
+            :disabled="!canNextStep"
+          >
+            {{ importStep === 1 ? '开始导入' : '下一步' }}
+          </el-button>
+          <el-button v-if="importStep === 2" type="primary" @click="handleImportDialogClose">完成</el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
+import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue';
+import CommonHeader from '@/components/CommonHeader.vue';
+import { hasRoutePermission, getCurrentUserRole } from '@/utils/authUtils';
+import request, { importMachinesNewJson, exportMachinesNewJson } from '@/utils/request';
+import { getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew } from '@/utils/request';
+
+// 定义数据类型
+interface Machine {
+  id: number;
+  model: string;
+  original_model: string;
+  machine_weight: string;
+  dimensions: string;
+  general_power: string;
+  power_supply: string;
+  image: string;
+  added_count: number;
+  show_price: number | null;
+  original_price: number | null;
+  machine_type: number;
+  remark: string;
+  brand: string;
+  search_key: string;
+  custom_attrs: string;
+}
+
+// 响应式数据
+const machines = ref<Machine[]>([]);
+const loading = ref(false);
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+const searchQuery = ref('');
+
+// 表单相关
+const dialogVisible = ref(false);
+const formRef = ref<FormInstance>();
+const formModel = ref<Partial<Machine>>({
+  id: undefined,
+  model: '',
+  original_model: '',
+  machine_weight: '',
+  dimensions: '',
+  general_power: '',
+  power_supply: '',
+  image: './assets/Media/Machine/sample.png',
+  added_count: 0,
+  show_price: null,
+  original_price: null,
+  machine_type: 0,
+  remark: '',
+  brand: '',
+  search_key: '',
+  custom_attrs: ''
+});
+const isEdit = ref(false);
+
+// 表单验证规则
+const formRules = ref<FormRules>({
+  model: [
+    { required: true, message: '请输入设备型号', trigger: 'blur' },
+    { min: 1, max: 100, message: '长度在 1 到 100 个字符', trigger: 'blur' }
+  ],
+  original_model: [
+    { required: true, message: '请输入原厂型号', trigger: 'blur' }
+  ],
+  brand: [
+    { required: true, message: '请输入品牌', trigger: 'blur' }
+  ]
+});
+
+// 导入相关数据
+const importDialogVisible = ref(false);
+const importStep = ref(0);
+const importJsonData = ref('');
+const importPreviewData = ref<Partial<Machine>[]>([]);
+const importPreviewTotal = ref(0);
+const importResult = ref({
+  success: false,
+  message: '',
+  imported_count: 0,
+  failed_count: 0
+});
+
+// 计算属性
+const dialogTitle = computed(() => isEdit.value ? '编辑设备' : '新增设备');
+
+const canNextStep = computed(() => {
+  if (importStep.value === 0) {
+    // 第一步：检查JSON数据是否有效
+    try {
+      const parsed = JSON.parse(importJsonData.value);
+      return Array.isArray(parsed) && parsed.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+});
+
+// 获取设备列表
+const fetchMachines = async () => {
+  loading.value = true;
+  try {
+    const response = await getMachinesNew({
+      page: currentPage.value,
+      per_page: pageSize.value,
+      search: searchQuery.value
+    });
+
+    machines.value = response.machines || [];
+    total.value = response.total || 0;
+  } catch (error) {
+    console.error('获取设备列表失败:', error);
+    ElMessage.error('获取设备列表失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 分页处理
+const handleSizeChange = (size: number) => {
+  pageSize.value = size;
+  currentPage.value = 1;
+  fetchMachines();
+};
+
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page;
+  fetchMachines();
+};
+
+// 搜索处理
+const handleSearch = () => {
+  currentPage.value = 1;
+  fetchMachines();
+};
+
+const handleSearchClear = () => {
+  searchQuery.value = '';
+  currentPage.value = 1;
+  fetchMachines();
+};
+
+// 操作处理
+const openCreateDialog = async () => {
+  isEdit.value = false;
+  resetForm();
+  // 确保表单数据更新后显示对话框
+  await nextTick();
+  dialogVisible.value = true;
+};
+
+const openEditDialog = async (row: Machine) => {
+  isEdit.value = true;
+  // 创建副本并确保数值字段是正确的类型
+  formModel.value = {
+    ...row,
+    show_price: row.show_price !== null && row.show_price !== undefined ? Number(row.show_price) : null,
+    original_price: row.original_price !== null && row.original_price !== undefined ? Number(row.original_price) : null,
+    added_count: row.added_count !== null && row.added_count !== undefined ? Number(row.added_count) : 0,
+    machine_type: row.machine_type !== null && row.machine_type !== undefined ? Number(row.machine_type) : 0
+  };
+  
+  // 确保custom_attrs是字符串格式
+  if (typeof formModel.value.custom_attrs !== 'string') {
+    formModel.value.custom_attrs = JSON.stringify(formModel.value.custom_attrs || {});
+  }
+  
+  // 等待表单数据更新后，再更新自定义属性列表
+  await nextTick();
+  dialogVisible.value = true;
+};
+
+const resetForm = () => {
+  formModel.value = {
+    id: undefined,
+    model: '',
+    original_model: '',
+    machine_weight: '',
+    dimensions: '',
+    general_power: '',
+    power_supply: '',
+    image: './assets/Media/Machine/sample.png',
+    added_count: 0,
+    show_price: null,
+    original_price: null,
+    machine_type: 0,
+    remark: '',
+    brand: '',
+    search_key: '',
+    custom_attrs: '{}'
+  };
+  // 确保数值字段是正确的类型
+  formModel.value.added_count = Number(formModel.value.added_count);
+  formModel.value.machine_type = Number(formModel.value.machine_type);
+  
+  // 重置自定义属性相关数据
+  customAttrsList.value = [{ key: '', value: '' }];
+  customAttrsError.value = '';
+};
+
+const handleDialogClose = () => {
+  dialogVisible.value = false;
+  resetForm();
+  // 重置自定义属性相关数据
+  customAttrsList.value = [{ key: '', value: '' }];
+  customAttrsError.value = '';
+};
+
+const handleSave = async () => {
+  if (!formRef.value) return;
+
+  try {
+    await formRef.value.validate();
+
+    // 确保数值字段是正确的类型
+    const formData = {
+      ...formModel.value,
+      show_price: formModel.value.show_price !== null && formModel.value.show_price !== undefined ? Number(formModel.value.show_price) : null,
+      original_price: formModel.value.original_price !== null && formModel.value.original_price !== undefined ? Number(formModel.value.original_price) : null,
+      added_count: Number(formModel.value.added_count),
+      machine_type: Number(formModel.value.machine_type)
+    };
+
+    if (isEdit.value) {
+      // 更新设备
+      await updateMachineNew(formModel.value.id as number, formData);
+      ElMessage.success('设备更新成功');
+      dialogVisible.value = false;
+      fetchMachines();
+    } else {
+      // 创建新设备
+      await createMachineNew(formData);
+      ElMessage.success('设备创建成功');
+      dialogVisible.value = false;
+      fetchMachines();
+    }
+  } catch (error) {
+    console.error('保存设备失败:', error);
+    ElMessage.error('保存设备失败');
+  }
+};
+
+const confirmDelete = async (row: Machine) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除设备 "${row.model}" 吗？此操作不可恢复！`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await deleteMachineNew(row.id);
+    ElMessage.success('设备删除成功');
+    fetchMachines();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除设备失败:', error);
+      ElMessage.error('删除设备失败');
+    }
+  }
+};
+
+// 辅助函数
+const getMachineTypeText = (type: number) => {
+  const types = {
+    0: '主机',
+    1: '配件',
+    2: '工具',
+    3: '耗材'
+  };
+  return types[type as keyof typeof types] || '未知';
+};
+
+const isCurrentUserAdmin = () => {
+  return getCurrentUserRole() === 'admin';
+};
+
+// 自定义属性相关数据
+const customAttrsList = ref<{key: string, value: string}[]>([]);
+const customAttrsError = ref('');
+
+// 解析JSON为自定义属性列表
+const parseCustomAttrsFromJson = (jsonStr: string) => {
+  if (!jsonStr) jsonStr = '{}';
+  try {
+    // 清空错误提示
+    customAttrsError.value = '';
+    // 解析JSON为对象
+    const jsonObj = JSON.parse(jsonStr);
+    // 使用Object.keys来确保顺序与JSON一致
+    const list: {key: string, value: string}[] = Object.keys(jsonObj).map(key => ({
+      key: key,
+      value: String(jsonObj[key])  // 统一转为字符串，避免类型问题
+    }));
+    // 若无数据，默认加一个空项
+    customAttrsList.value = list.length > 0 ? list : [{ key: '', value: '' }];
+  } catch (e) {
+    // 解析失败，给出提示
+    customAttrsError.value = `JSON格式错误：${(e as Error).message}`;
+    customAttrsList.value = [{ key: '', value: '' }];
+  }
+};
+
+// 监听原始JSON字段，解析为动态列表
+watch(
+  () => formModel.value.custom_attrs,
+  (newVal) => {
+    parseCustomAttrsFromJson(newVal);
+  },
+  { immediate: true }
+);
+
+// 同步动态列表回JSON字符串
+const syncCustomAttrsToJson = () => {
+  // 过滤空键的项，保持原有顺序
+  const validList = customAttrsList.value.filter(item => item.key.trim());
+  // 创建普通对象，保持数组顺序
+  const orderedObj: Record<string, string> = {};
+  validList.forEach(item => {
+    if (item.key.trim()) {
+      orderedObj[item.key.trim()] = item.value.trim();
+    }
+  });
+  // 转为格式化的JSON字符串
+  formModel.value.custom_attrs = JSON.stringify(orderedObj, null, 2);
+};
+
+// 新增自定义字段
+const addCustomAttr = async () => {
+  customAttrsList.value.push({ key: '', value: '' });
+  // 不立即同步，让用户输入后再同步
+};
+
+// 删除自定义字段
+const removeCustomAttr = async (index: number) => {
+  customAttrsList.value.splice(index, 1);
+  // 确保DOM更新后再同步JSON
+  await nextTick();
+  syncCustomAttrsToJson();
+};
+
+// 自定义属性表单校验
+const validateCustomAttrs = (_rule: any, value: any, callback: (error?: Error) => void) => {
+  if (customAttrsError.value) {
+    callback(new Error(customAttrsError.value));
+  } else {
+    callback();
+  }
+};
+
+// 更新表单规则以包含自定义属性验证
+const updateFormRules = () => {
+  formRules.value.custom_attrs = [
+    { validator: validateCustomAttrs, trigger: 'change' }
+  ];
+};
+
+// 初始化表单验证规则
+updateFormRules();
+
+// 导入导出相关方法
+const openImportDialog = () => {
+  importStep.value = 0;
+  importJsonData.value = '';
+  importPreviewData.value = [];
+  importPreviewTotal.value = 0;
+  importResult.value = {
+    success: false,
+    message: '',
+    imported_count: 0,
+    failed_count: 0
+  };
+  importDialogVisible.value = true;
+};
+
+const handleImportDialogClose = () => {
+  importDialogVisible.value = false;
+};
+
+const prevImportStep = () => {
+  if (importStep.value > 0) {
+    importStep.value--;
+  }
+};
+
+const nextImportStep = async () => {
+  if (importStep.value === 0) {
+    // 第一步：解析并预览数据
+    try {
+      const parsedData = JSON.parse(importJsonData.value);
+      if (!Array.isArray(parsedData)) {
+        throw new Error('数据格式错误，应为数组格式');
+      }
+
+      // 限制预览数量为前5条
+      importPreviewData.value = parsedData.slice(0, 5).map(item => ({
+        model: item.Model || item.model || '',
+        original_model: item.OriginalModel || item.original_model || '',
+        brand: item.brand || item.Brand || '',
+        machine_weight: item.MachineWeight || item.machine_weight || '',
+        show_price: item.ShowPrice || item.show_price || 0
+      }));
+
+      importPreviewTotal.value = parsedData.length;
+      importStep.value = 1;
+    } catch (error) {
+      ElMessage.error(`JSON格式错误: ${error.message}`);
+    }
+  } else if (importStep.value === 1) {
+    // 第二步：开始导入
+    try {
+      const data = JSON.parse(importJsonData.value);
+      const response = await importMachinesNewJson(data);
+
+      // 由于request.ts的拦截器已经解包了数据，response直接包含了解析后的data内容
+      importResult.value = {
+        success: true, // 前面的await没有抛出异常，说明请求成功
+        message: `成功导入 ${response.imported_count || 0} 条，失败 ${response.failed_count || 0} 条`,
+        imported_count: response.imported_count || 0,
+        failed_count: response.failed_count || 0
+      };
+
+      importStep.value = 2;
+
+      // 如果导入成功，刷新数据
+      if (response.success) {
+        fetchMachines();
+      }
+    } catch (error: any) {
+      console.error('导入设备失败:', error);
+      importResult.value = {
+        success: false,
+        message: error.message || error || '导入失败',
+        imported_count: 0,
+        failed_count: 0
+      };
+      importStep.value = 2;
+    }
+  }
+};
+
+const handleRowClick = (row: Machine) => {
+  // 检查用户是否有编辑权限
+  if (!hasRoutePermission('machine_manage')) {
+    ElMessage.warning('您没有编辑设备的权限');
+    return;
+  }
+
+  openEditDialog(row);
+};
+
+const handleExport = async () => {
+  try {
+    const response = await exportMachinesNewJson();
+    if (response && response.data) {
+      // 将数据转换为JSON字符串并下载
+      const dataStr = JSON.stringify(response.data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `machines_new_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      ElMessage.success('导出成功');
+    } else {
+      ElMessage.error('导出失败，未获取到数据');
+    }
+  } catch (error) {
+    console.error('导出设备失败:', error);
+    ElMessage.error('导出失败');
+  }
+};
+
+// 组件挂载时获取数据
+onMounted(() => {
+  fetchMachines();
+});
+</script>
+
+<style scoped>
+.machine-management-container {
+  padding: 20px;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.content-wrapper {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.search-and-actions {
+  margin-bottom: 20px;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.pagination-wrapper {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.dialog-footer {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.import-step-content {
+  margin-top: 20px;
+}
+
+.import-tips {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.import-tips ul {
+  margin: 5px 0;
+  padding-left: 20px;
+}
+
+.import-tips li {
+  margin: 3px 0;
+}
+
+.preview-info {
+  margin-top: 10px;
+  font-weight: bold;
+  color: #606266;
+}
+
+.custom-attr-error {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.custom-attr-item {
+  margin-bottom: 8px;
+}
+</style>
