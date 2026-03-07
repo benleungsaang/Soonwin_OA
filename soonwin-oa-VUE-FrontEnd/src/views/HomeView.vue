@@ -75,7 +75,7 @@
                 <div class="menu-wrapper" v-if="!collapseStatus.order">
                   <el-menu :default-active="activeMenu" class="menu-list">
                     <el-menu-item index="9" @click="goToInquiries" v-if="hasToken && permissions.inquiriesManage">
-                      <el-icon><Document /></el-icon>
+                      <el-icon><ChatDotRound /></el-icon>
                       <span>询盘登记表</span>
                     </el-menu-item>
                     <el-menu-item index="1" @click="goToOrder" v-if="hasToken && permissions.orderManage">
@@ -86,6 +86,10 @@
                     <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken && permissions.orderStatusManage">
                       <el-icon><List /></el-icon>
                       <span>订单状态管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="18" @click="goToQuotationManagement" v-if="hasToken && permissions.quotationManage">
+                      <el-icon><Document /></el-icon>
+                      <span>临时报价</span>
                     </el-menu-item>
                   </el-menu>
                 </div>
@@ -150,7 +154,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  Tools, Document, User, Clock, SwitchButton, Money, Finished,
+  Tools, Document, User, Clock, ChatDotRound, Money, Finished,
   Monitor, Upload, Files, Box, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -207,7 +211,8 @@ const permissionMap = {
   deviceManage: { key: 'machine_manage', name: '设备管理', path: '/machine-parts-management' },
   machineManage: { key: 'machine_manage', name: '设备管理（新版）', path: '/machine-management-new' },
   userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' },
-  attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' }
+  attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' },
+  quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -222,7 +227,7 @@ const permissions = computed(() => {
 const hasOrderMenu = computed(() => {
   if (!hasToken.value) return false; // 未登录时不显示
   // 判断订单跟进下的所有权限项是否有至少一个为true
-  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage;
+  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage || permissions.value.quotationManage;
 });
 
 // ========== 方法定义 ==========
@@ -256,6 +261,7 @@ const goToVideoManagement = () => navigateToPage('videoManage');
 const goToOrderStatus = () => navigateToPage('orderStatusManage');
 const goToAttendanceSystem = () => navigateToPage('attendanceManage');
 const goToMachineManagementNew = () => navigateToPage('machineManage');
+const goToQuotationManagement = () => navigateToPage('quotationManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {

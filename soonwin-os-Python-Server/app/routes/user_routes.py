@@ -539,6 +539,7 @@ def get_all_routes():
             "order_progress_manage": "订单进度管理",
             "auth_manage": "认证管理",
             "attendance_manage": "考勤管理",
+            "quotation_manage": "报价管理",
         }
 
         # 从常量中获取所有路由

@@ -103,7 +103,7 @@
               v-if="hasRoutePermission('machine_manage')"
               size="small"
               type="danger"
-              @click="confirmDelete(row)"
+              @click.stop="confirmDelete(row)"
             >
               删除
             </el-button>
@@ -207,11 +207,6 @@
           />
         </el-form-item>
         <el-form-item label="自定义属性" prop="custom_attrs">
-          <!-- JSON格式校验提示 -->
-          <div v-if="customAttrsError" class="custom-attr-error">
-            {{ customAttrsError }}
-          </div>
-
           <!-- 动态生成的自定义字段表单项 -->
           <div v-for="(item, index) in customAttrsList" :key="index" class="custom-attr-item">
             <el-row :gutter="10">
@@ -219,14 +214,12 @@
                 <el-input
                   v-model="item.key"
                   placeholder="字段名（如：WorkingStations）"
-                  @input="syncCustomAttrsToJson"
                 />
               </el-col>
               <el-col :span="12">
                 <el-input
                   v-model="item.value"
                   placeholder="字段值（如：6）"
-                  @input="syncCustomAttrsToJson"
                 />
               </el-col>
               <el-col :span="4">
@@ -251,15 +244,6 @@
           >
             新增自定义字段
           </el-button>
-
-          <!-- 保留原始JSON文本框（可选，用于调试/兼容） -->
-          <el-input
-            v-model="formModel.custom_attrs"
-            type="textarea"
-            :rows="3"
-            placeholder="JSON格式（自动同步，无需手动编辑）"
-            style="margin-top: 10px; display: none;"
-          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -523,12 +507,15 @@ const openEditDialog = async (row: Machine) => {
     added_count: row.added_count !== null && row.added_count !== undefined ? Number(row.added_count) : 0,
     machine_type: row.machine_type !== null && row.machine_type !== undefined ? Number(row.machine_type) : 0
   };
-  
+
   // 确保custom_attrs是字符串格式
   if (typeof formModel.value.custom_attrs !== 'string') {
     formModel.value.custom_attrs = JSON.stringify(formModel.value.custom_attrs || {});
   }
-  
+
+  // 解析自定义属性
+  parseCustomAttrsFromJson(formModel.value.custom_attrs);
+
   // 等待表单数据更新后，再更新自定义属性列表
   await nextTick();
   dialogVisible.value = true;
@@ -556,10 +543,9 @@ const resetForm = () => {
   // 确保数值字段是正确的类型
   formModel.value.added_count = Number(formModel.value.added_count);
   formModel.value.machine_type = Number(formModel.value.machine_type);
-  
+
   // 重置自定义属性相关数据
   customAttrsList.value = [{ key: '', value: '' }];
-  customAttrsError.value = '';
 };
 
 const handleDialogClose = () => {
@@ -567,13 +553,16 @@ const handleDialogClose = () => {
   resetForm();
   // 重置自定义属性相关数据
   customAttrsList.value = [{ key: '', value: '' }];
-  customAttrsError.value = '';
 };
 
 const handleSave = async () => {
   if (!formRef.value) return;
 
   try {
+    // 先同步自定义属性
+    syncCustomAttrsToJson();
+    
+    // 验证表单
     await formRef.value.validate();
 
     // 确保数值字段是正确的类型
@@ -587,23 +576,30 @@ const handleSave = async () => {
 
     if (isEdit.value) {
       // 更新设备
-      await updateMachineNew(formModel.value.id as number, formData);
+      const updatedMachine = await updateMachineNew(formModel.value.id as number, formData);
       ElMessage.success('设备更新成功');
       dialogVisible.value = false;
-      fetchMachines();
+      
+      // 直接更新本地数据
+      const index = machines.value.findIndex(machine => machine.id === formModel.value.id);
+      if (index !== -1) {
+        machines.value[index] = updatedMachine;
+      }
     } else {
       // 创建新设备
-      await createMachineNew(formData);
+      const newMachine = await createMachineNew(formData);
       ElMessage.success('设备创建成功');
       dialogVisible.value = false;
-      fetchMachines();
+      
+      // 直接添加到本地数据
+      machines.value.unshift(newMachine);
+      total.value++;
     }
   } catch (error) {
     console.error('保存设备失败:', error);
     ElMessage.error('保存设备失败');
   }
 };
-
 const confirmDelete = async (row: Machine) => {
   try {
     await ElMessageBox.confirm(
@@ -618,7 +614,13 @@ const confirmDelete = async (row: Machine) => {
 
     await deleteMachineNew(row.id);
     ElMessage.success('设备删除成功');
-    fetchMachines();
+    
+    // 直接从本地数据中移除已删除的设备，而不是重新获取完整列表
+    const index = machines.value.findIndex(machine => machine.id === row.id);
+    if (index !== -1) {
+      machines.value.splice(index, 1);
+      total.value--;
+    }
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除设备失败:', error);
@@ -644,86 +646,52 @@ const isCurrentUserAdmin = () => {
 
 // 自定义属性相关数据
 const customAttrsList = ref<{key: string, value: string}[]>([]);
-const customAttrsError = ref('');
 
-// 解析JSON为自定义属性列表
+// 解析JSON为自定义属性列表（仅在打开编辑对话框时调用）
 const parseCustomAttrsFromJson = (jsonStr: string) => {
   if (!jsonStr) jsonStr = '{}';
   try {
-    // 清空错误提示
-    customAttrsError.value = '';
     // 解析JSON为对象
     const jsonObj = JSON.parse(jsonStr);
-    // 使用Object.keys来确保顺序与JSON一致
-    const list: {key: string, value: string}[] = Object.keys(jsonObj).map(key => ({
-      key: key,
-      value: String(jsonObj[key])  // 统一转为字符串，避免类型问题
-    }));
+    // 转换为[{key: '', value: ''}]格式，保持原有顺序
+    const list: {key: string, value: string}[] = [];
+    for (const [k, v] of Object.entries(jsonObj)) {
+      list.push({
+        key: k,
+        value: String(v)
+      });
+    }
     // 若无数据，默认加一个空项
     customAttrsList.value = list.length > 0 ? list : [{ key: '', value: '' }];
   } catch (e) {
     // 解析失败，给出提示
-    customAttrsError.value = `JSON格式错误：${(e as Error).message}`;
+    console.error('JSON解析错误：', e);
     customAttrsList.value = [{ key: '', value: '' }];
   }
 };
 
-// 监听原始JSON字段，解析为动态列表
-watch(
-  () => formModel.value.custom_attrs,
-  (newVal) => {
-    parseCustomAttrsFromJson(newVal);
-  },
-  { immediate: true }
-);
-
-// 同步动态列表回JSON字符串
-const syncCustomAttrsToJson = () => {
-  // 过滤空键的项，保持原有顺序
-  const validList = customAttrsList.value.filter(item => item.key.trim());
-  // 创建普通对象，保持数组顺序
-  const orderedObj: Record<string, string> = {};
-  validList.forEach(item => {
-    if (item.key.trim()) {
-      orderedObj[item.key.trim()] = item.value.trim();
-    }
-  });
-  // 转为格式化的JSON字符串
-  formModel.value.custom_attrs = JSON.stringify(orderedObj, null, 2);
-};
-
 // 新增自定义字段
-const addCustomAttr = async () => {
+const addCustomAttr = () => {
   customAttrsList.value.push({ key: '', value: '' });
-  // 不立即同步，让用户输入后再同步
 };
 
 // 删除自定义字段
-const removeCustomAttr = async (index: number) => {
+const removeCustomAttr = (index: number) => {
   customAttrsList.value.splice(index, 1);
-  // 确保DOM更新后再同步JSON
-  await nextTick();
-  syncCustomAttrsToJson();
 };
 
-// 自定义属性表单校验
-const validateCustomAttrs = (_rule: any, value: any, callback: (error?: Error) => void) => {
-  if (customAttrsError.value) {
-    callback(new Error(customAttrsError.value));
-  } else {
-    callback();
-  }
+// 同步动态列表回JSON字符串（仅在保存时调用）
+const syncCustomAttrsToJson = () => {
+  // 过滤空键的项
+  const validList = customAttrsList.value.filter(item => item.key.trim());
+  // 使用Map来保持顺序
+  const map = new Map();
+  validList.forEach(item => {
+    map.set(item.key.trim(), item.value.trim());
+  });
+  // 转为格式化的JSON字符串
+  formModel.value.custom_attrs = JSON.stringify(Object.fromEntries(map), null, 2);
 };
-
-// 更新表单规则以包含自定义属性验证
-const updateFormRules = () => {
-  formRules.value.custom_attrs = [
-    { validator: validateCustomAttrs, trigger: 'change' }
-  ];
-};
-
-// 初始化表单验证规则
-updateFormRules();
 
 // 导入导出相关方法
 const openImportDialog = () => {

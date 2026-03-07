@@ -329,6 +329,8 @@ export const updateMachineNew = (id: number, data: any) => request.put(`/api/mac
 export const deleteMachineNew = (id: number) => request.delete(`/api/machines_new/${id}`);
 export const importMachinesNewJson = (data: any) => request.post('/api/machines_new/import-json', data);
 export const exportMachinesNewJson = () => request.get('/api/machines_new/export-json');
+// 报价管理相关API
+export const getQuotationMachines = (params?: any) => request.get('/api/quotation-machines', { params });
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),

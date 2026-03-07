@@ -277,7 +277,7 @@ class MachineNew(db.Model):
         # 如果is_admin参数被提供，优先使用它来决定是否包含价格
         if is_admin is not None:
             include_price = (is_admin == 'admin' or is_admin == True)
-        
+
         # 解析自定义属性
         custom_attrs_dict = {}
         if self.custom_attrs:
@@ -304,11 +304,11 @@ class MachineNew(db.Model):
             'search_key': self.search_key,
             'custom_attrs': custom_attrs_dict
         }
-        
+
         # 根据参数决定是否包含原始价格
         if include_price:
             result['original_price'] = self.original_price
-            
+
         return result
 
     def to_full_dict(self) -> Dict[str, Any]:
@@ -329,11 +329,11 @@ class MachineNew(db.Model):
             self.remark,
         ]
 
-        try:
-            custom_attrs_dict = json.loads(self.custom_attrs) if self.custom_attrs else {}
-            search_fields.extend([str(v) for v in custom_attrs_dict.values()])
-        except (json.JSONDecodeError, TypeError):
-            pass
+        # try:
+        #     custom_attrs_dict = json.loads(self.custom_attrs) if self.custom_attrs else {}
+        #     search_fields.extend([str(v) for v in custom_attrs_dict.values()])
+        # except (json.JSONDecodeError, TypeError):
+        #     pass
 
         valid_values = [str(v).strip() for v in search_fields if v and str(v).strip()]
         return ' '.join(valid_values)

@@ -1223,60 +1223,63 @@ const loadAllPermissionsForRole = async (roleName?: string) => {
     selectedPermissions.value = [...permissionsData]; // 包含所有权限
     updateAllBtnText(); // 更新按钮文本
 
-  } catch (error) {
-    console.error('加载权限失败:', error);
-    // 使用默认权限列表
-    allPermissions.value = [
-      { route_name: 'employee_manage', route_label: '员工管理', is_active: false },
-      { route_name: 'device_manage', route_label: '设备管理', is_active: false },
-      { route_name: 'permission_manage', route_label: '权限管理', is_active: false },
-      { route_name: 'log_manage', route_label: '日志管理', is_active: false },
-      { route_name: 'report_stat', route_label: '报表统计', is_active: false },
-      { route_name: 'expense_manage', route_label: '费用管理', is_active: false },
-      { route_name: 'inquiry_manage', route_label: '询盘管理', is_active: false },
-      { route_name: 'machine_manage', route_label: '机器管理', is_active: false },
-      { route_name: 'machine_list', route_label: '机器列表', is_active: false },
-      { route_name: 'order_manage', route_label: '订单管理', is_active: false },
-      { route_name: 'order_status_manage', route_label: '订单状态管理', is_active: false },
-      { route_name: 'photo_manage', route_label: '照片管理', is_active: false },
-      { route_name: 'video_manage', route_label: '视频管理', is_active: false },
-      { route_name: 'punch_manage', route_label: '打卡管理', is_active: false },
-      { route_name: 'display_file_manage', route_label: '展示文件管理', is_active: false },
-      { route_name: 'order_progress_manage', route_label: '订单进度管理', is_active: false },
-      { route_name: 'user_manage', route_label: '用户管理', is_active: false },
-      { route_name: 'permission_manage', route_label: '权限管理', is_active: false }
-    ];
+  }
+  //  catch (error) {
+  //   console.error('加载权限失败:', error);
+  //   // 使用默认权限列表
+  //   allPermissions.value = [
+  //     { route_name: 'employee_manage', route_label: '员工管理', is_active: false },
+  //     { route_name: 'device_manage', route_label: '设备管理', is_active: false },
+  //     { route_name: 'permission_manage', route_label: '权限管理', is_active: false },
+  //     { route_name: 'log_manage', route_label: '日志管理', is_active: false },
+  //     { route_name: 'report_stat', route_label: '报表统计', is_active: false },
+  //     { route_name: 'expense_manage', route_label: '费用管理', is_active: false },
+  //     { route_name: 'inquiry_manage', route_label: '询盘管理', is_active: false },
+  //     { route_name: 'machine_manage', route_label: '机器管理', is_active: false },
+  //     { route_name: 'machine_list', route_label: '机器列表', is_active: false },
+  //     { route_name: 'order_manage', route_label: '订单管理', is_active: false },
+  //     { route_name: 'order_status_manage', route_label: '订单状态管理', is_active: false },
+  //     { route_name: 'photo_manage', route_label: '照片管理', is_active: false },
+  //     { route_name: 'video_manage', route_label: '视频管理', is_active: false },
+  //     { route_name: 'punch_manage', route_label: '打卡管理', is_active: false },
+  //     { route_name: 'display_file_manage', route_label: '展示文件管理', is_active: false },
+  //     { route_name: 'order_progress_manage', route_label: '订单进度管理', is_active: false },
+  //     { route_name: 'user_manage', route_label: '用户管理', is_active: false },
+  //     { route_name: 'quotation_manage', route_label: '临时报价', is_active: false },
+  //   ];
 
-    selectedPermissions.value = [...allPermissions.value];
-  } finally {
+  //   selectedPermissions.value = [...allPermissions.value];
+  // }
+  finally {
     loadingAllPermissions.value = false;
   }
 };
 
 // 获取模块的显示名称
-const getModuleLabel = (moduleName: string) => {
-  const moduleLabels: { [key: string]: string } = {
-    'employee_manage': '员工管理',
-    'device_manage': '设备管理',
-    'log_manage': '日志管理',
-    'report_stat': '报表统计',
-    'expense_manage': '费用管理',
-    'inquiry_manage': '询盘管理',
-    'machine_manage': '机器管理',
-    'machine_list': '机器列表',
-    'order_manage': '订单管理',
-    'order_status_manage': '订单状态管理',
-    'photo_manage': '照片管理',
-    'video_manage': '视频管理',
-    'punch_manage': '打卡管理',
-    'display_file_manage': '展示文件管理',
-    'order_progress_manage': '订单进度管理',
-    'user_manage': '用户管理',
-    'permission_manage': '权限管理',
-  };
+// const getModuleLabel = (moduleName: string) => {
+//   const moduleLabels: { [key: string]: string } = {
+//     'employee_manage': '员工管理',
+//     'device_manage': '设备管理',
+//     'log_manage': '日志管理',
+//     'report_stat': '报表统计',
+//     'expense_manage': '费用管理',
+//     'inquiry_manage': '询盘管理',
+//     'machine_manage': '机器管理',
+//     'machine_list': '机器列表',
+//     'order_manage': '订单管理',
+//     'order_status_manage': '订单状态管理',
+//     'photo_manage': '照片管理',
+//     'video_manage': '视频管理',
+//     'punch_manage': '打卡管理',
+//     'display_file_manage': '展示文件管理',
+//     'order_progress_manage': '订单进度管理',
+//     'user_manage': '用户管理',
+//     'permission_manage': '权限管理',
+//     'quotation_manage': '临时报价',
+//   };
 
-  return moduleLabels[moduleName] || moduleName;
-};
+//   return moduleLabels[moduleName] || moduleName;
+// };
 
 // 为单个模块设置所有权限
     const setModuleAllPermissions = (module: any, checked: boolean) => {
