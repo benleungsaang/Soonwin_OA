@@ -331,6 +331,12 @@ export const importMachinesNewJson = (data: any) => request.post('/api/machines_
 export const exportMachinesNewJson = () => request.get('/api/machines_new/export-json');
 // 报价管理相关API
 export const getQuotationMachines = (params?: any) => request.get('/api/quotation-machines', { params });
+// 临时报价相关API
+export const getQuotationTempList = (params?: any) => request.get('/api/quotation-temp-list', { params });
+export const getQuotationTemp = (id: number) => request.get(`/api/quotation-temp/${id}`);
+export const createQuotationTemp = (data: any) => request.post('/api/quotation-temp', data);
+export const updateQuotationTemp = (id: number, data: any) => request.put(`/api/quotation-temp/${id}`, data);
+export const deleteQuotationTemp = (id: number) => request.delete(`/api/quotation-temp/${id}`);
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),

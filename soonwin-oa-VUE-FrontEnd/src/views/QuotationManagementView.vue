@@ -3,108 +3,237 @@
     <!-- 通用头部 -->
     <CommonHeader title="临时报价" />
 
-    <div class="content-wrapper">
-      <!-- 搜索和操作区域 -->
-      <div class="search-and-actions">
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-input
-              v-model="searchQuery"
-              placeholder="请输入搜索关键词"
-              clearable
-              @clear="handleSearchClear"
-              @keyup.enter="handleSearch"
-            >
-              <template #append>
-                <el-button @click="handleSearch">
-                  <el-icon><Search /></el-icon>
-                </el-button>
-              </template>
-            </el-input>
-          </el-col>
-          <el-col :span="16" class="text-right">
-            <el-button type="primary" @click="showCartModal = true">
-              <el-icon><ShoppingCart /></el-icon>
-              购物车
-              <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0" style="margin-left: 5px;" />
-            </el-button>
-          </el-col>
-        </el-row>
-      </div>
-
-      <!-- 设备列表 -->
-      <el-table
-        :data="machines"
-        style="width: 100%"
-        v-loading="loading"
-        row-key="id"
-        :row-style="{ cursor: 'pointer' }"
-        @row-click="handleRowClick"
+  <!-- 固定在右下角的购物车按钮 -->
+    <div class="floating-cart-btn">
+      <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0">
+        <el-button
+          type="primary"
+          :icon="ShoppingCart"
+          circle
+          @click="showCartModal = true"
+          size="large"
+          :disabled="cartStore.cartData.machineList.length === 0"
+        >
+        </el-button>
+      </el-badge>
+      <el-button
+        v-else
+        type="default"
+        :icon="ShoppingCart"
+        circle
+        @click="showCartModal = true"
+        size="large"
       >
-        <el-table-column prop="image" label="缩略图" width="120">
-          <template #default="{ row }">
-            <el-image
-              :src="row.image"
-              :preview-src-list="[row.image]"
-              fit="cover"
-              style="width: 60px; height: 60px; border-radius: 4px;"
-              :preview-teleported="true"
-              hide-on-click-modal
-              @click.stop
-            />
-          </template>
-        </el-table-column>
-        <el-table-column prop="brand" label="品牌" width="120" />
-        <el-table-column label="设备型号" width="200">
-          <template #default="{ row }">
-            <div>{{ row.model }}</div>
-            <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
-          <template #default="{ row }">
-            ¥{{ row.original_price || 0 }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="show_price" label="参考价格" width="120">
-          <template #default="{ row }">
-            ¥{{ row.show_price || 0 }}
-          </template>
-        </el-table-column>
-        <!-- <el-table-column prop="added_count" label="使用次数" width="100" /> -->
-        <el-table-column label="操作" width="280" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              size="small"
-              @click.stop="addToCart(row)"
-            >
-              <el-icon><ShoppingCart /></el-icon>
-              加入购物车
-            </el-button>
-            <el-button
-              size="small"
-              @click.stop="viewQuotation(row)"
-            >
-              <el-icon><View /></el-icon>
-              查看报价
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :background="true"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="total"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+      </el-button>
+    </div>
+    <div class="content-wrapper">
+      <!-- 当前订单信息 -->
+      <div class="current-order-info" v-if="cartStore.currentOrderId || cartStore.currentOrderMark">
+        <el-alert
+          :title="`当前订单: ${cartStore.currentOrderMark || '未命名'} (ID: ${cartStore.currentOrderId || 'N/A'})`"
+          type="info"
+          :closable="false"
+          show-icon
         />
+        <el-button size="small" @click="clearCurrentOrderInfo">
+          <el-icon><DocumentAdd /></el-icon>
+          创建新订单
+        </el-button>
       </div>
+
+      <!-- 卡片切换 -->
+      <el-tabs v-model="activeTab" type="card" class="main-tabs">
+        <!-- 设备搜索卡片 -->
+        <el-tab-pane label="设备搜索" name="machines">
+          <el-card class="tab-card">
+            <div class="search-and-actions">
+              <el-row :gutter="20">
+                <el-col :span="8">
+                  <el-input
+                    v-model="searchQuery"
+                    placeholder="请输入搜索关键词"
+                    clearable
+                    @clear="handleSearchClear"
+                    @keyup.enter="handleSearch"
+                  >
+                    <template #append>
+                      <el-button @click="handleSearch">
+                        <el-icon><Search /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-input>
+                </el-col>
+                <!-- <el-col :span="16" class="text-right">
+                  <el-button type="primary" @click="showCartModal = true">
+                    <el-icon><ShoppingCart /></el-icon>
+                    购物车
+                    <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0" style="margin-left: 5px;" />
+                  </el-button>
+                </el-col> -->
+              </el-row>
+            </div>
+
+            <!-- 设备列表表格 -->
+            <el-table
+              :data="machines"
+              style="width: 100%; margin-top: 20px"
+              v-loading="loading"
+              row-key="id"
+              :row-style="{ cursor: 'pointer' }"
+              @row-click="handleRowClick"
+            >
+              <el-table-column prop="image" label="缩略图" width="120">
+                <template #default="{ row }">
+                  <el-image
+                    :src="row.image"
+                    :preview-src-list="[row.image]"
+                    fit="cover"
+                    style="width: 60px; height: 60px; border-radius: 4px;"
+                    :preview-teleported="true"
+                    hide-on-click-modal
+                    @click.stop
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column prop="brand" label="品牌" width="120" />
+              <el-table-column label="设备型号" width="200">
+                <template #default="{ row }">
+                  <div>{{ row.model }}</div>
+                  <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
+                <template #default="{ row }">
+                  ¥{{ row.original_price || 0 }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="show_price" label="参考价格" width="120">
+                <template #default="{ row }">
+                  ¥{{ row.show_price || 0 }}
+                </template>
+              </el-table-column>
+              <!-- <el-table-column prop="added_count" label="使用次数" width="100" /> -->
+              <el-table-column label="操作" width="280" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    size="small"
+                    @click.stop="addToCart(row)"
+                  >
+                    <el-icon><ShoppingCart /></el-icon>
+                    加入购物车
+                  </el-button>
+                  <!-- <el-button
+                    size="small"
+                    @click.stop="viewQuotation(row)"
+                  >
+                    <el-icon><View /></el-icon>
+                    查看报价
+                  </el-button> -->
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <!-- 分页 -->
+            <div class="pagination-wrapper" style="margin-top: 20px;">
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :background="true"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="total"
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+              />
+            </div>
+          </el-card>
+        </el-tab-pane>
+
+        <!-- 临时报价单卡片 -->
+        <el-tab-pane label="临时报价单" name="quotations">
+          <el-card class="tab-card">
+            <!-- 临时报价列表搜索和操作区域 -->
+            <div class="search-and-actions">
+              <el-row :gutter="20">
+                <el-col :span="6">
+                  <el-input
+                    v-model="tempSearchQuery"
+                    placeholder="请输入订单标识搜索"
+                    clearable
+                    @clear="handleTempSearchClear"
+                    @keyup.enter="fetchQuotationTempList"
+                  >
+                    <template #append>
+                      <el-button @click="fetchQuotationTempList">
+                        <el-icon><Search /></el-icon>
+                      </el-button>
+                    </template>
+                  </el-input>
+                </el-col>
+                <!-- <el-col :span="18" class="text-right">
+                                    <el-button type="primary" @click="showCartModal = true" class="cart-btn">
+                    <el-icon><ShoppingCart /></el-icon>
+                    购物车
+                    <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0" style="margin-left: 5px;" />
+                  </el-button>
+
+
+                </el-col> -->
+              </el-row>
+            </div>
+
+            <!-- 临时报价列表表格 -->
+            <el-table
+              :data="quotationTemps"
+              style="width: 100%; margin-top: 20px"
+              v-loading="tempListLoading"
+              row-key="order_id"
+              :row-style="{ cursor: 'pointer' }"
+              @row-click="handleTempRowClick"
+            >
+              <el-table-column prop="order_id" label="ID" width="80" />
+              <el-table-column prop="order_mark" label="订单标识" width="200" />
+              <el-table-column prop="total_amount" label="总金额" width="120">
+                <template #default="{ row }">
+                  ¥{{ row.total_amount || 0 }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="update_time" label="更新时间" width="160" />
+              <el-table-column v-if="isCurrentUserAdmin()" prop="creator_id" label="创建人ID" width="120" />
+              <el-table-column label="操作" width="200" fixed="right">
+                <template #default="{ row }">
+                  <!-- <el-button size="small" @click.stop="viewQuotationTemp(row)">
+                    <el-icon><View /></el-icon>
+                    查看
+                  </el-button> -->
+                  <el-button size="small" type="primary" @click.stop="loadQuotationTempToCart(row)">
+                    <el-icon><ShoppingCart /></el-icon>
+                    加载到购物车
+                  </el-button>
+                  <el-button size="small" type="danger" @click.stop="deleteQuotationTemp(row)">
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+
+            <!-- 临时报价列表分页 -->
+            <div class="pagination-wrapper" style="margin-top: 20px;">
+              <el-pagination
+                v-model:current-page="tempCurrentPage"
+                v-model:page-size="tempPageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :background="true"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="tempTotal"
+                @size-change="handleTempSizeChange"
+                @current-change="handleTempCurrentChange"
+              />
+            </div>
+          </el-card>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <!-- 报价详情对话框 -->
@@ -184,45 +313,48 @@
     <el-dialog
       v-model="showCartModal"
       title="报价购物车"
-      width="80%"
+      width="90%"
+      top="5vh"
       :before-close="() => { showCartModal = false; }"
     >
       <div class="cart-modal-content">
         <!-- 设备列表 -->
         <div class="cart-section">
-          <h3>设备列表</h3>
+          <div class="section-header">
+            <h3>设备列表</h3>
+            <div class="section-stats">
+              共 <span class="stats-number">{{ cartStore.cartData.machineList.length }}</span> 项设备
+            </div>
+          </div>
+
           <el-table
             :data="cartStore.cartData.machineList"
             border
+            stripe
             style="width: 100%"
+            header-cell-class-name="table-header"
             v-if="cartStore.cartData.machineList.length > 0"
           >
-                        <el-table-column label="缩略图" width="120">
-                          <template #default="scope">
-                            <el-image
-                              :src="getImageUrl(scope.row.thumbUrl)"
-                              style="width: 80px; height: 60px; object-fit: cover; border-radius: 4px;"
-                              :preview-src-list="[getImageUrl(scope.row.thumbUrl)]"
-                              :preview-teleported="true"
-                            ></el-image>
-                          </template>
-                        </el-table-column>            <el-table-column label="设备型号" width="150">
+            <el-table-column label="缩略图" width="100" align="center">
               <template #default="scope">
-                {{ scope.row.machineName || '未知设备' }}
-                <div style="font-size: 12px; color: #999;">{{  scope.row.originalModel }}</div>
+                <el-image
+                  :src="getImageUrl(scope.row.thumbUrl)"
+                  style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
+                  :preview-src-list="[getImageUrl(scope.row.thumbUrl)]"
+                  :preview-teleported="true"
+                  hide-on-click-modal
+                ></el-image>
               </template>
             </el-table-column>
-            <!-- <el-table-column label="原厂型号" width="150">
+            <el-table-column label="设备型号" min-width="200">
               <template #default="scope">
-                {{ scope.row.originalModel || '' }}
+                <div class="model-info">
+                  <div class="primary-model">{{ scope.row.machineName || '未知设备' }}</div>
+                  <div v-if="scope.row.originalModel" class="secondary-model">{{ scope.row.originalModel }}</div>
+                </div>
               </template>
-            </el-table-column> -->
-            <!-- <el-table-column label="品牌" width="120">
-              <template #default="scope">
-                {{ scope.row.brand || '' }}
-              </template>
-            </el-table-column> -->
-            <el-table-column label="单价" width="150">
+            </el-table-column>
+            <el-table-column label="单价" width="150" align="center">
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.customPrice"
@@ -235,7 +367,7 @@
                 ></el-input-number>
               </template>
             </el-table-column>
-            <el-table-column label="数量" width="150">
+            <el-table-column label="数量" width="150" align="center">
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.quantity"
@@ -247,22 +379,23 @@
                 ></el-input-number>
               </template>
             </el-table-column>
-                                  <el-table-column label="小计" width="120">
-                                    <template #default="scope">
-                                      ¥{{ ((scope.row.customPrice || 0) * (scope.row.quantity || 0)).toFixed(2) }}
-                                    </template>
-                                  </el-table-column>
-                                  <el-table-column label="操作" width="120">
-                                    <template #default="scope">
-                                      <el-button
-                                        @click="cartStore.removeMachine(scope.row.machineId)"
-                                        type="danger"
-                                        size="small"
-                                      >
-                                        移除
-                                      </el-button>
-                                    </template>
-                                  </el-table-column>
+            <el-table-column label="小计" width="120" align="center">
+              <template #default="scope">
+                <span class="subtotal-text">¥{{ ((scope.row.customPrice || 0) * (scope.row.quantity || 0)).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="scope">
+                <el-button
+                  @click="cartStore.removeMachine(scope.row.machineId)"
+                  type="danger"
+                  size="small"
+                  :icon="Delete"
+                >
+                  移除
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
 
           <div v-if="cartStore.cartData.machineList.length === 0" class="empty-cart">
@@ -272,12 +405,23 @@
 
         <!-- 自定义临时项目 -->
         <div class="temp-params-section" v-if="cartStore.cartData.machineList.length > 0">
-          <h3>自定义项目</h3>
-          <el-form inline @submit.prevent="addTempParamToCart" style="margin-bottom: 20px;">
+          <div class="section-header">
+            <h3>附加项目</h3>
+            <div class="section-stats">
+              共 <span class="stats-number">{{ cartStore.cartData.tempParams.length }}</span> 项附加项目
+            </div>
+          </div>
+
+          <el-form
+            inline
+            @submit.prevent="addTempParamToCart"
+            style="margin-bottom: 20px; padding: 15px; background: #f8f9fc; border-radius: 8px;"
+          >
             <el-input
               v-model="tempParamName"
               placeholder="项目名称（如：税费/运费/折扣）"
-              style="width: 200px; margin-right: 10px;"
+              style="width: 250px; margin-right: 10px;"
+              clearable
             ></el-input>
             <el-select
               v-model="tempParamType"
@@ -291,49 +435,71 @@
               v-model.number="tempParamValue"
               placeholder="数值"
               :min="0"
-              :precision="2"
-              style="width: 120px; margin-right: 10px; text-align: center;"
+              :precision="4"
+              style="width: 150px; margin-right: 10px; text-align: center;"
               class="centered-input"
               :controls="false"
             ></el-input-number>
-            <el-button type="primary" @click="addTempParamToCart">添加</el-button>
+            <el-button
+              type="primary"
+              @click="addTempParamToCart"
+              :icon="Edit"
+            >
+              添加
+            </el-button>
           </el-form>
 
           <el-table
             :data="cartStore.cartData.tempParams"
             border
+            stripe
             style="width: 100%"
+            header-cell-class-name="table-header"
             v-if="cartStore.cartData.tempParams.length > 0"
           >
-            <el-table-column prop="name" label="项目名称" width="200"></el-table-column>
-            <el-table-column prop="type" label="类型" width="120">
-              <template #default="scope">
-                {{ scope.row.type === 'COEFFICIENT' ? '系数' : '固定金额' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="数值" width="150">
+            <el-table-column prop="name" label="项目名称" min-width="200">
               <template #default="scope">
                 <el-input
-                  v-model="scope.row.value"
-                  :min="0"
-                  :precision="2"
-                  @change="cartStore.updateTempParam(scope.row.name, scope.row.value)"
+                  v-model="scope.row.name"
+                  @change="cartStore.updateTempParam(scope.row.id, scope.row.name)"
                   style="width: 100%; text-align: center;"
                   class="centered-input"
                 ></el-input>
               </template>
             </el-table-column>
-                        <el-table-column label="操作" width="120">
-                          <template #default="scope">
-                            <el-button
-                              @click="cartStore.removeTempParam(scope.row.name)"
-                              type="danger"
-                              size="small"
-                            >
-                              删除
-                            </el-button>
-                          </template>
-                        </el-table-column>          </el-table>
+            <el-table-column prop="type" label="类型" width="120" align="center">
+              <template #default="scope">
+                <el-tag :type="scope.row.type === 'COEFFICIENT' ? 'warning' : 'success'" size="small">
+                  {{ scope.row.type === 'COEFFICIENT' ? '系数' : '固定金额' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="数值" width="150" align="center">
+              <template #default="scope">
+                <el-input
+                  v-model="scope.row.value"
+                  :min="0"
+                  :precision="scope.row.type === 'COEFFICIENT' ? 4 : 2"
+                  :step="scope.row.type === 'COEFFICIENT' ? 0.0001 : 0.01"
+                  @change="cartStore.updateTempParam(scope.row.id, scope.row.value)"
+                  style="width: 100%; text-align: center;"
+                  class="centered-input"
+                ></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="scope">
+                <el-button
+                  @click="cartStore.removeTempParam(scope.row.id)"
+                  type="danger"
+                  size="small"
+                  :icon="Delete"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
 
         <!-- 合计和操作按钮 -->
@@ -342,26 +508,47 @@
             最终合计：<span class="amount">¥{{ (cartStore.cartData.totalAmount || 0).toFixed(2) }}</span>
           </div>
           <div class="cart-actions">
-            <el-button @click="cartStore.clearCart()">清空购物车</el-button>
-            <el-button type="primary" @click="generateOrderFromModal">预览订单</el-button>
+            <el-button
+              @click="cartStore.clearCart()"
+              :icon="Delete"
+              type="danger"
+            >
+              清空购物车
+            </el-button>
+            <el-button
+              type="primary"
+              @click="generateOrderFromModal"
+              :icon="View"
+            >
+              预览订单
+            </el-button>
           </div>
         </div>
       </div>
     </el-dialog>
 
-
+    <!-- 临时报价预览组件 -->
+    <QuotationTempPreview
+      v-model="previewDialogVisible"
+      :order-data="selectedQuotationTemp"
+      :show-load-to-cart-button="showLoadToCartButton"
+      @load-to-cart="handleLoadToCartFromPreview"
+      @order-saved="handleOrderSaved"
+      @order-updated="handleOrderUpdated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, FormInstance, FormRules } from 'element-plus';
-import { Search, View, ShoppingCart } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
+import { Search, View, ShoppingCart, Delete, DocumentAdd, Edit } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
-import { hasRoutePermission, getCurrentUserRole } from '@/utils/authUtils';
+import QuotationTempPreview from '@/components/QuotationTempPreview.vue';
+import { hasRoutePermission, getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils';
 import request from '@/utils/request';
-import { getMachinesNew, getQuotationMachines } from '@/utils/request';
+import { getMachinesNew, getQuotationMachines, getQuotationTempList, getQuotationTemp, deleteQuotationTemp as deleteQuotationTempAPI, updateQuotationTemp } from '@/utils/request';
 import { useQuotationCartStore } from '@/stores/quotationCartStore';
 
 const router = useRouter();
@@ -386,13 +573,38 @@ interface Machine {
   custom_attrs: string | Record<string, any>;
 }
 
+// 临时报价列表数据类型
+interface QuotationTemp {
+  order_id: number;
+  order_mark: string;
+  total_amount: number;
+  update_time: string;
+  creator_id?: string;
+}
+
 // 响应式数据
 const machines = ref<Machine[]>([]);
 const loading = ref(false);
 const currentPage = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(5);
 const total = ref(0);
 const searchQuery = ref('');
+
+// 临时报价列表相关数据
+const quotationTemps = ref<QuotationTemp[]>([]);
+const tempListLoading = ref(false);
+const tempCurrentPage = ref(1);
+const tempPageSize = ref(10);
+const tempTotal = ref(0);
+const tempSearchQuery = ref('');
+
+// 活动标签页
+const activeTab = ref('machines'); // 默认显示设备搜索
+
+// 临时报价预览相关数据
+const previewDialogVisible = ref(false);
+const selectedQuotationTemp = ref<QuotationTemp | any>({});
+const showLoadToCartButton = ref(true); // 默认显示加载到购物车按钮
 
 // 报价详情对话框相关
 const quotationDialogVisible = ref(false);
@@ -422,6 +634,26 @@ const fetchMostUsedMachines = async () => {
   }
 };
 
+// 获取临时报价列表
+const fetchQuotationTempList = async () => {
+  tempListLoading.value = true;
+  try {
+    const response = await getQuotationTempList({
+      page: tempCurrentPage.value,
+      per_page: tempPageSize.value,
+      search: tempSearchQuery.value
+    });
+
+    quotationTemps.value = response.quotation_temps || [];
+    tempTotal.value = response.total || 0;
+  } catch (error) {
+    console.error('获取临时报价列表失败:', error);
+    ElMessage.error('获取临时报价列表失败');
+  } finally {
+    tempListLoading.value = false;
+  }
+};
+
 // 分页处理
 const handleSizeChange = (size: number) => {
   pageSize.value = size;
@@ -434,6 +666,18 @@ const handleCurrentChange = (page: number) => {
   fetchMostUsedMachines();
 };
 
+// 临时报价列表分页处理
+const handleTempSizeChange = (size: number) => {
+  tempPageSize.value = size;
+  tempCurrentPage.value = 1;
+  fetchQuotationTempList();
+};
+
+const handleTempCurrentChange = (page: number) => {
+  tempCurrentPage.value = page;
+  fetchQuotationTempList();
+};
+
 // 搜索处理
 const handleSearch = () => {
   currentPage.value = 1;
@@ -444,6 +688,136 @@ const handleSearchClear = () => {
   searchQuery.value = '';
   currentPage.value = 1;
   fetchMostUsedMachines();
+};
+
+// 临时报价搜索处理
+const handleTempSearch = () => {
+  tempCurrentPage.value = 1;
+  fetchQuotationTempList();
+};
+
+const handleTempSearchClear = () => {
+  tempSearchQuery.value = '';
+  tempCurrentPage.value = 1;
+  fetchQuotationTempList();
+};
+
+// 临时报价操作处理
+const viewQuotationTemp = async (row: QuotationTemp) => {
+  try {
+    // 获取完整的报价单详情
+    const response = await getQuotationTemp(row.order_id);
+    if (response) {
+      selectedQuotationTemp.value = {
+        ...row,  // 包含列表中的基本信息
+        ...response,  // 包含详细信息
+        order_id: row.order_id,  // 确保ID正确
+        orderMark: row.order_mark,  // 标准化字段名
+        totalAmount: row.total_amount,  // 标准化字段名
+        updateTime: row.update_time  // 标准化字段名
+      };
+      showLoadToCartButton.value = true; // 从列表打开时，显示加载到购物车按钮
+      previewDialogVisible.value = true;
+    } else {
+      ElMessage.error('获取报价单详情失败');
+    }
+  } catch (error) {
+    console.error('获取报价单详情失败:', error);
+    ElMessage.error('获取报价单详情失败');
+  }
+};
+
+const loadQuotationTempToCart = async (row: QuotationTemp) => {
+  try {
+    const response = await getQuotationTemp(row.order_id);
+    if (response) {
+      // 清空当前购物车
+      cartStore.clearCart();
+
+      // 添加机器到购物车
+      if (response.machine_list && response.machine_list.length > 0) {
+        response.machine_list.forEach((machine: any) => {
+          // 先创建机器对象
+          const machineToAdd = {
+            id: machine.machineId,
+            model: machine.machineName,
+            original_model: machine.originalModel,
+            image: machine.thumbUrl,
+            show_price: machine.customPrice || 0,
+            added_count: 0,
+            brand: machine.brand || '',
+            machine_weight: machine.machineWeight || '',
+            dimensions: machine.dimensions || '',
+            general_power: machine.generalPower || '',
+            power_supply: machine.powerSupply || '',
+            machine_type: machine.machineType || 0,
+            remark: machine.remark || ''
+          };
+
+          // 添加到购物车（默认数量为1）
+          cartStore.addMachine(machineToAdd);
+
+          // 查找刚添加的机器并更新数量和价格
+          const addedMachine = cartStore.cartData.machineList.find((item: any) => item.machineId === machine.machineId);
+          if (addedMachine) {
+            addedMachine.quantity = machine.quantity || 1;
+            addedMachine.customPrice = machine.customPrice || 0;
+            addedMachine.subtotal = (addedMachine.customPrice || 0) * (addedMachine.quantity || 1);
+          }
+        });
+      }
+
+      // 添加临时参数到购物车
+      if (response.temp_params && response.temp_params.length > 0) {
+        response.temp_params.forEach((param: any) => {
+          cartStore.addTempParam(param.name, param.type, param.value, param.remark || '');
+        });
+      }
+
+      // 保存订单ID和标识到购物车store
+      if (response.id && response.order_mark) {
+        cartStore.setCurrentOrderInfo(response.id, response.order_mark);
+      }
+
+      // 同步到本地存储
+      cartStore.updateAndSync();
+
+      ElMessage.success('报价单已加载到购物车');
+      showCartModal.value = true;
+    }
+  } catch (error) {
+    console.error('加载报价单到购物车失败:', error);
+    ElMessage.error('加载报价单到购物车失败');
+  }
+};
+
+const deleteQuotationTemp = async (row: QuotationTemp) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除报价单 "${row.order_mark}" 吗？此操作不可撤销。`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    await deleteQuotationTempAPI(row.order_id);
+    ElMessage.success('报价单删除成功');
+    // 重新获取列表
+    fetchQuotationTempList();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除报价单失败:', error);
+      ElMessage.error('删除报价单失败');
+    }
+  }
+};
+
+// 临时报价表格行点击事件
+const handleTempRowClick = (row: QuotationTemp) => {
+  viewQuotationTemp(row);
 };
 
 // 操作处理
@@ -503,8 +877,6 @@ const tempParamName = ref('');
 const tempParamType = ref('COEFFICIENT');
 const tempParamValue = ref<number | null>(null);
 
-
-
 const cartStore = useQuotationCartStore();
 
 const addToCart = (machine: Machine) => {
@@ -529,8 +901,6 @@ const getImageUrl = (url: string) => {
   return '/' + url.replace(/^\.?\//, '');
 };
 
-
-
 // 购物车模态框相关方法
 const addTempParamToCart = () => {
   if (!tempParamName.value || tempParamValue.value === null || tempParamValue.value === undefined || isNaN(tempParamValue.value)) {
@@ -542,44 +912,130 @@ const addTempParamToCart = () => {
     ElMessage.error('数值必须大于等于0');
     return;
   }
+  // 现在addTempParam总是添加新项目，不再检查名称重复
   cartStore.addTempParam(tempParamName.value, tempParamType.value, value);
   tempParamName.value = '';
   tempParamValue.value = null;
 };
 
 const generateOrderFromModal = () => {
-  // 将当前购物车数据保存到临时缓存
-  const tempOrder = {
-    orderId: `temp_${Date.now()}`,
-    machineList: JSON.parse(JSON.stringify(cartStore.cartData.machineList)),
-    tempParams: JSON.parse(JSON.stringify(cartStore.cartData.tempParams)),
-    totalAmount: cartStore.cartData.totalAmount,
-    createdAt: new Date().toISOString()
+  // 创建当前购物车数据的预览对象
+  const currentCartData = {
+    id: cartStore.currentOrderId,  // 使用购物车store中的订单ID
+    order_mark: cartStore.currentOrderMark,  // 使用购物车store中的订单标识
+    order_id: cartStore.currentOrderId,  // 保持兼容性
+    orderMark: cartStore.currentOrderMark || '当前购物车预览',  // 保持兼容性，如果没有则显示默认值
+    total_amount: cartStore.cartData.totalAmount,
+    totalAmount: cartStore.cartData.totalAmount,  // 保持兼容性
+    update_time: new Date().toISOString(),
+    creator_id: 'current_user', // 添加一个标识表示是当前购物车
+    machine_list: cartStore.cartData.machineList.map((machine: any) => ({
+      ...machine,
+      machineName: machine.machineName || machine.model,
+      originalModel: machine.originalModel || machine.original_model,
+      thumbUrl: machine.thumbUrl || machine.image,
+      customPrice: machine.customPrice || machine.show_price || 0,
+      quantity: machine.quantity || 1,
+      subtotal: machine.subtotal || (machine.customPrice || machine.show_price || 0) * (machine.quantity || 1),
+      brand: machine.brand,
+      remark: machine.remark || ''
+    })),
+    temp_params: cartStore.cartData.tempParams.map((param: any) => ({
+      ...param,
+      name: param.name,
+      type: param.type,
+      value: param.value,
+      remark: param.remark || ''
+    }))
   };
 
-  // 保存到临时缓存
-  localStorage.setItem('quotation_temp', JSON.stringify(tempOrder));
-
-  showCartModal.value = false; // 关闭模态框
-
-  // 在新窗口打开订单预览页面（不带订单号）
-  router.push('/quotation/order');
+  selectedQuotationTemp.value = currentCartData;
+  previewDialogVisible.value = true;
+  showLoadToCartButton.value = false;  // 从购物车打开预览，显示返回购物车按钮
 };
-
 // 计算属性
 const isCurrentUserAdmin = () => {
   return getCurrentUserRole() === 'admin';
 };
 
+// 预览组件加载到购物车事件处理
+const handleLoadToCartFromPreview = () => {
+  // 预览组件已经处理了加载到购物车的逻辑，这里只需要显示成功消息
+  showCartModal.value = true;
+};
+
+// 清除当前订单信息
+const clearCurrentOrderInfo = () => {
+  cartStore.clearCurrentOrderInfo();
+
+  // 如果预览对话框是打开的，更新当前选中的报价单数据以移除旧的订单ID
+  if (previewDialogVisible.value) {
+    // 更新当前选中的报价单，移除旧的订单ID
+    selectedQuotationTemp.value = {
+      ...selectedQuotationTemp.value,
+      id: undefined,  // 使用undefined而不是null，确保检查时被识别为无效ID
+      order_mark: undefined,
+      order_id: undefined,
+      orderMark: '新临时报价单'
+    };
+
+    // 强制刷新预览组件状态 - 关闭再打开对话框
+    const wasVisible = previewDialogVisible.value;
+    previewDialogVisible.value = false;
+
+    // 使用nextTick确保对话框完全关闭后再重新打开
+    nextTick(() => {
+      // 重新生成订单数据，此时应该使用清空后的购物车信息
+      generateOrderFromModal();
+    });
+  }
+
+  ElMessage.success('当前订单信息已清除，下次保存将创建新订单');
+};
+
+// 预览组件订单更新事件处理
+const handleOrderUpdated = (orderInfo: any) => {
+  // 更新当前订单信息到购物车store
+  if (orderInfo && orderInfo.id && orderInfo.order_mark) {
+    cartStore.setCurrentOrderInfo(orderInfo.id, orderInfo.order_mark);
+
+    // 同时更新当前选中的报价单信息
+    if (selectedQuotationTemp.value) {
+      selectedQuotationTemp.value.id = orderInfo.id;
+      selectedQuotationTemp.value.order_mark = orderInfo.order_mark;
+      selectedQuotationTemp.value.order_id = orderInfo.id;
+      selectedQuotationTemp.value.orderMark = orderInfo.order_mark;
+    }
+  }
+
+  // 订单更新后，刷新临时报价列表
+  fetchQuotationTempList();
+
+  // 如果当前在临时报价单标签页，也确保列表已刷新
+  if (activeTab.value === 'quotations') {
+    fetchQuotationTempList();
+  }
+};
+
+// 处理订单保存成功事件，刷新临时报价单列表
+const handleOrderSaved = () => {
+  // 重新获取临时报价列表
+  fetchQuotationTempList();
+};
+
 // 组件挂载时获取数据
 onMounted(() => {
+  // 获取临时报价列表
+  fetchQuotationTempList();
+
+  // 获取设备列表
   fetchMostUsedMachines();
-  
+
   // 检查URL参数，如果需要打开购物车模态框
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('openCart') === '1') {
     showCartModal.value = true;
-    
+
     // 清除URL参数，避免刷新后重复打开
     const newUrl = window.location.pathname;
     window.history.replaceState({}, document.title, newUrl);
@@ -672,7 +1128,33 @@ onMounted(() => {
 
 .cart-modal-content .cart-section,
 .cart-modal-content .temp-params-section {
-  margin-bottom: 20px;
+  margin-bottom: 25px;
+}
+
+.cart-modal-content .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #ebeef5;
+}
+
+.cart-modal-content .section-header h3 {
+  margin: 0;
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cart-modal-content .section-stats {
+  font-size: 14px;
+  color: #909399;
+}
+
+.cart-modal-content .stats-number {
+  font-weight: bold;
+  color: #409eff;
 }
 
 .cart-modal-content .cart-section h3,
@@ -694,19 +1176,19 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 20px;
-  border-top: 1px solid #ebeef5;
-  margin-top: 20px;
+  padding-top: 25px;
+  border-top: 2px solid #ebeef5;
+  margin-top: 25px;
 }
 
 .cart-modal-content .total-amount {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: bold;
   color: #606266;
 }
 
 .cart-modal-content .amount {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: bold;
   color: #e64340;
   margin-left: 5px;
@@ -714,7 +1196,7 @@ onMounted(() => {
 
 .cart-modal-content .cart-actions {
   display: flex;
-  gap: 10px;
+  gap: 15px;
 }
 
 /* 确保输入框文字居中 */
@@ -743,5 +1225,89 @@ onMounted(() => {
 .remark-cell:hover {
   border-color: #409eff;
   background-color: #f2f6fc;
+}
+
+/* 当前订单信息 */
+.current-order-info {
+  margin-bottom: 20px;
+}
+
+/* 临时报价列表和设备列表之间的分隔 */
+.section-divider {
+  margin: 30px 0 20px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #ebeef5;
+}
+
+.section-divider h3 {
+  margin: 0;
+  color: #303133;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 标签页样式 */
+:deep(.main-tabs) {
+  margin-top: 20px;
+}
+
+:deep(.main-tabs .el-tabs__content) {
+  padding: 20px;
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  min-height: 500px;
+}
+
+:deep(.tab-card) {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* 固定在右下角的购物车按钮 */
+.floating-cart-btn {
+  position: fixed;
+  right: 30px;
+  bottom: 30px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-cart-btn .el-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 设备型号信息 */
+.model-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.primary-model {
+  font-weight: 500;
+  color: #303133;
+}
+
+.secondary-model {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
+}
+
+.subtotal-text {
+  font-weight: 500;
+  color: #e64340;
+}
+
+/* 表格头部样式 */
+:deep(.table-header) {
+  background-color: #f8f9fc !important;
+  color: #606266;
+  font-weight: 600;
 }
 </style>

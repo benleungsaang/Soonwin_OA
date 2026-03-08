@@ -26,14 +26,14 @@ def create_app(port=5000):
         from flask import send_file, abort
         # 构建完整的文件路径 - 相对于app目录，assets在同级的父目录中
         file_path = os.path.join(app.root_path, '..', 'assets', 'Media', filepath)
-        
+
         # 防止路径遍历攻击，确保路径在指定目录内
         file_path = os.path.abspath(file_path)
         assets_media_path = os.path.abspath(os.path.join(app.root_path, '..', 'assets', 'Media'))
-        
+
         if not file_path.startswith(assets_media_path):
             abort(404)
-        
+
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return send_file(file_path)
         else:
@@ -58,16 +58,15 @@ def create_app(port=5000):
         from .models.video import Video
         from .models.business_operation_log import BusinessOperationLog
         from .models.data_change_stats import DataChangeStats
-
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
         from .models.attendance_operation import AttendanceOperation
+        from .models.quotation_temp import QuotationTemp
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
 
         # 初始化数据库表（如果不存在）
         db.create_all()
-
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -103,9 +102,10 @@ def create_app(port=5000):
         # 注册机器管理相关路由蓝图
         from .routes.machine_routes import machine_bp
         from .routes.quotation_routes import quotation_bp
+        from .routes.quotation_temp_routes import quotation_temp_bp
         app.register_blueprint(machine_bp, url_prefix='/api')
         app.register_blueprint(quotation_bp, url_prefix='/api')
-
+        app.register_blueprint(quotation_temp_bp, url_prefix='/api')
         # 注册照片管理相关路由蓝图
         from .routes.photo_routes import photo_bp
         app.register_blueprint(photo_bp, url_prefix='/api')
