@@ -41,6 +41,14 @@
             </el-button>
             <el-button
               v-if="hasRoutePermission('machine_manage')"
+              type="info"
+              @click="openRecycleBinDialog"
+            >
+              <el-icon><Delete /></el-icon>
+              回收站
+            </el-button>
+            <el-button
+              v-if="hasRoutePermission('machine_manage')"
               type="primary"
               @click="openCreateDialog"
             >
@@ -172,12 +180,36 @@
             <el-option :value="3" label="耗材" />
           </el-select>
         </el-form-item>
+        <el-form-item label="设备缩略图" prop="image">
+          <!-- 显示当前缩略图 -->
+          <div v-if="formModel.image" class="current-image-preview">
+            <el-image
+              :src="formModel.image"
+              :preview-src-list="[formModel.image]"
+              fit="cover"
+              style="width: 100px; height: 100px; border-radius: 4px; margin: 10px;"
+              :preview-teleported="true"
+              hide-on-click-modal
+            />
+          </div>
+
+          <ImageUploadPreview
+            :ref="setUploadPreviewRef"
+            :communication-id="null"
+            :upload-path="uploadPath"
+            @upload-success="onImageUploadSuccess"
+            @upload-failure="onImageUploadFailure"
+            @upload-clipboard-image="onUploadClipboardImage"
+          />
+
+        </el-form-item>
         <el-form-item label="展示价格" prop="show_price">
           <el-input-number
             v-model="formModel.show_price"
             :precision="2"
             :min="0"
             placeholder="请输入展示价格"
+            :controls="false"
             style="width: 100%"
           />
         </el-form-item>
@@ -188,9 +220,10 @@
             :min="0"
             placeholder="请输入原始价格"
             style="width: 100%"
+            :controls="false"
           />
         </el-form-item>
-        <el-form-item label="使用次数" prop="added_count">
+        <el-form-item label="使用次数" prop="added_count" v-if="isEdit">
           <el-input-number
             v-model="formModel.added_count"
             :min="0"
@@ -338,6 +371,114 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 回收站对话框 -->
+    <el-dialog
+      v-model="recycleBinDialogVisible"
+      title="设备回收站"
+      width="80%"
+      :before-close="closeRecycleBinDialog"
+    >
+      <div class="recycle-bin-content">
+        <el-table
+          :data="deletedMachines"
+          style="width: 100%"
+          v-loading="recycleBinLoading"
+          @selection-change="handleRecycleBinSelectionChange"
+        >
+          <el-table-column type="selection" width="55" />
+          <el-table-column prop="image" label="缩略图" width="120">
+            <template #default="{ row }">
+              <el-image
+                :src="row.image"
+                :preview-src-list="[row.image]"
+                fit="cover"
+                style="width: 60px; height: 60px; border-radius: 4px;"
+                :preview-teleported="true"
+                hide-on-click-modal
+                @click.stop
+              />
+            </template>
+          </el-table-column>
+          <el-table-column prop="brand" label="品牌" width="120" />
+          <el-table-column label="设备型号" width="200">
+            <template #default="{ row }">
+              <div>{{ row.model }}</div>
+              <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="show_price" label="展示价格" width="120">
+            <template #default="{ row }">
+              ¥{{ row.show_price || 0 }}
+            </template>
+          </el-table-column>
+          <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
+            <template #default="{ row }">
+              ¥{{ row.original_price || 0 }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="delete_time" label="删除时间" width="160" />
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="hasRoutePermission('machine_manage')"
+                size="small"
+                type="primary"
+                @click="restoreMachine(row.id)"
+              >
+                恢复
+              </el-button>
+              <el-button
+                v-if="hasRoutePermission('machine_manage')"
+                size="small"
+                type="danger"
+                @click="permanentDeleteMachine(row.id)"
+              >
+                永久删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 操作按钮 -->
+        <div class="recycle-bin-actions" style="margin-top: 15px;">
+          <el-button
+            v-if="hasRoutePermission('machine_manage')"
+            type="danger"
+            :disabled="selectedDeletedMachines.length === 0"
+            @click="batchPermanentDelete"
+          >
+            批量删除 ({{ selectedDeletedMachines.length }})
+          </el-button>
+          <el-button
+            v-if="hasRoutePermission('machine_manage')"
+            type="warning"
+            @click="clearRecycleBin"
+          >
+            清空回收站
+          </el-button>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-wrapper" style="margin-top: 15px;">
+          <el-pagination
+            v-model:current-page="recycleBinCurrentPage"
+            v-model:page-size="recycleBinPageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :background="true"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="recycleBinTotal"
+            @size-change="handleRecycleBinSizeChange"
+            @current-change="handleRecycleBinCurrentChange"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeRecycleBinDialog">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -346,9 +487,9 @@ import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
+import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { hasRoutePermission, getCurrentUserRole } from '@/utils/authUtils';
-import request, { importMachinesNewJson, exportMachinesNewJson } from '@/utils/request';
-import { getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew } from '@/utils/request';
+import request, { importMachinesNewJson, exportMachinesNewJson, getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew, getDeletedMachines, restoreMachineFromRecycleBin, uploadMachineThumb } from '@/utils/request';
 
 // 定义数据类型
 interface Machine {
@@ -377,6 +518,19 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
 const searchQuery = ref('');
+
+// 回收站相关数据
+const recycleBinDialogVisible = ref(false);
+const deletedMachines = ref<Machine[]>([]);
+const recycleBinLoading = ref(false);
+const recycleBinCurrentPage = ref(1);
+const recycleBinPageSize = ref(10);
+const recycleBinTotal = ref(0);
+// 多选相关
+const selectedDeletedMachines = ref<number[]>([]);  // 存储已选中的机器ID
+
+// 图片上传相关
+const uploadPreviewRefs = ref<{[key: number]: any}>({}); // 存储图片上传预览组件引用
 
 // 表单相关
 const dialogVisible = ref(false);
@@ -430,6 +584,15 @@ const importResult = ref({
 
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑设备' : '新增设备');
+
+const uploadPath = computed(() => {
+  // 如果是编辑模式且有ID，使用更新缩略图的API
+  if (isEdit.value && formModel.value.id) {
+    return `/api/machines_new/${formModel.value.id}/upload-thumb`;
+  }
+  // 否则返回一个占位路径，实际上传时会使用专门的API
+  return `/api/machines_new/upload-thumb`;
+});
 
 const canNextStep = computed(() => {
   if (importStep.value === 0) {
@@ -561,9 +724,18 @@ const handleSave = async () => {
   try {
     // 先同步自定义属性
     syncCustomAttrsToJson();
-    
+
     // 验证表单
     await formRef.value.validate();
+
+    // 检查是否有本地图片需要上传（以blob:开头的URL）
+    let imageToUpload = null;
+    if (formModel.value.image && typeof formModel.value.image === 'string' && formModel.value.image.startsWith('blob:')) {
+      // 从blob URL恢复为文件对象需要特殊的处理，这里我们先保存设备，然后单独上传图片
+      imageToUpload = formModel.value.image;
+      // 临时使用默认图片路径，等图片上传后再更新
+      formModel.value.image = './assets/Media/Machine/sample.png';
+    }
 
     // 确保数值字段是正确的类型
     const formData = {
@@ -579,7 +751,7 @@ const handleSave = async () => {
       const updatedMachine = await updateMachineNew(formModel.value.id as number, formData);
       ElMessage.success('设备更新成功');
       dialogVisible.value = false;
-      
+
       // 直接更新本地数据
       const index = machines.value.findIndex(machine => machine.id === formModel.value.id);
       if (index !== -1) {
@@ -588,9 +760,44 @@ const handleSave = async () => {
     } else {
       // 创建新设备
       const newMachine = await createMachineNew(formData);
-      ElMessage.success('设备创建成功');
+
+      // 如果有本地图片需要上传
+      if (imageToUpload) {
+        // 创建一个虚拟的File对象用于上传
+        try {
+          const response = await fetch(imageToUpload);
+          const blob = await response.blob();
+          const file = new File([blob], `${newMachine.model}_thumb.jpg`, { type: blob.type });
+
+          const thumbFormData = new FormData();
+          thumbFormData.append('file', file);
+
+          // 上传缩略图 - 注意request.ts会自动解包响应
+          const thumbResult: any = await uploadMachineThumb(newMachine.id, thumbFormData);
+
+          // 由于request自动解包，我们需要直接使用结果
+          if (thumbResult && thumbResult.new_thumb_path) {
+            // 更新本地数据中的缩略图路径
+            const index = machines.value.findIndex(m => m.id === newMachine.id);
+            if (index !== -1) {
+              machines.value[index].image = thumbResult.new_thumb_path;
+            }
+            // 同时更新当前表单的图片路径
+            formModel.value.image = thumbResult.new_thumb_path;
+            ElMessage.success('设备及缩略图创建成功');
+          } else {
+            ElMessage.warning('设备已创建，但缩略图上传失败，响应格式异常');
+          }
+        } catch (thumbError) {
+          console.error('上传设备缩略图失败:', thumbError);
+          ElMessage.warning('设备已创建，但缩略图上传失败');
+        }
+      } else {
+        ElMessage.success('设备创建成功');
+      }
+
       dialogVisible.value = false;
-      
+
       // 直接添加到本地数据
       machines.value.unshift(newMachine);
       total.value++;
@@ -614,7 +821,7 @@ const confirmDelete = async (row: Machine) => {
 
     await deleteMachineNew(row.id);
     ElMessage.success('设备删除成功');
-    
+
     // 直接从本地数据中移除已删除的设备，而不是重新获取完整列表
     const index = machines.value.findIndex(machine => machine.id === row.id);
     if (index !== -1) {
@@ -642,6 +849,195 @@ const getMachineTypeText = (type: number) => {
 
 const isCurrentUserAdmin = () => {
   return getCurrentUserRole() === 'admin';
+};
+
+// 回收站相关函数
+const openRecycleBinDialog = async () => {
+  recycleBinCurrentPage.value = 1;
+  await loadDeletedMachines();
+  recycleBinDialogVisible.value = true;
+};
+
+const closeRecycleBinDialog = () => {
+  recycleBinDialogVisible.value = false;
+};
+
+const loadDeletedMachines = async () => {
+  recycleBinLoading.value = true;
+  try {
+    const response = await getDeletedMachines({
+      page: recycleBinCurrentPage.value,
+      per_page: recycleBinPageSize.value
+    });
+
+    deletedMachines.value = response.machines || [];
+    recycleBinTotal.value = response.total || 0;
+  } catch (error) {
+    console.error('获取回收站设备失败:', error);
+    ElMessage.error('获取回收站设备失败');
+  } finally {
+    recycleBinLoading.value = false;
+  }
+};
+
+const handleRecycleBinSizeChange = (size: number) => {
+  recycleBinPageSize.value = size;
+  recycleBinCurrentPage.value = 1;
+  loadDeletedMachines();
+};
+
+const handleRecycleBinCurrentChange = (page: number) => {
+  recycleBinCurrentPage.value = page;
+  loadDeletedMachines();
+};
+
+const restoreMachine = async (id: number) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要恢复此设备吗？恢复后设备将重新出现在设备列表中。',
+      '确认恢复',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await restoreMachineFromRecycleBin(id);
+    ElMessage.success('设备恢复成功');
+
+    // 从回收站列表中移除该设备
+    const index = deletedMachines.value.findIndex(machine => machine.id === id);
+    if (index !== -1) {
+      deletedMachines.value.splice(index, 1);
+      recycleBinTotal.value--;
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('恢复设备失败:', error);
+      ElMessage.error('恢复设备失败');
+    }
+  }
+};
+
+const permanentDeleteMachine = async (id: number) => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要永久删除此设备吗？此操作不可恢复！',
+      '确认永久删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await request.delete(`/api/machines_new/recycle-bin/${id}/permanent-delete`);
+    ElMessage.success('设备已永久删除');
+
+    // 从回收站列表中移除该设备
+    const index = deletedMachines.value.findIndex(machine => machine.id === id);
+    if (index !== -1) {
+      deletedMachines.value.splice(index, 1);
+      recycleBinTotal.value--;
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('永久删除设备失败:', error);
+      ElMessage.error('永久删除设备失败');
+    }
+  }
+};
+
+// 处理回收站表格多选
+const handleRecycleBinSelectionChange = (selection: any[]) => {
+  selectedDeletedMachines.value = selection.map(item => item.id);
+};
+
+// 批量永久删除单个设备
+// const permanentDeleteMachine = async (id: number) => {
+//   try {
+//     await request.delete(`/api/machines_new/${id}/permanent_delete`);
+//   } catch (error) {
+//     console.error(`删除设备 ${id} 失败:`, error);
+//     throw error; // 重新抛出错误以被调用方捕获
+//   }
+// };
+
+// 批量永久删除设备
+const batchPermanentDeleteMachines = async (ids: number[]) => {
+  try {
+    // 使用Promise.all来并行删除多个设备
+    const promises = ids.map(id => request.delete(`/api/machines_new/${id}/permanent_delete`));
+    await Promise.all(promises);
+  } catch (error) {
+    console.error('批量永久删除设备失败:', error);
+    throw error; // 重新抛出错误
+  }
+};
+
+// 批量永久删除
+const batchPermanentDelete = async () => {
+  if (selectedDeletedMachines.value.length === 0) {
+    ElMessage.warning('请先选择要删除的设备');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除选中的 ${selectedDeletedMachines.value.length} 台设备吗？此操作不可恢复！`,
+      '确认批量永久删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await batchPermanentDeleteMachines(selectedDeletedMachines.value);
+    ElMessage.success(`成功永久删除了 ${selectedDeletedMachines.value.length} 台设备`);
+
+    // 重新加载回收站数据
+    await loadDeletedMachines();
+    selectedDeletedMachines.value = []; // 清空选中项
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量永久删除设备失败:', error);
+      ElMessage.error('批量永久删除设备失败');
+    }
+  }
+};
+
+// 清空回收站
+const clearRecycleBin = async () => {
+  if (recycleBinTotal.value === 0) {
+    ElMessage.info('回收站已经是空的');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要清空回收站吗？将永久删除所有 ${recycleBinTotal.value} 台设备，此操作不可恢复！`,
+      '确认清空回收站',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await request.delete('/api/machines_new/recycle-bin/clear');
+    ElMessage.success('回收站已清空');
+
+    // 重新加载回收站数据
+    await loadDeletedMachines();
+    selectedDeletedMachines.value = []; // 清空选中项
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空回收站失败:', error);
+      ElMessage.error('清空回收站失败');
+    }
+  }
 };
 
 // 自定义属性相关数据
@@ -810,6 +1206,85 @@ const handleExport = async () => {
   }
 };
 
+// 设置上传预览组件引用
+const setUploadPreviewRef = (el: any) => {
+  // 由于这是设备管理中的上传，使用一个固定的key，这里使用'new'表示新增设备
+  if (el) {
+    uploadPreviewRefs.value['new'] = el;
+  } else {
+    delete uploadPreviewRefs.value['new'];
+  }
+};
+
+// 处理图片上传成功
+const onImageUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
+  if (files && files.length > 0) {
+    // 如果是编辑模式且有设备ID，直接上传到后端
+    if (isEdit.value && formModel.value.id) {
+      try {
+        const formData = new FormData();
+        // 添加第一个文件（缩略图）
+        formData.append('file', files[0]);
+
+        // 使用专门的缩略图上传API
+        const result: any = await uploadMachineThumb(formModel.value.id as number, formData);
+
+        // 由于request自动解包，我们需要直接使用结果
+        // 假设后端返回格式为 { machine: {...}, new_thumb_path: "..." }
+        if (result && result.new_thumb_path) {
+          // 更新设备的缩略图路径
+          formModel.value.image = result.new_thumb_path;
+          ElMessage.success('设备缩略图上传成功');
+        } else {
+          // 如果解包后的数据不符合预期，可能说明后端返回了错误格式
+          ElMessage.error('缩略图上传失败，响应格式异常');
+        }
+      } catch (error) {
+        console.error('上传缩略图失败:', error);
+        ElMessage.error('缩略图上传失败');
+      }
+    } else {
+      // 如果是新增模式，暂时保存为本地预览URL，等保存设备时再上传
+      const file = files[0];
+      const fileUrl = URL.createObjectURL(file);
+      formModel.value.image = fileUrl;
+      ElMessage.success('缩略图已选择，保存设备时将上传');
+    }
+  }
+};
+
+// 处理图片上传失败
+const onImageUploadFailure = (error: any) => {
+  console.error('图片上传失败：', error);
+  ElMessage.error('图片上传失败');
+};
+
+// 处理剪贴板图片上传
+const onUploadClipboardImage = async (response: any, file: File, commId: number) => {
+  try {
+    // 检查文件类型 - 支持图片
+    if (!file.type.startsWith('image/')) {
+      ElMessage.error('请选择图片文件');
+      return;
+    }
+
+    // 验证文件类型
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedImageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+
+    if (!allowedImageExts.includes(ext)) {
+      ElMessage.error(`不支持的图片格式：${ext}，支持的格式：${allowedImageExts.join(', ')}`);
+      return;
+    }
+
+    // 显示成功消息
+    ElMessage.success(`已添加图片: ${file.name}`);
+  } catch (error) {
+    console.error('添加剪贴板图片失败:', error);
+    ElMessage.error('添加剪贴板图片失败');
+  }
+};
+
 // 组件挂载时获取数据
 onMounted(() => {
   fetchMachines();
@@ -884,5 +1359,15 @@ onMounted(() => {
 
 .custom-attr-item {
   margin-bottom: 8px;
+}
+
+/* 回收站对话框样式 */
+.recycle-bin-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.current-image-preview {
+  margin-top: 10px;
 }
 </style>

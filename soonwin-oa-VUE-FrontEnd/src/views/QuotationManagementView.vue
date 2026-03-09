@@ -3,7 +3,7 @@
     <!-- 通用头部 -->
     <CommonHeader title="临时报价" />
 
-  <!-- 固定在右下角的购物车按钮 -->
+    <!-- 固定在右下角的购物车按钮 -->
     <div class="floating-cart-btn">
       <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0">
         <el-button
@@ -26,6 +26,7 @@
       >
       </el-button>
     </div>
+
     <div class="content-wrapper">
       <!-- 当前订单信息 -->
       <div class="current-order-info" v-if="cartStore.currentOrderId || cartStore.currentOrderMark">
@@ -35,14 +36,14 @@
           :closable="false"
           show-icon
         />
-        <el-button size="small" @click="clearCurrentOrderInfo">
+        <el-button size="big" type="warning" @click="clearCurrentOrderInfo">
           <el-icon><DocumentAdd /></el-icon>
-          创建新订单
+          保存为新临时报价单
         </el-button>
       </div>
 
       <!-- 卡片切换 -->
-      <el-tabs v-model="activeTab" type="card" class="main-tabs">
+      <el-tabs v-model="activeTab" type="border-card" class="main-tabs">
         <!-- 设备搜索卡片 -->
         <el-tab-pane label="设备搜索" name="machines">
           <el-card class="tab-card">
@@ -55,21 +56,24 @@
                     clearable
                     @clear="handleSearchClear"
                     @keyup.enter="handleSearch"
+                    :prefix-icon="Search"
                   >
                     <template #append>
-                      <el-button @click="handleSearch">
+                      <el-button @click="handleSearch" type="primary">
                         <el-icon><Search /></el-icon>
                       </el-button>
                     </template>
                   </el-input>
                 </el-col>
-                <!-- <el-col :span="16" class="text-right">
-                  <el-button type="primary" @click="showCartModal = true">
-                    <el-icon><ShoppingCart /></el-icon>
-                    购物车
-                    <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0" style="margin-left: 5px;" />
+                <el-col :span="16" class="text-right">
+                  <el-button
+                    type="primary"
+                    @click="openCreateDialog"
+                    :icon="Plus"
+                  >
+                    新增设备
                   </el-button>
-                </el-col> -->
+                </el-col>
               </el-row>
             </div>
 
@@ -81,8 +85,10 @@
               row-key="id"
               :row-style="{ cursor: 'pointer' }"
               @row-click="handleRowClick"
+              stripe
+              height="500"
             >
-              <el-table-column prop="image" label="缩略图" width="120">
+              <el-table-column prop="image" label="缩略图" width="120" align="center">
                 <template #default="{ row }">
                   <el-image
                     :src="row.image"
@@ -96,30 +102,33 @@
                 </template>
               </el-table-column>
               <el-table-column prop="brand" label="品牌" width="120" />
-              <el-table-column label="设备型号" width="200">
+              <el-table-column label="设备型号" min-width="200">
                 <template #default="{ row }">
-                  <div>{{ row.model }}</div>
-                  <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
+                  <div class="model-info">
+                    <div class="primary-model">{{ row.model }}</div>
+                    <div class="secondary-model">{{ row.original_model }}</div>
+                  </div>
                 </template>
               </el-table-column>
               <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
                 <template #default="{ row }">
-                  ¥{{ row.original_price || 0 }}
+                  ¥{{ (typeof row.original_price === 'number' ? row.original_price : 0).toFixed(2) }}
                 </template>
               </el-table-column>
               <el-table-column prop="show_price" label="参考价格" width="120">
                 <template #default="{ row }">
-                  ¥{{ row.show_price || 0 }}
+                  ¥{{ (typeof row.show_price === 'number' ? row.show_price : 0).toFixed(2) }}
                 </template>
               </el-table-column>
               <!-- <el-table-column prop="added_count" label="使用次数" width="100" /> -->
               <el-table-column label="操作" width="280" fixed="right">
                 <template #default="{ row }">
                   <el-button
+                    type="success"
                     size="small"
                     @click.stop="addToCart(row)"
+                    :icon="ShoppingCart"
                   >
-                    <el-icon><ShoppingCart /></el-icon>
                     加入购物车
                   </el-button>
                   <!-- <el-button
@@ -138,7 +147,7 @@
               <el-pagination
                 v-model:current-page="currentPage"
                 v-model:page-size="pageSize"
-                :page-sizes="[10, 20, 50, 100]"
+                :page-sizes="[5, 10, 20, 50, 100]"
                 :background="true"
                 layout="total, sizes, prev, pager, next, jumper"
                 :total="total"
@@ -162,9 +171,10 @@
                     clearable
                     @clear="handleTempSearchClear"
                     @keyup.enter="fetchQuotationTempList"
+                    :prefix-icon="Search"
                   >
                     <template #append>
-                      <el-button @click="fetchQuotationTempList">
+                      <el-button @click="fetchQuotationTempList" type="primary">
                         <el-icon><Search /></el-icon>
                       </el-button>
                     </template>
@@ -176,8 +186,6 @@
                     购物车
                     <el-badge :value="cartStore.cartData.machineList.length" :max="99" v-if="cartStore.cartData.machineList.length > 0" style="margin-left: 5px;" />
                   </el-button>
-
-
                 </el-col> -->
               </el-row>
             </div>
@@ -190,29 +198,33 @@
               row-key="order_id"
               :row-style="{ cursor: 'pointer' }"
               @row-click="handleTempRowClick"
+              stripe
+              height="500"
             >
               <el-table-column prop="order_id" label="ID" width="80" />
               <el-table-column prop="order_mark" label="订单标识" width="200" />
               <el-table-column prop="total_amount" label="总金额" width="120">
                 <template #default="{ row }">
-                  ¥{{ row.total_amount || 0 }}
+                  {{ getCurrencySymbolFromInfo(row.currency_info) }}{{ (typeof row.total_amount === 'number' ? row.total_amount : 0).toFixed(2) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="update_time" label="更新时间" width="160" />
+              <el-table-column prop="update_time" label="更新时间" width="160">
+                <template #default="{ row }">
+                  {{ formatTime(row.update_time) }}
+                </template>
+              </el-table-column>
               <el-table-column v-if="isCurrentUserAdmin()" prop="creator_id" label="创建人ID" width="120" />
-              <el-table-column label="操作" width="200" fixed="right">
+              <el-table-column label="操作" width="200" fixed="right" fixed-position="right">
                 <template #default="{ row }">
                   <!-- <el-button size="small" @click.stop="viewQuotationTemp(row)">
                     <el-icon><View /></el-icon>
                     查看
                   </el-button> -->
-                  <el-button size="small" type="primary" @click.stop="loadQuotationTempToCart(row)">
-                    <el-icon><ShoppingCart /></el-icon>
-                    加载到购物车
+                  <el-button size="small" type="primary" @click.stop="loadQuotationTempToCart(row)" :icon="ShoppingCart">
+
                   </el-button>
-                  <el-button size="small" type="danger" @click.stop="deleteQuotationTemp(row)">
-                    <el-icon><Delete /></el-icon>
-                    删除
+                  <el-button size="small" type="danger" @click.stop="deleteQuotationTemp(row)" :icon="Delete">
+
                   </el-button>
                 </template>
               </el-table-column>
@@ -223,7 +235,7 @@
               <el-pagination
                 v-model:current-page="tempCurrentPage"
                 v-model:page-size="tempPageSize"
-                :page-sizes="[10, 20, 50, 100]"
+                :page-sizes="[5, 10, 20, 50, 100]"
                 :background="true"
                 layout="total, sizes, prev, pager, next, jumper"
                 :total="tempTotal"
@@ -286,10 +298,10 @@
             <span>{{ selectedMachine.remark || '无' }}</span>
           </el-descriptions-item>
           <el-descriptions-item v-if="isCurrentUserAdmin()" label="原始价格">
-            <span class="price">¥{{ selectedMachine.original_price || 0 }}</span>
+            <span class="price">¥{{ (typeof selectedMachine.original_price === 'number' ? selectedMachine.original_price : 0).toFixed(2) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="参考价格">
-            <span class="price">¥{{ selectedMachine.show_price || 0 }}</span>
+            <span class="price">¥{{ (typeof selectedMachine.show_price === 'number' ? selectedMachine.show_price : 0).toFixed(2) }}</span>
           </el-descriptions-item>
         </el-descriptions>
 
@@ -318,6 +330,8 @@
       :before-close="() => { showCartModal = false; }"
     >
       <div class="cart-modal-content">
+
+
         <!-- 设备列表 -->
         <div class="cart-section">
           <div class="section-header">
@@ -334,6 +348,7 @@
             style="width: 100%"
             header-cell-class-name="table-header"
             v-if="cartStore.cartData.machineList.length > 0"
+            height="350"
           >
             <el-table-column label="缩略图" width="100" align="center">
               <template #default="scope">
@@ -371,7 +386,7 @@
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.quantity"
-                  :min="0"
+                  :min="1"
                   @change="cartStore.updateMachine(scope.row.machineId, 'quantity', scope.row.quantity || 1)"
                   style="width: 100%; text-align: center;"
                   class="centered-input"
@@ -381,7 +396,7 @@
             </el-table-column>
             <el-table-column label="小计" width="120" align="center">
               <template #default="scope">
-                <span class="subtotal-text">¥{{ ((scope.row.customPrice || 0) * (scope.row.quantity || 0)).toFixed(2) }}</span>
+                <span class="subtotal-text">{{ getCurrentCurrencySymbol() }}{{ (typeof scope.row.customPrice === 'number' && typeof scope.row.quantity === 'number' ? (scope.row.customPrice * scope.row.quantity) : 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="120" align="center">
@@ -422,6 +437,7 @@
               placeholder="项目名称（如：税费/运费/折扣）"
               style="width: 250px; margin-right: 10px;"
               clearable
+              :prefix-icon="Edit"
             ></el-input>
             <el-select
               v-model="tempParamType"
@@ -456,6 +472,7 @@
             style="width: 100%"
             header-cell-class-name="table-header"
             v-if="cartStore.cartData.tempParams.length > 0"
+            max-height="150"
           >
             <el-table-column prop="name" label="项目名称" min-width="200">
               <template #default="scope">
@@ -505,9 +522,40 @@
         <!-- 合计和操作按钮 -->
         <div class="cart-footer" v-if="cartStore.cartData.machineList.length > 0">
           <div class="total-amount">
-            最终合计：<span class="amount">¥{{ (cartStore.cartData.totalAmount || 0).toFixed(2) }}</span>
+            最终合计：<span class="amount">{{ getCurrentCurrencySymbol() }}{{ (typeof cartStore.cartData.totalAmount === 'number' ? cartStore.cartData.totalAmount : 0).toFixed(2) }}</span>
           </div>
           <div class="cart-actions">
+            <!-- 货币切换区域 -->
+            <div class="currency-switcher" style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+              <el-select
+                v-model="selectedCurrency"
+                placeholder="选择货币"
+                @change="switchCurrency"
+                style="width: 200px;"
+              >
+                <el-option
+                  v-for="currency in currencies"
+                  :key="currency.code"
+                  :label="`${currency.symbol} ${currency.name} - 汇率: ${currency.rate}`"
+                  :value="currency.code"
+                >
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>{{ currency.name }}</span>
+                    <span style="color: #999; font-size: 12px;">{{ currency.symbol }} </span>
+                    <el-input
+                      v-model.number="currency.rate"
+                      size="small"
+                      type="number"
+                      :min="0"
+                      :step="0.01"
+                      style="width: 80px; margin-left: 10px;"
+                      @click.stop
+                      @change="onRateChange(currency.code, currency.rate)"
+                    />
+                  </div>
+                </el-option>
+              </el-select>
+            </div>
             <el-button
               @click="cartStore.clearCart()"
               :icon="Delete"
@@ -537,15 +585,158 @@
       @order-updated="handleOrderUpdated"
     />
   </div>
+
+  <!-- 新增/编辑设备对话框 -->
+  <el-dialog
+    v-model="machineDialogVisible"
+    :title="isEdit ? '编辑设备' : '新增设备'"
+    width="700px"
+    :before-close="handleDialogClose"
+  >
+    <el-form
+      :model="formModel"
+      :rules="formRules"
+      ref="formRef"
+      label-width="120px"
+    >
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="设备型号" prop="model">
+            <el-input
+              v-model="formModel.model"
+              :disabled="!!formModel.id"
+              placeholder="请输入设备型号"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="原厂型号" prop="original_model" required>
+            <el-input v-model="formModel.original_model" placeholder="请输入原厂型号" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="品牌" prop="brand">
+            <el-input v-model="formModel.brand" placeholder="请输入品牌" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="设备类型" prop="machine_type">
+            <el-select v-model="formModel.machine_type" placeholder="请选择设备类型" style="width: 100%;">
+              <el-option :value="0" label="主机" />
+              <el-option :value="1" label="配件" />
+              <el-option :value="2" label="工具" />
+              <el-option :value="3" label="耗材" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="设备重量" prop="machine_weight">
+            <el-input v-model="formModel.machine_weight" placeholder="请输入设备重量" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="设备尺寸" prop="dimensions">
+            <el-input v-model="formModel.dimensions" placeholder="请输入设备尺寸" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="总功率" prop="general_power">
+            <el-input v-model="formModel.general_power" placeholder="请输入总功率" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="供电规格" prop="power_supply">
+            <el-input v-model="formModel.power_supply" placeholder="请输入供电规格" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="展示价格" prop="show_price">
+            <el-input-number
+              v-model="formModel.show_price"
+              :precision="2"
+              :min="0"
+              placeholder="请输入展示价格"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item v-if="isCurrentUserAdmin()" label="原始价格" prop="original_price">
+            <el-input-number
+              v-model="formModel.original_price"
+              :precision="2"
+              :min="0"
+              placeholder="请输入原始价格"
+              style="width: 100%"
+              :controls="false"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-form-item label="设备缩略图" prop="image">
+        <!-- 显示当前缩略图 -->
+        <div v-if="formModel.image" class="current-image-preview">
+          <el-image
+            :src="formModel.image"
+            :preview-src-list="[formModel.image]"
+            fit="cover"
+            style="width: 100px; height: 100px; border-radius: 4px; margin: 10px;"
+            :preview-teleported="true"
+            hide-on-click-modal
+          />
+        </div>
+
+        <ImageUploadPreview
+          :ref="setUploadPreviewRef"
+          :communication-id="null"
+          :upload-path="uploadPath"
+          @upload-success="onImageUploadSuccess"
+          @upload-failure="onImageUploadFailure"
+          @upload-clipboard-image="onUploadClipboardImage"
+        />
+      </el-form-item>
+
+      <el-form-item label="备注" prop="remark">
+        <el-input
+          v-model="formModel.remark"
+          type="textarea"
+          :rows="3"
+          placeholder="请输入备注信息"
+        />
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="machineDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveMachine">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
-import { Search, View, ShoppingCart, Delete, DocumentAdd, Edit } from '@element-plus/icons-vue';
+import { Search, View, ShoppingCart, Delete, DocumentAdd, Edit, Plus } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 import QuotationTempPreview from '@/components/QuotationTempPreview.vue';
+import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { hasRoutePermission, getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils';
 import request from '@/utils/request';
 import { getMachinesNew, getQuotationMachines, getQuotationTempList, getQuotationTemp, deleteQuotationTemp as deleteQuotationTempAPI, updateQuotationTemp } from '@/utils/request';
@@ -611,6 +802,73 @@ const quotationDialogVisible = ref(false);
 const selectedMachine = ref<Partial<Machine> | null>(null);
 const customAttrsList = ref<{key: string, value: string}[]>([]);
 
+// 新增设备对话框相关
+const machineDialogVisible = ref(false);
+const isEdit = ref(false);
+const formModel = ref<Partial<Machine>>({
+  model: '',
+  original_model: '',
+  machine_weight: '',
+  dimensions: '',
+  general_power: '',
+  power_supply: '',
+  image: './assets/Media/Machine/sample.png',
+  added_count: 0,
+  show_price: null,
+  original_price: null,
+  machine_type: 0,
+  brand: '',
+  search_key: '',
+  custom_attrs: '{}'
+});
+const formRef = ref<FormInstance>();
+const uploadPreviewRef = ref();
+const uploadPath = ref('Machine');
+
+// 新增设备表单验证规则
+const formRules = ref<FormRules<Partial<Machine>>>({
+  model: [
+    { required: true, message: '请输入设备型号', trigger: 'blur' },
+    { min: 1, max: 100, message: '设备型号长度应在1-100之间', trigger: 'blur' }
+  ],
+  brand: [
+    { required: true, message: '请输入品牌', trigger: 'blur' },
+    { min: 1, max: 50, message: '品牌长度应在1-50之间', trigger: 'blur' }
+  ],
+  show_price: [
+    {
+      validator: (rule: any, value: any, callback: any) => {
+        if (value !== null && value !== undefined && value !== '') {
+          if (isNaN(Number(value)) || Number(value) < 0) {
+            callback(new Error('展示价格必须是大于等于0的数字'));
+          } else {
+            callback();
+          }
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
+  original_price: [
+    {
+      validator: (rule: any, value: any, callback: any) => {
+        if (value !== null && value !== undefined && value !== '') {
+          if (isNaN(Number(value)) || Number(value) < 0) {
+            callback(new Error('原始价格必须是大于等于0的数字'));
+          } else {
+            callback();
+          }
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+});
+
 // 获取使用次数最多的设备列表（默认）
 const fetchMostUsedMachines = async () => {
   loading.value = true;
@@ -620,8 +878,8 @@ const fetchMostUsedMachines = async () => {
       page: currentPage.value,
       per_page: pageSize.value,
       search: searchQuery.value,
-      sort_by: 'added_count',  // 按使用次数排序
-      order: 'desc'           // 降序排列
+      // sort_by: 'added_count',  // 按使用次数排序
+      // order: 'desc'           // 降序排列
     });
 
     machines.value = response.machines || [];
@@ -779,6 +1037,41 @@ const loadQuotationTempToCart = async (row: QuotationTemp) => {
         cartStore.setCurrentOrderInfo(response.id, response.order_mark);
       }
 
+      // 保存is_public参数到cartStore
+      if (response.is_public !== undefined && response.is_public !== null) {
+        cartStore.cartData.is_public = response.is_public;
+        // 同步到本地存储
+        cartStore.syncLocal();
+      }
+
+      // 如果响应包含货币信息，更新本地货币设置
+      if (response.currency_info) {
+        // 保存当前货币设置到localStorage
+        const currentCurrencySettings = localStorage.getItem('quotationCurrencySettings');
+        let settings;
+        if (currentCurrencySettings) {
+          settings = JSON.parse(currentCurrencySettings);
+        } else {
+          settings = { currencies: [], selectedCurrency: 'CNY' };
+        }
+
+        // 更新选中的货币
+        settings.selectedCurrency = response.currency_info.code;
+
+        // 如果货币不在列表中，则添加
+        const existingCurrencyIndex = settings.currencies.findIndex((c: any) => c.code === response.currency_info.code);
+        if (existingCurrencyIndex === -1) {
+          settings.currencies.push(response.currency_info);
+        } else {
+          settings.currencies[existingCurrencyIndex] = response.currency_info;
+        }
+
+        localStorage.setItem('quotationCurrencySettings', JSON.stringify(settings));
+
+        // 更新组件内的选中货币
+        selectedCurrency.value = response.currency_info.code;
+      }
+
       // 同步到本地存储
       cartStore.updateAndSync();
 
@@ -877,6 +1170,45 @@ const tempParamName = ref('');
 const tempParamType = ref('COEFFICIENT');
 const tempParamValue = ref<number | null>(null);
 
+// 货币切换相关
+const currencies = ref([
+  { code: 'CNY', name: '人民币', symbol: '¥', rate: 1.0 },      // 人民币作为基准
+  { code: 'USD', name: '美元', symbol: '$', rate: 0.14 },      // 美元
+  { code: 'AED', name: '迪拉姆', symbol: 'د.إ', rate: 0.52 }   // 迪拉姆
+]);
+const selectedCurrency = ref('CNY'); // 默认选择人民币
+const previousCurrency = ref('CNY'); // 用于追踪上一个货币状态
+
+// 从localStorage加载货币设置
+const loadCurrencySettings = () => {
+  const savedSettings = localStorage.getItem('quotationCurrencySettings');
+
+  if (savedSettings) {
+    try {
+      const settings = JSON.parse(savedSettings);
+      selectedCurrency.value = settings.selectedCurrency || 'CNY';
+      previousCurrency.value = settings.selectedCurrency || 'CNY'; // 同时更新上一个货币
+      if (settings.currencies) {
+        currencies.value = settings.currencies;
+      }
+    } catch (e) {
+      console.error('加载货币设置失败:', e);
+    }
+  }
+};
+// 保存货币设置到localStorage
+const saveCurrencySettings = () => {
+  const settings = {
+    selectedCurrency: selectedCurrency.value,
+    currencies: currencies.value
+  };
+
+  localStorage.setItem('quotationCurrencySettings', JSON.stringify(settings));
+};
+
+// 初始化时加载货币设置
+loadCurrencySettings();
+
 const cartStore = useQuotationCartStore();
 
 const addToCart = (machine: Machine) => {
@@ -924,11 +1256,11 @@ const generateOrderFromModal = () => {
     id: cartStore.currentOrderId,  // 使用购物车store中的订单ID
     order_mark: cartStore.currentOrderMark,  // 使用购物车store中的订单标识
     order_id: cartStore.currentOrderId,  // 保持兼容性
-    orderMark: cartStore.currentOrderMark || '当前购物车预览',  // 保持兼容性，如果没有则显示默认值
+    orderMark: cartStore.currentOrderMark || '新临时报价单',  // 保持兼容性，如果没有则显示默认值
     total_amount: cartStore.cartData.totalAmount,
     totalAmount: cartStore.cartData.totalAmount,  // 保持兼容性
     update_time: new Date().toISOString(),
-    creator_id: 'current_user', // 添加一个标识表示是当前购物车
+    creator_id: getCurrentUserEmpId(), // 使用当前用户的员工ID
     machine_list: cartStore.cartData.machineList.map((machine: any) => ({
       ...machine,
       machineName: machine.machineName || machine.model,
@@ -953,6 +1285,140 @@ const generateOrderFromModal = () => {
   previewDialogVisible.value = true;
   showLoadToCartButton.value = false;  // 从购物车打开预览，显示返回购物车按钮
 };
+
+// 货币切换功能
+const switchCurrency = (newCurrencyCode: string) => {
+  // 获取当前（之前的）和新货币的汇率
+  const oldCurrency = currencies.value.find(c => c.code === previousCurrency.value);
+  const newCurrency = currencies.value.find(c => c.code === newCurrencyCode);
+
+  if (oldCurrency && newCurrency && oldCurrency.rate !== 0) {
+    // 货币转换公式：新价格 = 旧价格 * (新货币汇率 / 旧货币汇率)
+    // 这里的汇率是相对于基准货币（人民币）的汇率
+    // 例如：USD汇率0.14表示1基准单位=0.14美元
+    const conversionRate = newCurrency.rate / oldCurrency.rate;
+
+    // 转换购物车中设备的自定义价格
+    cartStore.cartData.machineList.forEach(machine => {
+      if (machine.customPrice) {
+        // 应用转换
+        const convertedPrice = machine.customPrice * conversionRate;
+        machine.customPrice = parseFloat(convertedPrice.toFixed(2));
+        // 更新小计
+        machine.subtotal = parseFloat(convertedPrice.toFixed(2)) * parseInt(machine.quantity || 1);
+      }
+    });
+
+    // 转换附加项目中的固定金额类型数值
+    cartStore.cartData.tempParams.forEach(param => {
+      if (param.type === 'FIXED' && param.value) {
+        // 应用转换
+        const convertedValue = param.value * conversionRate;
+        param.value = parseFloat(convertedValue.toFixed(2));
+      }
+    });
+
+    // 在所有转换完成后，统一更新和同步
+    cartStore.updateAndSync();
+  }
+
+  // 更新选中的货币和之前的货币记录
+  previousCurrency.value = selectedCurrency.value;  // 记录当前值为之前的值
+  selectedCurrency.value = newCurrencyCode;         // 更新为新值
+
+  // 保存设置到localStorage
+  saveCurrencySettings();
+};
+
+// 监听汇率输入变化
+const onRateChange = (currencyCode: string, newRate: number) => {
+  // 查找并更新货币汇率
+  const currency = currencies.value.find(c => c.code === currencyCode);
+  if (currency) {
+    const oldRate = currency.rate;
+    currency.rate = newRate;
+
+    // 如果修改的是当前选中的货币汇率，则需要重新转换所有价格
+    if (selectedCurrency.value === currencyCode) {
+      // 由于汇率已经更新，我们需要重新计算所有价格
+      // 计算转换比率（从旧汇率到新汇率）
+      if (oldRate !== 0) {
+        const conversionRate = newRate / oldRate;
+
+        // 转换购物车中设备的自定义价格
+        cartStore.cartData.machineList.forEach(machine => {
+          if (machine.customPrice) {
+            const convertedPrice = machine.customPrice * conversionRate;
+            machine.customPrice = parseFloat(convertedPrice.toFixed(2));
+            // 更新小计
+            machine.subtotal = parseFloat(convertedPrice.toFixed(2)) * parseInt(machine.quantity || 1);
+          }
+        });
+
+        // 转换附加项目中的固定金额类型数值
+        cartStore.cartData.tempParams.forEach(param => {
+          if (param.type === 'FIXED' && param.value) {
+            const convertedValue = param.value * conversionRate;
+            param.value = parseFloat(convertedValue.toFixed(2));
+          }
+        });
+
+        // 在所有转换完成后，统一更新和同步
+        cartStore.updateAndSync();
+      }
+    }
+
+    // 保存设置到localStorage
+    saveCurrencySettings();
+  }
+};
+
+// 获取当前货币符号
+const getCurrentCurrencySymbol = () => {
+  const currency = currencies.value.find(c => c.code === selectedCurrency.value);
+  return currency ? currency.symbol : '¥'; // 默认返回人民币符号
+};
+
+// 从货币信息中获取货币符号
+const getCurrencySymbolFromInfo = (currency_info: any) => {
+  if (currency_info) {
+    // 如果currency_info是字符串，需要先解析
+    let currencyData = currency_info;
+    if (typeof currency_info === 'string') {
+      try {
+        currencyData = JSON.parse(currency_info);
+      } catch (e) {
+        console.error('解析货币信息失败:', e);
+        return '¥'; // 解析失败时返回默认符号
+      }
+    }
+
+    if (currencyData && currencyData.symbol) {
+      return currencyData.symbol;
+    }
+  }
+  return '¥'; // 默认返回人民币符号
+};
+
+// 格式化时间（仅显示日期和时分）
+const formatTime = (timeStr: string) => {
+  if (!timeStr) return '';
+  try {
+    const date = new Date(timeStr);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  } catch (e) {
+    // 如果格式化失败，返回原始字符串
+    return timeStr;
+  }
+};
+
 // 计算属性
 const isCurrentUserAdmin = () => {
   return getCurrentUserRole() === 'admin';
@@ -993,6 +1459,8 @@ const clearCurrentOrderInfo = () => {
   ElMessage.success('当前订单信息已清除，下次保存将创建新订单');
 };
 
+
+
 // 预览组件订单更新事件处理
 const handleOrderUpdated = (orderInfo: any) => {
   // 更新当前订单信息到购物车store
@@ -1023,6 +1491,186 @@ const handleOrderSaved = () => {
   fetchQuotationTempList();
 };
 
+// 重置表单
+const resetForm = () => {
+  formModel.value = {
+    model: '',
+    original_model: '',
+    machine_weight: '',
+    dimensions: '',
+    general_power: '',
+    power_supply: '',
+    image: './assets/Media/Machine/sample.png',
+    added_count: 0,
+    show_price: null,
+    original_price: null,
+    machine_type: 0,
+    brand: '',
+    search_key: '',
+    custom_attrs: '{}'
+  };
+};
+
+// 打开新增设备对话框
+const openCreateDialog = async () => {
+  isEdit.value = false;
+  resetForm();
+  // 确保表单数据更新后显示对话框
+  await nextTick();
+  machineDialogVisible.value = true;
+};
+
+// 处理对话框关闭
+const handleDialogClose = (done: () => void) => {
+  ElMessageBox.confirm('确定要关闭吗？未保存的数据将会丢失。', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
+    .then(() => {
+      done();
+    })
+    .catch(() => {
+      // 取消关闭
+    });
+};
+
+// 上传预览组件引用设置
+const setUploadPreviewRef = (el: any) => {
+  uploadPreviewRef.value = el;
+};
+
+// 图片上传成功回调
+const onImageUploadSuccess = (files: File[], mediaFiles: any[]) => {
+  // 从返回的媒体文件信息中获取URL
+  if (mediaFiles && mediaFiles.length > 0 && mediaFiles[0]?.url) {
+    formModel.value.image = mediaFiles[0].url;
+  } else if (files && files.length > 0) {
+    // 如果没有媒体文件信息，尝试从File对象创建URL
+    const file = files[0];
+    if (file && file.type && file.type.startsWith('image/')) {
+      formModel.value.image = URL.createObjectURL(file);
+    }
+  }
+};
+
+// 图片上传失败回调
+const onImageUploadFailure = (error: string) => {
+  console.error('图片上传失败:', error);
+  ElMessage.error('图片上传失败');
+};
+
+// 上传剪贴板图片
+const onUploadClipboardImage = (response: any, file: File, taskId: number) => {
+  // 处理剪贴板图片上传响应
+  if (response && typeof response === 'string') {
+    formModel.value.image = response;
+  } else if (response && response.url) {
+    formModel.value.image = response.url;
+  } else if (file) {
+    formModel.value.image = URL.createObjectURL(file);
+  }
+};
+
+// 解析自定义属性
+const parseCustomAttrsFromJson = (jsonStr: string) => {
+  try {
+    const obj = JSON.parse(jsonStr);
+    if (typeof obj === 'object' && obj !== null) {
+      customAttrsList.value = Object.entries(obj).map(([key, value]) => ({
+        key,
+        value: String(value)
+      }));
+    } else {
+      customAttrsList.value = [];
+    }
+  } catch (error) {
+    console.error('解析自定义属性失败:', error);
+    customAttrsList.value = [];
+  }
+};
+
+// 保存设备
+const saveMachine = async () => {
+  if (!formRef.value) return;
+
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) {
+    ElMessage.error('请填写完整并符合要求的信息');
+    return;
+  }
+
+  try {
+    // 检查是否有本地图片需要上传（以blob:开头的URL）
+    let imageToUpload = null;
+    if (formModel.value.image && typeof formModel.value.image === 'string' && formModel.value.image.startsWith('blob:')) {
+      // 从blob URL恢复为文件对象需要特殊的处理，这里我们先保存设备，然后单独上传图片
+      imageToUpload = formModel.value.image;
+      // 临时使用默认图片路径，等图片上传后再更新
+      formModel.value.image = './assets/Media/Machine/sample.png';
+    }
+
+    const machineData = {
+      ...formModel.value,
+      show_price: formModel.value.show_price || 0,
+      original_price: formModel.value.original_price || null,
+      custom_attrs: JSON.stringify(customAttrsList.value.reduce((acc, item) => {
+        acc[item.key] = item.value;
+        return acc;
+      }, {} as Record<string, string>))
+    };
+
+    let savedMachine: any;
+    if (isEdit.value && formModel.value.id) {
+      // 编辑设备
+      savedMachine = await request.put(`/api/machines_new/${formModel.value.id}`, machineData);
+      ElMessage.success('编辑设备成功');
+    } else {
+      // 新增设备
+      savedMachine = await request.post('/api/machines_new', machineData);
+      ElMessage.success('新增设备成功');
+    }
+
+    // 如果有本地图片需要上传
+    if (imageToUpload && savedMachine && savedMachine.id) {
+      // 创建一个虚拟的File对象用于上传
+      try {
+        const response = await fetch(imageToUpload);
+        const blob = await response.blob();
+        const file = new File([blob], `${savedMachine.model || 'machine'}_thumb.jpg`, { type: blob.type });
+
+        const thumbFormData = new FormData();
+        thumbFormData.append('file', file);
+
+        // 上传缩略图
+        const thumbResult: any = await request.post(`/api/machines_new/${savedMachine.id}/upload-thumb`, thumbFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        // 更新设备的图片路径
+        if (thumbResult && thumbResult.new_thumb_path) {
+          // 更新表单的图片路径
+          formModel.value.image = thumbResult.new_thumb_path;
+          ElMessage.success('设备及缩略图创建成功');
+        } else {
+          ElMessage.warning('设备已创建，但缩略图上传失败，响应格式异常');
+        }
+      } catch (thumbError) {
+        console.error('上传设备缩略图失败:', thumbError);
+        ElMessage.warning('设备已创建，但缩略图上传失败');
+      }
+    }
+
+    machineDialogVisible.value = false;
+    // 重新获取设备列表
+    fetchMostUsedMachines();
+  } catch (error: any) {
+    console.error('保存设备失败:', error);
+    ElMessage.error(error?.response?.data?.message || '保存设备失败');
+  }
+};
 // 组件挂载时获取数据
 onMounted(() => {
   // 获取临时报价列表
@@ -1030,6 +1678,9 @@ onMounted(() => {
 
   // 获取设备列表
   fetchMostUsedMachines();
+
+  // 加载货币设置
+  loadCurrencySettings();
 
   // 检查URL参数，如果需要打开购物车模态框
   const urlParams = new URLSearchParams(window.location.search);
@@ -1046,15 +1697,16 @@ onMounted(() => {
 <style scoped>
 .quotation-management-container {
   padding: 20px;
-  background-color: #f5f5f5;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
 }
 
 .content-wrapper {
   background: #fff;
-  padding: 20px;
-  border-radius: 8px;
+  padding: 25px;
+  border-radius: 12px;
   margin-top: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .search-and-actions {
@@ -1143,7 +1795,7 @@ onMounted(() => {
 .cart-modal-content .section-header h3 {
   margin: 0;
   color: #303133;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -1230,6 +1882,11 @@ onMounted(() => {
 /* 当前订单信息 */
 .current-order-info {
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
 }
 
 /* 临时报价列表和设备列表之间的分隔 */
@@ -1274,6 +1931,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.3s ease;
+  transform: scale(1.1);
+}
+
+.floating-cart-btn:hover {
+  transform: scale(1.2);
 }
 
 .floating-cart-btn .el-badge {
@@ -1289,25 +1952,70 @@ onMounted(() => {
 }
 
 .primary-model {
-  font-weight: 500;
+  font-weight: 600;
   color: #303133;
+  font-size: 15px;
 }
 
 .secondary-model {
   font-size: 12px;
   color: #909399;
   margin-top: 2px;
+  font-style: italic;
 }
 
 .subtotal-text {
-  font-weight: 500;
+  font-weight: 600;
   color: #e64340;
+  font-size: 14px;
 }
 
 /* 表格头部样式 */
 :deep(.table-header) {
   background-color: #f8f9fc !important;
   color: #606266;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* 标签页样式优化 */
+:deep(.el-tabs__item) {
+  font-size: 15px;
+  padding: 0 24px !important;
+}
+
+:deep(.el-tabs__nav-wrap::after) {
+  height: 2px;
+}
+
+/* 输入框附加按钮样式 */
+:deep(.el-input-group__append) {
+  background-color: #409eff;
+  color: white;
+  border: none;
+}
+
+/* 按钮样式优化 */
+.el-button--small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* 表格行悬停效果 */
+:deep(.el-table__body tr:hover > td) {
+  background-color: #f5f7fa;
+}
+
+/* 价格数字样式 */
+.price {
+  font-weight: 600;
+  color: #e64340;
+  font-size: 15px;
+}
+
+/* 优化对话框标题样式 */
+:deep(.el-dialog__title) {
+  font-size: 18px;
   font-weight: 600;
 }
 </style>

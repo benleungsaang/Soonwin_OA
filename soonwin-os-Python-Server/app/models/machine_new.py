@@ -4,14 +4,14 @@ from .. import db
 import json
 from typing import Dict, Any
 from sqlalchemy.orm import Session
-
+from datetime import datetime
 
 class MachineNew(db.Model):
     __tablename__ = 'machines_new'  # 使用小写表名，符合约定
 
     # 模型原生字段定义（不变）
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # 自增主键
-    model = Column(TEXT, unique=True)  # 设备型号
+    model = Column(TEXT)  # 设备型号
     original_model = Column(TEXT)  # 原厂型号
     machine_weight = Column(TEXT)  # 设备重量
     dimensions = Column(TEXT)  # 设备尺寸
@@ -28,6 +28,8 @@ class MachineNew(db.Model):
     custom_attrs = Column(TEXT, default='')  # 差异化字段（JSON文本）
     is_deleted = Column(Integer, default=0)  # 0=正常，1=已删除
     delete_time = Column(DateTime)  # 删除时间
+    create_time = Column(DateTime, default=datetime.now, comment="创建时间")  # 新增：创建时间
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")  # 新增：更新时间
 
     # ---------------------- 新增：字段映射配置（核心适配） ----------------------
     # 1. 导入数据字段 → 模型原生字段的映射（处理大小写/驼峰命名）
@@ -178,12 +180,9 @@ class MachineNew(db.Model):
         # 原有逻辑（数据清洗）
         cleaned_data = cls.clean_data(preprocessed_data)
 
-        # 2. 业务规则校验（型号唯一性）
+        # 2. 业务规则校验（型号不能为空）
         if not cleaned_data['model']:
             return False, '设备型号不能为空', None
-
-        if db_session.query(cls).filter_by(model=cleaned_data['model']).first():
-            return False, '设备型号已存在', None
 
         # 3. 创建对象
         try:
@@ -217,17 +216,7 @@ class MachineNew(db.Model):
             preprocessed = cls.preprocess_import_data(data)
             preprocessed_datas.append(preprocessed)
 
-        # 2. 前置：批量校验型号唯一性（只查一次数据库）
-        all_models = [d.get('model', '').strip() for d in preprocessed_datas if d.get('model')]
-        valid_models = [m for m in all_models if m]  # 过滤空型号
-        if not valid_models:
-            return False, '所有数据型号均为空', raw_datas
-
-        # 批量查询已存在的型号
-        existing_models = db_session.query(cls.model).filter(cls.model.in_(valid_models)).all()
-        existing_model_set = {m[0] for m in existing_models}
-
-        # 3. 数据清洗 + 过滤无效数据
+        # 2. 数据清洗 + 过滤无效数据
         failed_datas = []
         cleaned_machines = []
         for idx, preprocessed_data in enumerate(preprocessed_datas):
@@ -240,9 +229,6 @@ class MachineNew(db.Model):
                 if not model:
                     failed_datas.append({'index': idx, 'data': raw_datas[idx], 'reason': '型号为空'})
                     continue
-                if model in existing_model_set:
-                    failed_datas.append({'index': idx, 'data': raw_datas[idx], 'reason': '型号已存在'})
-                    continue
 
                 # 创建对象
                 machine = cls(**cleaned_data)
@@ -252,7 +238,7 @@ class MachineNew(db.Model):
             except Exception as e:
                 failed_datas.append({'index': idx, 'data': raw_datas[idx], 'reason': f'数据清洗失败：{str(e)}'})
 
-        # 4. 批量插入数据库
+        # 3. 批量插入数据库
         if cleaned_machines:
             try:
                 for i in range(0, len(cleaned_machines), batch_size):
@@ -264,7 +250,7 @@ class MachineNew(db.Model):
                 db_session.rollback()
                 return False, f'批量插入数据库失败：{str(e)}', failed_datas
 
-        # 5. 返回结果
+        # 4. 返回结果
         if failed_datas:
             success_msg = f'批量导入完成，成功{len(cleaned_machines)}条，失败{len(failed_datas)}条'
             return True, success_msg, failed_datas
@@ -302,7 +288,9 @@ class MachineNew(db.Model):
             'remark': self.remark,
             'brand': self.brand,
             'search_key': self.search_key,
-            'custom_attrs': custom_attrs_dict
+            'custom_attrs': custom_attrs_dict,
+            'create_time': self.create_time.isoformat() if self.create_time else None,
+            'update_time': self.update_time.isoformat() if self.update_time else None
         }
 
         # 根据参数决定是否包含原始价格

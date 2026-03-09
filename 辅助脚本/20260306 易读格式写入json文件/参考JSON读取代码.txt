@@ -1,0 +1,22 @@
+with open('./机器数据.json', 'r' , encoding='utf-8') as f:
+    data = json.loads(f.read())
+
+with open('./123.json', mode='w+', encoding='utf-8') as f:
+    json.dump(
+        data,
+        f,
+        ensure_ascii=False,  # 中文不转码
+        indent=4,            # 4个空格缩进，层级清晰
+        separators=(',', ': ')  # 键值间加空格，更易读（默认就是这个，可省略）
+    )
+
+
+with open('./123.txt', mode='w+', encoding='utf-8') as f:
+    # 第一步：写入表头（可选，但Excel里会更清晰）
+    f.write('Model\tOriginalModel\n')  # \t 是制表符，分隔两列
+    
+    # 第二步：循环写入每行数据
+    for d in data:
+        # 用制表符 \t 分隔两列，换行符 \n 分隔每行
+        line = f"{d['Model']}\t{d['OriginalModel']}\n"
+        f.write(line)

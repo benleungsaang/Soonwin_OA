@@ -41,13 +41,9 @@
                       <el-icon><VideoCamera /></el-icon>
                       <span>视频管理</span>
                     </el-menu-item>
-                    <el-menu-item index="12" @click="goToMachinePartsManagement" v-if="hasToken && permissions.machinePartsManage">
-                      <el-icon><Tools /></el-icon>
-                      <span>机器零部件管理</span>
-                    </el-menu-item>
                     <el-menu-item index="15" @click="goToMachineManagementNew" v-if="hasToken && permissions.machineManage">
                       <el-icon><Tools /></el-icon>
-                      <span>设备管理（新版）</span>
+                      <span>设备管理</span>
                     </el-menu-item>
                     <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && permissions.expenseManage">
                       <el-icon><Money /></el-icon>
@@ -88,8 +84,8 @@
                       <span>订单状态管理</span>
                     </el-menu-item>
                     <el-menu-item index="18" @click="goToQuotationManagement" v-if="hasToken && permissions.quotationManage">
-                      <el-icon><Document /></el-icon>
-                      <span>临时报价</span>
+                      <el-icon><Coin /></el-icon>
+                      <span>初步报价</span>
                     </el-menu-item>
                   </el-menu>
                 </div>
@@ -154,8 +150,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  Tools, Document, User, Clock, ChatDotRound, Money, Finished,
-  Monitor, Upload, Files, Box, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading
+  Tools, Document, User, Clock, ChatDotRound, Money, Coin,
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 // 导入权限工具函数
@@ -199,7 +195,6 @@ const collapseStatus = ref({
 const permissionMap = {
   employeeManage: { key: 'user_manage', name: '员工管理', path: '/employee-management' },
   expenseManage: { key: 'expense_manage', name: '运营费用', path: '/expense-management' },
-  machinePartsManage: { key: 'machine_manage', name: '机器零部件管理', path: '/machine-parts-management' },
   photoManage: { key: 'photo_manage', name: '照片管理', path: '/photo-management' },
   videoManage: { key: 'video_manage', name: '视频管理', path: '/video-management' },
   orderManage: { key: 'order_manage', name: '订单管理', path: '/order' },
@@ -208,7 +203,6 @@ const permissionMap = {
   punchManage: { key: 'punch_manage', name: '打卡', path: '/punch' },
   punchRecordsManage: { key: 'punch_manage', name: '打卡记录', path: '/punch-records' },
   displayFilesManage: { key: 'display_file_manage', name: '展示文件', path: '/display-files' },
-  deviceManage: { key: 'machine_manage', name: '设备管理', path: '/machine-parts-management' },
   machineManage: { key: 'machine_manage', name: '设备管理（新版）', path: '/machine-management-new' },
   userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' },
   attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' },
@@ -255,7 +249,6 @@ const goToExpenseManagement = () => navigateToPage('expenseManage');
 const goToLogin = () => router.push('/login');
 const goToInquiries = () => navigateToPage('inquiriesManage');
 const goToDisplayFiles = () => navigateToPage('displayFilesManage');
-const goToMachinePartsManagement = () => navigateToPage('machinePartsManage');
 const goToPhotoManagement = () => navigateToPage('photoManage');
 const goToVideoManagement = () => navigateToPage('videoManage');
 const goToOrderStatus = () => navigateToPage('orderStatusManage');

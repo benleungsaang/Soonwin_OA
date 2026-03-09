@@ -10,7 +10,8 @@ export const useQuotationCartStore = defineStore('quotationCart', {
     const storedData = JSON.parse(localStorage.getItem('quotation_cart_temp') || JSON.stringify({
       machineList: [], // 设备列表
       tempParams: [],  // 自定义临时项目（税费/运费/折扣等）
-      totalAmount: 0   // 最终合计
+      totalAmount: 0,   // 最终合计
+      is_public: 0      // 是否公开
     }))
 
     // 获取本地保存的订单列表
@@ -35,14 +36,16 @@ export const useQuotationCartStore = defineStore('quotationCart', {
       cartData: {
         machineList: storedData.machineList.map(normalizeMachineItem),
         tempParams: ensureTempParamIds(storedData.tempParams || []),
-        totalAmount: parseFloat(storedData.totalAmount) || 0
+        totalAmount: parseFloat(storedData.totalAmount) || 0,
+        is_public: storedData.is_public || 0 // 添加is_public字段
       },
       orders: storedOrders.map((order: any) => {
         // 确保订单中的数据格式正确
         return {
           ...order,
           machineList: order.machineList?.map(normalizeMachineItem) || [],
-          tempParams: ensureTempParamIds(order.tempParams || [])
+          tempParams: ensureTempParamIds(order.tempParams || []),
+          is_public: order.is_public || 0 // 添加is_public字段到订单
         };
       }),
       currentOrderId: currentOrderId,
@@ -271,7 +274,8 @@ function normalizeMachineItem(item: any) {
     ...item,
     customPrice: parseFloat(item.customPrice) || 0,
     quantity: parseInt(item.quantity) || 1,
-    subtotal: parseFloat(item.subtotal) || 0
+    subtotal: parseFloat(item.subtotal) || 0,
+    remark: item.remark || ''  // 确保备注字段被保留
   }
 }
 
@@ -286,6 +290,7 @@ function normalizeInputMachine(machine: any) {
     quantity: 1,
     subtotal: parseFloat(machine.show_price) || parseFloat(machine.price) || 0,
     brand: machine.brand || '',
-    machineType: machine.machine_type || 0
+    machineType: machine.machine_type || 0,
+    remark: machine.remark || ''  // 添加备注字段
   }
 }

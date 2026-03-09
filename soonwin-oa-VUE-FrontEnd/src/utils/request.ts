@@ -329,6 +329,12 @@ export const updateMachineNew = (id: number, data: any) => request.put(`/api/mac
 export const deleteMachineNew = (id: number) => request.delete(`/api/machines_new/${id}`);
 export const importMachinesNewJson = (data: any) => request.post('/api/machines_new/import-json', data);
 export const exportMachinesNewJson = () => request.get('/api/machines_new/export-json');
+// 设备回收站相关API
+export const getDeletedMachines = (params?: any) => request.get('/api/machines_new/recycle-bin', { params });
+export const restoreMachineFromRecycleBin = (id: number) => request.put(`/api/machines_new/recycle-bin/${id}/restore`);
+export const permanentDeleteMachine = (id: number) => request.delete(`/api/machines_new/recycle-bin/${id}/permanent-delete`);
+export const batchPermanentDeleteMachines = (ids: number[]) => request.delete('/api/machines_new/recycle-bin/batch-permanent-delete', { data: { ids } });
+export const clearRecycleBin = () => request.delete('/api/machines_new/recycle-bin/clear');
 // 报价管理相关API
 export const getQuotationMachines = (params?: any) => request.get('/api/quotation-machines', { params });
 // 临时报价相关API
@@ -337,6 +343,9 @@ export const getQuotationTemp = (id: number) => request.get(`/api/quotation-temp
 export const createQuotationTemp = (data: any) => request.post('/api/quotation-temp', data);
 export const updateQuotationTemp = (id: number, data: any) => request.put(`/api/quotation-temp/${id}`, data);
 export const deleteQuotationTemp = (id: number) => request.delete(`/api/quotation-temp/${id}`);
+
+// 设备缩略图上传API
+export const uploadMachineThumb = (machineId: number, data: FormData) => multipartRequest.post(`/api/machines_new/${machineId}/upload-thumb`, data);
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),

@@ -12,7 +12,6 @@ const ExpenseManagementView = () => import('@/views/ExpenseManagementView.vue');
 const DisplayFileUploadView = () => import('@/views/DisplayFileUploadView.vue');
 const DisplayFileView = () => import('@/views/DisplayFileView.vue');
 const InquiryView = () => import('@/views/InquiryView.vue');
-const MachinePartsManagementView = () => import('@/views/MachinePartsManagementView.vue');
 const PhotoManagementView = () => import('@/views/PhotoManagementView.vue');
 const VideoManagementView = () => import('@/views/VideoManagementView.vue');
 const LogManagementView = () => import('@/views/LogManagement.vue');
@@ -23,8 +22,6 @@ const AttendanceApplyView = () => import('@/views/AttendanceApplyView.vue');
 const AttendanceJsonExportView = () => import('@/views/AttendanceJsonExportView.vue');
 const MachineManagementNewView = () => import('@/views/MachineManagementNewView.vue');
 const QuotationManagementView = () => import('@/views/QuotationManagementView.vue');
-
-const QuotationOrderPreviewView = () => import('@/views/QuotationOrderPreviewView.vue');
 
 
 
@@ -112,12 +109,6 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '编辑询盘', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
-    path: '/machine-parts-management',
-    name: 'machinePartsManagement',
-    component: MachinePartsManagementView,
-    meta: { title: '机器零部件管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
-  },
-  {
     path: '/photo-management',
     name: 'photoManagement',
     component: PhotoManagementView,
@@ -169,26 +160,13 @@ const routes: RouteRecordRaw[] = [
     path: '/machine-management-new',
     name: 'machineManagementNew',
     component: MachineManagementNewView,
-    meta: { title: '设备管理（新版）', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
+    meta: { title: '设备管理', requiresAuth: true, requiresAdmin: true } // requiresAuth 标记需要登录才能访问，requiresAdmin 标记需要管理员权限
   },
   {
     path: '/quotation-management',
     name: 'quotationManagement',
     component: QuotationManagementView,
-    meta: { title: '临时报价', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  },
-
-  {
-    path: '/quotation/order',
-    name: 'quotationOrderPreview',
-    component: QuotationOrderPreviewView,
-    meta: { title: '订单预览', requiresAuth: true } // requiresAuth 标记需要登录才能访问
-  },
-  {
-    path: '/quotation/order/:orderId?',
-    name: 'quotationOrderPreviewWithId',
-    component: QuotationOrderPreviewView,
-    meta: { title: '订单预览', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+    meta: { title: '临时报价单', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
 
 

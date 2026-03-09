@@ -51,13 +51,17 @@ def get_quotation_temps():
 
         # 获取当前用户信息
         current_user = get_current_user()
+        is_admin = current_user.user_role == 'admin'
 
         # 构建查询
         query = QuotationTemp.query
 
-        # 检查是否为管理员，如果不是管理员则只查询自己创建的数据
-        if current_user.user_role != 'admin':
-            query = query.filter(QuotationTemp.creator_id == current_user.emp_id)
+        # 管理员可以获取全部报价单，普通用户只能获取自己创建的和公开的报价单
+        if not is_admin:
+            query = query.filter(
+                (QuotationTemp.creator_id == current_user.emp_id) |
+                (QuotationTemp.is_public == 1)
+            )
 
         # 如果有搜索参数，则在order_mark中进行模糊搜索
         if search:
@@ -104,16 +108,19 @@ def get_quotation_temp_list():
         # 构建查询
         query = QuotationTemp.query
 
-        # 检查是否为管理员，如果不是管理员则只查询自己创建的数据
+        # 管理员可以获取全部报价单，普通用户只能获取自己创建的和公开的报价单
         if not is_admin:
-            query = query.filter(QuotationTemp.creator_id == current_user.emp_id)
+            query = query.filter(
+                (QuotationTemp.creator_id == current_user.emp_id) |
+                (QuotationTemp.is_public == 1)
+            )
 
         # 如果有搜索参数，则在order_mark中进行模糊搜索
         if search:
             query = query.filter(QuotationTemp.order_mark.like(f'%{search}%'))
 
-        # 应用分页和排序
-        pagination = query.paginate(
+        # 应用分页和排序（按更新时间降序，最新的在前）
+        pagination = query.order_by(QuotationTemp.update_time.desc()).paginate(
             page=page, per_page=per_page, error_out=False
         )
         temps = pagination.items
@@ -126,10 +133,13 @@ def get_quotation_temp_list():
                 'order_mark': temp.order_mark,
                 'total_amount': float(temp.total_amount) if temp.total_amount else 0.0,
                 'update_time': temp.update_time.strftime('%Y-%m-%d %H:%M:%S') if temp.update_time else None,
+                'currency_info': temp.currency_info,
+                'is_public': temp.is_public,
+                'creator_id': temp.creator_id
             }
             # 只有管理员才能看到creator_id
-            if is_admin:
-                item['creator_id'] = temp.creator_id
+            # if is_admin:
+            #     item['creator_id'] = temp.creator_id
             temp_data.append(item)
 
         return jsonify({
@@ -167,7 +177,9 @@ def create_quotation_temp():
             temp_params=json.dumps(data.get('temp_params', [])),
             total_amount=data.get('total_amount', 0),
             creator_id=current_user.emp_id,
-            remark=data.get('remark', '')
+            remark=data.get('remark', ''),
+            is_public=data.get('is_public', 0),
+            currency_info=json.dumps(data.get('currency_info')) if data.get('currency_info') else None
         )
 
         db.session.add(new_temp)
@@ -205,9 +217,10 @@ def get_quotation_temp(id):
 
         # 获取当前用户
         current_user = get_current_user()
+        is_admin = current_user.user_role == 'admin'
 
-        # 检查权限：管理员可以查看所有，普通用户只能查看自己创建的
-        if current_user.user_role != 'admin' and temp.creator_id != current_user.emp_id:
+        # 检查权限：管理员可以查看所有，普通用户只能查看自己创建的或公开的
+        if not is_admin and temp.creator_id != current_user.emp_id and temp.is_public != 1:
             return jsonify({'success': False, 'message': '无权限访问该临时报价'}), 403
 
         return jsonify({
@@ -260,6 +273,10 @@ def update_quotation_temp(id):
             temp.temp_params = json.dumps(data['temp_params'])
         if 'total_amount' in data:
             temp.total_amount = data['total_amount']
+        if 'currency_info' in data:
+            temp.currency_info = json.dumps(data['currency_info'])
+        if 'is_public' in data:
+            temp.is_public = data['is_public']
 
         temp.update_time = datetime.now()
         db.session.commit()

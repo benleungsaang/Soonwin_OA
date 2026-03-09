@@ -20,7 +20,7 @@
         </div> -->
         <div class="summary-item">
           <span class="summary-label">总金额:</span>
-          <span class="summary-value amount-highlight">¥{{ (selectedOrderData.total_amount || selectedOrderData.totalAmount || 0).toFixed(2) }}</span>
+          <span class="summary-value amount-highlight">{{ getCurrentCurrencySymbol() }}{{ (selectedOrderData.total_amount || selectedOrderData.totalAmount || 0).toFixed(2) }}</span>
         </div>
         <div class="summary-item">
           <span class="summary-label">更新时间:</span>
@@ -70,9 +70,9 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="customPrice" label="单价" width="120" align="right">
+          <el-table-column prop="customPrice" label="单价" width="120" align="center">
             <template #default="scope">
-              <span class="price-text">¥{{ (scope.row.customPrice || 0).toFixed(2) }}</span>
+              <span class="price-text">{{ getCurrentCurrencySymbol() }}{{ (scope.row.customPrice || 0).toFixed(2) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="数量" width="100" align="center">
@@ -80,20 +80,21 @@
               <span class="quantity-text">{{ scope.row.quantity || 1 }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subtotal" label="小计" width="140" align="right">
+          <el-table-column prop="subtotal" label="小计" width="140" align="center">
             <template #default="scope">
-              <span class="subtotal-text">¥{{ (scope.row.subtotal || (scope.row.customPrice || 0) * (scope.row.quantity || 1)).toFixed(2) }}</span>
+              <span class="subtotal-text">{{ getCurrentCurrencySymbol() }}{{ (scope.row.subtotal || (scope.row.customPrice || 0) * (scope.row.quantity || 1)).toFixed(2) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="200">
+          <el-table-column label="备注" min-width="200" align="center">
             <template #default="scope">
               <div
                 v-if="!scope.row.editingRemark"
-                @click="startEditingRemark(scope.row, 'machine', scope.$index)"
-                style="cursor: pointer;"
+                @click="!showLoadToCartButton && startEditingRemark(scope.row, 'machine', scope.$index)"
+                :style="!showLoadToCartButton ? 'cursor: pointer;' : 'cursor: default;'"
                 class="remark-display"
                 :class="{ 'has-remark': scope.row.remark }"
-                v-html="formatRemark(scope.row.remark || '点击添加备注')"
+                v-html="formatRemark(scope.row.remark || (!showLoadToCartButton ? '点击添加备注' : ''))"
+                align="left"
               ></div>
               <el-input
                 ref="textareaRef"
@@ -143,7 +144,7 @@
           <el-table-column prop="value" label="数值" width="120" align="right">
             <template #default="scope">
               <span class="param-value">
-                {{ scope.row.type === 'COEFFICIENT' ? scope.row.value.toFixed(4) : '¥' + scope.row.value.toFixed(2) }}
+                {{ scope.row.type === 'COEFFICIENT' ? scope.row.value.toFixed(4) : getCurrentCurrencySymbol() + scope.row.value.toFixed(2) }}
               </span>
             </template>
           </el-table-column>
@@ -151,11 +152,11 @@
             <template #default="scope">
               <div
                 v-if="!scope.row.editingRemark"
-                @click="startEditingRemark(scope.row, 'tempParam', scope.$index)"
-                style="cursor: pointer;"
+                @click="!showLoadToCartButton && startEditingRemark(scope.row, 'tempParam', scope.$index)"
+                :style="!showLoadToCartButton ? 'cursor: pointer;' : 'cursor: default;'"
                 class="remark-display"
                 :class="{ 'has-remark': scope.row.remark }"
-                v-html="formatRemark(scope.row.remark || '点击添加备注')"
+                v-html="formatRemark(scope.row.remark || (!showLoadToCartButton ? '点击添加备注' : ''))"
               ></div>
               <el-input
                 ref="textareaRef"
@@ -178,7 +179,7 @@
         <div class="total-wrapper">
           <div class="total-label">最终合计</div>
           <div class="total-amount">
-            <span class="currency">¥</span>
+            <span class="currency">{{ getCurrentCurrencySymbol() }}</span>
             <span class="amount">{{ (orderData.total_amount || orderData.totalAmount || 0).toFixed(2) }}</span>
           </div>
         </div>
@@ -188,45 +189,50 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleClose" :icon="CircleClose">关闭</el-button>
-        <div class="button-group">
-          <template v-if="showLoadToCartButton">
-            <!-- 从列表项打开时显示的按钮 -->
-            <el-button @click="saveAsNewOrder" :icon="CopyDocument">复制为新订单</el-button>
-            <el-button
-              type="primary"
-              :icon="Download"
-              @click="loadToCart"
-            >
-              加载到购物车
-            </el-button>
-          </template>
-          <template v-else>
-            <!-- 从购物车打开时显示的按钮 -->
-            <el-button
-              type="primary"
-              :icon="Edit"
-              @click="returnToCart"
-            >
-              返回购物车
-            </el-button>
-            <el-button
-              v-if="hasSavedOrder"
-              :icon="CopyDocument"
-              @click="saveAsNewOrder"
-              type="warning"
-            >
-              另存为
-            </el-button>
-            <el-button
-              :disabled="saveButtonDisabled"
-              :loading="isSaving"
-              :icon="Upload"
-              type="success"
-              @click="saveOrder"
-            >
-              {{ hasSavedOrder ? '更新订单' : '保存订单' }}
-            </el-button>
-          </template>
+        <div class="dialog-footer-content">
+          <el-checkbox v-model="isPublic" :true-value="1" :false-value="0" v-if="isShowPublicCheckbox" style="margin-right: 20px;">
+            设为公开
+          </el-checkbox>
+          <div class="button-group">
+            <template v-if="showLoadToCartButton">
+              <!-- 从列表项打开时显示的按钮 -->
+              <el-button @click="saveAsNewOrder" :icon="CopyDocument">复制为新订单</el-button>
+              <el-button
+                type="primary"
+                :icon="Download"
+                @click="loadToCart"
+              >
+                加载到购物车
+              </el-button>
+            </template>
+            <template v-else>
+              <!-- 从购物车打开时显示的按钮 -->
+              <el-button
+                type="primary"
+                :icon="Edit"
+                @click="returnToCart"
+              >
+                返回购物车
+              </el-button>
+              <el-button
+                v-if="hasSavedOrder"
+                :icon="CopyDocument"
+                @click="saveAsNewOrder"
+                type="warning"
+              >
+                另存为
+              </el-button>
+              <el-button
+                :disabled="saveButtonDisabled"
+                :loading="isSaving"
+                :icon="Upload"
+                type="success"
+                @click="saveOrder"
+              >
+                {{ hasSavedOrder ? '更新订单' : '保存订单' }}
+              </el-button>
+            </template>
+          </div>
         </div>
       </span>
     </template>
@@ -240,6 +246,73 @@ import { CircleClose, Download, CopyDocument, Upload, Check, Edit, Delete } from
 import { useQuotationCartStore } from '@/stores/quotationCartStore';
 import { createQuotationTemp, updateQuotationTemp } from '@/utils/request';
 import { isNumber } from 'element-plus/es/utils/types.mjs';
+import { getCurrentUserEmpId, getCurrentUserRole } from '@/utils/authUtils';
+
+// 获取当前货币符号的函数
+const getCurrentCurrencySymbol = () => {
+  try {
+    // 从 localStorage 获取货币设置
+    const currencySettings = localStorage.getItem('quotationCurrencySettings');
+
+    if (currencySettings) {
+      const settings = JSON.parse(currencySettings);
+
+      // 1. 校验是否有选中的货币编码
+      if (settings.selectedCurrency && Array.isArray(settings.currencies)) {
+        // 2. 在 currencies 数组中查找对应编码的货币对象
+        const matchedCurrency = settings.currencies.find(
+          (currency) => currency.code === settings.selectedCurrency
+        );
+
+        // 3. 找到则返回对应符号，否则返回选中的编码（兜底）
+        if (matchedCurrency && matchedCurrency.symbol) {
+          return matchedCurrency.symbol;
+        }
+      }
+    }
+  } catch (error) {
+    // 捕获 JSON 解析失败、localStorage 访问异常等错误
+    console.error('获取货币符号失败:', error);
+  }
+
+  // 默认返回人民币符号
+  return '¥';
+};
+
+
+// 获取当前货币信息的函数
+const getCurrentCurrencyInfo = () => {
+  try {
+    // 从 localStorage 获取货币设置
+    const currencySettings = localStorage.getItem('quotationCurrencySettings');
+    if (currencySettings) {
+      const settings = JSON.parse(currencySettings);
+      if (settings.selectedCurrency) {
+        const currencyCode = settings.selectedCurrency;
+        const matchedCurrency = settings.currencies?.find((c: any) => c.code === currencyCode);
+        if (matchedCurrency) {
+          return {
+            code: currencyCode,
+            name: matchedCurrency.name || currencyCode,
+            symbol: matchedCurrency.symbol || currencyCode,
+            rate: matchedCurrency.rate || 1.0
+          };
+        }
+      }
+    }
+  } catch (error) {
+    // 捕获 JSON 解析失败、localStorage 访问异常等错误
+    console.error('获取货币信息失败:', error);
+  }
+
+  // 默认返回人民币信息
+  return {
+    code: 'CNY',
+    name: '人民币',
+    symbol: '¥',
+    rate: 1.0
+  };
+};
 
 // 接收 props
 const props = defineProps({
@@ -260,6 +333,34 @@ const props = defineProps({
 // 定义 emit
 const emit = defineEmits(['update:modelValue', 'load-to-cart', 'order-saved', 'order-updated']);
 
+// 更新货币设置的函数
+const updateCurrencySettings = (currencyInfo: any) => {
+  if (!currencyInfo) return;
+
+  // 获取当前货币设置
+  const currentCurrencySettings = localStorage.getItem('quotationCurrencySettings');
+  let settings;
+  if (currentCurrencySettings) {
+    settings = JSON.parse(currentCurrencySettings);
+  } else {
+    settings = { currencies: [], selectedCurrency: 'CNY' };
+  }
+
+  // 更新选中的货币
+  settings.selectedCurrency = currencyInfo.code;
+
+  // 如果货币不在列表中，则添加
+  const existingCurrencyIndex = settings.currencies.findIndex((c: any) => c.code === currencyInfo.code);
+  if (existingCurrencyIndex === -1) {
+    settings.currencies.push(currencyInfo);
+  } else {
+    settings.currencies[existingCurrencyIndex] = currencyInfo;
+  }
+
+  // 保存到localStorage
+  localStorage.setItem('quotationCurrencySettings', JSON.stringify(settings));
+};
+
 // 引用购物车 store
 const cartStore = useQuotationCartStore();
 
@@ -269,6 +370,8 @@ const machineList = ref<any[]>([]);
 const tempParams = ref<any[]>([]);
 const textareaRef = ref(); // 添加textarea引用
 const selectedOrderData = ref<any>({}); // 用于存储最新的订单数据，包括保存后返回的ID
+const showLoadToCartButton = computed(() => props.showLoadToCartButton); // 直接使用props中的值
+
 
 // 保存功能相关数据
 const isSaving = ref(false);
@@ -277,6 +380,7 @@ const savedOrderId = ref<number | null>(null); // 已保存的订单ID
 const saveButtonDisabled = ref(false); // 保存按钮是否禁用
 const isEditingOrderMark = ref(false); // 是否正在编辑订单标识
 const newOrderMark = ref(''); // 新的订单标识
+const isPublic = ref(0); // 是否公开报价单，默认不公开
 
 // 监听 dialogVisible 变化
 watch(() => props.modelValue, (newVal) => {
@@ -317,6 +421,11 @@ watch(() => props.orderData, () => {
   if (isValidOrderId && currentOrderMarkFromStorage && currentOrderMarkFromStorage !== '当前购物车预览') {
     newOrderMark.value = currentOrderMarkFromStorage;
   }
+
+  // 如果订单数据包含货币信息，则更新当前货币设置
+  if (props.orderData && props.orderData.currency_info) {
+    updateCurrencySettings(props.orderData.currency_info);
+  }
 }, { deep: true });
 
 // 监听数据变化以启用保存按钮
@@ -331,6 +440,49 @@ watch([machineList, tempParams], () => {
 
 }, { deep: true });
 
+// 添加一个标志来区分是否是初始化状态
+const isInitializing = ref(true);
+
+// 监听isPublic值变化
+watch(() => isPublic.value, async (newIsPublic) => {
+  // 如果是初始化阶段，跳过API调用
+  if (isInitializing.value) {
+    isInitializing.value = false;
+    return;
+  }
+  
+  // 如果showLoadToCartButton为true，直接发送请求到后端更新对应报价单的公开状态
+  if (props.showLoadToCartButton) {
+    // 检查是否有有效的订单ID
+    if (props.orderData && props.orderData.id) {
+      try {
+        // 调用后端API更新报价单的公开状态
+        await updateQuotationTemp(props.orderData.id, {
+          is_public: newIsPublic,
+          // 保持其他字段不变
+          order_mark: props.orderData.order_mark || props.orderData.orderMark,
+          machine_list: props.orderData.machine_list || props.orderData.machineList || [],
+          temp_params: props.orderData.temp_params || props.orderData.tempParams || [],
+          total_amount: props.orderData.total_amount || props.orderData.totalAmount || 0,
+          remark: props.orderData.remark || '',
+          currency_info: props.orderData.currency_info || getCurrentCurrencyInfo()
+        });
+        
+        // 更新cartStore中的is_public值
+        cartStore.cartData.is_public = newIsPublic;
+        cartStore.syncLocal(); // 立即同步到localStorage
+        
+        ElMessage.success(`报价单公开状态已${newIsPublic ? '设置为公开' : '设置为私有'}`);
+      } catch (error) {
+        console.error('更新报价单公开状态失败:', error);
+        // 恢复原来的值
+        isPublic.value = props.orderData.is_public || 0;
+        ElMessage.error('更新报价单公开状态失败');
+      }
+    }
+  }
+  // 如果showLoadToCartButton为false，则不立即更新，等待保存时统一更新
+});
 
 
 // 计算属性：判断是否有已保存的订单
@@ -341,6 +493,27 @@ const hasSavedOrder = computed(() => {
          !isNaN(Number(currentOrderIdFromStorage)) &&
          Number.isInteger(Number(currentOrderIdFromStorage)) &&
          Number(currentOrderIdFromStorage) > 0;
+});
+
+// 计算属性：判断是否显示公开复选框
+// 对非当前用户自己创建的订单在前端不显示是否设置公开的复选框，管理员不受限制
+const isShowPublicCheckbox = computed(() => {
+  // 如果是管理员，始终显示复选框
+  const userRole = getCurrentUserRole();
+  if (userRole === 'admin') {
+    return true;
+  }
+
+  // 检查订单数据中是否有creator_id
+  if (props.orderData && props.orderData.creator_id) {
+    // 获取当前用户的员工ID
+    const currentUserEmpId = getCurrentUserEmpId();
+    // 如果当前用户ID与订单创建者ID匹配，或者订单没有创建者ID，则显示复选框
+    return props.orderData.creator_id === currentUserEmpId || !props.orderData.creator_id;
+  }
+
+  // 默认情况下显示复选框
+  return true;
 });
 
 
@@ -415,12 +588,22 @@ const updateOrderData = () => {
     tempParams.value = [];
   }
 
+  // 更新isPublic值 - 如果orderData中有is_public则使用，否则从cartStore读取，最后使用默认值0
+  isPublic.value = data.is_public !== undefined && data.is_public !== null
+    ? data.is_public
+    : cartStore.cartData.is_public || 0;
+
   // 更新selectedOrderData
   selectedOrderData.value = { ...props.orderData };
 };
 
 // 开始编辑备注
 const startEditingRemark = (row: any, type: 'machine' | 'tempParam', index: number) => {
+  // 只有当showLoadToCartButton为false时（在购物车中打开预览时）才允许编辑
+  if (showLoadToCartButton.value) {
+    return; // 如果showLoadToCartButton为true，则不允许编辑
+  }
+  
   // 为当前行添加编辑状态
   row.editingRemark = true;
   // 重新赋值以确保响应性
@@ -443,7 +626,6 @@ const startEditingRemark = (row: any, type: 'machine' | 'tempParam', index: numb
     }
   });
 };
-
 // 停止编辑备注
 const stopEditingRemark = (row: any, type: 'machine' | 'tempParam') => {
   // 删除末尾的空行
@@ -495,7 +677,9 @@ const saveOrder = async () => {
       machine_list: machineList.value,
       temp_params: tempParams.value,
       total_amount: props.orderData.total_amount || 0,
-      remark: props.orderData.remark || ''
+      remark: props.orderData.remark || '',
+      currency_info: getCurrentCurrencyInfo(),
+      is_public: isPublic.value  // 添加是否公开字段
     };
 
     // 直接从localStorage检查是否有CurrentOrderInfo，以确保获取最新数据
@@ -515,7 +699,9 @@ const saveOrder = async () => {
         machine_list: orderDataToSave.machine_list,
         temp_params: orderDataToSave.temp_params,
         total_amount: orderDataToSave.total_amount,
-        remark: orderDataToSave.remark
+        remark: orderDataToSave.remark,
+        currency_info: orderDataToSave.currency_info,
+        is_public: orderDataToSave.is_public  // 添加是否公开字段
       });
 
       ElMessage.success('订单更新成功');
@@ -543,7 +729,9 @@ const saveOrder = async () => {
         machine_list: orderDataToSave.machine_list,
         temp_params: orderDataToSave.temp_params,
         total_amount: orderDataToSave.total_amount,
-        remark: orderDataToSave.remark
+        remark: orderDataToSave.remark,
+        currency_info: orderDataToSave.currency_info,
+        is_public: orderDataToSave.is_public  // 添加是否公开字段
       });
 
       ElMessage.success('订单保存成功');
@@ -586,7 +774,9 @@ const saveAsNewOrder = async () => {
       machine_list: machineList.value,
       temp_params: tempParams.value,
       total_amount: props.orderData.total_amount || 0,
-      remark: props.orderData.remark || ''
+      remark: props.orderData.remark || '',
+      currency_info: getCurrentCurrencyInfo(),
+      is_public: isPublic.value  // 添加是否公开字段
     };
 
     // 创建新订单（直接创建，不再检查重名）
@@ -604,8 +794,8 @@ const saveAsNewOrder = async () => {
 };
 
 // 显示订单标识输入对话框
-const showOrderMarkDialog = () => {
-  return new Promise((resolve) => {
+const showOrderMarkDialog = (): Promise<string | null> => {
+  return new Promise((resolve: (value: string | null) => void) => {
     // 这里需要创建一个简单的输入对话框
     // 使用Element Plus的ElMessageBox
     ElMessageBox.prompt('请输入订单标识', '保存订单', {
@@ -616,7 +806,7 @@ const showOrderMarkDialog = () => {
       inputValue: newOrderMark.value || '' // 使用当前的订单标识作为默认值
     })
     .then(({ value }) => {
-      resolve(value);
+      resolve(value || null);
     })
     .catch(() => {
       // 用户取消
@@ -728,7 +918,8 @@ const loadToCart = () => {
         cartStore.addMachine(machineToAdd);
 
         // 然后获取刚添加的设备并更新数量和价格
-        const addedMachine = cartStore.cartData.machineList.find((item: any) => item.machineId === (machineToAdd.id || machineToAdd.machineId));
+        // normalizeInputMachine会将传入的id映射为machineId，所以查找时使用原始的id值
+        const addedMachine = cartStore.cartData.machineList.find((item: any) => item.machineId === machineToAdd.id);
         if (addedMachine) {
           // 更新数量
           addedMachine.quantity = machine.quantity || 1;
@@ -754,6 +945,31 @@ const loadToCart = () => {
     // 只有當orderId是有效數字時才保存到購物車
     if (orderId && !isNaN(Number(orderId)) && Number.isInteger(Number(orderId)) && Number(orderId) > 0) {
       cartStore.setCurrentOrderInfo(orderId, orderMark);
+    }
+
+    // 如果订单有货币信息，则恢复货币设置
+    if (props.orderData.currency_info) {
+      // 保存当前货币设置到localStorage
+      const currentCurrencySettings = localStorage.getItem('quotationCurrencySettings');
+      let settings;
+      if (currentCurrencySettings) {
+        settings = JSON.parse(currentCurrencySettings);
+      } else {
+        settings = { currencies: [], selectedCurrency: 'CNY' };
+      }
+
+      // 更新选中的货币
+      settings.selectedCurrency = props.orderData.currency_info.code;
+
+      // 如果货币不在列表中，则添加
+      const existingCurrencyIndex = settings.currencies.findIndex((c: any) => c.code === props.orderData.currency_info.code);
+      if (existingCurrencyIndex === -1) {
+        settings.currencies.push(props.orderData.currency_info);
+      } else {
+        settings.currencies[existingCurrencyIndex] = props.orderData.currency_info;
+      }
+
+      localStorage.setItem('quotationCurrencySettings', JSON.stringify(settings));
     }
 
     // 触发同步到本地存储
@@ -972,6 +1188,11 @@ const loadToCart = () => {
 .dialog-footer {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-footer-content {
+  display: flex;
   align-items: center;
 }
 

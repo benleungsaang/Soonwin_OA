@@ -45,12 +45,16 @@ def get_quotation_machines():
             'created_time': MachineNew.id  # 用ID代表创建时间
         }
 
+        # 默认按ID降序排列
         if sort_by in valid_sort_fields:
             sort_column = valid_sort_fields[sort_by]
             if order.lower() == 'desc':
                 query = query.order_by(sort_column.desc())
             else:
                 query = query.order_by(sort_column.asc())
+        else:
+            # 默认按ID降序排列
+            query = query.order_by(MachineNew.id.desc())
 
         pagination = query.paginate(
             page=page, per_page=per_page, error_out=False

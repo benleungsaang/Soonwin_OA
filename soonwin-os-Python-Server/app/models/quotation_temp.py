@@ -16,6 +16,8 @@ class QuotationTemp(db.Model):
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
     remark = db.Column(db.Text, comment="备注")
+    currency_info = db.Column(db.Text, comment="货币信息JSON，包含code, name, symbol, rate")
+    is_public = db.Column(db.Integer, default=0, comment="是否公开：0-否，1-是")  # 新增字段
 
     def to_dict(self):
         """将对象转换为字典格式"""
@@ -28,7 +30,9 @@ class QuotationTemp(db.Model):
             "creator_id": self.creator_id,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
             "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
-            "remark": self.remark
+            "remark": self.remark,
+            "currency_info": json.loads(self.currency_info) if self.currency_info else None,
+            "is_public": self.is_public  # 新增字段
         }
 
     @staticmethod
@@ -40,5 +44,7 @@ class QuotationTemp(db.Model):
             temp_params=json.dumps(data.get('temp_params', [])),
             total_amount=data.get('total_amount', 0),
             creator_id=data.get('creator_id'),
-            remark=data.get('remark', '')
+            remark=data.get('remark', ''),
+            currency_info=json.dumps(data.get('currency_info')) if data.get('currency_info') else None,
+            is_public=data.get('is_public', 0)  # 新增字段
         )
