@@ -129,9 +129,9 @@
         <el-option value="0" label="无关联机器" />
         <el-option
           v-for="machine in machineList"
-          :key="machine.model"
+          :key="machine.id"
           :label="`${machine.model} ( ${machine.original_model} )`"
-          :value="machine.model"
+          :value="machine.id"
         />
       </el-select>
       <el-button type="primary" @click="searchByMachine">机器搜索</el-button>
@@ -455,9 +455,9 @@
           <el-select v-model="uploadForm.machineId" placeholder="选择关联机器" clearable style="width: 100%;">
             <el-option
               v-for="machine in machineList"
-              :key="machine.model"
-              :label="`${machine.model}`"
-              :value="machine.model"
+              :key="machine.id"
+              :label="`${machine.model} (${machine.original_model})`"
+              :value="machine.id"
             />
           </el-select>
         </el-form-item>

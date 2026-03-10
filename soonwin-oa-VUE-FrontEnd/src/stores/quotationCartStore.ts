@@ -195,14 +195,14 @@ export const useQuotationCartStore = defineStore('quotationCart', {
     setCurrentOrderInfo(orderId: string | number | null, orderMark: string) {
       this.currentOrderId = orderId;
       this.currentOrderMark = orderMark;
-      
+
       // 立即同步到本地存储
       if (orderId !== null && orderId !== undefined) {
         localStorage.setItem('quotation_current_order_id', String(orderId));
       } else {
         localStorage.removeItem('quotation_current_order_id');
       }
-      
+
       if (orderMark) {
         localStorage.setItem('quotation_current_order_mark', orderMark);
       } else {

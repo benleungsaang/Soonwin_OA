@@ -346,6 +346,8 @@ export const deleteQuotationTemp = (id: number) => request.delete(`/api/quotatio
 
 // 设备缩略图上传API
 export const uploadMachineThumb = (machineId: number, data: FormData) => multipartRequest.post(`/api/machines_new/${machineId}/upload-thumb`, data);
+// 通用设备缩略图上传API（用于新增设备时）
+export const uploadMachineThumbGeneric = (data: FormData) => multipartRequest.post('/api/machines_new/upload-thumb', data);
 // 照片管理相关API - 使用特殊处理FormData的函数
 const multipartRequest = axios.create({
   baseURL: getBaseURL(),
@@ -455,6 +457,11 @@ export const getPhotos = (params?: any) => request.get('/api/photos', { params }
 export const getMachinesForPhotos = () => request.get('/api/photos/machines');
 
 // 照片回收站相关API
+/**
+ * 获取已删除的照片列表
+ * @param params - 可选的查询参数，用于过滤或分页等操作
+ * @returns 返回一个Promise，解析为API响应结果
+ */
 export const getDeletedPhotos = (params?: any) => request.get('/api/photos/recycle-bin', { params });
 export const restorePhoto = (photoId: number) => request.put(`/api/photos/recycle-bin/${photoId}/restore`);
 export const permanentDeletePhotos = (photoIds: number[]) => request.delete('/api/photos/permanent-delete', { data: { photo_ids: photoIds } });

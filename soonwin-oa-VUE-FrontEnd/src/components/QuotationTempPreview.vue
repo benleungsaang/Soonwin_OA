@@ -450,7 +450,7 @@ watch(() => isPublic.value, async (newIsPublic) => {
     isInitializing.value = false;
     return;
   }
-  
+
   // 如果showLoadToCartButton为true，直接发送请求到后端更新对应报价单的公开状态
   if (props.showLoadToCartButton) {
     // 检查是否有有效的订单ID
@@ -467,11 +467,11 @@ watch(() => isPublic.value, async (newIsPublic) => {
           remark: props.orderData.remark || '',
           currency_info: props.orderData.currency_info || getCurrentCurrencyInfo()
         });
-        
+
         // 更新cartStore中的is_public值
         cartStore.cartData.is_public = newIsPublic;
         cartStore.syncLocal(); // 立即同步到localStorage
-        
+
         ElMessage.success(`报价单公开状态已${newIsPublic ? '设置为公开' : '设置为私有'}`);
       } catch (error) {
         console.error('更新报价单公开状态失败:', error);
@@ -603,7 +603,7 @@ const startEditingRemark = (row: any, type: 'machine' | 'tempParam', index: numb
   if (showLoadToCartButton.value) {
     return; // 如果showLoadToCartButton为true，则不允许编辑
   }
-  
+
   // 为当前行添加编辑状态
   row.editingRemark = true;
   // 重新赋值以确保响应性

@@ -3,7 +3,6 @@ from extensions import db
 from app.models.business_operation_log import BusinessOperationLog, get_logs_by_module, delete_logs_by_module
 from app.models.employee import Employee
 from app.models.inquiry import Inquiry, InquiryCommunication
-from app.models.machine import Machine
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_LOG_MANAGE
 from app.models.simple_permission import get_user_role_from_token
@@ -16,7 +15,7 @@ def get_user_id_from_token():
     import jwt
     import config
     from app.models.employee import Employee
-    
+
     token = request.headers.get('Authorization')
     if not token:
         return None
@@ -46,20 +45,20 @@ def get_current_user():
     emp_id = get_user_id_from_token()
     user_role = get_user_role_from_token()
     user_name = "system"  # 默认名称
-    
+
     # 尝试从数据库获取用户信息以获取真实姓名
     if emp_id:
         employee = Employee.query.filter_by(emp_id=emp_id).first()
         if employee:
             user_name = employee.name
-    
+
     # 创建模拟用户对象
     current_user = type('User', (), {
         'emp_id': emp_id,
         'user_role': user_role,
         'name': user_name
     })()
-    
+
     return current_user
 
 
@@ -129,7 +128,7 @@ def get_logs_by_module_endpoint(module):
 def get_statistics_by_module(module):
     """根据模块获取统计信息"""
     from sqlalchemy import func
-    
+
     # 通用统计结构
     stats = {
         "total_main": 0,
@@ -140,13 +139,13 @@ def get_statistics_by_module(module):
         "monthly_sub": 0,
         "last_reset_time": None
     }
-    
+
     # 获取最近一次复位时间
     last_reset_log = BusinessOperationLog.query.filter(
         BusinessOperationLog.module == module,
         BusinessOperationLog.operation_type == 'reset_stats'
     ).order_by(BusinessOperationLog.create_time.desc()).first()
-    
+
     reset_time = None
     if last_reset_log and 'reset_time' in last_reset_log.operation_details:
         try:
@@ -155,16 +154,16 @@ def get_statistics_by_module(module):
                 reset_time = datetime.strptime(reset_time_str.split(' ')[0], '%Y-%m-%d')
         except:
             reset_time = None
-    
+
     # 根据模块类型计算统计数据
     if module == 'inquiry':
         # 询盘统计
         stats["total_main"] = Inquiry.query.count()
         stats["total_sub"] = InquiryCommunication.query.count()
-        
+
         # 获取30天前的日期
         thirty_days_ago = datetime.now() - timedelta(days=30)
-        
+
         # 计算新增统计（如果存在复位时间则使用复位后的时间，否则使用最近30天）
         if reset_time:
             stats["new_main"] = Inquiry.query.filter(Inquiry.create_time >= reset_time).count()
@@ -172,57 +171,57 @@ def get_statistics_by_module(module):
         else:
             stats["new_main"] = Inquiry.query.filter(Inquiry.create_time >= thirty_days_ago).count()
             stats["new_sub"] = InquiryCommunication.query.filter(InquiryCommunication.create_time >= thirty_days_ago).count()
-        
+
         # 月度统计
         stats["monthly_main"] = Inquiry.query.filter(Inquiry.create_time >= thirty_days_ago).count()
         stats["monthly_sub"] = InquiryCommunication.query.filter(InquiryCommunication.create_time >= thirty_days_ago).count()
-        
+
         stats["last_reset_time"] = reset_time.strftime('%Y-%m-%d') if reset_time else None
-    
+
     elif module == 'video':
         # 视频统计（示例）
         from app.models.video import Video
         stats["total_main"] = Video.query.filter(Video.is_deleted == 0).count()
         stats["total_sub"] = 0  # 视频子项统计（如视频标签、评论等）
-        
+
         thirty_days_ago = datetime.now() - timedelta(days=30)
         stats["new_main"] = Video.query.filter(
-            Video.is_deleted == 0, 
+            Video.is_deleted == 0,
             Video.upload_time >= thirty_days_ago
         ).count()
         stats["new_sub"] = 0
         stats["monthly_main"] = Video.query.filter(
-            Video.is_deleted == 0, 
+            Video.is_deleted == 0,
             Video.upload_time >= thirty_days_ago
         ).count()
         stats["monthly_sub"] = 0
         stats["last_reset_time"] = reset_time.strftime('%Y-%m-%d') if reset_time else None
-    
+
     elif module == 'photo':
         # 图片统计（示例）
         from app.models.photo import Photo
         stats["total_main"] = Photo.query.count()
         stats["total_sub"] = 0
-        
+
         thirty_days_ago = datetime.now() - timedelta(days=30)
         stats["new_main"] = Photo.query.filter(Photo.upload_time >= thirty_days_ago).count()
         stats["new_sub"] = 0
         stats["monthly_main"] = Photo.query.filter(Photo.upload_time >= thirty_days_ago).count()
         stats["monthly_sub"] = 0
         stats["last_reset_time"] = reset_time.strftime('%Y-%m-%d') if reset_time else None
-    
+
     elif module == 'employee':
         # 人员统计（示例）
         stats["total_main"] = Employee.query.count()
         stats["total_sub"] = 0
-        
+
         thirty_days_ago = datetime.now() - timedelta(days=30)
         stats["new_main"] = Employee.query.filter(Employee.create_time >= thirty_days_ago).count()
         stats["new_sub"] = 0
         stats["monthly_main"] = Employee.query.filter(Employee.create_time >= thirty_days_ago).count()
         stats["monthly_sub"] = 0
         stats["last_reset_time"] = reset_time.strftime('%Y-%m-%d') if reset_time else None
-    
+
     # 为其他模块预留空间
     else:
         # 默认统计（可以根据需要扩展）
@@ -237,7 +236,7 @@ def get_statistics_by_module(module):
         stats["monthly_main"] = stats["new_main"]
         stats["monthly_sub"] = 0
         stats["last_reset_time"] = reset_time.strftime('%Y-%m-%d') if reset_time else None
-    
+
     return stats
 
 
@@ -248,7 +247,7 @@ def delete_log_by_id(module, log_id):
     try:
         # 删除日志记录
         deleted_count = delete_logs_by_module(module, log_id)
-        
+
         if deleted_count > 0:
             return jsonify({
                 "code": 200,
@@ -276,7 +275,7 @@ def clear_all_logs_by_module(module):
     try:
         # 删除所有指定模块的日志记录
         deleted_count = delete_logs_by_module(module)
-        
+
         return jsonify({
             "code": 200,
             "msg": f"成功清空 {deleted_count} 条{module}日志",
@@ -330,7 +329,7 @@ def restore_log_by_id(module, log_id):
 def restore_inquiry_log(log):
     """恢复询盘相关的日志"""
     from app.models.inquiry import Inquiry, InquiryCommunication
-    
+
     # 解析日志详情
     details = log.operation_details if isinstance(log.operation_details, dict) else json.loads(log.operation_details) if log.operation_details else {}
 
@@ -559,7 +558,7 @@ def restore_video_log(log):
     from app.models.video import Video
     import json
     from datetime import datetime
-    
+
     # 解析日志详情
     details = log.operation_details if isinstance(log.operation_details, dict) else json.loads(log.operation_details) if log.operation_details else {}
 
@@ -569,7 +568,7 @@ def restore_video_log(log):
     if action == 'delete':
         # 恢复被删除的视频 - 通过修改现有记录的is_deleted字段
         video_data = details.get('video_data', {})
-        
+
         # 根据日志中的biz_id查找原始视频记录
         video_id = int(log.biz_id) if log.biz_id and log.biz_id != '0' else None
         if not video_id:
@@ -591,7 +590,7 @@ def restore_video_log(log):
                     "msg": "视频已存在，无法恢复",
                     "data": None
                 }), 400
-            
+
             # 如果找不到已删除的视频，尝试通过其他标识符查找
             video = Video.query.filter_by(id=video_id).first()
             if not video:
@@ -605,7 +604,7 @@ def restore_video_log(log):
         video.is_deleted = 0
         video.delete_time = None
         video.delete_operator = None
-        
+
         db.session.commit()
 
         # 创建恢复操作日志
@@ -668,7 +667,7 @@ def restore_video_log(log):
             if machine:
                 search_field += f" {machine.model} {machine.original_model}"
         video.search_field = search_field
-        
+
         db.session.commit()
 
         # 创建恢复操作日志
@@ -715,10 +714,10 @@ def restore_video_log(log):
 def restore_photo_log(log):
     """恢复图片相关的日志"""
     from app.models.photo import Photo
-    from app.models.machine import Machine
+    from app.models.machine_new import MachineNew as Machine
     import json
     from datetime import datetime
-    
+
     # 解析日志详情
     details = log.operation_details if isinstance(log.operation_details, dict) else json.loads(log.operation_details) if log.operation_details else {}
 
@@ -766,7 +765,7 @@ def restore_photo_log(log):
             if machine:
                 search_field += f" {machine.model} {machine.original_model}"
         photo.search_field = search_field
-        
+
         db.session.commit()
 
         # 创建恢复操作日志

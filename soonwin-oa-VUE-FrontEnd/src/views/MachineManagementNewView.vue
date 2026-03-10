@@ -23,30 +23,60 @@
             </el-input>
           </el-col>
           <el-col :span="16" class="text-right">
-            <el-button
-              v-if="hasRoutePermission('upload_manage')"
-              type="success"
-              @click="openImportDialog"
-            >
-              <el-icon><Upload /></el-icon>
-              批量导入
-            </el-button>
-            <el-button
-              v-if="hasRoutePermission('machine_manage')"
-              type="warning"
-              @click="handleExport"
-            >
-              <el-icon><Download /></el-icon>
-              批量导出
-            </el-button>
-            <el-button
-              v-if="hasRoutePermission('machine_manage')"
-              type="info"
-              @click="openRecycleBinDialog"
-            >
-              <el-icon><Delete /></el-icon>
-              回收站
-            </el-button>
+            <el-dropdown trigger="click" @command="handleOtherFunction">
+              <el-button type="info" style="margin-right: 15px;">
+                <el-icon><Menu /></el-icon>
+                其它功能
+                <el-icon class="el-icon--right">
+                  <arrow-down />
+                </el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <!-- 价格系数管理 -->
+                  <el-dropdown-item
+                    v-if="isCurrentUserAdmin()"
+                    command="coefficient"
+                  >
+                    <el-icon><Setting /></el-icon>
+                    价格系数管理
+                  </el-dropdown-item>
+                  <!-- 回收站 -->
+                  <el-dropdown-item
+                    v-if="hasRoutePermission('machine_manage')"
+                    command="recycle"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    回收站
+                  </el-dropdown-item>
+                  <!-- 清空数据 -->
+                  <el-dropdown-item
+                    v-if="isCurrentUserAdmin()"
+                    command="clear"
+                    divided
+                  >
+                    <el-icon><DeleteFilled /></el-icon>
+                    清空数据
+                  </el-dropdown-item>
+                  <!-- 批量导入 -->
+                  <el-dropdown-item
+                    v-if="hasRoutePermission('upload_manage')"
+                    command="import"
+                  >
+                    <el-icon><Upload /></el-icon>
+                    批量导入
+                  </el-dropdown-item>
+                  <!-- 批量导出 -->
+                  <el-dropdown-item
+                    v-if="hasRoutePermission('machine_manage')"
+                    command="export"
+                  >
+                    <el-icon><Download /></el-icon>
+                    批量导出
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-button
               v-if="hasRoutePermission('machine_manage')"
               type="primary"
@@ -59,6 +89,40 @@
         </el-row>
       </div>
 
+      <!-- 价格系数管理对话框 -->
+      <el-dialog
+        v-model="coefficientDialogVisible"
+        title="价格系数管理"
+        width="500px"
+        :before-close="closeCoefficientDialog"
+      >
+        <el-form label-width="120px">
+          <el-form-item label="当前系数">
+            <el-input-number
+              v-model="currentCoefficient"
+              :precision="4"
+              :step="0.01"
+              :min="0.0001"
+              :max="10"
+              style="width: 100%"
+              :controls="true"
+            />
+          </el-form-item>
+          <el-form-item label="说明">
+            <div class="coefficient-description">
+              展示价格 = 原始价格 × 系数<br>
+              修改系数后，所有设备的展示价格将实时更新
+            </div>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="closeCoefficientDialog">取消</el-button>
+            <el-button type="primary" @click="updateCoefficient">更新系数</el-button>
+          </span>
+        </template>
+      </el-dialog>
+
       <!-- 设备列表 -->
       <el-table
         :data="machines"
@@ -70,13 +134,15 @@
       >
         <el-table-column prop="image" label="缩略图" width="120">
           <template #default="{ row }">
-            <el-image
-              :src="row.image"
+            <ErrorFallbackImage
+              :src="getThumbnailPath(row.image)"
+              :fallback-src="row.image"
               :preview-src-list="[row.image]"
+              :alt="row.model"
               fit="cover"
-              style="width: 60px; height: 60px; border-radius: 4px;"
               :preview-teleported="true"
-              hide-on-click-modal
+              :hide-on-click-modal="true"
+              style="width: 60px; height: 60px; border-radius: 4px;"
               @click.stop
             />
           </template>
@@ -150,7 +216,6 @@
         <el-form-item label="设备型号" prop="model">
           <el-input
             v-model="formModel.model"
-            :disabled="!!formModel.id"
             placeholder="请输入设备型号"
           />
         </el-form-item>
@@ -183,13 +248,15 @@
         <el-form-item label="设备缩略图" prop="image">
           <!-- 显示当前缩略图 -->
           <div v-if="formModel.image" class="current-image-preview">
-            <el-image
-              :src="formModel.image"
+            <ErrorFallbackImage
+              :src="getThumbnailPath(formModel.image)"
+              :fallback-src="formModel.image"
               :preview-src-list="[formModel.image]"
+              :alt="formModel.model || '设备图片'"
               fit="cover"
-              style="width: 100px; height: 100px; border-radius: 4px; margin: 10px;"
               :preview-teleported="true"
-              hide-on-click-modal
+              :hide-on-click-modal="true"
+              style="width: 100px; height: 100px; border-radius: 4px;"
             />
           </div>
 
@@ -213,6 +280,18 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item label="价格类型" prop="is_show_price_manual">
+          <el-checkbox
+            v-model="formModel.is_show_price_manual"
+            :true-value="1"
+            :false-value="0"
+          >
+            <span style="color: #409eff;">人工设置价格</span>
+            <el-tooltip content="勾选后将使用手动输入的价格，不随原始价格和系数自动计算" placement="top">
+              <el-icon><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </el-checkbox>
+        </el-form-item>
         <el-form-item v-if="isCurrentUserAdmin()" label="原始价格" prop="original_price">
           <el-input-number
             v-model="formModel.original_price"
@@ -221,14 +300,6 @@
             placeholder="请输入原始价格"
             style="width: 100%"
             :controls="false"
-          />
-        </el-form-item>
-        <el-form-item label="使用次数" prop="added_count" v-if="isEdit">
-          <el-input-number
-            v-model="formModel.added_count"
-            :min="0"
-            placeholder="请输入使用次数"
-            style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
@@ -281,6 +352,7 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
+          <span v-if="isCurrentUserAdmin()" style="color:#999;font-size: 14px;margin-right: 5px;"> 创建人: {{ formModel.creator }}</span>
           <el-button @click="handleDialogClose">取消</el-button>
           <el-button type="primary" @click="handleSave">确定</el-button>
         </span>
@@ -389,14 +461,15 @@
           <el-table-column type="selection" width="55" />
           <el-table-column prop="image" label="缩略图" width="120">
             <template #default="{ row }">
-              <el-image
-                :src="row.image"
+              <ErrorFallbackImage
+                :src="getThumbnailPath(row.image)"
+                :fallback-src="row.image"
                 :preview-src-list="[row.image]"
+                :alt="row.model"
                 fit="cover"
-                style="width: 60px; height: 60px; border-radius: 4px;"
                 :preview-teleported="true"
-                hide-on-click-modal
-                @click.stop
+                :hide-on-click-modal="true"
+                style="width: 60px; height: 60px; border-radius: 4px;"
               />
             </template>
           </el-table-column>
@@ -485,9 +558,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
-import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue';
+import { Search, Plus, Upload, Download, Delete, Setting, DeleteFilled, Menu, ArrowDown, QuestionFilled } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
+import ErrorFallbackImage from '@/components/ErrorFallbackImage.vue';
 import { hasRoutePermission, getCurrentUserRole } from '@/utils/authUtils';
 import request, { importMachinesNewJson, exportMachinesNewJson, getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew, getDeletedMachines, restoreMachineFromRecycleBin, uploadMachineThumb } from '@/utils/request';
 
@@ -509,6 +583,8 @@ interface Machine {
   brand: string;
   search_key: string;
   custom_attrs: string;
+  is_show_price_manual?: number;  // 新增：价格类型标识字段
+  creator?: string; // 新增：创建者字段
 }
 
 // 响应式数据
@@ -528,6 +604,10 @@ const recycleBinPageSize = ref(10);
 const recycleBinTotal = ref(0);
 // 多选相关
 const selectedDeletedMachines = ref<number[]>([]);  // 存储已选中的机器ID
+
+// 价格系数管理相关
+const coefficientDialogVisible = ref(false);
+const currentCoefficient = ref(1.05); // 默认系数
 
 // 图片上传相关
 const uploadPreviewRefs = ref<{[key: number]: any}>({}); // 存储图片上传预览组件引用
@@ -551,7 +631,9 @@ const formModel = ref<Partial<Machine>>({
   remark: '',
   brand: '',
   search_key: '',
-  custom_attrs: ''
+  custom_attrs: '',
+  is_show_price_manual: 0 ,  // 新增：价格类型标识
+  creator: '', // 新增：创建者
 });
 const isEdit = ref(false);
 
@@ -668,7 +750,8 @@ const openEditDialog = async (row: Machine) => {
     show_price: row.show_price !== null && row.show_price !== undefined ? Number(row.show_price) : null,
     original_price: row.original_price !== null && row.original_price !== undefined ? Number(row.original_price) : null,
     added_count: row.added_count !== null && row.added_count !== undefined ? Number(row.added_count) : 0,
-    machine_type: row.machine_type !== null && row.machine_type !== undefined ? Number(row.machine_type) : 0
+    machine_type: row.machine_type !== null && row.machine_type !== undefined ? Number(row.machine_type) : 0,
+    is_show_price_manual: row.is_show_price_manual !== null && row.is_show_price_manual !== undefined ? Number(row.is_show_price_manual) : 0  // 新增：处理价格类型标识
   };
 
   // 确保custom_attrs是字符串格式
@@ -701,11 +784,13 @@ const resetForm = () => {
     remark: '',
     brand: '',
     search_key: '',
-    custom_attrs: '{}'
+    custom_attrs: '{}',
+    is_show_price_manual: 0  // 新增：重置价格类型标识
   };
   // 确保数值字段是正确的类型
   formModel.value.added_count = Number(formModel.value.added_count);
   formModel.value.machine_type = Number(formModel.value.machine_type);
+  formModel.value.is_show_price_manual = Number(formModel.value.is_show_price_manual);  // 新增：确保价格类型标识是数值类型
 
   // 重置自定义属性相关数据
   customAttrsList.value = [{ key: '', value: '' }];
@@ -713,6 +798,7 @@ const resetForm = () => {
 
 const handleDialogClose = () => {
   dialogVisible.value = false;
+  // 重置表单，包括图片
   resetForm();
   // 重置自定义属性相关数据
   customAttrsList.value = [{ key: '', value: '' }];
@@ -731,20 +817,30 @@ const handleSave = async () => {
     // 检查是否有本地图片需要上传（以blob:开头的URL）
     let imageToUpload = null;
     if (formModel.value.image && typeof formModel.value.image === 'string' && formModel.value.image.startsWith('blob:')) {
-      // 从blob URL恢复为文件对象需要特殊的处理，这里我们先保存设备，然后单独上传图片
       imageToUpload = formModel.value.image;
       // 临时使用默认图片路径，等图片上传后再更新
       formModel.value.image = './assets/Media/Machine/sample.png';
     }
 
     // 确保数值字段是正确的类型
+    // 只发送需要更新的字段，避免发送自动生成的字段
     const formData = {
       ...formModel.value,
       show_price: formModel.value.show_price !== null && formModel.value.show_price !== undefined ? Number(formModel.value.show_price) : null,
       original_price: formModel.value.original_price !== null && formModel.value.original_price !== undefined ? Number(formModel.value.original_price) : null,
       added_count: Number(formModel.value.added_count),
-      machine_type: Number(formModel.value.machine_type)
+      machine_type: Number(formModel.value.machine_type),
+      is_show_price_manual: Number(formModel.value.is_show_price_manual)  // 新增：确保价格类型标识是数值类型
     };
+
+    // 移除自动生成的字段，避免发送到后端
+    const safeFormData = formData as Record<string, any>;
+    delete safeFormData.id;
+    delete safeFormData.create_time;
+    delete safeFormData.update_time;
+    delete safeFormData.search_key;
+    delete safeFormData.raw_show_price;
+    delete safeFormData.manual_show_price;
 
     if (isEdit.value) {
       // 更新设备
@@ -758,43 +854,36 @@ const handleSave = async () => {
         machines.value[index] = updatedMachine;
       }
     } else {
-      // 创建新设备
-      const newMachine = await createMachineNew(formData);
-
-      // 如果有本地图片需要上传
+      // 如果有本地图片需要上传，先上传图片获取原始路径
       if (imageToUpload) {
-        // 创建一个虚拟的File对象用于上传
         try {
           const response = await fetch(imageToUpload);
           const blob = await response.blob();
-          const file = new File([blob], `${newMachine.model}_thumb.jpg`, { type: blob.type });
+          const file = new File([blob], `${formData.model || 'machine'}_thumb.jpg`, { type: blob.type });
 
           const thumbFormData = new FormData();
           thumbFormData.append('file', file);
 
-          // 上传缩略图 - 注意request.ts会自动解包响应
-          const thumbResult: any = await uploadMachineThumb(newMachine.id, thumbFormData);
+          // 上传图片并生成缩略图
+          const thumbResult: any = await uploadMachineThumbGeneric(thumbFormData);
 
           // 由于request自动解包，我们需要直接使用结果
-          if (thumbResult && thumbResult.new_thumb_path) {
-            // 更新本地数据中的缩略图路径
-            const index = machines.value.findIndex(m => m.id === newMachine.id);
-            if (index !== -1) {
-              machines.value[index].image = thumbResult.new_thumb_path;
-            }
-            // 同时更新当前表单的图片路径
-            formModel.value.image = thumbResult.new_thumb_path;
-            ElMessage.success('设备及缩略图创建成功');
+          if (thumbResult && thumbResult.original_path) {
+            // 使用原始图片路径更新表单数据
+            safeFormData.image = thumbResult.original_path;
+            console.log('使用上传的原始图片路径:', thumbResult.original_path);
           } else {
-            ElMessage.warning('设备已创建，但缩略图上传失败，响应格式异常');
+            ElMessage.warning('图片上传失败，使用默认图片');
           }
         } catch (thumbError) {
-          console.error('上传设备缩略图失败:', thumbError);
-          ElMessage.warning('设备已创建，但缩略图上传失败');
+          console.error('上传设备图片失败:', thumbError);
+          ElMessage.warning('图片上传失败，使用默认图片');
         }
-      } else {
-        ElMessage.success('设备创建成功');
       }
+
+      // 创建新设备
+      const newMachine = await createMachineNew(safeFormData);
+      ElMessage.success('设备创建成功');
 
       dialogVisible.value = false;
 
@@ -849,6 +938,29 @@ const getMachineTypeText = (type: number) => {
 
 const isCurrentUserAdmin = () => {
   return getCurrentUserRole() === 'admin';
+};
+
+// 获取缩略图路径的辅助函数
+const getThumbnailPath = (originalPath: string) => {
+  // 如果 originalPath 为空或为默认图片，则直接返回
+  if (!originalPath || originalPath.endsWith('sample.png')) {
+    return originalPath;
+  }
+
+  // 检查文件名是否已经包含 _thumb 后缀
+  const pathParts = originalPath.split('/');
+  const fileName = pathParts[pathParts.length - 1];
+  
+  if (fileName.includes('_thumb.')) {
+    // 如果已经是缩略图路径，直接返回
+    return originalPath;
+  } else {
+    // 如果不是缩略图路径，生成缩略图路径
+    const dirPath = pathParts.slice(0, -1).join('/');
+    const fileBase = fileName.split('.')[0];
+    const fileExt = fileName.split('.')[1];
+    return `${dirPath}/${fileBase}_thumb.${fileExt}`;
+  }
 };
 
 // 回收站相关函数
@@ -1040,6 +1152,103 @@ const clearRecycleBin = async () => {
   }
 };
 
+// 价格系数管理相关方法
+const openCoefficientDialog = async () => {
+  try {
+    // 获取当前系数
+    const response = await request.get('/api/config/show_price_coefficient');
+    // 由于后端现在返回 {success: true, data: {coefficient: "1.05"}} 格式
+    // request.ts会自动解包为 {coefficient: "1.05"}，即data部分
+    if (response && typeof response === 'object' && 'coefficient' in response) {
+      currentCoefficient.value = parseFloat(response.coefficient);
+    } else {
+      ElMessage.error('获取当前系数失败，响应格式不正确');
+    }
+  } catch (error) {
+    console.error('获取系数失败:', error);
+    ElMessage.error('获取当前系数失败');
+  }
+  coefficientDialogVisible.value = true;
+};
+
+const closeCoefficientDialog = () => {
+  coefficientDialogVisible.value = false;
+};
+
+const updateCoefficient = async () => {
+  try {
+    const response = await request.post('/api/config/show_price_coefficient', {
+      coefficient: currentCoefficient.value
+    });
+
+    // request.ts会自动解包响应，成功时返回data字段的内容
+    ElMessage.success('系数更新成功');
+    coefficientDialogVisible.value = false;
+    // 重新加载设备列表以显示新的价格
+    await fetchMachines();
+  } catch (error) {
+    console.error('更新系数失败:', error);
+    ElMessage.error('系数更新失败');
+  }
+};
+
+// 处理其他功能菜单命令
+const handleOtherFunction = async (command: string) => {
+  switch (command) {
+    case 'coefficient':
+      openCoefficientDialog();
+      break;
+    case 'recycle':
+      openRecycleBinDialog();
+      break;
+    case 'clear':
+      confirmClearAllData();
+      break;
+    case 'import':
+      openImportDialog();
+      break;
+    case 'export':
+      handleExport();
+      break;
+    default:
+      console.warn('未知的菜单命令:', command);
+  }
+};
+
+// 清空数据相关方法
+const confirmClearAllData = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空所有设备数据吗？此操作不可恢复！',
+      '确认清空数据',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+
+    await clearAllData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空数据失败:', error);
+      ElMessage.error('清空数据失败');
+    }
+  }
+};
+
+const clearAllData = async () => {
+  try {
+    const response = await request.delete('/api/machines_new/clear-all');
+    ElMessage.success('数据已清空');
+    // 重新加载设备列表
+    await fetchMachines();
+  } catch (error) {
+    console.error('清空数据失败:', error);
+    ElMessage.error('清空数据失败');
+  }
+};
+
 // 自定义属性相关数据
 const customAttrsList = ref<{key: string, value: string}[]>([]);
 
@@ -1153,10 +1362,8 @@ const nextImportStep = async () => {
 
       importStep.value = 2;
 
-      // 如果导入成功，刷新数据
-      if (response.success) {
-        fetchMachines();
-      }
+      // 导入完成后，无论成功或失败都刷新数据，确保显示最新状态
+      fetchMachines();
     } catch (error: any) {
       console.error('导入设备失败:', error);
       importResult.value = {
@@ -1230,25 +1437,31 @@ const onImageUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
         const result: any = await uploadMachineThumb(formModel.value.id as number, formData);
 
         // 由于request自动解包，我们需要直接使用结果
-        // 假设后端返回格式为 { machine: {...}, new_thumb_path: "..." }
-        if (result && result.new_thumb_path) {
-          // 更新设备的缩略图路径
-          formModel.value.image = result.new_thumb_path;
-          ElMessage.success('设备缩略图上传成功');
+        // 后端现在返回格式为 { machine: {...}, new_thumb_path: "...", original_path: "..." }
+        if (result && result.original_path) {
+          // 更新设备的图片路径为原始路径（后端已保存原始路径到数据库）
+          formModel.value.image = result.original_path;
+          ElMessage.success('设备图片上传成功');
+          
+          // 更新列表中对应设备的图片路径
+          const index = machines.value.findIndex(m => m.id === formModel.value.id);
+          if (index !== -1) {
+            machines.value[index].image = result.original_path;
+          }
         } else {
           // 如果解包后的数据不符合预期，可能说明后端返回了错误格式
-          ElMessage.error('缩略图上传失败，响应格式异常');
+          ElMessage.error('图片上传失败，响应格式异常');
         }
       } catch (error) {
-        console.error('上传缩略图失败:', error);
-        ElMessage.error('缩略图上传失败');
+        console.error('上传图片失败:', error);
+        ElMessage.error('上传图片失败');
       }
     } else {
       // 如果是新增模式，暂时保存为本地预览URL，等保存设备时再上传
       const file = files[0];
       const fileUrl = URL.createObjectURL(file);
       formModel.value.image = fileUrl;
-      ElMessage.success('缩略图已选择，保存设备时将上传');
+      ElMessage.success('图片已选择，保存设备时将上传');
     }
   }
 };
@@ -1369,5 +1582,11 @@ onMounted(() => {
 
 .current-image-preview {
   margin-top: 10px;
+}
+
+.coefficient-description {
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.5;
 }
 </style>

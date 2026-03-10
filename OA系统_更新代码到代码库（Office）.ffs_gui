@@ -92,6 +92,7 @@
             <Item>*\dist\</Item>
             <Item>*\.history\</Item>
             <Item>*.mp4</Item>
+            <Item>*\辅助脚本\*.jpg</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>

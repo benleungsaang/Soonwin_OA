@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from app.models.order import Order
 from app.models.employee import Employee
+from app.models.machine_new import MachineNew  # 导入MachineNew模型
 from app.models.simple_permission import get_user_role_from_token
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_ORDER
@@ -72,11 +73,32 @@ def create_order_log(order_id, operation_type, operator_id, details="", order_ob
         details=details_dict
     )
 
-def serialize_order(order, include_expense_allocations=False, is_admin=False, fields=None):
-    """将订单对象转换为字典格式，使用模型的to_dict方法并根据用户权限控制敏感字段"""
-    # 使用模型的to_dict方法获取完整数据
-    order_dict = order.to_dict()
+def convert_machine_ids_to_models(machine_ids_str):
+    """
+    将机器ID字符串转换为机器型号字符串
+    :param machine_ids_str: 逗号分隔的机器ID字符串，例如 "1,2,3"
+    :return: 逗号分隔的机器型号字符串，例如 "ModelA,ModelB,ModelC"
+    """
+    if not machine_ids_str:
+        return ""
 
+    try:
+        # 解析ID列表
+        machine_ids = [int(id.strip()) for id in machine_ids_str.split(",") if id.strip().isdigit()]
+
+        # 查询数据库获取机器型号
+        machines = MachineNew.query.filter(MachineNew.id.in_(machine_ids)).all()
+
+        # 将机器型号组成字符串返回
+        machine_models = [machine.model for machine in machines if machine.model]
+        return ",".join(machine_models)
+    except Exception as e:
+        print(f"转换机器ID到型号时出错: {str(e)}")
+        return machine_ids_str  # 如果转换失败，返回原始ID字符串
+
+
+def serialize_order(order, include_expense_allocations=False, is_admin=False, fields=None):
+    order_dict = order.to_dict()
     # 定义敏感字段列表
     sensitive_fields = ['machine_cost', 'proportionate_cost', 'net_profit', 'gross_profit']
 
@@ -111,23 +133,23 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
         else:
             # 非管理员只能看到非敏感字段
             safe_inquiry = {}
-            
+
             # 只保留非敏感字段
             non_sensitive_inquiry_fields = [
-                'id', 'area', 'inquiry_date', 'inquiry_source', 'company_name', 
-                'packaging_product', 'machine_type', 'search_field', 
+                'id', 'area', 'inquiry_date', 'inquiry_source', 'company_name',
+                'packaging_product', 'machine_type', 'search_field',
                 'create_time', 'update_time'
             ]
-            
+
             for field in non_sensitive_inquiry_fields:
                 if field in original_inquiry:
                     safe_inquiry[field] = original_inquiry[field]
-            
+
             # 设置creator相关字段为隐藏
             safe_inquiry['creator_id'] = '***'
             safe_inquiry['creator_name'] = '***'
             safe_inquiry['creator_role'] = '***'
-        
+
         # 替换询盘信息
         order_dict['inquiry'] = safe_inquiry
 
@@ -264,6 +286,15 @@ def create_order():
         # 获取当前用户
         current_user = get_current_user()
 
+        # 处理机器型号字段 - 如果传入的是机器ID，则转换为对应的型号
+        machine_model_value = data.get('machine_model')
+        if machine_model_value and isinstance(machine_model_value, str) and machine_model_value.isdigit():
+            # 如果是纯数字，可能是单个机器ID
+            machine_model_value = convert_machine_ids_to_models(machine_model_value)
+        elif machine_model_value and isinstance(machine_model_value, str) and ',' in machine_model_value:
+            # 如果包含逗号，可能是多个ID
+            machine_model_value = convert_machine_ids_to_models(machine_model_value)
+
         # 创建订单记录
         new_order = Order(
             is_new=data.get('is_new'),
@@ -277,7 +308,7 @@ def create_order():
             order_no=data.get('order_no'),
             machine_no=data.get('machine_no'),
             machine_name=data.get('machine_name', '包装机'),
-            machine_model=data.get('machine_model'),
+            machine_model=machine_model_value,
             machine_count=data.get('machine_count', 1),
             unit=data.get('unit', 'set'),
             contract_amount=data.get('contract_amount', 0),
@@ -317,7 +348,7 @@ def create_order():
         # 导入json模块
         import json
         from flask import Response
-        
+
         # 创建操作日志
         # 记录完整的订单数据
         order_data = new_order.to_dict()
@@ -460,7 +491,21 @@ def update_order(order_id):
         # 记录修改前的数据
         old_data = order.to_dict()
 
-        # 更新订单字段
+        # 处理机器型号字段 - 如果传入的是机器ID，则转换为对应的型号
+        if 'machine_model' in data:
+            machine_model_value = data['machine_model']
+            if machine_model_value and isinstance(machine_model_value, str) and machine_model_value.isdigit():
+                # 如果是纯数字，可能是单个机器ID
+                machine_model_value = convert_machine_ids_to_models(machine_model_value)
+            elif machine_model_value and isinstance(machine_model_value, str) and ',' in machine_model_value:
+                # 如果包含逗号，可能是多个ID
+                machine_model_value = convert_machine_ids_to_models(machine_model_value)
+            order.machine_model = machine_model_value
+        else:
+            # 如果没有提供machine_model，则不更新此字段
+            pass
+
+        # 更新订单字段（排除machine_model，因为已经单独处理）
         if 'is_new' in data: order.is_new = data['is_new']
         if 'area' in data: order.area = data['area']
         if 'customer_name' in data: order.customer_name = data['customer_name']
@@ -472,7 +517,6 @@ def update_order(order_id):
         if 'order_no' in data: order.order_no = data['order_no']
         if 'machine_no' in data: order.machine_no = data['machine_no']
         if 'machine_name' in data: order.machine_name = data['machine_name']
-        if 'machine_model' in data: order.machine_model = data['machine_model']
         if 'machine_count' in data: order.machine_count = data['machine_count']
         if 'unit' in data: order.unit = data['unit']
         if 'contract_amount' in data: order.contract_amount = data['contract_amount']
@@ -503,7 +547,7 @@ def update_order(order_id):
         # 导入json模块
         import json
         from flask import Response
-        
+
         # 创建操作日志
         # 记录修改的字段
         updated_fields = {}
@@ -602,7 +646,7 @@ def delete_order(order_id):
 
         # 导入json模块
         import json
-        
+
         # 删除订单
         db.session.delete(order)
         db.session.commit()

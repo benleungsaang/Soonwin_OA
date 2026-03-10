@@ -12,7 +12,7 @@ class Photo(db.Model):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(TEXT, nullable=False)  # 照片标题
     tags = Column(TEXT)  # 逗号分隔的标签字符串（如"故障,检修,2024"）
-    machine_id = Column(Integer, ForeignKey('machines.model', ondelete='SET NULL'))  # 关联机器表，机器删除时置空
+    machine_id = Column(Integer, ForeignKey('machines_new.model', ondelete='SET NULL'))  # 关联机器表，机器删除时置空
     remark = Column(TEXT)  # 备注
     search_field = Column(TEXT)  # 冗余搜索字段：标题+标签+机器型号+备注
     uploader = Column(TEXT, nullable=False)  # 上传者
@@ -28,8 +28,8 @@ class Photo(db.Model):
     delete_time = Column(DateTime, nullable=True)  # 删除时间
     delete_operator = Column(String(100), nullable=True)  # 删除操作人
 
-    # 建立与Machine表的关联关系
-    machine = relationship('Machine', backref='photos', foreign_keys=[machine_id])
+    # 建立与MachineNew表的关联关系
+    machine = relationship('MachineNew', backref='photos', foreign_keys=[machine_id])
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式，输出全部字段"""

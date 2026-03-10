@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime
 from .. import db
 from ..models.video import Video
-from ..models.machine import Machine
 from ..models.business_operation_log import add_video_log
 from ..models.simple_permission import get_user_role_from_token
 from ..utils.simple_auth_utils import route_permission
+from ..models.machine_new import MachineNew as Machine
 from ..constants.simple_permission_constants import ROUTE_VIDEO, ROUTE_VIDEO_MANAGE
 from ..utils.upload_utils import (
     validate_file_type,
@@ -321,7 +321,7 @@ def upload_video():
         # 构建搜索字段
         search_field = f"{title} {tags} {remark}"
         if machine_id:  # 检查machine_id是否不为空字符串
-            machine = Machine.query.filter_by(model=machine_id).first()
+            machine = Machine.query.filter_by(id=machine_id).first()
             if machine:
                 search_field += f" {machine.model} {machine.original_model}"
 
@@ -374,19 +374,19 @@ def upload_video():
         # 1. 转换文件大小为MB（保留2位小数）
         file_size_mb = round(process_result["file_size"] / (1024 * 1024), 2)
         size_threshold = UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD']
-        
+
         # 2. 判断文件大小是否超过阈值
         is_size_over = file_size_mb > size_threshold
-        
+
         # 3. 处理分辨率判断（适配横竖屏）
         original_w = process_result["original_width"]
         original_h = process_result["original_height"]
         max_w = UPLOAD_CONFIG['VIDEO_MAX_WIDTH']
         max_h = UPLOAD_CONFIG['VIDEO_MAX_HEIGHT']
-        
+
         # 区分横竖屏：宽>高为横屏，否则为竖屏
         is_landscape = original_w > original_h
-        
+
         # 横屏：宽≤1920 且 高≤1080；竖屏：宽≤1080 且 高≤1920（交换阈值）
         if is_landscape:
             is_resolution_over = original_w > max_w or original_h > max_h
@@ -396,14 +396,14 @@ def upload_video():
             is_resolution_over = original_w > max_h or original_h > max_w  # 竖屏用高的阈值当宽，宽的阈值当高
             resolution_desc = f"竖屏 {original_w}x{original_h}"
             resolution_threshold = f"{max_h}x{max_w}"  # 竖屏阈值交换
-        
+
         # 4. 分开打印判断结果（清晰展示每个条件的状态）
         print(f"视频大小判断：{file_size_mb}MB {'>' if is_size_over else '≤'} {size_threshold}MB（阈值）")
         print(f"视频分辨率判断：{resolution_desc} {'>' if is_resolution_over else '≤'} {resolution_threshold}（阈值）")
-        
+
         # 5. 最终判断是否需要压缩（任一条件满足即需要）
         needs_compress = is_size_over or is_resolution_over
-        
+
         if needs_compress:
             print(f"视频需要压缩：大小超标={is_size_over}，分辨率超标={is_resolution_over}")
             # 如果视频需要压缩，添加到压缩队列
@@ -613,6 +613,7 @@ def get_machines_for_videos():
         machine_list = []
         for machine in machines:
             machine_list.append({
+                'id': machine.id,
                 'model': machine.model,  # 机器型号作为ID
                 'original_model': machine.original_model
             })
@@ -730,7 +731,7 @@ def physical_delete_videos():
 
         # 从数据库彻底删除记录
         Video.query.filter(Video.id.in_(video_ids)).delete(synchronize_session=False)
-        
+
         # 记录物理删除日志（必须在提交之前完成）
         try:
             user_id = get_user_id_from_token()

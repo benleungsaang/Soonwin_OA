@@ -5,8 +5,8 @@ from datetime import datetime
 from PIL import Image
 from .. import db
 from ..models.photo import Photo
-from ..models.machine import Machine
 from ..models.business_operation_log import add_photo_log
+from ..models.machine_new import MachineNew as Machine
 from ..utils.simple_auth_utils import route_permission
 from ..utils.auth_utils import get_user_id_from_token  # 添加这个导入
 from ..constants.simple_permission_constants import ROUTE_PHOTO, ROUTE_PHOTO_MANAGE
@@ -282,7 +282,7 @@ def get_photos():
         search = request.args.get('search', '')
         # 获取machine_id参数
         machine_id_raw = request.args.get('machine_id')
-        
+
         # 只有在machine_id_raw不为空字符串且不为None时才处理
         if machine_id_raw is not None and machine_id_raw != '':
             try:
@@ -291,7 +291,7 @@ def get_photos():
                 # 如果传入的是整数，直接使用
             except (ValueError, TypeError):
                 # 如果无法转换为整数，假定是型号，查找机器
-                machine = Machine.query.filter_by(model=machine_id_raw).first()
+                machine = Machine.query.filter_by(id=machine_id_raw).first()
                 if machine:
                     # 如果机器存在，使用其型号
                     machine_id = machine.model
@@ -372,11 +372,11 @@ def batch_upload_photos():
                 # 解码Base64文件内容
                 import base64
                 file_bytes = base64.b64decode(file_content)
-                
+
                 # 创建类似File对象的结构
                 from io import BytesIO
                 file_stream = BytesIO(file_bytes)
-                
+
                 # 获取当前用户信息，作为上传者
                 user_role = get_user_role_from_token()
                 uploader = file_data.get('uploader', user_role or 'system')
@@ -389,7 +389,7 @@ def batch_upload_photos():
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     temp_file.write(file_bytes)
                     temp_filename = temp_file.name
-                
+
                 # 验证文件类型
                 is_valid, msg = validate_file_type_from_path(temp_filename, UPLOAD_CONFIG['IMAGE_ALLOWED_EXTENSIONS'])
                 if not is_valid:
@@ -401,25 +401,24 @@ def batch_upload_photos():
                 import uuid
                 ext = mimetypes.guess_extension(mimetypes.guess_type(temp_filename)[0]) or '.jpg'
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
-                
+
                 # 保存文件
                 base_save_dir = UPLOAD_CONFIG['IMAGE_UPLOAD_FOLDER']
                 date_dir = get_date_dir()
                 save_dir = os.path.join(base_save_dir, date_dir)
                 os.makedirs(save_dir, exist_ok=True)
-                
+
                 save_path = os.path.join(save_dir, unique_filename)
                 with open(save_path, 'wb') as f:
                     f.write(file_bytes)
-                
+
                 # 处理图片
                 process_result = process_image_from_path(save_path, save_dir)
-                
+
                 # 构建搜索字段
                 search_field = f"{title} {tags} {remark}"
                 if machine_id:
-                    from app.models.machine import Machine
-                    machine = Machine.query.filter_by(model=machine_id).first()
+                    machine = Machine.query.filter_by(id=machine_id).first()
                     if machine:
                         search_field += f" {machine.model} {machine.original_model}"
 
@@ -480,11 +479,11 @@ def batch_upload_photos():
                     'photo_id': photo.id,
                     'title': title
                 })
-                
+
             except Exception as e:
                 results.append({
-                    'success': False, 
-                    'message': f'上传失败: {str(e)}', 
+                    'success': False,
+                    'message': f'上传失败: {str(e)}',
                     'title': file_data.get('title', '未知文件')
                 })
 
@@ -533,7 +532,7 @@ def upload_photo():
         # 构建搜索字段
         search_field = f"{title} {tags} {remark}"
         if machine_id:
-            machine = Machine.query.filter_by(model=machine_id).first()
+            machine = Machine.query.filter_by(id=machine_id).first()
             if machine:
                 search_field += f" {machine.model} {machine.original_model}"
 
@@ -803,7 +802,7 @@ def get_deleted_photos():
         search = request.args.get('search', '')
         # 获取machine_id参数
         machine_id_raw = request.args.get('machine_id')
-        
+
         # 处理machine_id参数
         machine_id = None
         if machine_id_raw is not None and machine_id_raw != '':
@@ -1004,6 +1003,7 @@ def get_machines_for_photos():
         machine_list = []
         for machine in machines:
             machine_list.append({
+                'id': machine.id,
                 'model': machine.model,
                 'original_model': machine.original_model
             })

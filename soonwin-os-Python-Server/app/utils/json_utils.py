@@ -6,7 +6,6 @@
 import json
 from typing import Any, Dict, List, Optional
 from .. import db
-from ..models.machine import Machine, PartType
 from ..models.machine_new import MachineNew
 
 
@@ -24,7 +23,7 @@ def map_camelcase_to_underscore(data: Dict[str, Any]) -> Dict[str, Any]:
     return {camel_to_snake(key): value for key, value in data.items()}
 
 
-def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: bool = True) -> Dict[str, Any]:
+def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: bool = True, creator_id: str = None) -> Dict[str, Any]:
     """
     通用JSON数据导入函数
 
@@ -32,6 +31,7 @@ def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: boo
         model_type: 模型类型 ('machine', 'part', 'machine_new')
         data: 要导入的数据
         is_update: 是否更新已存在的记录
+        creator_id: 创建者ID (emp_id)
 
     Returns:
         导入结果统计
@@ -74,6 +74,8 @@ def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: boo
                         db.session.merge(existing)
                     elif not existing:
                         # 创建新记录
+                        if creator_id:
+                            model_fields['creator'] = creator_id
                         new_item = model(**model_fields)
                         db.session.add(new_item)
                     else:
@@ -91,6 +93,8 @@ def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: boo
                         db.session.merge(existing)
                     elif not existing:
                         # 创建新记录
+                        if creator_id:
+                            item_data['creator'] = creator_id
                         new_item = model(**item_data)
                         db.session.add(new_item)
                     else:
@@ -98,8 +102,6 @@ def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: boo
                         continue
                 elif model_type == 'machine_new':
                     model = MachineNew
-                    # 使用型号作为唯一标识 (model对应JSON中的Model)
-                    existing = model.query.filter_by(model=item_data.get('model')).first()
 
                     # 分离MachineNew模型固有字段和自定义字段
                     model_fields = {}
@@ -120,21 +122,15 @@ def import_json_data(model_type: str, data: List[Dict[str, Any]], is_update: boo
                     if 'image' in item_data and 'image' not in model_fields:
                         model_fields['image'] = item_data['image']
 
-                    if existing and is_update:
-                        # 更新现有记录
-                        for key, value in model_fields.items():
-                            if hasattr(existing, key) and key != 'model':
-                                setattr(existing, key, value)
-                        db.session.merge(existing)
-                    elif not existing:
-                        # 创建新记录
-                        new_item = model(**model_fields)
-                        # 生成搜索关键词
-                        new_item.search_key = new_item._generate_search_key()
-                        db.session.add(new_item)
-                    else:
-                        # 跳过已存在且不更新的记录
-                        continue
+                    # 添加创建者信息
+                    if creator_id:
+                        model_fields['creator'] = creator_id
+
+                    # 直接创建新记录，允许重复型号
+                    new_item = model(**model_fields)
+                    # 生成搜索关键词
+                    new_item.search_key = new_item._generate_search_key()
+                    db.session.add(new_item)
                 else:
                     raise ValueError(f'不支持的模型类型: {model_type}')
 

@@ -2,670 +2,56 @@
 from flask import Blueprint, request, jsonify, current_app
 import os
 import json
+import uuid
+from PIL import Image
 from .. import db
-from ..models.machine import Machine, PartType
 from ..models.machine_new import MachineNew
 from ..utils.json_utils import import_json_data, export_json_data
 from app.utils.simple_auth_utils import route_permission
-from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE, ROUTE_MACHINE_LIST, ROUTE_UPLOAD_MANAGE
+from app.constants.simple_permission_constants import ROUTE_MACHINE_MANAGE, ROUTE_UPLOAD_MANAGE
 from app.models.simple_permission import get_user_role_from_token
-import uuid
+from app.models.employee import Employee  # 导入Employee模型
+from app.utils.auth_utils import get_user_id_from_token  # 从auth_utils导入get_user_id_from_token函数
+from ..utils.upload_utils import process_image_with_variants
 
 machine_bp = Blueprint('machine_bp', __name__, url_prefix='/api')
 
-# @machine_bp.route('/machines', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_LIST)
-# def get_machines():
-#     """获取所有机器列表"""
-#     try:
-#         page = request.args.get('page', 1, type=int)
-#         per_page = request.args.get('per_page', 10, type=int)
 
-#         # 使用通用函数检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         # 过滤掉已删除的机器
-#         query = Machine.query.filter_by(is_deleted=0)
-#         pagination = query.paginate(
-#             page=page, per_page=per_page, error_out=False
-#         )
-#         machines = pagination.items
-
-#         # 根据用户权限处理数据
-#         machine_data = []
-#         for machine in machines:
-#             machine_dict = machine.to_dict()
-#             if not is_admin:
-#                 # 非管理员用户不显示原始价格
-#                 machine_dict.pop('original_price', None)
-#             machine_data.append(machine_dict)
-
-#         return jsonify({
-#             'success': True,
-#             'data': {
-#                 'machines': machine_data,
-#                 'total': pagination.total,
-#                 'pages': pagination.pages,
-#                 'current_page': page
-#             }
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"获取机器列表失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/<string:model>', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def get_machine(model):
-#     """根据型号获取单个机器"""
-#     try:
-#         # 使用通用函数检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         machine = Machine.query.filter_by(model=model).first()
-#         if not machine:
-#             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-
-#         # 根据用户权限处理数据
-#         machine_dict = machine.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格
-#             machine_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'data': machine_dict
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"获取机器信息失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines', methods=['POST'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def create_machine():
-#     """创建新机器"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         data = request.get_json()
-
-#         # 检查机器型号是否已存在
-#         existing_machine = Machine.query.filter_by(model=data.get('model')).first()
-#         if existing_machine:
-#             return jsonify({'success': False, 'message': '机器型号已存在'}), 400
-
-#         # 处理自定义属性
-#         custom_attrs = data.get('custom_attrs')
-#         if isinstance(custom_attrs, dict):
-#             import json as json_module
-#             custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
-
-#         # 处理数值字段类型转换
-#         added_count = data.get('added_count', 0)
-#         if added_count is not None:
-#             try:
-#                 added_count = int(added_count)
-#             except:
-#                 current_app.logger.warning(f"added_count 转换失败: {added_count}")
-#                 added_count = 0
-
-#         original_price = data.get('original_price')
-#         if original_price is not None:
-#             try:
-#                 from decimal import Decimal
-#                 original_price = Decimal(str(original_price))
-#             except:
-#                 current_app.logger.warning(f"original_price 转换失败: {original_price}")
-#                 original_price = None
-
-#         show_price = data.get('show_price')
-#         if show_price is not None:
-#             try:
-#                 from decimal import Decimal
-#                 show_price = Decimal(str(show_price))
-#             except:
-#                 current_app.logger.warning(f"show_price 转换失败: {show_price}")
-#                 show_price = None
-
-#         # 定义字段映射，用于动态创建实例
-#         field_values = {
-#             'model': data.get('model'),
-#             'original_model': data.get('original_model'),
-#             'packing_speed': data.get('packing_speed'),
-#             'general_power': data.get('general_power'),
-#             'power_supply': data.get('power_supply'),
-#             'air_source': data.get('air_source'),
-#             'machine_weight': data.get('machine_weight'),
-#             'dimensions': data.get('dimensions'),
-#             'package_material': data.get('package_material'),
-#             'image': data.get('image'),
-#             'added_count': added_count,
-#             'original_price': original_price,
-#             'show_price': show_price,
-#             'custom_attrs': custom_attrs
-#         }
-
-#         machine = Machine(**field_values)
-
-#         db.session.add(machine)
-#         db.session.commit()
-
-#         # 根据用户权限处理返回数据
-#         machine_dict = machine.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
-#             machine_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'message': '机器创建成功',
-#             'data': machine_dict
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"创建机器失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/<string:model>', methods=['PUT'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def update_machine(model):
-#     """更新机器信息"""
-#     try:
-#         machine = Machine.query.filter_by(model=model).first()
-#         if not machine:
-#             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         data = request.get_json()
-
-#         # 处理数值字段类型转换
-#         if 'original_price' in data and data['original_price'] is not None:
-#             try:
-#                 from decimal import Decimal
-#                 data['original_price'] = Decimal(str(data['original_price']))
-#             except:
-#                 current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
-
-#         if 'show_price' in data and data['show_price'] is not None:
-#             try:
-#                 from decimal import Decimal
-#                 data['show_price'] = Decimal(str(data['show_price']))
-#             except:
-#                 current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
-
-#         if 'added_count' in data and data['added_count'] is not None:
-#             try:
-#                 data['added_count'] = int(data['added_count'])
-#             except:
-#                 current_app.logger.warning(f"added_count 转换失败: {data['added_count']}")
-
-#         # 定义需要批量更新的普通字段列表
-#         update_fields = [
-#             'original_model', 'packing_speed', 'general_power', 'power_supply',
-#             'air_source', 'machine_weight', 'dimensions', 'package_material',
-#             'image', 'added_count', 'original_price', 'show_price'
-#         ]
-
-#         # 批量更新普通字段
-#         for field in update_fields:
-#             if field in data:
-#                 setattr(machine, field, data[field])
-
-#         # 单独处理需要特殊逻辑的字段（如 custom_attrs）
-#         if 'custom_attrs' in data:
-#             custom_attrs = data['custom_attrs']
-#             if isinstance(custom_attrs, dict):
-#                 import json as json_module
-#                 custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
-#             machine.custom_attrs = custom_attrs
-
-#         db.session.commit()
-
-#         # 根据用户权限处理返回数据
-#         machine_dict = machine.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
-#             machine_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'message': '机器更新成功',
-#             'data': machine_dict
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"更新机器失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/<string:model>', methods=['DELETE'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def delete_machine(model):
-#     """逻辑删除机器（归档）"""
-#     try:
-#         machine = Machine.query.filter_by(model=model).first()
-#         if not machine:
-#             return jsonify({'success': False, 'message': '机器型号不存在'}), 404
-
-#         # 设置逻辑删除标记
-#         machine.is_deleted = 1
-#         machine.delete_time = datetime.utcnow()
-
-#         db.session.commit()
-
-#         return jsonify({
-#             'success': True,
-#             'message': '机器已归档（逻辑删除）'
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"归档机器失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def get_parts():
-#     """获取所有部件列表"""
-#     try:
-#         page = request.args.get('page', 1, type=int)
-#         per_page = request.args.get('per_page', 10, type=int)
-
-#         # 使用通用函数检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         pagination = PartType.query.paginate(
-#             page=page, per_page=per_page, error_out=False
-#         )
-#         parts = pagination.items
-
-#         # 根据用户权限处理数据
-#         parts_data = []
-#         for part in parts:
-#             part_dict = part.to_dict()
-#             if not is_admin:
-#                 # 非管理员用户不显示原始价格
-#                 part_dict.pop('original_price', None)
-#             parts_data.append(part_dict)
-
-#         return jsonify({
-#             'success': True,
-#             'data': {
-#                 'parts': parts_data,
-#                 'total': pagination.total,
-#                 'pages': pagination.pages,
-#                 'current_page': page
-#             }
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"获取部件列表失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts/<int:part_type_id>', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def get_part(part_type_id):
-#     """根据ID获取单个部件"""
-#     try:
-#         # 使用通用函数检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         part = PartType.query.filter_by(part_type_id=part_type_id).first()
-#         if not part:
-#             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-
-#         # 根据用户权限处理数据
-#         part_dict = part.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格
-#             part_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'data': part_dict
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"获取部件信息失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts', methods=['POST'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def create_part():
-#     """创建新部件"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         data = request.get_json()
-
-#         # 检查部件型号是否已存在
-#         existing_part = PartType.query.filter_by(part_model=data.get('part_model')).first()
-#         if existing_part:
-#             return jsonify({'success': False, 'message': '部件型号已存在'}), 400
-
-#         # 处理数值字段类型转换
-#         original_price = data.get('original_price')
-#         if original_price is not None:
-#             try:
-#                 from decimal import Decimal
-#                 original_price = Decimal(str(original_price))
-#             except:
-#                 current_app.logger.warning(f"original_price 转换失败: {original_price}")
-#                 original_price = None
-
-#         show_price = data.get('show_price')
-#         if show_price is not None:
-#             try:
-#                 from decimal import Decimal
-#                 show_price = Decimal(str(show_price))
-#             except:
-#                 current_app.logger.warning(f"show_price 转换失败: {show_price}")
-#                 show_price = None
-
-#         # 定义字段映射，用于动态创建实例
-#         field_values = {
-#             'part_model': data.get('part_model'),
-#             'original_price': original_price,
-#             'show_price': show_price,
-#             'image': data.get('image')
-#         }
-
-#         part = PartType(**field_values)
-
-#         db.session.add(part)
-#         db.session.commit()
-
-#         # 根据用户权限处理返回数据
-#         part_dict = part.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
-#             part_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'message': '部件创建成功',
-#             'data': part_dict
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"创建部件失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts/<int:part_type_id>', methods=['PUT'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def update_part(part_type_id):
-#     """更新部件信息"""
-#     try:
-#         part = PartType.query.filter_by(part_type_id=part_type_id).first()
-#         if not part:
-#             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         data = request.get_json()
-
-#         # 检查部件型号是否需要更新且是否已存在
-#         if 'part_model' in data:
-#             # 检查新部件型号是否已存在
-#             existing_part = PartType.query.filter_by(part_model=data['part_model']).first()
-#             if existing_part and existing_part.part_type_id != part_type_id:
-#                 return jsonify({'success': False, 'message': '部件型号已存在'}), 400
-#             part.part_model = data['part_model']
-
-#         # 处理数值字段类型转换
-#         if 'original_price' in data and data['original_price'] is not None:
-#             try:
-#                 from decimal import Decimal
-#                 data['original_price'] = Decimal(str(data['original_price']))
-#             except:
-#                 current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
-
-#         if 'show_price' in data and data['show_price'] is not None:
-#             try:
-#                 from decimal import Decimal
-#                 data['show_price'] = Decimal(str(data['show_price']))
-#             except:
-#                 current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
-
-#         # 定义需要批量更新的普通字段列表
-#         update_fields = [
-#             'original_price', 'show_price', 'image'
-#         ]
-
-#         # 批量更新普通字段
-#         for field in update_fields:
-#             if field in data:
-#                 setattr(part, field, data[field])
-
-#         db.session.commit()
-
-#         # 根据用户权限处理返回数据
-#         part_dict = part.to_dict()
-#         if not is_admin:
-#             # 非管理员用户不显示原始价格（虽然这里不会执行，但保持代码一致性）
-#             part_dict.pop('original_price', None)
-
-#         return jsonify({
-#             'success': True,
-#             'message': '部件更新成功',
-#             'data': part_dict
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"更新部件失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts/<int:part_type_id>', methods=['DELETE'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def delete_part(part_type_id):
-#     """删除部件"""
-#     try:
-#         part = PartType.query.filter_by(part_type_id=part_type_id).first()
-#         if not part:
-#             return jsonify({'success': False, 'message': '部件类型不存在'}), 404
-
-#         db.session.delete(part)
-#         db.session.commit()
-
-#         return jsonify({
-#             'success': True,
-#             'message': '部件删除成功'
-#         })
-#     except Exception as e:
-#         db.session.rollback()
-#         current_app.logger.error(f"删除部件失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts/import-json', methods=['POST'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def import_parts_json():
-#     """直接从JSON数据导入部件数据（不需要文件上传）"""
-#     try:
-#         data = request.get_json()
-
-#         if not data:
-#             return jsonify({'success': False, 'message': '未提供JSON数据'}), 400
-
-#         # 检查数据是否为列表格式
-#         if not isinstance(data, list):
-#             # 如果是单个对象，转换为列表
-#             if isinstance(data, dict):
-#                 data = [data]
-#             else:
-#                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
-
-#         # 使用通用JSON工具导入数据
-#         result = import_json_data('part', data)
-
-#         return jsonify({
-#             'success': result['success'],
-#             'message': f"成功处理 {result['total_processed']} 条数据，导入 {result['success_count']} 条，失败 {result['error_count']} 条",
-#             'data': {
-#                 'imported_count': result['success_count'],
-#                 'failed_count': result['error_count'],
-#                 'failed_records': result.get('errors', [])
-#             }
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"导入部件JSON数据失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/parts/export-json', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def export_parts_json():
-#     """导出部件数据为JSON格式"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         # 获取过滤参数
-#         filters = {}
-#         # 可以根据需要添加过滤参数处理
-
-#         # 使用通用JSON工具导出数据
-#         data = export_json_data('part', filters)
-
-#         return jsonify({
-#             'success': True,
-#             'data': data
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"导出部件数据失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/import', methods=['POST'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def import_machines():
-#     """从JSON文件导入机器数据（保留原有功能）"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         if 'file' not in request.files:
-#             return jsonify({'success': False, 'message': '未提供文件'}), 400
-
-#         file = request.files['file']
-#         if file.filename == '':
-#             return jsonify({'success': False, 'message': '未选择文件'}), 400
-
-#         if not file.filename.lower().endswith('.json'):
-#             return jsonify({'success': False, 'message': '只支持JSON文件'}), 400
-
-#         try:
-#             content = file.read().decode('utf-8')
-#             data = json.loads(content)
-#         except json.JSONDecodeError:
-#             return jsonify({'success': False, 'message': 'JSON文件格式错误'}), 400
-
-#         # 检查数据是否为列表格式
-#         if not isinstance(data, list):
-#             # 如果是单个对象，转换为列表
-#             if isinstance(data, dict):
-#                 data = [data]
-#             else:
-#                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象数组'}), 400
-
-#         # 使用通用JSON工具导入数据
-#         result = import_json_data('machine', data)
-
-#         return jsonify({
-#             'success': result['success'],
-#             'message': result['message'],
-#             'data': {
-#                 'imported_count': result['imported_count'],
-#                 'failed_count': result['failed_count'],
-#                 'failed_records': result['failed_records']
-#             }
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"导入机器数据失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/import-json', methods=['POST'])
-# @route_permission(ROUTE_UPLOAD_MANAGE)
-# def import_machines_json():
-#     """直接从JSON数据导入机器数据（不需要文件上传）"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         data = request.get_json()
-
-#         if not data:
-#             return jsonify({'success': False, 'message': '未提供JSON数据'}), 400
-
-#         # 检查数据是否为列表格式
-#         if not isinstance(data, list):
-#             # 如果是单个对象，转换为列表
-#             if isinstance(data, dict):
-#                 data = [data]
-#             else:
-#                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
-
-#         # 使用通用JSON工具导入数据
-#         result = import_json_data('machine', data)
-
-#         return jsonify({
-#             'success': result['success'],
-#             'message': f"成功处理 {result['total_processed']} 条数据，导入 {result['success_count']} 条，失败 {result['error_count']} 条",
-#             'data': {
-#                 'imported_count': result['success_count'],
-#                 'failed_count': result['error_count'],
-#                 'failed_records': result.get('errors', [])
-#             }
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"导入机器JSON数据失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
-
-
-# @machine_bp.route('/machines/export-json', methods=['GET'])
-# @route_permission(ROUTE_MACHINE_MANAGE)
-# def export_machines_json():
-#     """导出机器数据为JSON格式"""
-#     try:
-#         # 检查用户权限
-#         user_role = get_user_role_from_token()
-#         is_admin = user_role == 'admin'
-
-#         # 获取过滤参数
-#         filters = {}
-#         # 可以根据需要添加过滤参数处理
-
-#         # 使用通用JSON工具导出数据
-#         data = export_json_data('machine', filters)
-
-#         return jsonify({
-#             'success': True,
-#             'data': data
-#         })
-#     except Exception as e:
-#         current_app.logger.error(f"导出机器数据失败: {str(e)}")
-#         return jsonify({'success': False, 'message': str(e)}), 500
+def process_machine_image(file_path, base_save_dir):
+    """
+    从文件路径处理机器图片，生成300x300的缩略图
+    :param file_path: 文件路径
+    :param base_save_dir: 基础存储目录
+    :return: 缩略图路径
+    """
+    # 获取文件信息
+    ext = os.path.splitext(file_path)[1].lower()[1:]  # 去掉点号
+    file_prefix = os.path.splitext(os.path.basename(file_path))[0]
+
+    # 打开原图并获取基础信息
+    img = Image.open(file_path)
+    original_width, original_height = img.size
+    print(f'Processing machine image: {original_width}x{original_height}')
+
+    # 生成300x300缩略图
+    # 保持宽高比，最大尺寸限制为300x300
+    max_size = 300
+    scale = min(max_size / original_width, max_size / original_height)
+    new_width = int(original_width * scale)
+    new_height = int(original_height * scale)
+
+    # 调整图片大小
+    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    # 生成缩略图路径
+    thumb_file_path = os.path.join(os.path.dirname(file_path), f"{file_prefix}_thumb.{ext}")
+    resized_img.save(thumb_file_path, quality=60)
+
+    # 返回相对于基础目录的路径
+    relative_path = os.path.relpath(thumb_file_path, base_save_dir).replace('\\', '/')
+    print(f'Generated thumbnail: {relative_path}')
+
+    return relative_path
 
 
 @machine_bp.route('/machines_new', methods=['GET'])
@@ -750,6 +136,9 @@ def create_machine_new():
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
 
+        # 获取当前用户的emp_id
+        creator_id = get_user_id_from_token()
+
         data = request.get_json()
 
         # 处理自定义属性
@@ -793,6 +182,9 @@ def create_machine_new():
                 current_app.logger.warning(f"machine_type 转换失败: {machine_type}")
                 machine_type = 0
 
+        # 获取图片路径
+        image_path = data.get('image')
+
         # 创建机器对象
         machine = MachineNew(
             model=data.get('model'),
@@ -801,14 +193,15 @@ def create_machine_new():
             dimensions=data.get('dimensions'),
             general_power=data.get('general_power'),
             power_supply=data.get('power_supply'),
-            image=data.get('image'),
+            image=image_path,  # 使用处理后的图片路径
             added_count=added_count,
             show_price=show_price,
             original_price=original_price,
             machine_type=machine_type,
             remark=data.get('remark'),
             brand=data.get('brand'),
-            custom_attrs=custom_attrs
+            custom_attrs=custom_attrs,
+            creator=creator_id  # 添加创建者信息
         )
 
         # 自动生成搜索关键词
@@ -837,80 +230,31 @@ def create_machine_new():
 def update_machine_new(id):
     """更新新机器信息"""
     try:
-        machine = MachineNew.query.filter_by(id=id, is_deleted=0).first()
-        if not machine:
-            return jsonify({'success': False, 'message': '机器不存在'}), 404
-
         # 检查用户权限
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
 
         data = request.get_json()
 
-        # 检查机器型号是否需要更新且是否已存在其他机器使用该型号
-        if 'model' in data:
-            machine.model = data['model']
+        # 从数据中移除自动生成的字段，避免更新时间相关的字段
+        update_data = {k: v for k, v in data.items()
+                       if k not in ['create_time', 'update_time', 'search_key']}
 
-        # 处理数值字段类型转换
-        if 'original_price' in data and data['original_price'] is not None:
-            try:
-                from decimal import Decimal
-                machine.original_price = Decimal(str(data['original_price']))
-            except:
-                current_app.logger.warning(f"original_price 转换失败: {data['original_price']}")
+        # 使用新的update_machine方法处理更新逻辑
+        success, message, updated_machine = MachineNew.update_machine(id, update_data, db.session)
 
-        if 'show_price' in data and data['show_price'] is not None:
-            try:
-                from decimal import Decimal
-                machine.show_price = Decimal(str(data['show_price']))
-            except:
-                current_app.logger.warning(f"show_price 转换失败: {data['show_price']}")
+        if success:
+            # 根据用户权限决定是否包含价格字段
+            include_price = is_admin
+            machine_dict = updated_machine.to_dict(include_price=include_price)
 
-        if 'added_count' in data and data['added_count'] is not None:
-            try:
-                machine.added_count = int(data['added_count'])
-            except:
-                current_app.logger.warning(f"added_count 转换失败: {data['added_count']}")
-
-        if 'machine_type' in data and data['machine_type'] is not None:
-            try:
-                machine.machine_type = int(data['machine_type'])
-            except:
-                current_app.logger.warning(f"machine_type 转换失败: {data['machine_type']}")
-
-        # 定义需要批量更新的普通字段列表
-        update_fields = [
-            'original_model', 'machine_weight', 'dimensions', 'general_power',
-            'power_supply', 'image', 'remark', 'brand'
-        ]
-
-        # 批量更新普通字段
-        for field in update_fields:
-            if field in data:
-                setattr(machine, field, data[field])
-
-        # 单独处理需要特殊逻辑的字段（如 custom_attrs）
-        if 'custom_attrs' in data:
-            custom_attrs = data['custom_attrs']
-            if isinstance(custom_attrs, dict):
-                import json as json_module
-                custom_attrs = json_module.dumps(custom_attrs, ensure_ascii=False)
-            machine.custom_attrs = custom_attrs
-
-        # 重新生成搜索关键词
-        machine.search_key = machine._generate_search_key()
-
-        db.session.commit()
-
-        # 根据用户权限决定是否包含价格字段
-        include_price = is_admin
-        machine_dict = machine.to_dict(include_price=include_price)
-
-        return jsonify({
-            'success': True,
-            'message': '机器更新成功',
-            'data': machine_dict
-        })
+            return jsonify({
+                'success': True,
+                'message': message,
+                'data': machine_dict
+            })
+        else:
+            return jsonify({'success': False, 'message': message}), 500
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"更新新机器失败: {str(e)}")
@@ -951,6 +295,9 @@ def import_machines_new_json():
         user_role = get_user_role_from_token()
         is_admin = user_role == 'admin'
 
+        # 获取当前用户的emp_id
+        creator_id = get_user_id_from_token()
+
         data = request.get_json()
 
         if not data:
@@ -964,8 +311,8 @@ def import_machines_new_json():
             else:
                 return jsonify({'success': False, 'message': 'JSON数据格式错误，应为对象或对象数组'}), 400
 
-        # 使用通用JSON工具导入数据
-        result = import_json_data('machine_new', data)
+        # 使用通用JSON工具导入数据，并传递创建者ID
+        result = import_json_data('machine_new', data, creator_id=creator_id)
 
         return jsonify({
             'success': result['success'],
@@ -1042,24 +389,29 @@ def upload_machine_thumb(id):
         file_ext = file.filename.rsplit('.', 1)[1].lower()
         unique_filename = f"{machine.model}_{uuid.uuid4().hex[:8]}.{file_ext}"
 
-        # 保存新文件
+        # 保存新文件（原始图片）
         file_path = os.path.join(machine_thumb_dir, unique_filename)
         file.save(file_path)
 
-        # 获取新文件的相对路径
-        relative_path = os.path.relpath(file_path, base_path).replace('\\', '/')
+        # 生成缩略图
+        thumb_path = process_machine_image(file_path, os.path.join(base_path, 'assets', 'Media'))
 
-        # 如果原图路径不是默认图片，尝试删除原图
+        # 如果原图路径不是默认图片，尝试删除原图和原缩略图
         if machine.image and not machine.image.endswith('sample.png'):
             try:
                 old_file_path = os.path.join(base_path, machine.image)
                 if os.path.exists(old_file_path) and os.path.isfile(old_file_path):
                     os.remove(old_file_path)
+
+                # 尝试删除对应的缩略图文件（如果存在）
+                old_thumb_path = old_file_path.rsplit('.', 1)[0] + '_thumb.' + old_file_path.rsplit('.', 1)[1]
+                if os.path.exists(old_thumb_path) and os.path.isfile(old_thumb_path):
+                    os.remove(old_thumb_path)
             except Exception as e:
                 current_app.logger.warning(f"删除原缩略图失败: {str(e)}")
 
-        # 更新机器的缩略图路径
-        machine.image = relative_path
+        # 更新机器的图片路径为原始图片路径（不是缩略图路径）
+        machine.image = os.path.relpath(file_path, base_path).replace('\\', '/')
         # 重新生成搜索关键词
         machine.search_key = machine._generate_search_key()
 
@@ -1074,11 +426,63 @@ def upload_machine_thumb(id):
             'message': '缩略图上传成功',
             'data': {
                 'machine': machine_dict,
-                'new_thumb_path': relative_path
+                'new_thumb_path': thumb_path,  # 返回缩略图路径供前端使用
+                'original_path': os.path.relpath(file_path, base_path).replace('\\', '/')  # 返回原始图片路径
             }
         })
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(f"上传缩略图失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/upload-thumb', methods=['POST'])
+@route_permission(ROUTE_UPLOAD_MANAGE)
+def upload_machine_thumb_generic():
+    """通用上传缩略图接口，用于新增设备时上传缩略图"""
+    try:
+        # 检查用户权限
+        user_role = get_user_role_from_token()
+        is_admin = user_role == 'admin'
+
+        # 获取上传的文件
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '没有文件被上传'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': '没有选择文件'}), 400
+
+        # 验证文件类型（仅允许图片）
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'}
+        if '.' not in file.filename or file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+            return jsonify({'success': False, 'message': '仅支持PNG, JPG, JPEG, WEBP, GIF, BMP格式的图片'}), 400
+
+        # 创建上传目录
+        base_path = os.path.join(current_app.root_path, '..')
+        machine_thumb_dir = os.path.join(base_path, 'assets', 'Media', 'Machine')
+        os.makedirs(machine_thumb_dir, exist_ok=True)
+
+        # 生成唯一文件名 - 使用UUID确保唯一性
+        file_ext = file.filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"machine_{uuid.uuid4().hex[:8]}.{file_ext}"
+
+        # 保存新文件
+        file_path = os.path.join(machine_thumb_dir, unique_filename)
+        file.save(file_path)
+
+        # 生成缩略图
+        thumb_path = process_machine_image(file_path, os.path.join(base_path, 'assets', 'Media'))
+
+        return jsonify({
+            'success': True,
+            'message': '缩略图上传成功',
+            'data': {
+                'thumb_path': thumb_path,
+                'original_path': os.path.relpath(file_path, base_path).replace('\\', '/')
+            }
+        })
+    except Exception as e:
         current_app.logger.error(f"上传缩略图失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -1286,4 +690,46 @@ def clear_recycle_bin():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"清空回收站失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@machine_bp.route('/machines_new/clear-all', methods=['DELETE'])
+@route_permission(ROUTE_MACHINE_MANAGE)
+def clear_all_machines():
+    """清空所有机器数据（包括正常和已删除的）"""
+    try:
+        # 获取所有机器（包括已删除的）
+        all_machines = MachineNew.query.all()
+
+        if not all_machines:
+            return jsonify({
+                'success': True,
+                'message': '没有数据需要清空'
+            })
+
+        base_path = os.path.join(current_app.root_path, '..')
+
+        # 删除所有关联的缩略图文件
+        for machine in all_machines:
+            try:
+                if machine.image and not machine.image.endswith('sample.png'):
+                    image_path = os.path.join(base_path, machine.image)
+                    if os.path.exists(image_path) and os.path.isfile(image_path):
+                        os.remove(image_path)
+            except Exception as e:
+                current_app.logger.warning(f"删除缩略图文件失败: {str(e)}")
+
+        # 清空数据库表
+        for machine in all_machines:
+            db.session.delete(machine)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'已清空所有数据，删除了 {len(all_machines)} 台设备'
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"清空所有数据失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500

@@ -48,11 +48,9 @@ def create_app(port=5000):
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser
         from .models.expense import Expense, ExpenseAllocation, ExpenseCalculationRecord, AnnualTarget, IndividualExpense
-        from .models.order_inspection import OrderInspection, InspectionItem
         from .models.display_file import DisplayFile
         from .models.inquiry import Inquiry, InquiryCommunication
         from .models.inquiry_communication_media import InquiryCommunicationMedia
-        from .models.machine import Machine, PartType
         from .models.machine_new import MachineNew
         from .models.photo import Photo
         from .models.video import Video
@@ -129,6 +127,10 @@ def create_app(port=5000):
         # 注册考勤管理相关路由蓝图
         from .routes.attendance_routes import attendance_bp
         app.register_blueprint(attendance_bp, url_prefix='/api')
+
+        # 注册系统配置相关路由蓝图
+        from .routes.config_routes import config_bp
+        app.register_blueprint(config_bp, url_prefix='/api')
 
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance

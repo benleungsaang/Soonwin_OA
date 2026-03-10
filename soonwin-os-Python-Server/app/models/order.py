@@ -134,5 +134,29 @@ class Order(db.Model):
             "search_field": self.search_field,
             "creator_id": self.creator_id,
             "inquiry_id": self.inquiry_id,
-            "inquiry": self.inquiry.to_dict() if self.inquiry else None
+            "inquiry": self.inquiry.to_dict() if self.inquiry else None,
+            "machine_model_ids": self.get_machine_model_ids()  # 添加机器ID列表
         }
+
+    def get_machine_model_ids(self):
+        """
+        根据machine_model字段获取对应的机器ID列表
+        :return: 机器ID列表
+        """
+        if not self.machine_model:
+            return []
+        
+        try:
+            # 将型号字符串分割为列表
+            model_list = [model.strip() for model in self.machine_model.split(',') if model.strip()]
+            
+            # 查询对应的机器ID
+            from .machine_new import MachineNew
+            machines = MachineNew.query.filter(MachineNew.model.in_(model_list)).all()
+            
+            # 返回ID列表，按原型号顺序
+            model_to_id = {machine.model: machine.id for machine in machines}
+            return [model_to_id.get(model, 0) for model in model_list if model_to_id.get(model)]
+        except Exception as e:
+            print(f"获取机器ID列表时出错: {str(e)}")
+            return []

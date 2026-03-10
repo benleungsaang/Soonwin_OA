@@ -1,7 +1,7 @@
 <template>
   <div class="quotation-management-container">
     <!-- 通用头部 -->
-    <CommonHeader title="临时报价" />
+    <CommonHeader title="初步报价" />
 
     <!-- 固定在右下角的购物车按钮 -->
     <div class="floating-cart-btn">
@@ -159,7 +159,7 @@
         </el-tab-pane>
 
         <!-- 临时报价单卡片 -->
-        <el-tab-pane label="临时报价单" name="quotations">
+        <el-tab-pane label="意向报价单" name="quotations">
           <el-card class="tab-card">
             <!-- 临时报价列表搜索和操作区域 -->
             <div class="search-and-actions">
@@ -557,6 +557,13 @@
               </el-select>
             </div>
             <el-button
+              @click="openAutoCalculateDialog"
+              :icon="Edit"
+              type="info"
+            >
+              自动计算
+            </el-button>
+            <el-button
               @click="cartStore.clearCart()"
               :icon="Delete"
               type="danger"
@@ -572,6 +579,34 @@
             </el-button>
           </div>
         </div>
+
+        <!-- 自动计算系数对话框 -->
+        <el-dialog
+          v-model="autoCalculateDialogVisible"
+          title="自动计算"
+          width="400px"
+          :before-close="closeAutoCalculateDialog"
+        >
+          <el-form>
+            <el-form-item label="系数" :label-width="100">
+              <el-input-number
+                v-model="autoCalculateCoefficient"
+                :min="0.0001"
+                :max="10000"
+                :precision="4"
+                :step="0.1"
+                placeholder="请输入系数"
+                style="width: 100%;"
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button @click="closeAutoCalculateDialog">取消</el-button>
+              <el-button type="primary" @click="applyAutoCalculate">确定</el-button>
+            </span>
+          </template>
+        </el-dialog>
       </div>
     </el-dialog>
 
@@ -1170,6 +1205,10 @@ const tempParamName = ref('');
 const tempParamType = ref('COEFFICIENT');
 const tempParamValue = ref<number | null>(null);
 
+// 自动计算功能相关
+const autoCalculateDialogVisible = ref(false);
+const autoCalculateCoefficient = ref(1.0);
+
 // 货币切换相关
 const currencies = ref([
   { code: 'CNY', name: '人民币', symbol: '¥', rate: 1.0 },      // 人民币作为基准
@@ -1188,12 +1227,50 @@ const loadCurrencySettings = () => {
       const settings = JSON.parse(savedSettings);
       selectedCurrency.value = settings.selectedCurrency || 'CNY';
       previousCurrency.value = settings.selectedCurrency || 'CNY'; // 同时更新上一个货币
-      if (settings.currencies) {
-        currencies.value = settings.currencies;
+
+      if (settings.currencies && Array.isArray(settings.currencies) && settings.currencies.length > 0) {
+        // 如果localStorage中的货币列表不为空，合并默认货币和保存的货币
+        // 确保默认的三种货币始终存在
+        const defaultCurrencies = [
+          { code: 'CNY', name: '人民币', symbol: '¥', rate: 1.0 },
+          { code: 'USD', name: '美元', symbol: '$', rate: 0.14 },
+          { code: 'AED', name: '迪拉姆', symbol: 'د.إ', rate: 0.52 }
+        ];
+
+        // 合并保存的货币和默认货币，避免重复
+        const mergedCurrencies = [...settings.currencies];
+        defaultCurrencies.forEach(defaultCurrency => {
+          const existingIndex = mergedCurrencies.findIndex(c => c.code === defaultCurrency.code);
+          if (existingIndex === -1) {
+            // 如果默认货币不在保存的列表中，添加它
+            mergedCurrencies.push(defaultCurrency);
+          } else {
+            // 如果存在但信息不完整，补充完整信息
+            mergedCurrencies[existingIndex] = {
+              ...defaultCurrency,
+              ...mergedCurrencies[existingIndex]
+            };
+          }
+        });
+
+        currencies.value = mergedCurrencies;
       }
     } catch (e) {
       console.error('加载货币设置失败:', e);
+      // 如果解析失败，使用默认货币设置
+      currencies.value = [
+        { code: 'CNY', name: '人民币', symbol: '¥', rate: 1.0 },
+        { code: 'USD', name: '美元', symbol: '$', rate: 0.14 },
+        { code: 'AED', name: '迪拉姆', symbol: 'د.إ', rate: 0.52 }
+      ];
     }
+  } else {
+    // 如果localStorage中没有保存的设置，使用默认货币设置
+    currencies.value = [
+      { code: 'CNY', name: '人民币', symbol: '¥', rate: 1.0 },
+      { code: 'USD', name: '美元', symbol: '$', rate: 0.14 },
+      { code: 'AED', name: '迪拉姆', symbol: 'د.إ', rate: 0.52 }
+    ];
   }
 };
 // 保存货币设置到localStorage
@@ -1428,6 +1505,39 @@ const isCurrentUserAdmin = () => {
 const handleLoadToCartFromPreview = () => {
   // 预览组件已经处理了加载到购物车的逻辑，这里只需要显示成功消息
   showCartModal.value = true;
+};
+
+// 自动计算功能
+const openAutoCalculateDialog = () => {
+  autoCalculateCoefficient.value = 1.0;
+  autoCalculateDialogVisible.value = true;
+};
+
+const closeAutoCalculateDialog = () => {
+  autoCalculateDialogVisible.value = false;
+};
+
+const applyAutoCalculate = () => {
+  if (!autoCalculateCoefficient.value || autoCalculateCoefficient.value <= 0) {
+    ElMessage.error('请输入有效的系数');
+    return;
+  }
+
+  // 对购物车中每个设备的单价乘以系数
+  cartStore.cartData.machineList.forEach(machine => {
+    if (machine.customPrice) {
+      const newPrice = machine.customPrice * autoCalculateCoefficient.value;
+      machine.customPrice = parseFloat(newPrice.toFixed(2));
+      // 更新小计
+      machine.subtotal = newPrice * (machine.quantity || 1);
+    }
+  });
+
+  // 更新购物车总金额
+  cartStore.updateAndSync();
+
+  ElMessage.success('自动计算完成');
+  autoCalculateDialogVisible.value = false;
 };
 
 // 清除当前订单信息

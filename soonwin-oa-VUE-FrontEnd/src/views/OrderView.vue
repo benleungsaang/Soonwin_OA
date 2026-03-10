@@ -330,10 +330,10 @@
                 style="width: 100%"
               >
                 <el-option
-                  v-for="item in machineOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
+                  v-for="machine in machineOptions"
+                  :key="machine.id"
+                  :label="`${machine.model} (${machine.original_model})`"
+                  :value="machine.id"
                 />
               </el-select>
             </el-form-item>
@@ -837,7 +837,7 @@ const orderForm = ref({
   order_no: '',  // X标记表示非必填，所以默认为空
   machine_no: '',
   machine_name: '',  // 默认值"包装机"
-  machine_model: [] as string[],  // 修改为数组类型以支持多选
+  machine_model: [] as string[],  // 修改为数组类型以支持多选，使用ID而不是型号
   machine_count: 1,  // 默认值1
   unit: 'set',  // 默认值"set"
   contract_amount: 0,
@@ -904,7 +904,7 @@ const orderRules = ref<FormRules>({
 });
 
 // 机器选项
-const machineOptions = ref<{ value: string; label: string }[]>([]);
+const machineOptions = ref<{ id: number; model: string; original_model: string }[]>([]);
 // 标记是否已经尝试加载过机器选项
 const hasLoadedMachineOptions = ref(false);
 
@@ -912,28 +912,6 @@ const hasLoadedMachineOptions = ref(false);
 const inquiryOptions = ref<{ id: number; company_name: string; contact_person: string; area: string; machine_type: string; inquiry_date: string }[]>([]);
 // 标记是否已经尝试加载过询盘选项
 const hasLoadedInquiryOptions = ref(false);
-
-// 从本地缓存获取机器选项
-const getMachineOptionsFromCache = (): { value: string; label: string }[] => {
-  try {
-    const cachedData = localStorage.getItem('machineOptions');
-    if (cachedData) {
-      return JSON.parse(cachedData);
-    }
-  } catch (error) {
-    console.error('读取本地机器选项缓存失败:', error);
-  }
-  return [];
-};
-
-// 将机器选项保存到本地缓存
-const saveMachineOptionsToCache = (options: { value: string; label: string }[]) => {
-  try {
-    localStorage.setItem('machineOptions', JSON.stringify(options));
-  } catch (error) {
-    console.error('保存机器选项到本地缓存失败:', error);
-  }
-};
 
 // 从本地缓存获取询盘选项
 const getInquiryOptionsFromCache = (): { id: number; company_name: string; contact_person: string; area: string; machine_type: string; inquiry_date: string }[] => {
@@ -960,52 +938,21 @@ const saveInquiryOptionsToCache = (options: { id: number; company_name: string; 
 // 获取机器选项
 const fetchMachineOptions = async () => {
   try {
-    // 首先尝试从本地缓存获取数据
-    const cachedOptions = getMachineOptionsFromCache();
-    if (cachedOptions.length > 0) {
-      // 如果有缓存数据，先使用缓存数据
-      machineOptions.value = cachedOptions;
-    }
-
-    // 然后发起API请求获取最新数据
-    const response: any = await request.get('/api/videos/machines');
-
+    // 直接发起API请求获取最新数据，参考VideoManagementView.vue的fetchMachines方法
+    const response: any = await request.get('/api/machines_new');
+    
     // 由于request.ts会自动解包data，所以response直接就是数组
-    if (Array.isArray(response)) {
-      const newMachineOptions = response.map((machine: any) => {
-        if (typeof machine === 'object' && machine !== null) {
-          // 使用model字段作为value和label
-          const value = machine.model || machine.original_model || '';
-          return { value, label: value };
-        } else {
-          // 如果不是对象，返回空选项
-          return { value: '', label: '' };
-        }
-      }).filter(item => item.value !== ''); // 过滤掉空值
-
-      // 更新本地缓存和当前值
-      machineOptions.value = newMachineOptions;
-      saveMachineOptionsToCache(newMachineOptions);
+    if (response && response.machines && Array.isArray(response.machines)) {
+      // 直接使用API返回的机器数据
+      machineOptions.value = response.machines;
     } else {
-      console.warn('API返回的机器数据不是数组格式:', response);
-      // 如果API返回的数据格式不正确，但有缓存数据，则使用缓存数据
-      if (cachedOptions.length > 0) {
-        machineOptions.value = cachedOptions;
-      } else {
-        machineOptions.value = [];
-      }
+      console.warn('API返回的机器数据格式不正确:', response);
+      machineOptions.value = [];
     }
   } catch (error) {
     console.error('获取机器选项失败:', error);
-    // 获取失败时，尝试使用缓存数据
-    const cachedOptions = getMachineOptionsFromCache();
-    if (cachedOptions.length > 0) {
-      machineOptions.value = cachedOptions;
-      ElMessage.warning('获取最新机器选项失败，已使用缓存数据');
-    } else {
-      ElMessage.error('获取机器选项失败');
-      machineOptions.value = [];
-    }
+    ElMessage.error('获取机器选项失败');
+    machineOptions.value = [];
   }
 };
 
@@ -1286,6 +1233,33 @@ const showEditDialog = async (order: any) => {
       }
     }
 
+    // 处理机器型号到ID的转换
+    let processedMachineModel: string[] = [];
+    if (fullOrderData.machine_model) {
+      if (Array.isArray(fullOrderData.machine_model)) {
+        // 如果是ID数组，直接使用
+        if (fullOrderData.machine_model.length > 0 && typeof fullOrderData.machine_model[0] === 'number') {
+          processedMachineModel = fullOrderData.machine_model.map(id => id.toString());
+        } else {
+          // 如果是型号数组，需要转换为ID
+          processedMachineModel = fullOrderData.machine_model.map(model => {
+            const machine = machineOptions.value.find(m => m.model === model || m.original_model === model);
+            return machine ? machine.id.toString() : '';
+          }).filter(id => id !== '');
+        }
+      } else {
+        // 如果是单个值，判断是ID还是型号
+        if (typeof fullOrderData.machine_model === 'number') {
+          processedMachineModel = [fullOrderData.machine_model.toString()];
+        } else {
+          const machine = machineOptions.value.find(m => m.model === fullOrderData.machine_model || m.original_model === fullOrderData.machine_model);
+          if (machine) {
+            processedMachineModel = [machine.id.toString()];
+          }
+        }
+      }
+    }
+
     // 在所有选项都加载完成后，再设置表单数据
     // 深拷贝完整订单数据到表单，确保所有字段都被正确复制
     orderForm.value = {
@@ -1301,7 +1275,7 @@ const showEditDialog = async (order: any) => {
       order_no: fullOrderData.order_no || '',
       machine_no: fullOrderData.machine_no || '',
       machine_name: fullOrderData.machine_name || '包装机',
-      machine_model: Array.isArray(fullOrderData.machine_model) ? fullOrderData.machine_model : fullOrderData.machine_model ? [fullOrderData.machine_model] : [],
+      machine_model: processedMachineModel as string[],  // 类型断言确保类型匹配
       machine_count: fullOrderData.machine_count || 1,
       unit: fullOrderData.unit || 'set',
       contract_amount: fullOrderData.contract_amount || 0,
@@ -1354,7 +1328,7 @@ const resetForm = () => {
     order_no: '',  // X标记表示非必填，所以默认为空
     machine_no: '',
     machine_name: '',  // 默认值"包装机"
-    machine_model: [],  // 修改为数组类型以支持多选
+    machine_model: [],  // 修改为数组类型以支持多选，使用ID而不是型号
     machine_count: 1,  // 默认值1
     unit: 'set',  // 默认值"set"
     contract_amount: 0,
@@ -1397,12 +1371,17 @@ const saveOrder = async () => {
 
     // 处理多选字段，将数组转换为逗号分隔的字符串
     let processedMachineModel: string;
-    if (Array.isArray(updatedOrderForm.machine_model)) {
-      processedMachineModel = updatedOrderForm.machine_model.join(',');
-    } else if (typeof updatedOrderForm.machine_model === 'string') {
-      processedMachineModel = updatedOrderForm.machine_model;
+    const machineModelValue = updatedOrderForm.machine_model;
+    
+    // 由于orderForm.machine_model是string[]类型，我们需要处理它
+    if (Array.isArray(machineModelValue)) {
+      // 如果是ID数组，转换为逗号分隔的字符串
+      processedMachineModel = machineModelValue.join(',');
+    } else if (typeof machineModelValue === 'string') {
+      processedMachineModel = machineModelValue;
     } else {
-      processedMachineModel = '';
+      // 处理其他情况，使用类型断言
+      processedMachineModel = String(machineModelValue) || '';
     }
 
     let processedOrderDept: string;
