@@ -101,7 +101,7 @@
         <el-table-column prop="duration" label="时长(小时)" width="100" />
         <el-table-column prop="operation_status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusTagType(scope.row.operation_status)">
+            <el-tag :type="getStatusTagType(scope.row.operation_status) as 'primary' | 'success' | 'warning' | 'info' | 'danger'">
               {{ getStatusLabel(scope.row.operation_status) }}
             </el-tag>
           </template>
@@ -240,7 +240,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="状态">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <el-tag :type="getStatusTagType(selectedOperation.operation_status)">
+              <el-tag :type="getStatusTagType(selectedOperation.operation_status) as 'primary' | 'success' | 'warning' | 'info' | 'danger'">
                 {{ getStatusLabel(selectedOperation.operation_status) }}
               </el-tag>
               <!-- 审批按钮仅对管理员显示 -->

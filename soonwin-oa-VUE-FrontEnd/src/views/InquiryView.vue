@@ -197,6 +197,28 @@
           </el-col>
         </el-row>
 
+        <!-- 负责业务员选择（仅管理员和运营专员可见） -->
+        <el-row :gutter="20" v-if="isAdmin || isOps">
+          <el-col :span="24">
+            <el-form-item label="分配负责业务员">
+              <el-select
+                v-model="inquiryForm.follower_id"
+                placeholder="请选择负责业务员"
+                clearable
+                filterable
+                style="width: 100%;"
+              >
+                <el-option
+                  v-for="follower in followers"
+                  :key="follower.emp_id"
+                  :label="follower.name + ' (' + follower.emp_id + ')'"
+                  :value="follower.emp_id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <!-- 按钮区域 -->
         <el-row :gutter="20" style="margin-top: 20px;">
           <el-col :span="24">
@@ -296,7 +318,7 @@
 
                                       :preview-src-list="getCommunicationMediaUrls(comm)"
 
-                                      :initial-index="mediaIndex"
+                                      :initial-index="Number(mediaIndex)"
 
                                       preview-teleported
 
@@ -472,8 +494,7 @@
                           v-if="media.file_type === 'image'"
                           :src="media.thumb || media.url"
                           :preview-src-list="getCommunicationMediaUrls('current')"
-                          :initial-index="mediaIndex"
-                          preview-teleported
+                                                                :initial-index="Number(mediaIndex)"                          preview-teleported
                           close-on-press-esc
                           hide-on-click-modal
                           class="thumb-img"
@@ -644,6 +665,15 @@ const isAdmin = computed(() => {
   return userRole === 'admin';
 });
 
+// 检查当前用户是否为运营专员
+const isOps = computed(() => {
+  const userRole = getCurrentUserRole();
+  return userRole === 'ops';
+});
+
+// 跟单专员列表
+const followers = ref<any[]>([]);
+
 // 在组件挂载时检查用户角色
 // 用户角色检查现在通过computed属性自动处理
 onMounted(async () => {
@@ -669,6 +699,11 @@ onMounted(async () => {
     showAddInquiryDialog();
   } else if (route.name === 'inquiryEdit' && route.params.id) {
     viewInquiry(Number(route.params.id));
+  }
+
+  // 加载跟单专员列表（仅管理员和运营专员需要）
+  if (isAdmin.value || isOps.value) {
+    loadFollowers();
   }
 });
 
@@ -738,7 +773,8 @@ const inquiryForm = ref({
   phone: '',
   email: '',
   packaging_product: '',
-  machine_type: ''
+  machine_type: '',
+  follower_id: ''  // 添加跟单专员ID字段
 });
 
 // 沟通记录相关
@@ -860,6 +896,28 @@ const communicationRules = {
   ]
 };
 
+  // 加载销售员工列表
+const loadFollowers = async () => {
+  try {
+    const response = await request.get('/api/users/sales-employees');
+    followers.value = response.list || response.data?.list || [];
+  } catch (error) {
+    console.error('加载销售员工列表失败:', error);
+    // 如果新的API失败，回退到原来的逻辑
+    try {
+      const response = await request.get('/api/employees');
+      const allEmployees = response.list || response.data || [];
+      // 过滤出角色为sales的员工
+      followers.value = allEmployees.filter((emp: any) => 
+        emp.user_role === 'sales'
+      );
+    } catch (fallbackError) {
+      console.error('加载员工列表作为备选失败:', fallbackError);
+      followers.value = [];
+    }
+  }
+};
+
   // 显示新增询盘对话框
 const showAddInquiryDialog = () => {
   inquiryDialogTitle.value = '新增询盘';
@@ -874,7 +932,8 @@ const showAddInquiryDialog = () => {
     phone: '',
     email: '',
     packaging_product: '',
-    machine_type: ''
+    machine_type: '',
+    follower_id: ''
   };
   inquiryForm.value = { ...emptyForm };
   // 保存初始表单值用于比较
@@ -900,9 +959,14 @@ const viewInquiry = async (id: number) => {
     // 检查响应是否成功
     if (response.data && response.data.code === 200) {
       const responseData = response.data.data; // 获取实际数据
-      inquiryForm.value = { ...responseData };
+      // 确保follower_id字段存在
+      const inquiryData = {
+        ...responseData,
+        follower_id: responseData.follower_id || ''
+      };
+      inquiryForm.value = inquiryData;
       // 保存初始表单值用于比较
-      initialInquiryForm.value = JSON.parse(JSON.stringify(responseData));
+      initialInquiryForm.value = JSON.parse(JSON.stringify(inquiryData));
       editingInquiryId.value = id;
       inquiryDialogTitle.value = '查看详情/编辑';
       // 加载沟通记录

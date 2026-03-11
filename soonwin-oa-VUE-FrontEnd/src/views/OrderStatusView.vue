@@ -229,8 +229,7 @@
                           v-if="media.file_type === 'image'"
                           :src="media.thumb || media.url"
                           :preview-src-list="getTaskMediaUrls(statusTask)"
-                          :initial-index="mediaIndex"
-                          preview-teleported
+                                                        :initial-index="Number(mediaIndex)"                          preview-teleported
                           close-on-press-esc
                           hide-on-click-modal
                           class="thumb-img"

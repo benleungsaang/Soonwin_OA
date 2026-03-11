@@ -281,14 +281,17 @@ function normalizeMachineItem(item: any) {
 
 // 工具函数：将输入机器数据规范化为购物车项格式
 function normalizeInputMachine(machine: any) {
+  // 使用传入的show_price作为自定义价格，如果不存在则尝试其他可能的价格字段
+  const price = parseFloat(machine.show_price) || parseFloat(machine.customPrice) || parseFloat(machine.price) || 0;
+  
   return {
     machineId: machine.id,
     machineName: machine.model || machine.machineName || '未知设备',
     originalModel: machine.original_model || '',
     thumbUrl: machine.image || './assets/Media/Machine/sample.png',
-    customPrice: parseFloat(machine.show_price) || parseFloat(machine.price) || 0,
+    customPrice: price,
     quantity: 1,
-    subtotal: parseFloat(machine.show_price) || parseFloat(machine.price) || 0,
+    subtotal: price, // 初始小计等于单价（数量为1）
     brand: machine.brand || '',
     machineType: machine.machine_type || 0,
     remark: machine.remark || ''  // 添加备注字段

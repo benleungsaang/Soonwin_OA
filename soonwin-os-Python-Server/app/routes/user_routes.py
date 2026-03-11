@@ -1159,3 +1159,36 @@ def update_role_description():
             "msg": f"更新角色描述失败: {str(e)}",
             "data": None
         }), 500
+
+
+@user_bp.route('/users/sales-employees', methods=['GET'])
+@route_permission(ROUTE_USER_MANAGE)  # 使用适当的权限控制
+def get_sales_employees():
+    """获取销售员工列表（只返回id, emp_id, name字段，且只返回角色为sales的员工）"""
+    try:
+        # 查询角色为 'sales' 的员工
+        sales_employees = Employee.query.filter(Employee.user_role == 'sales').all()
+        
+        # 构建只包含指定字段的员工列表
+        employee_list = []
+        for emp in sales_employees:
+            employee_data = {
+                'id': str(emp.id),  # 转换UUID为字符串
+                'emp_id': emp.emp_id,
+                'name': emp.name
+            }
+            employee_list.append(employee_data)
+
+        return jsonify({
+            "code": 200,
+            "msg": "success",
+            "data": {
+                "list": employee_list
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            "code": 500,
+            "msg": f"获取销售员工列表失败: {str(e)}",
+            "data": None
+        }), 500

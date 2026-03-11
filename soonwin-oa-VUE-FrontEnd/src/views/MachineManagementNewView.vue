@@ -154,16 +154,16 @@
             <div style="font-size: 12px; color: #999;">{{ row.original_model }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="show_price" label="展示价格" width="120">
+        <el-table-column prop="show_price" label="参考价格" width="120">
           <template #default="{ row }">
             ¥{{ row.show_price || 0 }}
           </template>
         </el-table-column>
-        <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
+        <!-- <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
           <template #default="{ row }">
             ¥{{ row.original_price || 0 }}
           </template>
-        </el-table-column>
+        </el-table-column> -->
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button
@@ -563,7 +563,7 @@ import CommonHeader from '@/components/CommonHeader.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import ErrorFallbackImage from '@/components/ErrorFallbackImage.vue';
 import { hasRoutePermission, getCurrentUserRole } from '@/utils/authUtils';
-import request, { importMachinesNewJson, exportMachinesNewJson, getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew, getDeletedMachines, restoreMachineFromRecycleBin, uploadMachineThumb } from '@/utils/request';
+import request, { importMachinesNewJson, exportMachinesNewJson, getMachinesNew, getMachineNew, createMachineNew, updateMachineNew, deleteMachineNew, getDeletedMachines, restoreMachineFromRecycleBin, uploadMachineThumb, uploadMachineThumbGeneric } from '@/utils/request';
 
 // 定义数据类型
 interface Machine {
@@ -950,7 +950,7 @@ const getThumbnailPath = (originalPath: string) => {
   // 检查文件名是否已经包含 _thumb 后缀
   const pathParts = originalPath.split('/');
   const fileName = pathParts[pathParts.length - 1];
-  
+
   if (fileName.includes('_thumb.')) {
     // 如果已经是缩略图路径，直接返回
     return originalPath;
@@ -1442,7 +1442,7 @@ const onImageUploadSuccess = async (files: File[], mediaFiles: any[] = []) => {
           // 更新设备的图片路径为原始路径（后端已保存原始路径到数据库）
           formModel.value.image = result.original_path;
           ElMessage.success('设备图片上传成功');
-          
+
           // 更新列表中对应设备的图片路径
           const index = machines.value.findIndex(m => m.id === formModel.value.id);
           if (index !== -1) {

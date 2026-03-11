@@ -45,14 +45,16 @@
         >
           <el-table-column label="缩略图" width="120" align="center">
             <template #default="scope">
-              <el-image
-                :src="getImageUrl(scope.row.thumbUrl)"
+              <ErrorFallbackImage
+                :src="getThumbnailPath(getImageUrl(scope.row.thumbUrl))"
+                :fallback-src="getImageUrl(scope.row.thumbUrl)"
+                :alt="scope.row.machineName || scope.row.model || '设备缩略图'"
+                :preview-teleported="true"
+                :hide-on-click-modal="true"
+                fit="cover"
                 style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
                 :preview-src-list="[getImageUrl(scope.row.thumbUrl)]"
-                :preview-teleported="true"
-                hide-on-click-modal
-                fit="cover"
-              ></el-image>
+              />
             </template>
           </el-table-column>
           <!-- <el-table-column prop="brand" label="品牌" width="120">
@@ -247,6 +249,7 @@ import { useQuotationCartStore } from '@/stores/quotationCartStore';
 import { createQuotationTemp, updateQuotationTemp } from '@/utils/request';
 import { isNumber } from 'element-plus/es/utils/types.mjs';
 import { getCurrentUserEmpId, getCurrentUserRole } from '@/utils/authUtils';
+import ErrorFallbackImage from '@/components/ErrorFallbackImage.vue';
 
 // 获取当前货币符号的函数
 const getCurrentCurrencySymbol = () => {
@@ -813,6 +816,29 @@ const showOrderMarkDialog = (): Promise<string | null> => {
       resolve(null);
     });
   });
+};
+
+// 获取缩略图路径的辅助函数
+const getThumbnailPath = (originalPath: string) => {
+  // 如果 originalPath 为空或为默认图片，则直接返回
+  if (!originalPath || originalPath.endsWith('sample.png')) {
+    return originalPath;
+  }
+
+  // 检查文件名是否已经包含 _thumb 后缀
+  const pathParts = originalPath.split('/');
+  const fileName = pathParts[pathParts.length - 1];
+  
+  if (fileName.includes('_thumb.')) {
+    // 如果已经是缩略图路径，直接返回
+    return originalPath;
+  } else {
+    // 如果不是缩略图路径，生成缩略图路径
+    const dirPath = pathParts.slice(0, -1).join('/');
+    const fileBase = fileName.split('.')[0];
+    const fileExt = fileName.split('.')[1];
+    return `${dirPath}/${fileBase}_thumb.${fileExt}`;
+  }
 };
 
 // 确保图片路径正确的方法

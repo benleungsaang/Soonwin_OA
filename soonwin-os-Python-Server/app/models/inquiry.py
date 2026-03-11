@@ -17,7 +17,9 @@ class Inquiry(db.Model):
     machine_type = db.Column(db.String(200), nullable=False, comment="需求机器类型")
     search_field = db.Column(db.Text, comment="冗余搜索字段，包含地区、来源、公司名、联系人、电话、邮箱、包装产品、需求类型")
     creator_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), nullable=False, comment="创建人ID")
-    creator = db.relationship('Employee', backref=db.backref('inquiries', lazy=True))
+    creator = db.relationship('Employee', foreign_keys=[creator_id], backref=db.backref('inquiries', lazy=True))
+    follower_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), nullable=True, comment="跟单专员ID")
+    follower = db.relationship('Employee', foreign_keys=[follower_id], backref=db.backref('followed_inquiries', lazy=True))
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -37,6 +39,9 @@ class Inquiry(db.Model):
             "creator_id": self.creator_id,
             "creator_name": self.creator.name if self.creator else None,
             "creator_role": self.creator.user_role if self.creator else None,
+            "follower_id": self.follower_id,
+            "follower_name": self.follower.name if self.follower else None,
+            "follower_role": self.follower.user_role if self.follower else None,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
             "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None
         }
@@ -73,14 +78,14 @@ class InquiryCommunication(db.Model):
     communication_date = db.Column(db.Date, comment="沟通日期")
     company_name = db.Column(db.String(200), comment="公司名称")
     creator_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), nullable=False, comment="创建人ID")
-    creator = db.relationship('Employee')
+    creator = db.relationship('Employee', foreign_keys=[creator_id])
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
     def to_dict(self):
         # 获取关联的媒体文件
         media_files = [media.to_dict() for media in self.media_files] if self.media_files else []
-        
+
         return {
             "id": self.id,
             "inquiry_id": self.inquiry_id,

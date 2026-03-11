@@ -1,6 +1,7 @@
 from extensions import db
 from datetime import datetime
 
+# 费用分摊模型，用于记录与订单相关的各种费用（如人力、房租等），并支持不同的费用类型和适用范围
 class CostAllocation(db.Model):
     __tablename__ = "CostAllocation"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True, comment="自增主键")

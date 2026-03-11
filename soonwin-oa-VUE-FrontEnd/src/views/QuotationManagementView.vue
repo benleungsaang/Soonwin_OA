@@ -36,7 +36,7 @@
           :closable="false"
           show-icon
         />
-        <el-button size="big" type="warning" @click="clearCurrentOrderInfo">
+        <el-button size="large" type="warning" @click="clearCurrentOrderInfo">
           <el-icon><DocumentAdd /></el-icon>
           保存为新临时报价单
         </el-button>
@@ -90,13 +90,15 @@
             >
               <el-table-column prop="image" label="缩略图" width="120" align="center">
                 <template #default="{ row }">
-                  <el-image
-                    :src="row.image"
+                  <ErrorFallbackImage
+                    :src="getThumbnailPath(row.image)"
+                    :fallback-src="row.image"
                     :preview-src-list="[row.image]"
+                    :alt="row.model"
                     fit="cover"
-                    style="width: 60px; height: 60px; border-radius: 4px;"
                     :preview-teleported="true"
-                    hide-on-click-modal
+                    :hide-on-click-modal="true"
+                    style="width: 60px; height: 60px; border-radius: 4px;"
                     @click.stop
                   />
                 </template>
@@ -110,11 +112,11 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
+              <!-- <el-table-column v-if="isCurrentUserAdmin()" prop="original_price" label="原始价格" width="120">
                 <template #default="{ row }">
                   ¥{{ (typeof row.original_price === 'number' ? row.original_price : 0).toFixed(2) }}
                 </template>
-              </el-table-column>
+              </el-table-column> -->
               <el-table-column prop="show_price" label="参考价格" width="120">
                 <template #default="{ row }">
                   ¥{{ (typeof row.show_price === 'number' ? row.show_price : 0).toFixed(2) }}
@@ -258,13 +260,15 @@
       <div v-if="selectedMachine" class="quotation-details">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="缩略图" :span="2">
-            <el-image
-              :src="selectedMachine.image"
+            <ErrorFallbackImage
+              :src="getThumbnailPath(selectedMachine.image)"
+              :fallback-src="selectedMachine.image"
               :preview-src-list="[selectedMachine.image]"
+              :alt="selectedMachine.model || '设备缩略图'"
               fit="scale-down"
-              style="width: 120px; height: 120px; border-radius: 4px; object-fit: contain;"
               :preview-teleported="true"
-              hide-on-click-modal
+              :hide-on-click-modal="true"
+              style="width: 120px; height: 120px; border-radius: 4px; object-fit: contain;"
             />
           </el-descriptions-item>
           <el-descriptions-item label="设备型号">
@@ -352,13 +356,15 @@
           >
             <el-table-column label="缩略图" width="100" align="center">
               <template #default="scope">
-                <el-image
-                  :src="getImageUrl(scope.row.thumbUrl)"
-                  style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
+                <ErrorFallbackImage
+                  :src="getThumbnailPath(getImageUrl(scope.row.thumbUrl))"
+                  :fallback-src="getImageUrl(scope.row.thumbUrl)"
                   :preview-src-list="[getImageUrl(scope.row.thumbUrl)]"
+                  :alt="scope.row.machineName || scope.row.model || '设备缩略图'"
                   :preview-teleported="true"
-                  hide-on-click-modal
-                ></el-image>
+                  :hide-on-click-modal="true"
+                  style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;"
+                />
               </template>
             </el-table-column>
             <el-table-column label="设备型号" min-width="200">
@@ -725,13 +731,15 @@
       <el-form-item label="设备缩略图" prop="image">
         <!-- 显示当前缩略图 -->
         <div v-if="formModel.image" class="current-image-preview">
-          <el-image
-            :src="formModel.image"
+          <ErrorFallbackImage
+            :src="getThumbnailPath(formModel.image)"
+            :fallback-src="formModel.image"
             :preview-src-list="[formModel.image]"
+            :alt="formModel.model || '设备缩略图'"
             fit="cover"
-            style="width: 100px; height: 100px; border-radius: 4px; margin: 10px;"
             :preview-teleported="true"
-            hide-on-click-modal
+            :hide-on-click-modal="true"
+            style="width: 100px; height: 100px; border-radius: 4px; margin: 10px;"
           />
         </div>
 
@@ -772,6 +780,7 @@ import { Search, View, ShoppingCart, Delete, DocumentAdd, Edit, Plus } from '@el
 import CommonHeader from '@/components/CommonHeader.vue';
 import QuotationTempPreview from '@/components/QuotationTempPreview.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
+import ErrorFallbackImage from '@/components/ErrorFallbackImage.vue';
 import { hasRoutePermission, getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils';
 import request from '@/utils/request';
 import { getMachinesNew, getQuotationMachines, getQuotationTempList, getQuotationTemp, deleteQuotationTemp as deleteQuotationTempAPI, updateQuotationTemp } from '@/utils/request';
@@ -1027,58 +1036,6 @@ const loadQuotationTempToCart = async (row: QuotationTemp) => {
       // 清空当前购物车
       cartStore.clearCart();
 
-      // 添加机器到购物车
-      if (response.machine_list && response.machine_list.length > 0) {
-        response.machine_list.forEach((machine: any) => {
-          // 先创建机器对象
-          const machineToAdd = {
-            id: machine.machineId,
-            model: machine.machineName,
-            original_model: machine.originalModel,
-            image: machine.thumbUrl,
-            show_price: machine.customPrice || 0,
-            added_count: 0,
-            brand: machine.brand || '',
-            machine_weight: machine.machineWeight || '',
-            dimensions: machine.dimensions || '',
-            general_power: machine.generalPower || '',
-            power_supply: machine.powerSupply || '',
-            machine_type: machine.machineType || 0,
-            remark: machine.remark || ''
-          };
-
-          // 添加到购物车（默认数量为1）
-          cartStore.addMachine(machineToAdd);
-
-          // 查找刚添加的机器并更新数量和价格
-          const addedMachine = cartStore.cartData.machineList.find((item: any) => item.machineId === machine.machineId);
-          if (addedMachine) {
-            addedMachine.quantity = machine.quantity || 1;
-            addedMachine.customPrice = machine.customPrice || 0;
-            addedMachine.subtotal = (addedMachine.customPrice || 0) * (addedMachine.quantity || 1);
-          }
-        });
-      }
-
-      // 添加临时参数到购物车
-      if (response.temp_params && response.temp_params.length > 0) {
-        response.temp_params.forEach((param: any) => {
-          cartStore.addTempParam(param.name, param.type, param.value, param.remark || '');
-        });
-      }
-
-      // 保存订单ID和标识到购物车store
-      if (response.id && response.order_mark) {
-        cartStore.setCurrentOrderInfo(response.id, response.order_mark);
-      }
-
-      // 保存is_public参数到cartStore
-      if (response.is_public !== undefined && response.is_public !== null) {
-        cartStore.cartData.is_public = response.is_public;
-        // 同步到本地存储
-        cartStore.syncLocal();
-      }
-
       // 如果响应包含货币信息，更新本地货币设置
       if (response.currency_info) {
         // 保存当前货币设置到localStorage
@@ -1105,6 +1062,118 @@ const loadQuotationTempToCart = async (row: QuotationTemp) => {
 
         // 更新组件内的选中货币
         selectedCurrency.value = response.currency_info.code;
+      }
+
+      // 添加机器到购物车
+      if (response.machine_list && response.machine_list.length > 0) {
+        response.machine_list.forEach((machine: any) => {
+          // 先创建机器对象
+          let customPrice = machine.customPrice || 0;
+          
+          // 如果临时报价单保存时有货币信息，且与当前货币不同，需要进行价格换算
+          if (response.currency_info) {
+            const savedCurrencyCode = response.currency_info.code;
+            const currentCurrencyCode = selectedCurrency.value;
+            
+            if (savedCurrencyCode !== currentCurrencyCode) {
+              // 获取保存时的货币汇率和当前货币汇率
+              const savedCurrencySettings = localStorage.getItem('quotationCurrencySettings');
+              let savedSettings;
+              if (savedCurrencySettings) {
+                savedSettings = JSON.parse(savedCurrencySettings);
+              } else {
+                savedSettings = { currencies: [], selectedCurrency: 'CNY' };
+              }
+              
+              const savedCurrency = savedSettings.currencies.find((c: any) => c.code === savedCurrencyCode);
+              const currentCurrency = currencies.value.find((c: any) => c.code === currentCurrencyCode);
+              
+              if (savedCurrency && currentCurrency && savedCurrency.rate !== 0) {
+                // 计算汇率转换比率：从保存时的货币转换到当前货币
+                // 转换公式：新价格 = 旧价格 * (当前货币汇率 / 保存时货币汇率)
+                const conversionRate = currentCurrency.rate / savedCurrency.rate;
+                
+                // 对价格进行换算
+                customPrice = customPrice * conversionRate;
+              }
+            }
+          }
+      
+          const machineToAdd = {
+            id: machine.machineId,
+            model: machine.machineName,
+            original_model: machine.originalModel,
+            image: machine.thumbUrl,
+            show_price: customPrice,
+            added_count: 0,
+            brand: machine.brand || '',
+            machine_weight: machine.machineWeight || '',
+            dimensions: machine.dimensions || '',
+            general_power: machine.generalPower || '',
+            power_supply: machine.powerSupply || '',
+            machine_type: machine.machineType || 0,
+            remark: machine.remark || ''
+          };
+      
+          // 添加到购物车（默认数量为1）
+          cartStore.addMachine(machineToAdd);
+      
+          // 查找刚添加的机器并更新数量和价格
+          const addedMachine = cartStore.cartData.machineList.find((item: any) => item.machineId === machine.machineId);
+          if (addedMachine) {
+            addedMachine.quantity = machine.quantity || 1;
+            // 如果已进行汇率转换，价格已在machineToAdd中更新
+            addedMachine.customPrice = customPrice;
+            addedMachine.subtotal = customPrice * (addedMachine.quantity || 1);
+          }
+        });
+      }
+      // 添加临时参数到购物车
+      if (response.temp_params && response.temp_params.length > 0) {
+        response.temp_params.forEach((param: any) => {
+          // 如果临时报价单保存时有货币信息，且与当前货币不同，需要对固定金额类型的参数进行汇率换算
+          let convertedValue = param.value;
+          if (response.currency_info) {
+            const savedCurrencyCode = response.currency_info.code;
+            const currentCurrencyCode = selectedCurrency.value;
+            
+            if (savedCurrencyCode !== currentCurrencyCode && param.type === 'FIXED') {
+              // 获取保存时的货币汇率和当前货币汇率
+              const savedCurrencySettings = localStorage.getItem('quotationCurrencySettings');
+              let savedSettings;
+              if (savedCurrencySettings) {
+                savedSettings = JSON.parse(savedCurrencySettings);
+              } else {
+                savedSettings = { currencies: [], selectedCurrency: 'CNY' };
+              }
+              
+              const savedCurrency = savedSettings.currencies.find((c: any) => c.code === savedCurrencyCode);
+              const currentCurrency = currencies.value.find((c: any) => c.code === currentCurrencyCode);
+              
+              if (savedCurrency && currentCurrency && savedCurrency.rate !== 0) {
+                // 计算汇率转换比率
+                const conversionRate = currentCurrency.rate / savedCurrency.rate;
+                
+                // 对固定金额进行换算
+                convertedValue = param.value * conversionRate;
+              }
+            }
+          }
+          
+          cartStore.addTempParam(param.name, param.type, convertedValue, param.remark || '');
+        });
+      }
+
+      // 保存订单ID和标识到购物车store
+      if (response.id && response.order_mark) {
+        cartStore.setCurrentOrderInfo(response.id, response.order_mark);
+      }
+
+      // 保存is_public参数到cartStore
+      if (response.is_public !== undefined && response.is_public !== null) {
+        cartStore.cartData.is_public = response.is_public;
+        // 同步到本地存储
+        cartStore.syncLocal();
       }
 
       // 同步到本地存储
@@ -1289,7 +1358,41 @@ loadCurrencySettings();
 const cartStore = useQuotationCartStore();
 
 const addToCart = (machine: Machine) => {
-  cartStore.addMachine(machine);
+  // 获取当前选中的货币汇率
+  const currentCurrency = currencies.value.find(c => c.code === selectedCurrency.value);
+  const exchangeRate = currentCurrency ? currentCurrency.rate : 1.0; // 默认使用1.0汇率
+
+  // 创建一个带有换算后价格的机器副本
+  const machineWithConvertedPrice = {
+    ...machine,
+    show_price: machine.show_price ? machine.show_price * exchangeRate : 0,
+    original_price: machine.original_price ? machine.original_price * exchangeRate : 0
+  };
+
+  cartStore.addMachine(machineWithConvertedPrice);
+};
+
+// 获取缩略图路径的辅助函数
+const getThumbnailPath = (originalPath: string) => {
+  // 如果 originalPath 为空或为默认图片，则直接返回
+  if (!originalPath || originalPath.endsWith('sample.png')) {
+    return originalPath;
+  }
+
+  // 检查文件名是否已经包含 _thumb 后缀
+  const pathParts = originalPath.split('/');
+  const fileName = pathParts[pathParts.length - 1];
+
+  if (fileName.includes('_thumb.')) {
+    // 如果已经是缩略图路径，直接返回
+    return originalPath;
+  } else {
+    // 如果不是缩略图路径，生成缩略图路径
+    const dirPath = pathParts.slice(0, -1).join('/');
+    const fileBase = fileName.split('.')[0];
+    const fileExt = fileName.split('.')[1];
+    return `${dirPath}/${fileBase}_thumb.${fileExt}`;
+  }
 };
 
 // 确保图片路径正确的方法
@@ -1328,6 +1431,9 @@ const addTempParamToCart = () => {
 };
 
 const generateOrderFromModal = () => {
+  // 获取当前选中的货币信息
+  const currentCurrency = currencies.value.find(c => c.code === selectedCurrency.value);
+
   // 创建当前购物车数据的预览对象
   const currentCartData = {
     id: cartStore.currentOrderId,  // 使用购物车store中的订单ID
@@ -1338,6 +1444,7 @@ const generateOrderFromModal = () => {
     totalAmount: cartStore.cartData.totalAmount,  // 保持兼容性
     update_time: new Date().toISOString(),
     creator_id: getCurrentUserEmpId(), // 使用当前用户的员工ID
+    currency_info: currentCurrency, // 添加当前货币信息
     machine_list: cartStore.cartData.machineList.map((machine: any) => ({
       ...machine,
       machineName: machine.machineName || machine.model,

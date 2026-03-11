@@ -2,28 +2,13 @@ import { defineConfig, loadEnv } from 'vite';
 import type { ConfigEnv, UserConfig } from 'vite'; // 类型-only导入
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
-// import os from 'os';
 import path from 'path';
+import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+// 引入体积分析插件
+import { visualizer } from 'rollup-plugin-visualizer'
 
-// function getNetworkIP() {
-//   const interfaces = os.networkInterfaces();
-//   for (const name of Object.keys(interfaces)) {
-//     const netInterface = interfaces[name];
-//     if (netInterface) { // 检查netInterface是否为null或undefined
-//       for (const item of netInterface) {
-//         // 跳过内部/回环地址和IPv6地址
-//         if (!item.internal && item.family === 'IPv4') {
-//           // 排除docker等虚拟网卡，可以添加特定网络接口过滤
-//           if (!name.includes('docker') && !name.includes('vEthernet')) {
-//             return item.address;
-//           }
-//         }
-//       }
-//     }
-//   }
-//   // 如果无法获取IP，返回默认IP
-//   return '192.168.1.24';
-// }
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
@@ -37,7 +22,33 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   //   : (env.VITE_API_TARGET || `http://${getNetworkIP()}:5000`);
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      // 自动导入 Vue 相关 API（如 ref、reactive、onMounted 等）
+      AutoImport({
+        resolvers: [ElementPlusResolver()], // 同时自动导入 Element Plus 的 API（如 ElMessage）
+        imports: ['vue', 'vue-router'], // 自动导入 Vue、VueRouter 的内置 API
+        dts: true, // 生成 auto-imports.d.ts 类型文件，解决 TS 类型提示问题
+      }),
+      // 自动导入组件（包括 Element Plus 组件）
+      Components({
+        resolvers: [ElementPlusResolver()], // 自动识别并导入 Element Plus 组件
+        dts: true, // 生成 components.d.ts 类型文件
+      }),
+      // 体积分析插件配置
+      visualizer({
+        // 生成的分析报告文件名，默认在项目根目录
+        filename: 'dist/stats.html',
+        // 分析模式：treemap（树形图，最直观）、sunburst（旭日图）、network（网络拓扑）
+        template: 'treemap',
+        // 开启 gzip 体积分析（可选，更贴近实际传输体积）
+        gzipSize: true,
+        // 开启 brotli 体积分析（可选）
+        brotliSize: true,
+        // 是否在打包完成后自动打开报告页面（可选）
+        open: true,
+      })
+    ],
     // 开发服务器配置
     server: {
       // 开发环境前端访问端口（对应 .env.development 的 5173）

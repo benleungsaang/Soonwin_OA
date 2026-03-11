@@ -1,0 +1,12 @@
+        # 检查是否为管理员或运营专员，如果不是管理员或运营专员则只查询自己创建的数据
+        if current_user.user_role != 'admin' and current_user.user_role != 'ops':
+            query = query.filter(Inquiry.creator_id == current_user.emp_id)
+        elif current_user.user_role == 'admin' or current_user.user_role == 'ops':
+            # 管理员或运营专员可以看到自己创建的和被分配给自己的询盘
+            query = query.filter(
+                (Inquiry.creator_id == current_user.emp_id) | 
+                (Inquiry.follower_id == current_user.emp_id)
+            )
+        else:
+            # 其他角色只能查看自己创建的询盘
+            query = query.filter(Inquiry.creator_id == current_user.emp_id)

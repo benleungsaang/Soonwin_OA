@@ -414,7 +414,7 @@ const expenseRules = {
   ],
   amount: [
     { required: true, message: '请输入费用金额', trigger: 'blur' },
-    { type: 'number', message: '费用金额必须为数字', trigger: 'blur' }
+    { type: 'number', message: '费用金额必须为数字', trigger: 'blur' } as any
   ],
   targetYear: [
     { required: true, message: '请选择目标年份', trigger: 'change' }

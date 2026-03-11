@@ -24,7 +24,7 @@
           <el-button type="primary" @click="fetchOrdersByContent"><el-icon style="margin-right: 5px;"><Search /></el-icon>内容查询</el-button>
 
           <span v-if="hasSearched" class="search-result">搜索结果: {{ orders.length }} 条</span>
-          <el-button v-if="hasSearched" type="secondary" @click="resetSearch">重置表单</el-button>
+          <el-button v-if="hasSearched" type="default" @click="resetSearch">重置表单</el-button>
         </el-form-item>
 
       </el-form>
