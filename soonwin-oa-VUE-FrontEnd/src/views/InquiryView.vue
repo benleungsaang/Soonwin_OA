@@ -81,11 +81,19 @@
       <el-table-column prop="create_time" label="创建时间" width="150" />
       <el-table-column label="操作" width="130" fixed="right">
         <template #default="scope">
-          <el-icon
+          <!-- <el-icon
             class="opera-icon"
             style="cursor: pointer; margin-right: 8px;color: white; background-color: #409eff;"
             @click.stop="viewInquiry(scope.row.id)">
             <View />
+          </el-icon> -->
+
+          <el-icon
+            class="opera-icon"
+            :style="!scope.row.is_associated ? 'cursor: pointer; margin-right: 8px;color: white; background-color: #409eff;' : 'cursor: not-allowed; margin-right: 8px;color: #ccc; background-color: #e6e6e6;'"
+            @click.stop="!scope.row.is_associated && createOrder(scope.row)"
+          >
+            <Plus />
           </el-icon>
           <el-icon
             class="opera-icon"
@@ -774,7 +782,8 @@ const inquiryForm = ref({
   email: '',
   packaging_product: '',
   machine_type: '',
-  follower_id: ''  // 添加跟单专员ID字段
+  follower_id: '',  // 添加跟单专员ID字段
+  is_associated: false // 是否已关联订单
 });
 
 // 沟通记录相关
@@ -908,7 +917,7 @@ const loadFollowers = async () => {
       const response = await request.get('/api/employees');
       const allEmployees = response.list || response.data || [];
       // 过滤出角色为sales的员工
-      followers.value = allEmployees.filter((emp: any) => 
+      followers.value = allEmployees.filter((emp: any) =>
         emp.user_role === 'sales'
       );
     } catch (fallbackError) {
@@ -933,7 +942,8 @@ const showAddInquiryDialog = () => {
     email: '',
     packaging_product: '',
     machine_type: '',
-    follower_id: ''
+    follower_id: '',
+    is_associated: false // 添加缺失的字段
   };
   inquiryForm.value = { ...emptyForm };
   // 保存初始表单值用于比较
@@ -959,10 +969,11 @@ const viewInquiry = async (id: number) => {
     // 检查响应是否成功
     if (response.data && response.data.code === 200) {
       const responseData = response.data.data; // 获取实际数据
-      // 确保follower_id字段存在
+      // 确保follower_id字段存在，并确保is_associated字段存在
       const inquiryData = {
         ...responseData,
-        follower_id: responseData.follower_id || ''
+        follower_id: responseData.follower_id || '',
+        is_associated: responseData.is_associated || false
       };
       inquiryForm.value = inquiryData;
       // 保存初始表单值用于比较
@@ -1951,6 +1962,115 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey);
 });
+
+// 创建订单函数
+const createOrder = async (inquiry: any) => {
+  try {
+    if (!inquiry.id) {
+      ElMessage.error('询盘信息不完整，无法创建订单');
+      return;
+    }
+
+    // // 检查询盘是否已关联订单
+    // if (inquiryForm.value.is_associated) {
+    //   ElMessage.error('该询盘已关联订单，不能重复创建');
+    //   return;
+    // }
+
+    // 显示确认对话框
+    await ElMessageBox.confirm(
+      `确定要为询盘<br/><br>
+      <strong>"${inquiry.area} - ${inquiry.company_name} ${inquiry.contact_person} ${inquiry.create_time}"</strong>
+      <br><br>创建订单吗？`,
+      '确认创建',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true, // 必须开启才能解析 <br/>
+        center: true // 可选：让内容居中，更美观
+      }
+    );
+
+    // 准备订单数据，使用询盘信息作为基础
+    const orderData = {
+      area: inquiry.area || '',
+      customer_name: inquiry.company_name || '',
+      customer_type: '', // 可以从用户输入获取
+      order_time: new Date().toISOString().split('T')[0], // 使用当前日期作为下单时间
+      ship_time: null, // 可以从用户输入获取
+      ship_country: '', // 可以从用户输入获取
+      contract_no: '', // 需要用户输入
+      order_no: '', // 可以从用户输入获取
+      machine_no: '', // 可以从用户输入获取
+      machine_name: '包装机',
+      machine_model: inquiry.machine_type || '', // 使用询盘中的机器类型
+      machine_count: 1, // 默认数量为1
+      unit: 'set',
+      contract_amount: 0, // 需要用户输入
+      deposit: 0, // 需要用户输入
+      balance: 0, // 需要用户输入
+      tax_rate: 13.0,
+      tax_refund_amount: 0, // 需要用户输入
+      currency_amount: 0, // 需要用户输入
+      payment_received: 0, // 需要用户输入
+      machine_cost: 0, // 需要用户输入
+      net_profit: 0, // 需要用户输入
+      proportionate_cost: 0, // 需要用户输入
+      individual_cost: 0, // 需要用户输入
+      gross_profit: 0, // 需要用户输入
+      pay_type: 'T/T', // 默认支付方式
+      commission: 0, // 需要用户输入
+      latest_ship_date: null, // 需要用户输入
+      expected_delivery: null, // 需要用户输入
+      order_dept: '', // 可以从用户输入获取
+      check_requirement: '', // 可以从用户输入获取
+      attachment_imgs: '',
+      attachment_videos: '',
+      inquiry_id: inquiry.id // 关联当前询盘
+    };
+
+    // 创建订单
+    const response = await request.post('/api/orders', orderData);
+
+    // 由于request.ts会自动解包响应为res.data，所以response直接包含了后端返回的{code, msg, data}结构
+    if (response && response.code === 200) {
+      ElMessage.success('订单创建成功');
+
+      // 更新询盘的关联状态
+      inquiry.is_associated = true;
+
+      // 关闭对话框
+      inquiryDialogVisible.value = false;
+    } else {
+      // 如果没有code字段，可能返回的是直接的订单数据，表示成功
+      if (response && typeof response === 'object' && !response.code) {
+        // 假设这是一个成功的响应（包含了订单数据）
+        ElMessage.success('订单创建成功');
+
+        // 更新询盘的关联状态
+        inquiry.is_associated = true;
+
+        // 关闭对话框
+        inquiryDialogVisible.value = false;
+      } else {
+        const errorMsg = response?.msg || '订单创建失败';
+        ElMessage.error(errorMsg);
+      }
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('创建订单失败:', error);
+      let errorMsg = '创建订单失败';
+      if (error.response?.data?.msg) {
+        errorMsg = error.response.data.msg;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      ElMessage.error(errorMsg);
+    }
+  }
+};
 
 
 

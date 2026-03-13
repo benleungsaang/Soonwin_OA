@@ -14,7 +14,7 @@
 
         <!-- 订单表格 -->
         <el-table
-          :data="orders"
+          :data="orders.filter(order => order.status_id)"
           style="width: 100%"
           @row-click="showOrderDetails"
           v-loading="loading"

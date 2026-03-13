@@ -158,11 +158,6 @@ def get_inquiries():
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
         search = request.args.get('search')
-        area = request.args.get('area')
-        contact_person = request.args.get('contact_person')
-        company_name = request.args.get('company_name')
-        packaging_product = request.args.get('packaging_product')
-        machine_type = request.args.get('machine_type')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         inquiry_source = request.args.get('inquiry_source')
@@ -188,13 +183,6 @@ def get_inquiries():
         # 搜索条件
         if search:
             query = query.filter(Inquiry.search_field.contains(search))
-        else:
-            if area: query = query.filter(Inquiry.area.contains(area))
-            if contact_person: query = query.filter(Inquiry.contact_person.contains(contact_person))
-            if company_name: query = query.filter(Inquiry.company_name.contains(company_name))
-            if packaging_product: query = query.filter(Inquiry.packaging_product.contains(packaging_product))
-            if machine_type: query = query.filter(Inquiry.machine_type.contains(machine_type))
-            if inquiry_source: query = query.filter(Inquiry.inquiry_source.contains(inquiry_source))
 
         # 日期筛选
         if start_date:

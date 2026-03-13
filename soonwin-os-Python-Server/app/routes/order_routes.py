@@ -153,6 +153,7 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
         # 替换询盘信息
         order_dict['inquiry'] = safe_inquiry
 
+
     # 如果指定了字段列表，则只返回这些字段
     if fields:
         field_list = [f.strip() for f in fields.split(',')]
@@ -160,6 +161,8 @@ def serialize_order(order, include_expense_allocations=False, is_admin=False, fi
         if 'id' not in field_list:
             field_list.insert(0, 'id')
         filtered_dict = {}
+        if 'has_order_state' in field_list:
+            filtered_dict['has_order_state'] = has_order_state(order.id)
         for field in field_list:
             if field in order_dict:
                 filtered_dict[field] = order_dict[field]
@@ -256,32 +259,27 @@ def create_order():
                 "data": None
             }), 400
 
-        # 验证是否提供了关联的询盘ID
+        # 获取关联的询盘ID
         inquiry_id = data.get('inquiry_id')
-        if not inquiry_id:
-            return jsonify({
-                "code": 400,
-                "msg": "必须选择一个关联的询盘",
-                "data": None
-            }), 400
+        # 如果提供了询盘ID，则验证询盘
+        if inquiry_id:
+            # 验证询盘是否存在
+            from app.models.inquiry import Inquiry
+            inquiry = Inquiry.query.get(inquiry_id)
+            if not inquiry:
+                return jsonify({
+                    "code": 400,
+                    "msg": "指定的询盘不存在",
+                    "data": None
+                }), 400
 
-        # 验证询盘是否存在
-        from app.models.inquiry import Inquiry
-        inquiry = Inquiry.query.get(inquiry_id)
-        if not inquiry:
-            return jsonify({
-                "code": 400,
-                "msg": "指定的询盘不存在",
-                "data": None
-            }), 400
-
-        # 检查询盘是否已经关联了订单
-        if inquiry.has_associated_orders():
-            return jsonify({
-                "code": 400,
-                "msg": "该询盘已关联订单，不能重复关联",
-                "data": None
-            }), 400
+            # 检查询盘是否已经关联了订单
+            if inquiry.has_associated_orders():
+                return jsonify({
+                    "code": 400,
+                    "msg": "该询盘已关联订单，不能重复关联",
+                    "data": None
+                }), 400
 
         # 获取当前用户
         current_user = get_current_user()
@@ -603,6 +601,11 @@ def update_order(order_id):
             "data": None
         }), 500
 
+def has_order_state(order_id):
+    """检查订单是否有关联的订单状态记录"""
+    from app.models.order_status import OrderStatus
+    return OrderStatus.query.filter_by(order_id=order_id).first() is not None
+
 @order_bp.route('/orders/<int:order_id>', methods=['DELETE'])
 @route_permission(ROUTE_ORDER)
 def delete_order(order_id):
@@ -622,8 +625,8 @@ def delete_order(order_id):
             }), 403
 
         # 检查订单是否有关联的订单状态记录
-        from app.models.order_status import OrderStatus
-        order_status = OrderStatus.query.filter_by(order_id=order_id).first()
+        # from app.models.order_status import OrderStatus
+        order_status = has_order_state(order_id)
         if order_status:
             return jsonify({
                 "code": 400,

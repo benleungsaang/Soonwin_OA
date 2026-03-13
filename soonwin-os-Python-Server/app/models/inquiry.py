@@ -43,7 +43,8 @@ class Inquiry(db.Model):
             "follower_name": self.follower.name if self.follower else None,
             "follower_role": self.follower.user_role if self.follower else None,
             "create_time": self.create_time.strftime('%Y-%m-%d %H:%M:%S') if self.create_time else None,
-            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None
+            "update_time": self.update_time.strftime('%Y-%m-%d %H:%M:%S') if self.update_time else None,
+            "is_associated": self.has_associated_orders()
         }
 
     def update_search_field(self):
@@ -56,7 +57,8 @@ class Inquiry(db.Model):
             self.phone or '',
             self.email or '',
             self.packaging_product or '',
-            self.machine_type or ''
+            self.machine_type or '',
+            self.creator.name or '',
         ]
         # 过滤空值并连接成搜索字段
         self.search_field = ' '.join(filter(None, search_values))
@@ -66,6 +68,18 @@ class Inquiry(db.Model):
         from app.models.order import Order
         associated_orders = Order.query.filter_by(inquiry_id=self.id).all()
         return len(associated_orders) > 0
+    # ---------------------- 原有辅助方法 ----------------------
+    # def _generate_search_key(self) -> str:
+    #     """生成搜索关键词"""
+    #     search_fields = [
+    #         self.model,
+    #         self.original_model,
+    #         self.brand,
+    #         self.remark,
+    #     ]
+
+    #     valid_values = [str(v).strip() for v in search_fields if v and str(v).strip()]
+    #     return ' '.join(valid_values)
 
 
 class InquiryCommunication(db.Model):

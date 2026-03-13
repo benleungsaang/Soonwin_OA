@@ -971,10 +971,10 @@ def delete_order_status(status_id):
                         os.remove(media_file.thumb_path.lstrip('/'))
                 except Exception as e:
                     print(f"删除媒体文件失败: {str(e)}")
-                
+
                 # 删除数据库记录
                 db.session.delete(media_file)
-            
+
             # 删除任务项
             db.session.delete(task)
 
@@ -1168,7 +1168,7 @@ def upload_multiple_images():
             # 使用正则表达式只保留字母、数字、下划线、连字符
             category_clean = re.sub(r'[^\w\-_]', '_', task.category) if task.category else 'default'
             name_clean = re.sub(r'[^\w\-_]', '_', task.name) if task.name else 'default'
-            
+
             category_prefix = category_clean.replace('/', '_').replace('\\', '_')
             name_prefix = name_clean.replace('/', '_').replace('\\', '_')
 

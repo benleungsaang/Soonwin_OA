@@ -38,7 +38,7 @@
         border
         :header-cell-style="{background: '#f5f7fa', color: '#606266', textAlign: 'center' }"
         :cell-style="{ textAlign: 'center' }"
-        @row-click="viewOrderById"
+        @row-click="showEditDialog"
       :row-style="{ cursor: 'pointer' }"
       >
         <el-table-column prop="customer_name" label="客户名称" width="150" />
@@ -51,10 +51,31 @@
         <el-table-column prop="order_time" label="下单时间" width="120" />
         <el-table-column prop="ship_time" label="出货时间" width="120" />
         <el-table-column v-if="isAdmin" prop="creator_id" label="创建者ID" width="120" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click.stop="showEditDialog(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click.stop="deleteOrder(scope.row.id)">删除</el-button>
+            <el-dropdown  trigger="click">
+              <el-button @click.stop size="small">
+                操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item :icon="Edit" @click.stop="showEditDialog(scope.row)" class="dropdown-menu-item-danger">
+                    编辑
+                  </el-dropdown-item>
+                  <el-dropdown-item :icon="Delete" @click.stop="deleteOrder(scope.row.id)" class="dropdown-menu-item-danger">
+                    删除
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    :icon="Document"
+                    v-if="!scope.row.has_order_state"
+                    @click.stop="createOrderStatus(scope.row.id)"
+                    divided
+                    class="dropdown-menu-item-success">
+                    创建状态
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -247,6 +268,7 @@
                   <el-option label="经销商" value="经销商" />
                   <el-option label="终端" value="终端" />
                   <el-option label="代理商" value="代理商" />
+                  <el-option label="配套商" value="配套商" />
                 </el-select>
               </el-form-item>
           </el-col>
@@ -658,7 +680,8 @@
         <el-table-column prop="create_time" label="创建时间" width="160" />
         <el-table-column label="操作" width="150">
           <template #default="scope">
-            <el-button size="small" @click.stop="showEditIndividualExpenseDialog(scope.row)">编辑</el-button>
+            <!-- <el-button size="small" @click.stop="showEditIndividualExpenseDialog(scope.row)">编辑</el-button> -->
+            <el-button size="small" @click.stop="showEditIndividualExpenseDialog(scope.row)">创建跟单状态</el-button>
             <el-button size="small" type="danger" @click.stop="deleteIndividualExpense(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -728,7 +751,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus';
 import request from '@/utils/request';
-import { Search, Plus, Document } from '@element-plus/icons-vue';
+import { Search, Plus, Document, ArrowDown, Edit, Delete } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { getCurrentUserRole } from '@/utils/authUtils';
@@ -935,12 +958,49 @@ const saveInquiryOptionsToCache = (options: { id: number; company_name: string; 
   }
 };
 
+
+// 创建订单状态记录
+const createOrderStatus = async (orderId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要为该订单创建状态记录吗？', '确认创建', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+
+    // POST请求会返回完整的响应，request.ts会自动解包data部分
+    const response: any = await request.post('/api/order-status', {
+      order_id: orderId
+    });
+
+    // 由于request.ts自动解包，response直接就是后端返回的data部分
+    // response现在直接包含订单状态记录的数据，而不是{code, data, msg}格式
+    // 后端返回格式: {code: 200, msg: "...", data: {...status_record_data...}}
+    // 经过request.ts解包后，response直接是status_record_data或成功消息
+    ElMessage.success('订单状态记录创建成功');
+
+    // 重新加载订单列表以更新状态
+    await fetchOrders();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('创建订单状态记录失败:', error);
+      // 检查错误是否包含响应信息
+      if (error.response && error.response.data && error.response.data.msg) {
+        ElMessage.error(error.response.data.msg);
+      } else {
+        ElMessage.error('创建订单状态记录失败');
+      }
+    }
+  }
+};
+
+
 // 获取机器选项
 const fetchMachineOptions = async () => {
   try {
     // 直接发起API请求获取最新数据，参考VideoManagementView.vue的fetchMachines方法
     const response: any = await request.get('/api/machines_new');
-    
+
     // 由于request.ts会自动解包data，所以response直接就是数组
     if (response && response.machines && Array.isArray(response.machines)) {
       // 直接使用API返回的机器数据
@@ -1041,7 +1101,7 @@ const fetchOrders = async () => {
   loading.value = true;
   try {
     // 根据用户权限决定请求的字段
-    let fields = 'id,customer_name,area,contract_amount,order_time,ship_time';
+    let fields = 'id,customer_name,area,contract_amount,order_time,ship_time,has_order_state';
     if (isAdmin.value) {
       // 管理员可以查看creator_id字段
       fields += ',creator_id';
@@ -1372,7 +1432,7 @@ const saveOrder = async () => {
     // 处理多选字段，将数组转换为逗号分隔的字符串
     let processedMachineModel: string;
     const machineModelValue = updatedOrderForm.machine_model;
-    
+
     // 由于orderForm.machine_model是string[]类型，我们需要处理它
     if (Array.isArray(machineModelValue)) {
       // 如果是ID数组，转换为逗号分隔的字符串
@@ -2092,5 +2152,13 @@ onUnmounted(() => {
   background-color: green;
   color: white;
   margin-left: 30px;
+}
+
+.dropdown-menu-item-danger {
+  color: #f56c6c;
+}
+
+.dropdown-menu-item-success {
+  color: #67c23a;
 }
 </style>
