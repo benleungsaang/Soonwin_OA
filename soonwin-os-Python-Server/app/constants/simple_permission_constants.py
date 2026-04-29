@@ -21,6 +21,10 @@ ROUTE_LOG_MANAGE = "log_manage"                    # 日志管理
 ROUTE_MACHINE_MANAGE = "machine_manage"            # 设备管理
 ROUTE_USER_MANAGE = "user_manage"                  # 员工信息/管理
 ROUTE_PERMISSION_MANAGE = "permission_manage"      # 权限管理（如果保留的话）
+ROUTE_ORDER_RECORD_MANAGE = "order_record_manage"  # 订单记录管理
+
+# 业务员权限
+ROUTE_CUSTOMER_MANAGE = "customer_manage"           # 客户信息管理
 
 # 为了兼容性，添加旧的命名方式
 ROUTE_DISPLAY_FILE = ROUTE_DISPLAY_FILE_MANAGE
@@ -56,5 +60,7 @@ ALL_ROUTES = [
     ROUTE_USER_MANAGE,
     ROUTE_PERMISSION_MANAGE,
     ROUTE_ATTENDANCE_MANAGE,
-    ROUTE_QUOTATION_MANAGE
+    ROUTE_QUOTATION_MANAGE,
+    ROUTE_ORDER_RECORD_MANAGE,
+    ROUTE_CUSTOMER_MANAGE
 ]

@@ -111,11 +111,21 @@ def update_database_structure_complete(dev_db_path, prod_db_path):
     
     # 1. 删除不需要的旧表（新数据库中不存在的表）
     tables_to_drop = set(prod_schema.keys()) - set(dev_schema.keys())
-    for table in tables_to_drop:
-        if table not in ['sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4', 
-                         'alembic_version', '_migration_history', '_migrate_history']:
-            print(f"删除不需要的表: {table}")
+    tables_to_drop = tables_to_drop - {'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4',
+                                        'alembic_version', '_migration_history', '_migrate_history'}
+    if tables_to_drop:
+        print(f"⚠️  以下表将在旧数据库中删除（这些表在新数据库中不存在）:")
+        for table in tables_to_drop:
+            print(f"    - {table}")
+        confirm = input("确认删除这些表吗？(y/N): ").strip().lower()
+        if confirm in ['n', 'N']:
+            print("[v] 用户取消删除操作，脚本退出")
+            return
+        for table in tables_to_drop:
+            print(f"删除表: {table}")
             cursor.execute(f"DROP TABLE IF EXISTS {table}")
+    else:
+        print("[v] 没有需要删除的表")
     
     # 2. 重建需要更新结构的表（使用新结构但保留数据）
     for table in set(dev_schema.keys()) & set(prod_schema.keys()):
@@ -221,23 +231,6 @@ def update_database_structure_complete(dev_db_path, prod_db_path):
             for index in table_info['indexes'].keys():
                 print(f"删除已移除表的索引: {index}")
                 cursor.execute(f"DROP INDEX IF EXISTS {index}")
-    
-    # 5. 为所有新表添加可能存在的数据（如果新数据库中有数据）
-    for table in new_tables:
-        dev_cursor = dev_conn.cursor()
-        try:
-            dev_cursor.execute(f"SELECT * FROM {table};")
-            rows = dev_cursor.fetchall()
-            if rows:
-                # 获取新表的列信息
-                new_columns = dev_schema[table]['columns']
-                placeholders = ','.join(['?' for _ in new_columns])
-                column_names = [col['name'] for col in new_columns]
-                insert_sql = f"INSERT INTO {table} ({','.join(column_names)}) VALUES ({placeholders})"
-                cursor.executemany(insert_sql, rows)
-                print(f"  复制 {len(rows)} 行数据到新表 {table}")
-        except Exception as e:
-            print(f"  复制数据到新表 {table} 失败: {e}")
     
     # 记录迁移操作
     migration_name = f"complete_structure_update_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

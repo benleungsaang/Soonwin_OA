@@ -87,6 +87,14 @@
                       <el-icon><Coin /></el-icon>
                       <span>初步报价</span>
                     </el-menu-item>
+                    <el-menu-item index="19" @click="goToOrderRecordManage" v-if="hasToken && permissions.orderRecordManage">
+                      <el-icon><Wallet /></el-icon>
+                      <span>订单快速记录</span>
+                    </el-menu-item>
+                    <el-menu-item index="20" @click="goToCustomerManage" v-if="hasToken && permissions.customerManage">
+                      <el-icon><User /></el-icon>
+                      <span>客户信息管理</span>
+                    </el-menu-item>
                   </el-menu>
                 </div>
               </transition>
@@ -151,7 +159,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 // 导入权限工具函数
@@ -206,7 +214,9 @@ const permissionMap = {
   machineManage: { key: 'machine_manage', name: '设备管理（新版）', path: '/machine-management-new' },
   userManage: { key: 'user_manage', name: '用户管理', path: '/employee-management' },
   attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' },
-  quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' }
+  quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' },
+  orderRecordManage: { key: 'order_record_manage', name: '订单快速记录', path: '/order-record' },
+  customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -221,7 +231,7 @@ const permissions = computed(() => {
 const hasOrderMenu = computed(() => {
   if (!hasToken.value) return false; // 未登录时不显示
   // 判断订单跟进下的所有权限项是否有至少一个为true
-  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage || permissions.value.quotationManage;
+  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage || permissions.value.quotationManage || permissions.value.orderRecordManage;
 });
 
 // ========== 方法定义 ==========
@@ -255,6 +265,8 @@ const goToOrderStatus = () => navigateToPage('orderStatusManage');
 const goToAttendanceSystem = () => navigateToPage('attendanceManage');
 const goToMachineManagementNew = () => navigateToPage('machineManage');
 const goToQuotationManagement = () => navigateToPage('quotationManage');
+const goToOrderRecordManage = () => navigateToPage('orderRecordManage');
+const goToCustomerManage = () => navigateToPage('customerManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {

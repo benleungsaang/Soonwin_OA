@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app.models.employee import Employee
 from app.utils.simple_auth_utils import route_permission
-from app.constants.simple_permission_constants import ROUTE_USER_MANAGE
+from app.constants.simple_permission_constants import ROUTE_USER_MANAGE,ROUTE_INQUIRY_MANAGE
 from extensions import db
 import hashlib
 import config
@@ -540,6 +540,7 @@ def get_all_routes():
             "auth_manage": "认证管理",
             "attendance_manage": "考勤管理",
             "quotation_manage": "报价管理",
+            "order_record_manage": "订单快速记录",
         }
 
         # 从常量中获取所有路由
@@ -1162,13 +1163,13 @@ def update_role_description():
 
 
 @user_bp.route('/users/sales-employees', methods=['GET'])
-@route_permission(ROUTE_USER_MANAGE)  # 使用适当的权限控制
+@route_permission(ROUTE_INQUIRY_MANAGE)  # 使用适当的权限控制
 def get_sales_employees():
     """获取销售员工列表（只返回id, emp_id, name字段，且只返回角色为sales的员工）"""
     try:
         # 查询角色为 'sales' 的员工
         sales_employees = Employee.query.filter(Employee.user_role == 'sales').all()
-        
+
         # 构建只包含指定字段的员工列表
         employee_list = []
         for emp in sales_employees:

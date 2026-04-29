@@ -1087,7 +1087,9 @@ const submitUpload = async () => {
       try {
         const formData = new FormData();
         formData.append('file', fileItem.raw);
-        formData.append('title', uploadForm.value.title || fileItem.name.replace(/\.\w+$/, ''));
+        // 使用每个文件自己的文件名作为标题（去掉扩展名）
+        const fileName = fileItem.name.replace(/\.\w+$/, '');
+        formData.append('title', fileName);
         formData.append('tags', uploadForm.value.tags);
         formData.append('machine_id', uploadForm.value.machineId);
         formData.append('remark', uploadForm.value.remark);

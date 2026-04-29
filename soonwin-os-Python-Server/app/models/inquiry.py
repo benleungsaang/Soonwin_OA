@@ -20,6 +20,8 @@ class Inquiry(db.Model):
     creator = db.relationship('Employee', foreign_keys=[creator_id], backref=db.backref('inquiries', lazy=True))
     follower_id = db.Column(db.String(20), db.ForeignKey('Employee.emp_id'), nullable=True, comment="跟单专员ID")
     follower = db.relationship('Employee', foreign_keys=[follower_id], backref=db.backref('followed_inquiries', lazy=True))
+    customer_id = db.Column(db.Integer, db.ForeignKey('Customer.id'), nullable=True, comment="关联客户ID")
+    customer = db.relationship('Customer', backref=db.backref('inquiries', lazy=True))
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 

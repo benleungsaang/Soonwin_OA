@@ -349,7 +349,7 @@ export const uploadMachineThumb = (machineId: number, data: FormData) => multipa
 // 通用设备缩略图上传API（用于新增设备时）
 export const uploadMachineThumbGeneric = (data: FormData) => multipartRequest.post('/api/machines_new/upload-thumb', data);
 // 照片管理相关API - 使用特殊处理FormData的函数
-const multipartRequest = axios.create({
+export const multipartRequest = axios.create({
   baseURL: getBaseURL(),
   timeout: 30000, // 增加超时时间，因为文件上传可能需要更长时间
   headers: {

@@ -93,6 +93,7 @@
             <Item>*\.history\</Item>
             <Item>*.mp4</Item>
             <Item>\辅助脚本\20260310 压缩缩略图\</Item>
+            <Item>\辅助脚本\20260306 易读格式写入json文件\缩略图提取\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>

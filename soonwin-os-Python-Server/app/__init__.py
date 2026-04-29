@@ -59,6 +59,8 @@ def create_app(port=5000):
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
         from .models.attendance_operation import AttendanceOperation
         from .models.quotation_temp import QuotationTemp
+        from .models.order_record import OrderRecord, OrderRecordIncome, OrderRecordExpense
+        from .models.customer import Customer
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
@@ -119,6 +121,14 @@ def create_app(port=5000):
         # 注册订单状态管理相关路由蓝图
         from .routes.order_status_routes import order_status_bp
         app.register_blueprint(order_status_bp, url_prefix='/api')
+
+        # 注册订单记录管理相关路由蓝图
+        from .routes.order_record_routes import order_record_bp
+        app.register_blueprint(order_record_bp, url_prefix='/api')
+
+        # 注册客户信息管理相关路由蓝图
+        from .routes.customer_routes import customer_bp
+        app.register_blueprint(customer_bp, url_prefix='/api')
 
         # 注册权限管理相关路由蓝图
         from .routes.permission_routes import permission_bp

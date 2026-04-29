@@ -133,6 +133,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '订单进度跟踪', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
   {
+    path: '/order-record',
+    name: 'orderRecord',
+    component: () => import('@/views/OrderRecordView.vue'),
+    meta: { title: '订单记录', requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/customer-management',
+    name: 'customerManagement',
+    component: () => import('@/views/CustomerManagementView.vue'),
+    meta: { title: '客户信息管理', requiresAuth: true }
+  },
+  {
     path: '/order-status-report',
     name: 'orderStatusReport',
     component: OrderStatusReportView,

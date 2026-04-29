@@ -799,8 +799,36 @@ http {{
 
         self._wait_for_input()
 
+    def _get_nginx_pid_by_port(self, port: int):
+        """获取占用指定端口的nginx进程PID"""
+        try:
+            result = subprocess.run(
+                ['netstat', '-ano', '-p', 'tcp'],
+                capture_output=True,
+                text=True,
+                encoding='gbk'
+            )
+            for line in result.stdout.split('\n'):
+                if f':{port}' in line and 'LISTENING' in line:
+                    pid = line.strip().split()[-1]
+                    # 验证这确实是nginx进程
+                    try:
+                        proc_result = subprocess.run(
+                            ['tasklist', '/FI', f'PID eq {pid}'],
+                            capture_output=True,
+                            text=True,
+                            encoding='gbk'
+                        )
+                        if 'nginx.exe' in proc_result.stdout:
+                            return int(pid)
+                    except:
+                        pass
+            return None
+        except:
+            return None
+
     def nginx_stop(self):
-        """停止Nginx服务（增强版：多维度终止）"""
+        """停止Nginx服务（仅停止占用5183端口的nginx）"""
         print("=" * 55)
         print("                停止Nginx...")
         print("=" * 55)
@@ -810,13 +838,17 @@ http {{
         result = self.run_nginx("stop")
         time.sleep(3)  # 延长等待时间
 
-        # 第二步：强制终止所有nginx.exe进程（不管端口）
-        print("[2/4] 强制终止所有nginx.exe进程...")
-        try:
-            subprocess.run(['taskkill', '/F', '/IM', 'nginx.exe'], capture_output=True)
-            print(f"[v] 已发送终止命令给所有nginx.exe进程")
-        except:
-            pass
+        # 第二步：强制终止占用5183端口的nginx进程
+        print("[2/4] 强制终止占用5183端口的nginx进程...")
+        nginx_pid = self._get_nginx_pid_by_port(self.nginx_port)
+        if nginx_pid:
+            try:
+                subprocess.run(['taskkill', '/F', '/PID', str(nginx_pid)], capture_output=True)
+                print(f"[v] 已终止nginx进程 (PID: {nginx_pid})")
+            except:
+                pass
+        else:
+            print("[v] 未找到占用5183端口的nginx进程")
         time.sleep(2)
 
         # 第三步：强制释放Nginx端口
@@ -826,8 +858,6 @@ http {{
         # 第四步：最终校验端口状态
         print("[4/4] 校验端口释放状态...")
         if self.check_port_with_netstat(self.nginx_port):
-            print(f"[v] Nginx停止成功，端口{self.nginx_port}已释放")
-        else:
             print(f"[!] Nginx停止后端口{self.nginx_port}仍显示被占用：")
             # 打印当前端口占用详情
             result = subprocess.run(['netstat', '-ano', '-p', 'tcp'], capture_output=True, text=True, encoding='gbk')
@@ -835,6 +865,8 @@ http {{
                 if f':{self.nginx_port}' in line and 'LISTENING' in line:
                     print(f"    {line.strip()}")
             print("[!] 解决方案：等待10秒后重试，或手动在任务管理器结束nginx.exe进程")
+        else:
+            print(f"[v] Nginx停止成功，端口{self.nginx_port}已释放")
 
         self._wait_for_input()
 

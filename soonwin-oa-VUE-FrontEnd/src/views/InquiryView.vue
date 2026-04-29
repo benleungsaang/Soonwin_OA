@@ -79,7 +79,7 @@
       <el-table-column prop="packaging_product" label="包装产品" width="150" show-overflow-tooltip />
       <el-table-column prop="machine_type" label="需求机器类型" show-overflow-tooltip />
       <el-table-column prop="create_time" label="创建时间" width="150" />
-      <el-table-column label="操作" width="130" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="scope">
           <!-- <el-icon
             class="opera-icon"
@@ -250,10 +250,24 @@
                 <el-divider />
                 <div class="communication-header">
                   <h3>沟通记录 ({{ communications.length }})</h3>
-                  <el-button type="primary" size="large" @click="showAddCommunicationDialog">
-                    添加沟通记录
-                    <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
-                  </el-button>
+                  <div style="display: flex; gap: 10px;">
+                    <el-dropdown trigger="click" @command="handleCustomerDropdownCommand">
+                      <el-button type="success" size="large">
+                        登记客户信息
+                        <el-icon style="margin-left: 5px;"><ArrowDown /></el-icon>
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="create">创建新客户</el-dropdown-item>
+                          <el-dropdown-item command="bind">绑定到现有客户</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                    <el-button type="primary" size="large" @click="showAddCommunicationDialog">
+                      添加沟通记录
+                      <el-icon style="margin-left: 5px;font-size: 20px;"><ChatLineRound /></el-icon>
+                    </el-button>
+                  </div>
                 </div>
 
                         <!-- 沟通记录列表 -->
@@ -648,6 +662,91 @@
           </div>
         </div>
       </div>
+
+    <!-- 创建客户对话框 -->
+    <el-dialog
+      title="创建客户"
+      v-model="createCustomerDialogVisible"
+      width="500px"
+    >
+      <el-form :model="createCustomerForm" label-width="100px">
+        <el-form-item label="公司名称">
+          <el-input v-model="createCustomerForm.company_name" placeholder="请输入公司名称" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model="createCustomerForm.contact_person" placeholder="请输入联系人" />
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="createCustomerForm.phone" placeholder="请输入电话" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="createCustomerForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="地区">
+          <el-input v-model="createCustomerForm.area" placeholder="请输入地区" />
+        </el-form-item>
+        <el-form-item label="客户类型">
+          <el-select v-model="createCustomerForm.customer_type" placeholder="请选择客户类型" style="width: 100%">
+            <el-option label="经销商" value="经销商" />
+            <el-option label="终端" value="终端" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="createCustomerForm.remark" type="textarea" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createCustomerDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitCreateCustomer" :loading="createCustomerSubmitting">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 绑定客户对话框 -->
+    <el-dialog
+      title="绑定客户"
+      v-model="bindCustomerDialogVisible"
+      width="700px"
+    >
+      <p style="color: #909399; margin-bottom: 10px;">选择一个客户进行绑定</p>
+      <el-table
+        :data="bindableCustomers"
+        v-loading="bindableCustomersLoading"
+        style="width: 100%"
+        stripe
+        border
+        :header-cell-style="{ background: '#f5f7fa', color: '#606266', textAlign: 'center' }"
+        :cell-style="{ textAlign: 'center' }"
+        @row-click="handleBindableCustomerRowClick"
+        :row-class-name="getBindableCustomerRowClassName"
+        :row-style="{ cursor: 'pointer' }"
+      >
+        <el-table-column width="60" label="选择">
+          <template #default="scope">
+            <el-radio v-model="selectedBindableCustomerId" :label="scope.row.id" @click.stop>&nbsp;</el-radio>
+          </template>
+        </el-table-column>
+        <el-table-column prop="company_name" label="公司名" />
+        <el-table-column prop="contact_person" label="联系人" />
+        <el-table-column prop="phone" label="电话" />
+        <el-table-column prop="area" label="地区" />
+      </el-table>
+      <el-pagination
+        v-model:current-page="bindableCustomersPage"
+        :page-size="bindableCustomersSize"
+        :total="bindableCustomersTotal"
+        layout="prev, pager, next"
+        @current-change="loadBindableCustomers"
+        style="margin-top: 10px; justify-content: center"
+      />
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="bindCustomerDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmBindCustomer" :disabled="!selectedBindableCustomerId">确认绑定</el-button>
+        </span>
+      </template>
+    </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -656,12 +755,14 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import request from '@/utils/request';
 import axios from 'axios';
-import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding, Warning, Close, VideoPlay, VideoCamera } from '@element-plus/icons-vue';
+import { Delete, Edit, ChatLineRound, View, Search, Plus, Document, Download, Refresh, Loading, OfficeBuilding, Warning, Close, VideoPlay, VideoCamera, User, ArrowDown } from '@element-plus/icons-vue';
 import { formatBusinessLog } from '@/utils/logFormatter';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import ImageUploadPreview from '@/components/ImageUploadPreview.vue';
 import { getCurrentUserRole } from '@/utils/authUtils';
+import { createCustomerFromInquiry } from '@/api/customer'
+import { bindInquiry } from '@/api/customer';
 
 // 路由
 const router = useRouter();
@@ -783,6 +884,7 @@ const inquiryForm = ref({
   packaging_product: '',
   machine_type: '',
   follower_id: '',  // 添加跟单专员ID字段
+  customer_id: null as number | null, // 关联的客户ID
   is_associated: false // 是否已关联订单
 });
 
@@ -943,7 +1045,8 @@ const showAddInquiryDialog = () => {
     packaging_product: '',
     machine_type: '',
     follower_id: '',
-    is_associated: false // 添加缺失的字段
+    customer_id: null,
+    is_associated: false
   };
   inquiryForm.value = { ...emptyForm };
   // 保存初始表单值用于比较
@@ -1111,6 +1214,144 @@ const deleteInquiry = async (id: number) => {
     }
   }
 };
+
+// 创建客户
+const createCustomerDialogVisible = ref(false)
+const createCustomerForm = ref({
+  company_name: '',
+  contact_person: '',
+  phone: '',
+  email: '',
+  area: '',
+  customer_type: '',
+  remark: ''
+})
+const createCustomerSubmitting = ref(false)
+const currentInquiryForCustomer = ref<any>(null)
+
+// 绑定客户相关
+const bindCustomerDialogVisible = ref(false)
+const bindableCustomers = ref<any[]>([])
+const bindableCustomersLoading = ref(false)
+const bindableCustomersPage = ref(1)
+const bindableCustomersSize = ref(10)
+const bindableCustomersTotal = ref(0)
+const selectedBindableCustomerId = ref<number | null>(null)
+const selectedBindableCustomer = ref<any>(null)
+
+const createCustomer = async (row: any) => {
+  currentInquiryForCustomer.value = row
+  createCustomerForm.value = {
+    company_name: row.company_name || '',
+    contact_person: row.contact_person || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    area: row.area || '',
+    customer_type: '',
+    remark: ''
+  }
+  createCustomerDialogVisible.value = true
+}
+
+const submitCreateCustomer = async () => {
+  try {
+    createCustomerSubmitting.value = true
+    const result = await createCustomerFromInquiry(currentInquiryForCustomer.value.id, createCustomerForm.value)
+    ElMessage.success('创建客户成功')
+    createCustomerDialogVisible.value = false
+    loadInquiries()
+    // 跳转到客户信息页面
+    if (result && result.id) {
+      router.push('/customer-management')
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '创建客户失败')
+  } finally {
+    createCustomerSubmitting.value = false
+  }
+}
+
+// 显示绑定客户对话框 - 创建新客户
+const showBindCustomerDialog = async () => {
+  // 设置当前询盘用于后续创建客户时关联
+  currentInquiryForCustomer.value = inquiryForm.value
+  // 填充询盘信息到创建客户表单
+  createCustomerForm.value = {
+    company_name: inquiryForm.value.company_name || '',
+    contact_person: inquiryForm.value.contact_person || '',
+    phone: inquiryForm.value.phone || '',
+    email: inquiryForm.value.email || '',
+    area: inquiryForm.value.area || '',
+    customer_type: '',
+    remark: ''
+  }
+  createCustomerDialogVisible.value = true
+}
+
+// 显示绑定到已有客户对话框
+const showBindToExistingCustomerDialog = async () => {
+  selectedBindableCustomerId.value = null
+  selectedBindableCustomer.value = null
+  bindCustomerDialogVisible.value = true
+  await loadBindableCustomers()
+}
+
+// 处理客户下拉菜单命令
+const handleCustomerDropdownCommand = (command: string) => {
+  if (command === 'create') {
+    showBindCustomerDialog()
+  } else if (command === 'bind') {
+    showBindToExistingCustomerDialog()
+  }
+}
+
+const loadBindableCustomers = async () => {
+  try {
+    bindableCustomersLoading.value = true
+    const response: any = await request.get('/api/customers', {
+      params: { page: bindableCustomersPage.value, size: bindableCustomersSize.value }
+    })
+    // 过滤掉当前询盘已关联的客户
+    bindableCustomers.value = (response.list || []).filter((item: any) =>
+      item.id !== inquiryForm.value.customer_id
+    )
+    bindableCustomersTotal.value = response.total || 0
+  } catch (error) {
+    console.error('获取可绑定客户列表失败:', error)
+  } finally {
+    bindableCustomersLoading.value = false
+  }
+}
+
+const handleBindableCustomerRowClick = (row: any) => {
+  selectedBindableCustomerId.value = row.id
+  selectedBindableCustomer.value = row
+}
+
+const getBindableCustomerRowClassName = ({ row }: { row: any }) => {
+  return selectedBindableCustomerId.value === row.id ? 'selected-row' : ''
+}
+
+const confirmBindCustomer = async () => {
+  if (!selectedBindableCustomerId.value || !editingInquiryId.value) return
+  try {
+    await bindInquiry(selectedBindableCustomerId.value, editingInquiryId.value)
+    ElMessage.success('绑定客户成功')
+    bindCustomerDialogVisible.value = false
+    loadInquiries()
+    // 如果当前正在查看询盘详情，刷新当前数据
+    if (editingInquiryId.value) {
+      await viewInquiry(editingInquiryId.value)
+    }
+  } catch (error: any) {
+    ElMessage.error(error.message || '绑定客户失败')
+  }
+}
+
+// 跳转到客户详情
+const goToCustomer = (customerId: number) => {
+  router.push('/customer-management')
+}
 
 // 格式化操作详情为易读文本
 const formatOperationDetailsForLog = (log: any) => {

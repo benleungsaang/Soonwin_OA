@@ -8,6 +8,8 @@ from alembic.script import ScriptDirectory
 from alembic.runtime import migration
 import time  # 新增：用于计算请求耗时
 import logging  # 新增：Flask日志模块
+from datetime import datetime  # 新增：用于日志时间格式
+from flask import g, request  # 新增：导入g和request（用于请求日志）
 
 # ========== 【新增】配置请求日志 ==========
 def setup_request_logging(app):
@@ -25,13 +27,6 @@ def setup_request_logging(app):
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
 
-    # 定义日志格式：时间 - 方法 - URL - 状态码 - 耗时
-    log_format = logging.Formatter(
-        '[%(asctime)s] %(method)s %(url)s - %(status)s - %(elapsed)ss'
-    )
-    console_handler.setFormatter(log_format)
-    app.logger.addHandler(console_handler)
-
     # 请求开始时记录时间
     @app.before_request
     def start_timer():
@@ -43,16 +38,15 @@ def setup_request_logging(app):
         # 计算请求耗时（秒，保留3位小数）
         elapsed = round(time.time() - g.start, 3)
 
-        # 构建日志上下文
-        context = {
-            'method': request.method,
-            'url': request.path,
-            'status': response.status_code,
-            'elapsed': elapsed
-        }
+        # 获取客户端IP（考虑代理情况）
+        forwarded = request.headers.get('X-Forwarded-For')
+        client_ip = forwarded.split(',')[0].strip() if forwarded else request.remote_addr
 
-        # 打印日志到控制台
-        app.logger.info('API请求处理完成', extra=context)
+        # 直接打印格式化的日志，避免使用Flask的上下文机制可能造成的重复
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]}] {request.method} {request.path} - {client_ip} - {response.status_code} - {elapsed}s")
+
+        # 记录到Flask日志系统
+        app.logger.info(f"{request.method} {request.path} from {client_ip} - {response.status_code} - {elapsed}s")
 
         return response
 
@@ -60,13 +54,9 @@ def setup_request_logging(app):
     @app.errorhandler(Exception)
     def log_exception(e):
         elapsed = round(time.time() - g.start, 3)
-        context = {
-            'method': request.method,
-            'url': request.path,
-            'status': 500,
-            'elapsed': elapsed
-        }
-        app.logger.error(f'API请求异常: {str(e)}', extra=context)
+        forwarded = request.headers.get('X-Forwarded-For')
+        client_ip = forwarded.split(',')[0].strip() if forwarded else request.remote_addr
+        app.logger.error(f'API请求异常 from {client_ip}: {str(e)} - {request.method} {request.path} - {elapsed}s')
         return {"error": str(e)}, 500
 
 # ========== 【核心】自动检测模型与数据库差异并执行迁移 ==========

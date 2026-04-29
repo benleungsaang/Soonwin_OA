@@ -21,7 +21,7 @@ FRONT_DEPLOY = DEPLOY_ROOT / "SoonwinOA_Frontend"     # 迁移包内前端文件
 BACKEND_ROOT_FILES = [
     "config.py",
     "extensions.py",
-    "soonwin_oa.db",
+    # "soonwin_oa.db",
     "soonwin_oa_dev.db",
     "requirements.txt",
     "run.py",          # 新增：缺失的run.py

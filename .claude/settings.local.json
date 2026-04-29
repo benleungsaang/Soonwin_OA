@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from app.models.order_record import OrderRecord, OrderRecordIncome, OrderRecordExpense; print\\('Models imported successfully'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from app.models.order_record import OrderRecord; print\\('Model OK'\\)\")",
+      "Bash(python -c \"from app.routes.order_record_routes import order_record_bp; print\\('Backend code OK'\\)\")",
+      "Bash(npx vue-tsc *)",
+      "Bash(python -c \"from app.routes.order_record_routes import order_record_bp; print\\('Backend OK'\\)\")",
+      "Bash(python -c \"from app.models.order_record import OrderRecord, OrderRecordIncome, OrderRecordExpense; from extensions import db; db.create_all\\(\\); print\\('Database tables created successfully'\\)\")",
+      "Bash(python *)",
+      "Bash(sqlite3 *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

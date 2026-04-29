@@ -32,6 +32,7 @@
           <el-button type="primary" @click="fetchPunchRecords">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
           <el-button type="success" @click="refreshData">刷新</el-button>
+          <el-button type="warning" @click="exportToTxt">导出CSV</el-button>
         </el-form-item>
       </el-form>
 
@@ -284,6 +285,133 @@ const deleteRecord = async (record: PunchRecord) => {
 const closeDetailDialog = () => {
   detailDialogVisible.value = false;
   selectedRecord.value = null;
+};
+
+// 导出打卡记录到txt文件
+const exportToTxt = async () => {
+  try {
+    ElMessage.info('正在导出数据，请稍候...');
+    
+    // 获取所有符合筛选条件的数据（不分页）
+    const params = {
+      page: 1,
+      size: 999999,  // 获取所有数据
+      name: searchForm.value.name || undefined,
+      emp_id: searchForm.value.empId || undefined,
+      punch_type: searchForm.value.punchType || undefined,
+      start_date: searchForm.value.punchTimeRange?.[0] || undefined,
+      end_date: searchForm.value.punchTimeRange?.[1] || undefined,
+    };
+
+    const response = await request.get('/api/punch-records', { params });
+    const allRecords = response.list || [];
+
+    if (allRecords.length === 0) {
+      ElMessage.warning('没有可导出的数据');
+      return;
+    }
+
+    // 按员工和日期分组处理数据
+    const recordMap = new Map<string, Map<string, {上班: PunchRecord[], 下班: PunchRecord[]}>>();
+
+    allRecords.forEach(record => {
+      const empKey = `${record.emp_id}_${record.name}`;
+      const dateStr = formatDateToYMD(new Date(record.punch_time));
+
+      if (!recordMap.has(empKey)) {
+        recordMap.set(empKey, new Map());
+      }
+      const dateMap = recordMap.get(empKey)!;
+
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { 上班: [], 下班: [] });
+      }
+      const typeRecords = dateMap.get(dateStr)!;
+
+      if (record.punch_type === '上班打卡') {
+        typeRecords.上班.push(record);
+      } else if (record.punch_type === '下班打卡') {
+        typeRecords.下班.push(record);
+      }
+    });
+
+    // 处理每个员工每天的数据：合并到一行
+    const processedData: Array<{
+      emp_id: string;
+      name: string;
+      date: string;
+      punch_in_time: string;
+      punch_out_time: string;
+    }> = [];
+
+    recordMap.forEach((dateMap, empKey) => {
+      const dates = Array.from(dateMap.keys()).sort();  // 按日期排序
+
+      dates.forEach(dateStr => {
+        const typeRecords = dateMap.get(dateStr)!;
+
+        // 获取最早上班时间
+        let punchInTime = '';
+        if (typeRecords.上班.length > 0) {
+          const earliest = typeRecords.上班.reduce((min, record) => {
+            return new Date(record.punch_time) < new Date(min.punch_time) ? record : min;
+          });
+          punchInTime = new Date(earliest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // 获取最晚下班时间
+        let punchOutTime = '';
+        if (typeRecords.下班.length > 0) {
+          const latest = typeRecords.下班.reduce((max, record) => {
+            return new Date(record.punch_time) > new Date(max.punch_time) ? record : max;
+          });
+          punchOutTime = new Date(latest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // 提取员工信息
+        const [empId, name] = empKey.split('_');
+
+        processedData.push({
+          emp_id: empId,
+          name: name,
+          date: dateStr,
+          punch_in_time: punchInTime,
+          punch_out_time: punchOutTime
+        });
+      });
+    });
+
+    // 按日期和员工排序
+    processedData.sort((a, b) => {
+      if (a.date !== b.date) {
+        return a.date.localeCompare(b.date);
+      }
+      return a.emp_id.localeCompare(b.emp_id);
+    });
+
+    // 生成CSV内容，添加UTF-8 BOM头确保Excel正确显示中文
+    const BOM = '\uFEFF';
+    let csvContent = BOM + '工号,姓名,日期,上班打卡时间,下班打卡时间\n';
+    processedData.forEach(item => {
+      csvContent += `${item.emp_id},${item.name},${item.date},${item.punch_in_time},${item.punch_out_time}\n`;
+    });
+
+    // 创建Blob并下载
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `打卡记录_${formatDate(new Date())}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    ElMessage.success(`导出成功，共 ${processedData.length} 条记录`);
+  } catch (error) {
+    console.error('Export error:', error);
+    ElMessage.error('导出失败');
+  }
 };
 </script>
 

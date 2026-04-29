@@ -1,3 +1,10 @@
+<!--
+  ImageUploadPreview 组件 - 图片/视频上传预览组件
+
+  使用前请参考同目录下的 ImageUploadPreview.md 文档
+  文档包含：组件概述、工作模式、Props/Events 说明、上传响应格式规范、
+  延迟/立即上传模式调用规范、常见问题与解决方案等
+-->
 <template>
   <div
     class="media-upload-preview-container"
@@ -165,13 +172,19 @@ interface Props {
   communicationId?: number; // 沟通记录ID，用于询盘沟通记录上传
   uploadImmediately?: boolean; // 控制是否立即上传，默认为true，保持向后兼容
   uploadPath?: string; // 自定义上传路径
+  orderId?: number; // 订单ID，用于订单记录截图上传
+  recordType?: string; // 记录类型（income/expense），用于生成文件名
+  remark?: string; // 备注信息，用于生成文件名
 }
 
 const props = withDefaults(defineProps<Props>(), {
   taskId: undefined,
   communicationId: undefined,
   uploadImmediately: false, // 修改为默认不立即上传，符合新要求
-  uploadPath: '/api/order-status/upload-multiple-images' // 默认上传路径，保持向后兼容
+  uploadPath: '/api/order-status/upload-multiple-images', // 默认上传路径，保持向后兼容
+  orderId: undefined,
+  recordType: '',
+  remark: ''
 });
 
 // 定义组件的事件
@@ -316,30 +329,38 @@ const confirmUpload = async () => {
     return;
   }
 
-  // 如果需要立即上传且有任务ID
+  // 如果需要立即上传且有任务ID或订单ID
   if (props.uploadImmediately) {
-    if (!props.taskId) {
-      ElMessage.error('未指定任务ID');
+    if (!props.taskId && !props.orderId && !props.communicationId) {
+      ElMessage.error('未指定任务ID或订单ID');
       return;
     }
 
     try {
       isUploading.value = true;
-      
+
       // 创建FormData对象并添加所有选定的文件
       const formData = new FormData();
       selectedFiles.forEach(file => {
         formData.append('files', file); // 后端使用getlist获取多个文件
       });
-      
+
       // 根据传入的ID类型添加相应参数
       if (props.communicationId !== undefined && props.communicationId !== null) {
         formData.append('communication_id', props.communicationId.toString());
       } else if (props.taskId !== undefined && props.taskId !== null) {
         formData.append('task_id', props.taskId.toString());
-      } else {
-        ElMessage.error('缺少必要的ID参数');
-        return;
+      }
+
+      // 添加订单记录相关的额外参数
+      if (props.orderId !== undefined && props.orderId !== null) {
+        formData.append('order_id', props.orderId.toString());
+      }
+      if (props.recordType) {
+        formData.append('record_type', props.recordType);
+      }
+      if (props.remark) {
+        formData.append('remark', props.remark);
       }
 
       // 创建带进度的请求

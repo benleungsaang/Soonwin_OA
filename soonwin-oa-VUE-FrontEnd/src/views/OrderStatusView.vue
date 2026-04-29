@@ -200,6 +200,7 @@
                     <ImageUploadPreview
                       :ref="setUploadPreviewRef(statusTask)"
                       :task-id="getValidTaskId(statusTask)"
+                      :upload-immediately="true"
                       @upload-success="onMediaUploadSuccess"
                       @upload-failure="onMediaUploadFailure"
                       @upload-clipboard-image="onUploadClipboardMedia"
@@ -2586,6 +2587,26 @@ const handleInputPaste = (e: ClipboardEvent, taskId: number | undefined) => {
   min-height: unset !important;
   max-width: unset !important;
   max-height: unset !important;
+}
+
+/* el-image 组件内部图片样式 - 确保按比例展示并溢出隐藏 */
+.thumb-inner-container :deep(.el-image) {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+}
+
+.thumb-inner-container :deep(.el-image__inner) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+}
+
+.thumb-inner-container :deep(.el-image__wrapper) {
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
 }
 
 /* ============ 操作按钮样式修复 ============ */

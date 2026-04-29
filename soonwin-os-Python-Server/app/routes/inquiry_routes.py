@@ -74,8 +74,8 @@ def check_inquiry_permission(current_user, inquiry, action="access"):
     if not current_user or not current_user.emp_id:
         return False, "未登录或登录状态失效"
 
-    # 管理员/运营专员拥有全部权限
-    if current_user.user_role in ['admin', 'ops']:
+    # 管理员拥有全部权限
+    if current_user.user_role == 'admin':
         return True, ""
 
     # 非管理员：可操作「自己创建」或「被分配给自己」的询盘
@@ -172,12 +172,12 @@ def get_inquiries():
         query = Inquiry.query
 
         # 权限过滤：
-        # - 管理员/运营：查看全部
-        # - 非管理员：查看自己创建 + 被分配的询盘（核心修正）
-        if current_user.user_role not in ['admin', 'ops']:
+        # - 管理员：查看全部
+        # - 非管理员：查看自己创建 + 被分配的询盘
+        if current_user.user_role != 'admin':
             query = query.filter(
                 (Inquiry.creator_id == current_user.emp_id) |
-                (Inquiry.follower_id == current_user.emp_id)  # 新增：被分配的询盘
+                (Inquiry.follower_id == current_user.emp_id)  # 被分配的询盘
             )
 
         # 搜索条件
@@ -356,8 +356,8 @@ def update_inquiry(inquiry_id):
         if 'packaging_product' in data: inquiry.packaging_product = data['packaging_product']
         if 'machine_type' in data: inquiry.machine_type = data['machine_type']
 
-        # 仅管理员/运营可更新跟单专员（保持原有逻辑）
-        if 'follower_id' in data and current_user.user_role in ['admin', 'ops']:
+        # 仅管理员可更新跟单专员
+        if 'follower_id' in data and current_user.user_role == 'admin':
             inquiry.follower_id = data['follower_id']
 
         inquiry.update_search_field()
@@ -411,6 +411,9 @@ def delete_inquiry(inquiry_id):
         is_allowed, msg = check_inquiry_permission(current_user, inquiry, "删除")
         if not is_allowed:
             return jsonify({"code": 403, "msg": msg, "data": None}), 403
+
+        # 清理关联的客户ID
+        inquiry.customer_id = None
 
         # 检查是否关联订单
         from app.models.order import Order
@@ -763,14 +766,9 @@ def get_inquiry_statistics():
         if not current_user:
             return jsonify({"code": 401, "msg": "未登录或登录状态失效", "data": None}), 401
 
-        # 基础查询：非管理员统计「自己创建 + 被分配」的询盘（核心修正）
+        # 基础查询：非管理员统计「自己创建 + 被分配」的询盘
         query = Inquiry.query
-        if current_user.user_role not in ['admin', 'ops']:
-            query = query.filter(
-                (Inquiry.creator_id == current_user.emp_id) |
-                (Inquiry.follower_id == current_user.emp_id)
-            )
-        else:
+        if current_user.user_role != 'admin':
             query = query.filter(
                 (Inquiry.creator_id == current_user.emp_id) |
                 (Inquiry.follower_id == current_user.emp_id)
@@ -784,17 +782,8 @@ def get_inquiry_statistics():
         source_stats = db.session.query(Inquiry.inquiry_source, func.count(Inquiry.id)).filter(Inquiry.inquiry_source.isnot(None))
         area_stats = db.session.query(Inquiry.area, func.count(Inquiry.id)).filter(Inquiry.area.isnot(None))
 
-        # 权限过滤统计数据（核心修正）
-        if current_user.user_role not in ['admin', 'ops']:
-            source_stats = source_stats.filter(
-                (Inquiry.creator_id == current_user.emp_id) |
-                (Inquiry.follower_id == current_user.emp_id)
-            )
-            area_stats = area_stats.filter(
-                (Inquiry.creator_id == current_user.emp_id) |
-                (Inquiry.follower_id == current_user.emp_id)
-            )
-        else:
+        # 权限过滤统计数据
+        if current_user.user_role != 'admin':
             source_stats = source_stats.filter(
                 (Inquiry.creator_id == current_user.emp_id) |
                 (Inquiry.follower_id == current_user.emp_id)
