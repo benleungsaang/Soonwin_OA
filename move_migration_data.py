@@ -118,8 +118,8 @@ def generate_requirements_txt():
     req_file = Path(BACK_SRC) / "requirements.txt"
 
     # 获取用户确认
-    confirm = input("\n是否生成最新的requirements.txt？(y/n，默认n): ").strip().lower()
-    if confirm != "y":
+    confirm = input("\n是否生成requirements.txt？(y/N，直接回车不生成): ").strip().lower()
+    if confirm in ['n', 'N']:
         print("使用现有的requirements.txt文件。")
         return
 
@@ -213,142 +213,6 @@ def clean_redundant_files(dir_path: Path, exclude_patterns: list = None):
     except Exception as e:
         print(f"[清理失败] {dir_path.name}: {str(e)[:80]}")
 
-def get_table_structure(db_path: str, table_name: str) -> Tuple[str, List]:
-    """
-    获取指定表的结构信息
-    返回: (CREATE语句, 列信息列表)
-    """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    # 获取CREATE语句
-    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?;", (table_name,))
-    create_sql = cursor.fetchone()
-    create_sql = create_sql[0] if create_sql else None
-
-    # 获取列信息
-    cursor.execute(f"PRAGMA table_info(\"{table_name}\");")
-    columns = cursor.fetchall()
-
-    conn.close()
-    return create_sql, columns
-
-def get_all_tables(db_path: str) -> List[str]:
-    """获取数据库中所有表的名称"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
-    tables = [row[0] for row in cursor.fetchall()]
-
-    conn.close()
-    return tables
-
-def sync_table_structure(source_db: str, target_db: str, table_name: str):
-    """
-    将单个表的结构从源数据库同步到目标数据库
-    """
-    print(f"  同步表结构: {table_name}")
-
-    # 获取源表结构
-    source_create_sql, source_columns = get_table_structure(source_db, table_name)
-
-    if not source_create_sql:
-        print(f"    源数据库中不存在表 {table_name}")
-        return
-
-    # 连接到目标数据库
-    target_conn = sqlite3.connect(target_db)
-    target_cursor = target_conn.cursor()
-
-    try:
-        # 检查目标数据库中是否存在该表
-        target_cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
-        target_table_exists = target_cursor.fetchone() is not None
-
-        if target_table_exists:
-            print(f"    表 {table_name} 已存在，将重新创建以更新结构")
-
-            # 保存原表数据
-            target_cursor.execute(f"SELECT * FROM '{table_name}';")
-            old_data = target_cursor.fetchall()
-
-            # 获取原表的列信息以便数据映射
-            target_cursor.execute(f"PRAGMA table_info('{table_name}');")
-            old_columns = [col[1] for col in target_cursor.fetchall()]
-
-            # 删除原表
-            target_cursor.execute(f"DROP TABLE '{table_name}';")
-
-            # 创建新表
-            target_cursor.execute(source_create_sql)
-
-            # 如果有旧数据，尝试插入（只插入在新旧表中都存在的列）
-            if old_data and old_columns:
-                # 获取新表的列
-                target_cursor.execute(f"PRAGMA table_info('{table_name}');")
-                new_columns = [col[1] for col in target_cursor.fetchall()]
-
-                # 确定共同列
-                common_columns = [col for col in old_columns if col in new_columns]
-
-                if common_columns:
-                    # 构建INSERT语句
-                    placeholders = ', '.join(['?' for _ in common_columns])
-                    columns_str = ', '.join(common_columns)
-                    insert_sql = f"INSERT INTO '{table_name}' ({columns_str}) VALUES ({placeholders})"
-
-                    # 凼取旧数据中的对应列
-                    old_col_indices = {col: i for i, col in enumerate(old_columns)}
-                    new_col_indices = {col: i for i, col in enumerate(new_columns)}
-
-                    for row in old_data:
-                        common_values = []
-                        for col in common_columns:
-                            common_values.append(row[old_col_indices[col]])
-
-                        target_cursor.execute(insert_sql, common_values)
-
-                    print(f"    已迁移 {len(old_data)} 行数据到新表结构")
-                else:
-                    print(f"    新旧表结构差异过大，无法迁移数据")
-        else:
-            print(f"    表 {table_name} 不存在，直接创建")
-            # 直接创建新表
-            target_cursor.execute(source_create_sql)
-
-        target_conn.commit()
-        print(f"    表 {table_name} 结构同步完成")
-
-    except sqlite3.Error as e:
-        print(f"    同步表 {table_name} 时出错: {e}")
-        target_conn.rollback()
-    finally:
-        target_conn.close()
-
-def sync_database_structure(source_db: str, target_db: str):
-    """
-    将源数据库的结构同步到目标数据库
-    """
-    print(f"开始同步数据库结构: {source_db} -> {target_db}")
-
-    # 创建备份
-    backup_path = target_db + ".backup_before_sync"
-    shutil.copy2(target_db, backup_path)
-    print(f"已创建备份: {backup_path}")
-
-    # 获取源数据库的所有表
-    source_tables = get_all_tables(source_db)
-    print(f"源数据库包含 {len(source_tables)} 个表")
-
-    # 同步每个表的结构
-    for table_name in source_tables:
-        if table_name == '_migration_history':  # 跳过旧的迁移历史表
-            print(f"  跳过表: {table_name}")
-            continue
-        sync_table_structure(source_db, target_db, table_name)
-
-    print("数据库结构同步完成!")
 
 # 【修复/核心】单独复制assets下的TemplateImg目录（含所有图片/子文件）
 def copy_assets_template_img():
@@ -443,41 +307,8 @@ def full_deploy_sync():
     print("=" * 30)
     back_src_path = Path(BACK_SRC)
 
-    # 在复制soonwin_oa.db之前，先将soonwin_oa_dev.db的结构同步到soonwin_oa.db
-    source_db = back_src_path / "soonwin_oa_dev.db"
-    target_db = back_src_path / "soonwin_oa.db"
-
-    if source_db.exists() and target_db.exists():
-        print("\n[重要提醒] 在同步数据库结构前，请确认以下信息：")
-        print(f"  - soonwin_oa.db 文件路径: {target_db}")
-        print(f"  - soonwin_oa_dev.db 文件路径: {source_db}")
-        print("  - soonwin_oa_dev.db 将作为结构更新的模板")
-        print("  - soonwin_oa.db 中的数据将保留，但表结构会被更新")
-        print("\n[确认问题] soonwin_oa.db 是否为从生产环境复制过来的最新数据库？")
-
-        user_input = input("请输入 'y' 确认并继续，或输入其他内容取消操作: ").strip().lower()
-
-        if user_input == 'y' or user_input == '' or user_input == 'yes':
-            print("\n用户已确认，开始同步数据库结构 (soonwin_oa_dev.db -> soonwin_oa.db)...")
-            sync_database_structure(str(source_db), str(target_db))
-            print("数据库结构同步完成，现在复制更新后的数据库文件...")
-        else:
-            print("\n用户取消操作，跳过数据库结构同步步骤。")
-            print("即将继续执行后续复制步骤...")
-    elif source_db.exists() and not target_db.exists():
-        print(f"\n[注意] soonwin_oa.db 不存在，将直接复制 soonwin_oa_dev.db 作为 soonwin_oa.db")
-    elif not source_db.exists():
-        print(f"\n[警告] soonwin_oa_dev.db 不存在，无法进行数据库结构同步")
-    elif not target_db.exists():
-        print(f"\n[警告] soonwin_oa.db 不存在，将跳过数据库结构同步步骤")
-
     for filename in BACKEND_ROOT_FILES:
-        # 特别处理数据库文件
-        if filename == "soonwin_oa.db":
-            # 由于结构可能已同步，直接复制文件
-            copy_file(back_src_path / filename, BACK_DEPLOY / filename)
-        else:
-            copy_file(back_src_path / filename, BACK_DEPLOY / filename)
+        copy_file(back_src_path / filename, BACK_DEPLOY / filename)
 
     # 6. 复制后端子文件夹（应用排除规则，含整体排除assets）
     print("\n" + "=" * 30)

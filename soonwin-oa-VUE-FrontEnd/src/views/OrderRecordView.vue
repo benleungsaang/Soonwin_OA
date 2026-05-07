@@ -26,9 +26,9 @@
       >
         <el-table-column prop="order_no" label="订单号" width="150" />
         <el-table-column prop="order_remark_name" label="订单备注名" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="order_amount" label="订单金额" width="150">
+        <el-table-column prop="order_amount_cny" label="订单金额" width="150">
           <template #default="scope">
-            ¥{{ formatCurrency(scope.row.order_amount) }} ({{ scope.row.currency }})
+            ¥{{ formatCurrency(scope.row.order_amount_cny) }} ({{ scope.row.currency }})
           </template>
         </el-table-column>
         <el-table-column prop="is_completed" label="状态" width="100">

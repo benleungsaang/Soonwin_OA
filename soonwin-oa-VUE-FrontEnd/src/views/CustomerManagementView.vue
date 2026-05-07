@@ -170,9 +170,9 @@
             <el-table :data="relatedOrderRecords" v-loading="relatedLoading" style="width: 100%" max-height="300" :row-style="{ cursor: 'pointer' }" @row-click="goToOrderRecord">
               <el-table-column prop="order_no" label="订单号" />
               <el-table-column prop="order_remark_name" label="订单备注名" />
-              <el-table-column prop="order_amount" label="订单金额">
+              <el-table-column prop="order_amount_cny" label="订单金额">
                 <template #default="scope">
-                  ¥{{ formatCurrency(scope.row.order_amount) }}
+                  ¥{{ formatCurrency(scope.row.order_amount_cny) }}
                 </template>
               </el-table-column>
               <el-table-column prop="order_date" label="订单日期" />

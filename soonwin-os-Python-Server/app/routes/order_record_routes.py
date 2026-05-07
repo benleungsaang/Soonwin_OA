@@ -41,7 +41,7 @@ def get_order_records():
         page = request.args.get('page', 1, type=int)
         size = request.args.get('size', 10, type=int)
 
-        query = OrderRecord.query.order_by(OrderRecord.create_time.desc())
+        query = OrderRecord.query.order_by(OrderRecord.order_date.desc())
 
         total = query.count()
         records = query.offset((page - 1) * size).limit(size).all()

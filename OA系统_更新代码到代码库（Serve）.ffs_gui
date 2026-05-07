@@ -94,6 +94,7 @@
             <Item>\assets\DisplayFiles\</Item>
             <Item>\assets\Media\</Item>
             <Item>\assets\OrderStatus\</Item>
+            <Item>\assets\OrderRecords\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
