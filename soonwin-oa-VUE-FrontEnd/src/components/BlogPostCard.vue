@@ -58,7 +58,11 @@
              @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
-          <div v-if="expandedIdx !== null" class="expand-nav-center" @click="collapseExpand"></div>
+          <div v-if="expandedIdx !== null && expandedMedia?.media_type !== 'video'" class="expand-nav-center" @click="collapseExpand"></div>
+          <!-- 视频中部播放按钮（暂停时显示） -->
+          <div v-if="expandedMedia?.media_type === 'video' && !videoPlaying" class="cvc-big-play" @click.stop="toggleVideoPlay">
+            <el-icon :size="48"><VideoPlay /></el-icon>
+          </div>
           <!-- 轮播轨道：所有媒体水平排列 -->
           <div class="carousel-track" :style="carouselStyle">
             <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
@@ -696,6 +700,12 @@ defineExpose({ loadHistory })
 .cvc-volume-group { display: flex; align-items: center; gap: 6px; flex: 1; }
 .cvc-volume-slider { width: 80px; max-width: 120px; cursor: pointer; padding: 12px 0; }
 .cvc-spacer { flex: 1; }
+.cvc-big-play {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 130px; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; pointer-events: auto;
+}
+.cvc-big-play:hover { opacity: 0.8; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
