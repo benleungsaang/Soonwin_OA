@@ -144,6 +144,10 @@
                       <el-icon><Clock /></el-icon>
                       <span>考勤系统</span>
                     </el-menu-item>
+                    <el-menu-item index="20" @click="goToBlog" v-if="hasToken && permissions.blogManage">
+                      <el-icon><EditPen /></el-icon>
+                      <span>微博客</span>
+                    </el-menu-item>
                   </el-menu>
                   <!-- 登录按钮：未登录时显示在其它功能列底部 -->
                   <el-menu class="menu-list login-menu" v-if="!hasToken">
@@ -175,7 +179,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -248,7 +252,8 @@ const permissionMap = {
   attendanceManage: { key: 'attendance_manage', name: '考勤系统', path: '/attendance-system' },
   quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' },
   orderRecordManage: { key: 'order_record_manage', name: '订单快速记录', path: '/order-record' },
-  customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' }
+  customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
+  blogManage: { key: 'blog_manage', name: '微博客', path: '/blog' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -299,6 +304,7 @@ const goToMachineManagementNew = () => navigateToPage('machineManage');
 const goToQuotationManagement = () => navigateToPage('quotationManage');
 const goToOrderRecordManage = () => navigateToPage('orderRecordManage');
 const goToCustomerManage = () => navigateToPage('customerManage');
+const goToBlog = () => navigateToPage('blogManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {
