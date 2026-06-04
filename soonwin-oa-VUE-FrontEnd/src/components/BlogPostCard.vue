@@ -75,29 +75,36 @@
               </div>
             </div>
           </div>
-          <!-- 自定义视频控制栏 -->
+          <!-- 自定义视频控制栏（双行布局） -->
           <div v-if="expandedMedia?.media_type === 'video'" class="custom-video-controls">
-            <button class="cvc-btn" @click="toggleVideoPlay" :title="videoPlaying ? '暂停' : '播放'">
-              <el-icon :size="20"><VideoPlay v-if="!videoPlaying" /><VideoPause v-else /></el-icon>
-            </button>
-            <div class="cvc-progress" @click="seekVideo" ref="progressRef">
-              <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoProgress + '%' }"></div></div>
-            </div>
-            <span class="cvc-time">{{ formatTime2(videoCurrentTime) }} / {{ formatTime2(videoDuration) }}</span>
-            <div class="cvc-volume-group">
-              <button class="cvc-btn" @click="toggleMute">
-                <el-icon :size="16"><Microphone v-if="!videoMuted" /><MuteNotification v-else /></el-icon>
+            <!-- 第一行：播放、进度条、时间 -->
+            <div class="cvc-row1">
+              <button class="cvc-btn cvc-btn-lg" @click="toggleVideoPlay" :title="videoPlaying ? '暂停' : '播放'">
+                <el-icon :size="28"><VideoPlay v-if="!videoPlaying" /><VideoPause v-else /></el-icon>
               </button>
-              <div class="cvc-volume-slider" @click="setVolume">
-                <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoVolume * 100 + '%' }"></div></div>
+              <div class="cvc-progress" @click="seekVideo" ref="progressRef">
+                <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoProgress + '%' }"></div></div>
               </div>
+              <span class="cvc-time">{{ formatTime2(videoCurrentTime) }} / {{ formatTime2(videoDuration) }}</span>
             </div>
-            <button class="cvc-btn" @click="downloadVideo" title="下载">
-              <el-icon :size="16"><Download /></el-icon>
-            </button>
-            <button class="cvc-btn" @click="enterFullscreenVideo" title="全屏">
-              <el-icon :size="18"><FullScreen /></el-icon>
-            </button>
+            <!-- 第二行：音量、下载、全屏 -->
+            <div class="cvc-row2">
+              <div class="cvc-volume-group">
+                <button class="cvc-btn cvc-btn-md" @click="toggleMute">
+                  <el-icon :size="20"><Microphone v-if="!videoMuted" /><MuteNotification v-else /></el-icon>
+                </button>
+                <div class="cvc-volume-slider" @click="setVolume">
+                  <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoVolume * 100 + '%' }"></div></div>
+                </div>
+              </div>
+              <div class="cvc-spacer"></div>
+              <button class="cvc-btn cvc-btn-md" @click="downloadVideo" title="下载">
+                <el-icon :size="22"><Download /></el-icon>
+              </button>
+              <button class="cvc-btn cvc-btn-md" @click="enterFullscreenVideo" title="全屏">
+                <el-icon :size="22"><FullScreen /></el-icon>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -665,18 +672,23 @@ defineExpose({ loadHistory })
 .video-rotate-wrap video { max-width: 85vh; max-height: 85vw; }
 .custom-video-controls {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px 72px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px 15px 12px;
   background: linear-gradient(transparent, rgba(0,0,0,0.6));
   pointer-events: auto;
 }
-.cvc-btn { background: none; border: none; color: #fff; cursor: pointer; padding: 0; flex-shrink: 0; display: flex; align-items: center; }
-.cvc-progress { flex: 1; cursor: pointer; padding: 8px 0; }
-.cvc-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
-.cvc-fill { height: 100%; background: #fff; border-radius: 2px; transition: width 0.1s; }
-.cvc-time { font-size: 12px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cvc-volume-group { display: flex; align-items: center; gap: 4px; }
-.cvc-volume-slider { width: 50px; cursor: pointer; padding: 8px 0; }
+.cvc-row1 { display: flex; align-items: center; gap: 10px; }
+.cvc-row2 { display: flex; align-items: center; gap: 10px; }
+.cvc-btn { background: none; border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cvc-btn-lg { width: 44px; height: 44px; }
+.cvc-btn-md { width: 40px; height: 40px; }
+.cvc-progress { flex: 1; cursor: pointer; padding: 12px 0; }
+.cvc-track { height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; }
+.cvc-fill { height: 100%; background: #fff; border-radius: 3px; transition: width 0.1s; }
+.cvc-time { font-size: 13px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.cvc-volume-group { display: flex; align-items: center; gap: 6px; flex: 1; }
+.cvc-volume-slider { width: 80px; max-width: 120px; cursor: pointer; padding: 12px 0; }
+.cvc-spacer { flex: 1; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
@@ -697,7 +709,7 @@ defineExpose({ loadHistory })
 .is-video .expand-nav-left,
 .is-video .expand-nav-right,
 .is-video .expand-nav-center {
-  bottom: 64px;
+  bottom: 130px;
 }
 
 /* ===== 编辑历史 ===== */
