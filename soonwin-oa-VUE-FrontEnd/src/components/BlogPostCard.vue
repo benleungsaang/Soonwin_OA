@@ -65,12 +65,25 @@
               <img v-if="m.media_type === 'image'"
                    :src="getMediaUrl(m.file_path)" alt=""
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="handleExpandedImageClick(i)" />
-              <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
-                     :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx"
-                     :poster="getMediaUrl(m.thumbnail_path)" playsinline
-                     :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }"
-                     @click.stop />
+              <div v-else class="video-rotate-wrap"
+                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }">
+                <video :ref="i === expandedIdx ? 'videoRef' : undefined"
+                       :src="getMediaUrl(m.file_path)" :controls="false"
+                       :poster="getMediaUrl(m.thumbnail_path)" playsinline
+                       @click.stop="toggleVideoPlay" @timeupdate="onVideoTimeUpdate"
+                       @loadedmetadata="onVideoTimeUpdate" @ended="onVideoTimeUpdate" />
+              </div>
             </div>
+          </div>
+          <!-- 自定义视频控制栏 -->
+          <div v-if="expandedMedia?.media_type === 'video'" class="custom-video-controls">
+            <button class="cvc-btn" @click="toggleVideoPlay">
+              <el-icon :size="20"><VideoPlay v-if="!videoPlaying" /><VideoPause v-else /></el-icon>
+            </button>
+            <div class="cvc-progress" @click="seekVideo" ref="progressRef">
+              <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoProgress + '%' }"></div></div>
+            </div>
+            <span class="cvc-time">{{ formatTime2(videoCurrentTime) }} / {{ formatTime2(videoDuration) }}</span>
           </div>
         </div>
       </div>
@@ -178,7 +191,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -209,6 +222,11 @@ const fsTouchStartX = ref(0)
 const fsTouchLastX = ref(0)
 const fsSwipeOffset = ref(0)
 const fsSwipeOffsetY = ref(0)
+const videoPlaying = ref(false)
+const videoCurrentTime = ref(0)
+const videoDuration = ref(0)
+const videoProgress = ref(0)
+const progressRef = ref<HTMLElement | null>(null)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
@@ -247,7 +265,7 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
+function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0; videoPlaying.value = false }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
@@ -321,6 +339,35 @@ function rotateExpanded() {
   })
 }
 
+function toggleVideoPlay() {
+  const el = getVideoEl()
+  if (!el) return
+  if (el.paused) { el.play().catch(() => {}); videoPlaying.value = true }
+  else { el.pause(); videoPlaying.value = false }
+}
+function onVideoTimeUpdate() {
+  const el = getVideoEl()
+  if (!el) return
+  videoCurrentTime.value = el.currentTime || 0
+  videoDuration.value = el.duration || 0
+  videoProgress.value = videoDuration.value > 0 ? (videoCurrentTime.value / videoDuration.value) * 100 : 0
+  if (el.paused !== !videoPlaying.value) videoPlaying.value = !el.paused
+}
+function formatTime2(seconds: number): string {
+  if (!seconds || !isFinite(seconds)) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
+}
+function seekVideo(e: MouseEvent) {
+  const bar = progressRef.value
+  if (!bar) return
+  const el = getVideoEl()
+  if (!el) return
+  const rect = bar.getBoundingClientRect()
+  const pct = (e.clientX - rect.left) / rect.width
+  el.currentTime = pct * videoDuration.value
+}
 function handleExpandedImageClick(index: number) {
   if (window.innerWidth > 768) { collapseExpand(); return }
   enterFullscreen(index)
@@ -567,6 +614,20 @@ defineExpose({ loadHistory })
 .carousel-slide { flex: 0 0 100%; display: flex; align-items: center; justify-content: center; }
 .carousel-slide img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; }
 .carousel-slide video { max-width: 100%; max-height: 85vh; }
+.video-rotate-wrap { display: flex; align-items: center; justify-content: center; max-width: 100%; max-height: 85vh; transition: transform 0.3s; }
+.video-rotate-wrap video { max-width: 85vh; max-height: 85vw; }
+.custom-video-controls {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px 72px 12px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  pointer-events: auto;
+}
+.cvc-btn { background: none; border: none; color: #fff; cursor: pointer; padding: 0; flex-shrink: 0; display: flex; align-items: center; }
+.cvc-progress { flex: 1; cursor: pointer; padding: 8px 0; }
+.cvc-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+.cvc-fill { height: 100%; background: #fff; border-radius: 2px; transition: width 0.1s; }
+.cvc-time { font-size: 12px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
