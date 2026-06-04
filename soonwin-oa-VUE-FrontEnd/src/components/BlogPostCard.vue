@@ -61,7 +61,7 @@
           <img v-if="expandedMedia.media_type === 'image'"
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
                :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
-          <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
+          <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls
                  :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
         </div>
       </div>
@@ -211,27 +211,41 @@ function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; video
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
-// 触屏滑动（跟手动画）
+// 触屏滑动（轮播式：头尾相接 + 弹性归位）
 let touchStartX = 0
-let touchCurrentX = 0
+let touchLastX = 0
 const swipeOffset = ref(0)
+const swipeAnimating = ref(false)
 
 function onTouchStart(e: TouchEvent) {
+  if (swipeAnimating.value) return
   touchStartX = e.touches[0].clientX
-  touchCurrentX = touchStartX
+  touchLastX = touchStartX
   swipeOffset.value = 0
 }
 function onTouchMove(e: TouchEvent) {
-  touchCurrentX = e.touches[0].clientX
-  swipeOffset.value = touchCurrentX - touchStartX
+  touchLastX = e.touches[0].clientX
+  const diff = touchLastX - touchStartX
+  // 头尾边界弹性阻尼（超出时移动距离减半）
+  const atStart = expandedIdx.value === 0 && diff > 0
+  const atEnd = expandedIdx.value === (props.post.media?.length || 1) - 1 && diff < 0
+  swipeOffset.value = (atStart || atEnd) ? diff * 0.4 : diff
 }
 function onTouchEnd(_e: TouchEvent) {
-  const diff = touchCurrentX - touchStartX
-  swipeOffset.value = 0
-  if (Math.abs(diff) > 60) {
-    if (diff < 0) nextExpanded()
-    else prevExpanded()
+  const diff = touchLastX - touchStartX
+  const threshold = 60
+  swipeAnimating.value = true
+  if (diff < -threshold) {
+    if (expandedIdx.value !== null && expandedIdx.value < (props.post.media?.length || 1) - 1) {
+      nextExpanded()
+    }
+  } else if (diff > threshold) {
+    if (expandedIdx.value !== null && expandedIdx.value > 0) {
+      prevExpanded()
+    }
   }
+  swipeOffset.value = 0
+  setTimeout(() => { swipeAnimating.value = false }, 350)
 }
 function rotateExpanded() {
   rotateDeg.value += 90
@@ -463,6 +477,9 @@ defineExpose({ loadHistory })
   .media-grid { gap: 10px; }
   .media-item img, .media-item video, .media-placeholder { height: auto; aspect-ratio: 1; max-height: 200px; min-height: 80px; }
   .media-placeholder { width: 100%; }
+  .history-body { max-height: 55vh; }
+  .history-card { padding: 10px; }
+  .history-post-wrap .media-grid { gap: 6px; }
 }
 @media (max-width: 640px) {
   .media-grid { grid-template-columns: 1fr 1fr !important; }
