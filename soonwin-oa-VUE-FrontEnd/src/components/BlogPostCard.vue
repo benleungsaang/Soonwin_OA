@@ -378,7 +378,14 @@ function onFsTouchEnd() {
   fsSwipeOffset.value = 0
 }
 function openLightboxFromExpand() {
-  if (expandedIdx.value !== null) { const i = expandedIdx.value; collapseExpand(); emit('media-click', props.post.media![i], i) }
+  if (expandedIdx.value !== null) {
+    if (window.innerWidth <= 768) {
+      // 移动端：打开全屏模式（而非灯箱）
+      enterFullscreen(expandedIdx.value)
+    } else {
+      const i = expandedIdx.value; collapseExpand(); emit('media-click', props.post.media![i], i)
+    }
+  }
 }
 
 function handleHistoryMediaClick(media: any, historyMedias: any[], index: number) {
