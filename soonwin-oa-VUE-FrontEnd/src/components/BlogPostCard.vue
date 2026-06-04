@@ -58,15 +58,15 @@
              @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
-          <div class="expand-nav-center" @click="collapseExpand"></div>
           <!-- 轮播轨道：所有媒体水平排列 -->
           <div class="carousel-track" :style="carouselStyle">
             <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
               <img v-if="m.media_type === 'image'"
                    :src="getMediaUrl(m.file_path)" alt=""
-                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" />
+                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="enterFullscreen(i)" />
               <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
                      :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx"
+                     :poster="getMediaUrl(m.thumbnail_path)" playsinline
                      @click.stop />
             </div>
           </div>
@@ -151,6 +151,25 @@
       </div>
     </el-dialog>
   </article>
+
+  <!-- 全屏查看模式（移动端） -->
+  <teleport to="body">
+    <div v-if="fullscreenVisible" class="fs-overlay" @touchstart="onFsTouchStart" @touchmove="onFsTouchMove" @touchend="onFsTouchEnd">
+      <button class="fs-close" @click="exitFullscreen"><el-icon :size="22"><Close /></el-icon></button>
+      <div class="fs-track-wrap">
+        <div class="fs-track" :style="fsCarouselStyle">
+          <div v-for="(m, i) in post.media" :key="m.id" class="fs-slide">
+            <img v-if="m.media_type === 'image'"
+                 :src="getMediaUrl(m.file_path)" class="fs-img" />
+            <video v-else :ref="i === fullscreenIdx ? 'fullscreenVideoRef' : undefined"
+                   :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
+                   class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline
+                   @click="handleFsVideoClick" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script setup lang="ts">
@@ -181,6 +200,12 @@ const videoRef = ref<HTMLVideoElement | HTMLVideoElement[] | null>(null)
 function getVideoEl() { return Array.isArray(videoRef.value) ? videoRef.value[0] : videoRef.value }
 const videoTimeMap = new Map<number, number>()
 const directClickExpand = ref(false)
+const fullscreenVisible = ref(false)
+const fullscreenIdx = ref(0)
+const fullscreenVideoRef = ref()
+const fsTouchStartX = ref(0)
+const fsTouchLastX = ref(0)
+const fsSwipeOffset = ref(0)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
@@ -228,6 +253,13 @@ let touchStartX = 0
 let touchLastX = 0
 const swipeOffset = ref(0)
 const swipeAnimating = ref(false)
+
+const fsCarouselStyle = computed(() => {
+  const idx = fullscreenIdx.value || 0
+  const total = props.post.media?.length || 1
+  const base = -idx * 100
+  return { transform: `translateX(${base}%)`, transition: fsSwipeOffset.value ? "none" : "transform 0.3s ease" }
+})
 
 const carouselStyle = computed(() => {
   const idx = expandedIdx.value || 0
@@ -279,6 +311,49 @@ function rotateExpanded() {
       wrap.style.minHeight = '150px'
     }
   })
+}
+
+function enterFullscreen(index: number) {
+  if (window.innerWidth > 768) return // 桌面端仍用灯箱
+  fullscreenIdx.value = index
+  fullscreenVisible.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+function exitFullscreen() {
+  fullscreenVisible.value = false
+  const el = fullscreenVideoRef.value
+  if (Array.isArray(el) && el[0]) el[0].pause()
+  else if (el) el.pause()
+  document.body.style.overflow = ''
+}
+
+function handleFsVideoClick() {
+  const el = fullscreenVideoRef.value
+  const vid = Array.isArray(el) ? el[0] : el
+  if (!vid) return
+  if (vid.paused) vid.play().catch(() => {})
+  else vid.pause()
+}
+
+// 全屏滑动
+function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clientX; fsTouchLastX.value = fsTouchStartX.value; fsSwipeOffset.value = 0 }
+function onFsTouchMove(e: TouchEvent) {
+  fsTouchLastX.value = e.touches[0].clientX
+  const diff = fsTouchLastX.value - fsTouchStartX.value
+  if (Math.abs(diff) > 10) e.preventDefault()
+  const total = props.post.media?.length || 1
+  const atStart = fullscreenIdx.value === 0 && diff > 0
+  const atEnd = fullscreenIdx.value === total - 1 && diff < 0
+  fsSwipeOffset.value = (atStart || atEnd) ? diff * 0.35 : diff
+}
+function onFsTouchEnd() {
+  const diff = fsTouchLastX.value - fsTouchStartX.value
+  if (Math.abs(diff) > 50) {
+    if (diff < -50 && fullscreenIdx.value < (props.post.media?.length || 1) - 1) fullscreenIdx.value++
+    else if (diff > 50 && fullscreenIdx.value > 0) fullscreenIdx.value--
+  }
+  fsSwipeOffset.value = 0
 }
 function openLightboxFromExpand() {
   if (expandedIdx.value !== null) { const i = expandedIdx.value; collapseExpand(); emit('media-click', props.post.media![i], i) }
@@ -469,14 +544,9 @@ defineExpose({ loadHistory })
   right: 0;
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
-.expand-nav-center {
-  position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
-  z-index: 2; cursor: zoom-out;
-}
 /* 视频展开时底部留空间给控制栏 */
 .is-video .expand-nav-left,
-.is-video .expand-nav-right,
-.is-video .expand-nav-center {
+.is-video .expand-nav-right {
   bottom: 64px;
 }
 
@@ -505,10 +575,28 @@ defineExpose({ loadHistory })
   .history-body { max-height: 55vh; }
   .history-card { padding: 10px; }
   .history-post-wrap .media-grid { gap: 6px; }
-  .expand-nav-center { display: none; }
   .expand-nav-left, .expand-nav-right { width: 25%; }
 }
 @media (max-width: 640px) {
   .media-grid { grid-template-columns: 1fr 1fr !important; }
 }
+
+/* ===== 全屏查看 ===== */
+.fs-overlay {
+  position: fixed; inset: 0; z-index: 10001; background: #000;
+  display: flex; align-items: center; justify-content: center;
+}
+.fs-close {
+  position: absolute; top: 16px; right: 16px; z-index: 10;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(0,0,0,0.4); border: none; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.fs-track-wrap { width: 100vw; height: 100vh; overflow: hidden; }
+.fs-track { display: flex; height: 100%; align-items: center; }
+.fs-slide { flex: 0 0 100vw; display: flex; align-items: center; justify-content: center; height: 100%; }
+.fs-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.fs-video { max-width: 100%; max-height: 100%; }
+
 </style>
