@@ -193,13 +193,9 @@ const canDelete = computed(() => isAdmin.value || props.post.author_id === curre
 
 function handleMediaClick(media: any, index: number) {
   if (media.compress_status === 'pending') return
-  if (media.media_type === 'video') {
-    emit('media-click', media, index)
-  } else if (expandedIdx.value === index) {
-    collapseExpand()
-  } else {
-    expandMedia(index)
-  }
+  // 统一先展开模式查看（图片和视频均适用），点击"查看原图"再进灯箱
+  if (expandedIdx.value === index) { collapseExpand() }
+  else { expandMedia(index) }
 }
 
 function expandMedia(index: number) { collapseExpand(); expandedIdx.value = index; rotateDeg.value = 0 }
@@ -393,8 +389,20 @@ defineExpose({ loadHistory })
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
-.expand-nav-left { left: 0; cursor: w-resize; }
-.expand-nav-right { right: 0; cursor: e-resize; }
+.expand-nav-left { left: 0; }
+.expand-nav-right { right: 0; }
+.expand-nav-left:hover::after {
+  content: '‹';
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 48px; color: rgba(0,0,0,0.35); font-weight: 300; line-height: 1;
+  pointer-events: none;
+}
+.expand-nav-right:hover::after {
+  content: '›';
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 48px; color: rgba(0,0,0,0.35); font-weight: 300; line-height: 1;
+  pointer-events: none;
+}
 .expand-nav-center {
   position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
