@@ -709,11 +709,13 @@ defineExpose({ loadHistory })
 }
 .cvc-big-play-circle {
   width: 96px; height: 96px; border-radius: 50%;
-  background: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.65);
+  color: #323232;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.2s, transform 0.2s;
 }
-.cvc-big-play-circle:hover { background: rgba(255,255,255,0.4); transform: scale(1.05); }
+.cvc-big-play-circle:hover { background: rgba(255,255,255,0.85); transform: scale(1.05); }
+.cvc-big-play-circle :deep(.el-icon) { color: #323232; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
