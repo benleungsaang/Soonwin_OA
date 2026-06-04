@@ -926,12 +926,15 @@ AVATAR_DIR = 'assets/PostsMedia/Avatar'
 @blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
 def serve_avatar(emp_id):
     """提供用户头像"""
-    base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
-    base_dir = os.path.abspath(base_dir)
-    for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-        path = os.path.join(base_dir, f'{emp_id}.{ext}')
-        if os.path.exists(path) and os.path.isfile(path):
-            return send_file(path)
+    try:
+        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.abspath(base_dir)
+        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+            path = os.path.join(base_dir, f'{emp_id}.{ext}')
+            if os.path.exists(path) and os.path.isfile(path):
+                return send_file(path)
+    except Exception as e:
+        print(f"头像获取失败: {e}")
     abort(404)
 
 
