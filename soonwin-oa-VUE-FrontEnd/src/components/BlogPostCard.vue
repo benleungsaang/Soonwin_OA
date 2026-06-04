@@ -210,9 +210,9 @@ function rotateExpanded() {
   wrap.style.minHeight = wrap.getBoundingClientRect().height + 'px'
   requestAnimationFrame(() => {
     if ((rotateDeg.value % 360) === 90 || (rotateDeg.value % 360) === 270) {
-      wrap.style.minHeight = el.getBoundingClientRect().width + 'px'; wrap.style.maxHeight = '2000px'
+      wrap.style.minHeight = el.getBoundingClientRect().width + 'px'
     } else {
-      wrap.style.minHeight = '150px'; wrap.style.maxHeight = 'calc(50vh - 40px)'
+      wrap.style.minHeight = '150px'
     }
   })
 }
@@ -365,8 +365,8 @@ defineExpose({ loadHistory })
 
 /* ===== 展开模式 ===== */
 .expanded-view {
-  max-height: 50vh; overflow: hidden; background: #f3f4f6;
-  border-radius: 8px; transition: max-height 0.35s ease;
+  background: #f3f4f6;
+  border-radius: 8px;
 }
 .expanded-controls {
   display: flex; align-items: center; justify-content: space-between;
@@ -381,11 +381,10 @@ defineExpose({ loadHistory })
 .expanded-controls-right { display: flex; gap: 8px; }
 .expanded-media-wrap {
   position: relative; display: flex; align-items: center; justify-content: center;
-  max-height: 70vh; overflow: hidden; min-height: 150px;
-  transition: min-height 0.35s ease, max-height 0.35s ease;
+  min-height: 150px;
 }
-.expanded-media-wrap img { max-width: 100%; max-height: 60vh; object-fit: contain; transition: transform 0.3s; }
-.expanded-media-wrap video { max-width: 100%; max-height: 60vh; }
+.expanded-media-wrap img { max-width: 100%; object-fit: contain; transition: transform 0.3s; }
+.expanded-media-wrap video { max-width: 100%; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
