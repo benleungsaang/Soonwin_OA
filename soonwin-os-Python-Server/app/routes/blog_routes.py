@@ -29,6 +29,19 @@ def set_app_instance(app):
     processing_queue = get_processing_queue()
     processing_queue.set_app_instance(app)
 
+    # 启动时恢复：将遗留的 pending 视频重新加入转码队列
+    with app.app_context():
+        try:
+            pending_media = BlogMedia.query.filter_by(media_type='video', compress_status='pending').all()
+            base_dir = _get_posts_media_dir()
+            for media in pending_media:
+                abs_path = os.path.join(base_dir, media.file_path)
+                if os.path.exists(abs_path):
+                    _add_blog_video_transcode_task(media.id, abs_path)
+                    print(f"[Blog] 恢复转码任务: media_id={media.id}")
+        except Exception as e:
+            print(f"[Blog] 启动恢复转码任务失败: {e}")
+
 
 def _get_posts_media_dir():
     """获取博客媒体文件的绝对存储目录"""
@@ -226,6 +239,9 @@ def create_post():
 
         db.session.commit()
 
+        # commit 之后再入队转码（避免 worker 线程查不到记录）
+        _enqueue_video_tasks_for_post(post.id)
+
         return jsonify({'success': True, 'data': post.to_dict(include_media=True, include_repost=True)}), 201
     except Exception as e:
         db.session.rollback()
@@ -284,9 +300,15 @@ def _process_post_media(file, post_id):
     db.session.add(media)
     db.session.flush()
 
-    # 视频加入转码队列
-    if info['media_type'] == 'video':
-        _add_blog_video_transcode_task(media.id, abs_path)
+
+def _enqueue_video_tasks_for_post(post_id):
+    """在 commit 之后为博文的所有待转码视频加入队列（避免 race condition）"""
+    media_list = BlogMedia.query.filter_by(post_id=post_id, media_type='video', compress_status='pending').all()
+    base_dir = _get_posts_media_dir()
+    for media in media_list:
+        abs_path = os.path.join(base_dir, media.file_path)
+        if os.path.exists(abs_path):
+            _add_blog_video_transcode_task(media.id, abs_path)
 
 
 @blog_bp.route('/posts/<int:post_id>', methods=['GET'])
@@ -366,6 +388,9 @@ def update_post(post_id):
             _process_post_media(file, post.id)
 
         db.session.commit()
+
+        # commit 之后再入队转码
+        _enqueue_video_tasks_for_post(post.id)
 
         return jsonify({'success': True, 'data': post.to_dict(include_media=True, include_repost=True)})
     except Exception as e:
@@ -455,6 +480,9 @@ def save_draft():
             _process_post_media(file, draft.id)
 
         db.session.commit()
+
+        # commit 之后再入队转码
+        _enqueue_video_tasks_for_post(draft.id)
 
         return jsonify({'success': True, 'data': draft.to_dict(include_media=True)})
     except Exception as e:
