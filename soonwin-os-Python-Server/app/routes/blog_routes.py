@@ -322,15 +322,12 @@ def _enqueue_video_tasks_for_post(post_id):
 @blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
 def serve_avatar(emp_id):
     """提供用户头像"""
-    try:
-        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
-        base_dir = os.path.abspath(base_dir)
-        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-            path = os.path.join(base_dir, f'{emp_id}.{ext}')
-            if os.path.exists(path) and os.path.isfile(path):
-                return send_file(path)
-    except Exception as e:
-        print(f"头像获取失败: {e}")
+    base_dir = os.path.join(current_app.root_path, '..', 'assets', 'PostsMedia', 'Avatar')
+    base_dir = os.path.abspath(base_dir)
+    for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+        path = os.path.join(base_dir, f'{emp_id}.{ext}')
+        if os.path.exists(path) and os.path.isfile(path):
+            return send_file(path)
     abort(404)
 
 
@@ -351,7 +348,7 @@ def upload_avatar():
         if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
             return jsonify({'success': False, 'message': '仅支持 JPG/PNG/GIF/WEBP 格式'}), 400
 
-        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.join(current_app.root_path, '..', 'assets', 'PostsMedia', 'Avatar')
         base_dir = os.path.abspath(base_dir)
         os.makedirs(base_dir, exist_ok=True)
 

@@ -56,6 +56,11 @@ def setup_request_logging(app):
         elapsed = round(time.time() - g.start, 3)
         forwarded = request.headers.get('X-Forwarded-For')
         client_ip = forwarded.split(',')[0].strip() if forwarded else request.remote_addr
+        # HTTPException（如abort(404)）保留原始状态码，不应转为500
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            app.logger.warning(f'HTTP异常 from {client_ip}: {e.code} {e.name} - {request.method} {request.path} - {elapsed}s')
+            return e
         app.logger.error(f'API请求异常 from {client_ip}: {str(e)} - {request.method} {request.path} - {elapsed}s')
         return {"error": str(e)}, 500
 
