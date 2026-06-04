@@ -422,16 +422,15 @@ const logout = async () => {
 .header {
   background-color: #0653a0;
   color: white;
-  text-align: center;
   border-radius: 8px;
   font: hevatica, sans-serif;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  position: relative;
   padding: 0 20px;
   height: 60px;
 }
+.header h1 { margin: 0; white-space: nowrap; flex-shrink: 0; }
 
 .logout-btn {
   color: rgb(255, 255, 255);
@@ -444,11 +443,10 @@ const logout = async () => {
 }
 
 .header-actions {
-  position: absolute;
-  right: 20px;
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .qr-btn {
