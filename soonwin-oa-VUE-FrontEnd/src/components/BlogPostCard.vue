@@ -63,7 +63,7 @@
     <!-- 底部操作栏 -->
     <div class="post-footer">
       <el-button text :type="post.is_liked ? 'danger' : ''" @click="$emit('toggle-like')">
-        <el-icon><HeartFilled v-if="post.is_liked" /><Star v-else /></el-icon>
+        <el-icon><Star /></el-icon>
         {{ post.like_count || '' }}
       </el-button>
       <el-button text @click="showComments = !showComments">
@@ -112,7 +112,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, HeartFilled } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
