@@ -168,8 +168,7 @@
                  :src="getMediaUrl(m.file_path)" class="fs-img" @click="exitFullscreen" />
             <video v-else
                    :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
-                   class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline
-                   @click.stop="handleFsVideoClick" />
+                   class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline />
           </div>
         </div>
       </div>
@@ -214,11 +213,8 @@ const fsSwipeOffsetY = ref(0)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
-    const oldEl = oldIdx !== null ? getVideoEl() : null
-    if (oldEl) {
-      oldEl.pause()
-      videoTimeMap.set(oldIdx!, oldEl.currentTime)
-    }
+    // 切换前暂停所有展开模式视频（用 DOM 查询，避免 v-for 内 ref 不可靠）
+    document.querySelectorAll('.carousel-slide video').forEach(v => (v as HTMLVideoElement).pause())
     if (newIdx !== null) {
       nextTick(() => {
         const el = getVideoEl()
@@ -249,7 +245,7 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
+function collapseExpand() { document.querySelectorAll('.carousel-slide video').forEach(v => (v as HTMLVideoElement).pause()); expandedIdx.value = null; rotateDeg.value = 0 }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
@@ -337,8 +333,8 @@ function enterFullscreen(index: number) {
 
 function exitFullscreen() {
   fullscreenVisible.value = false
-  // 暂停所有全屏视频
   document.querySelectorAll('.fs-video').forEach(v => (v as HTMLVideoElement).pause())
+  fsSwipeOffsetY.value = 0
   document.body.style.overflow = ''
 }
 
@@ -352,7 +348,7 @@ function handleFsVideoClick(e: Event) {
 // 全屏滑动
 const fsTouchStartY = ref(0)
 const fsTouchLastY = ref(0)
-function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clientX; fsTouchStartY.value = e.touches[0].clientY; fsTouchLastX.value = fsTouchStartX.value; fsSwipeOffset.value = 0; fsTouchLastY.value = fsTouchStartY.value }
+function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clientX; fsTouchStartY.value = e.touches[0].clientY; fsTouchLastX.value = fsTouchStartX.value; fsTouchLastY.value = fsTouchStartY.value; fsSwipeOffset.value = 0; fsSwipeOffsetY.value = 0 }
 function onFsTouchMove(e: TouchEvent) {
   fsTouchLastX.value = e.touches[0].clientX
   fsTouchLastY.value = e.touches[0].clientY
