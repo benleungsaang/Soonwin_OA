@@ -133,23 +133,18 @@ soonwin-os-Python-Server/
 - 实现前端功能可新建布局，未经要求不修改原有布局/样式
 - 创建变量/方法/函数前，先确认当前文件无重复定义
 
-### 新增功能模块时的权限配置（⚠️ 重要：3 处同步修改）
+### 新增功能模块时的权限配置
 
-当新增一个功能模块/路由权限时，**必须同时修改以下 3 个文件**，否则前端权限分配页面将显示英文 fallback 或类型报错：
+⚠️ 新增路由权限需同步修改 3 个文件（代码中搜索 `同步修改清单` 找具体位置）：
+1. `app/constants/simple_permission_constants.py` → 常量 + ALL_ROUTES
+2. `app/routes/user_routes.py` → route_labels 中文名（最容易遗漏！）
+3. `src/utils/authUtils.ts` → RouteName 类型
 
-| 序号 | 文件 | 修改内容 |
-|------|------|----------|
-| 1 | `app/constants/simple_permission_constants.py` | 添加 `ROUTE_XXX_MANAGE = "xxx_manage"` 常量 + 加入 `ALL_ROUTES` 列表 |
-| 2 | `app/routes/user_routes.py` → `get_all_routes()` 函数的 `route_labels` 字典 | 添加 `"xxx_manage": "某某管理"` 中文名称映射 |
-| 3 | `soonwin-oa-VUE-FrontEnd/src/utils/authUtils.ts` → `RouteName` 类型 | 添加 `'xxx_manage'` 字符串到联合类型中 |
+详见 [[permission-setup-checklist]]
 
-> 这 3 个文件的代码中均已添加了注释提醒，新增权限时搜索 `⚠️ 新增权限路由时的同步修改清单` 即可找到。
+### Tailwind CSS 注意
 
-**权限层级说明：**
-- **全体共有**：`display_file_manage`, `photo_manage`, `punch_manage`, `upload_manage`, `video_manage`, `machine_list`, `attendance_manage`
-- **销售角色**：`inquiry_manage`, `order_manage`, `order_status_manage`, `quotation_manage`
-- **管理员独有**：`expense_manage`, `log_manage`, `machine_manage`, `user_manage`, `permission_manage`, `order_record_manage`
-- **业务员**：`customer_manage`
+⚠️ 本项目使用 Element Plus，`tailwind.config.js` 必须保持 `preflight: false`。核心布局用 scoped CSS，勿依赖 Tailwind 工具类。详见 [[tailwind-element-plus-conflict]]
 
 ### 服务器配置
 - 开发服务器: `http://192.168.110.13/`，前端端口 5173，后端端口 5001
