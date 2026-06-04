@@ -53,16 +53,16 @@
             <button @click="openLightboxFromExpand"><el-icon :size="14"><ZoomIn /></el-icon>查看原图</button>
           </div>
         </div>
-        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video' }" ref="expandWrapRef"
-             @touchstart="onTouchStart" @touchend="onTouchEnd">
+        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video', 'swiping': swipeOffset !== 0 }" ref="expandWrapRef"
+             @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
           <div class="expand-nav-center" @click="collapseExpand"></div>
           <img v-if="expandedMedia.media_type === 'image'"
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
-               :style="{ transform: `rotate(${rotateDeg}deg)` }" />
+               :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
           <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
-                 :style="{ transform: `rotate(${rotateDeg}deg)` }" />
+                 :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
         </div>
       </div>
       <!-- 媒体缩略网格 -->
@@ -75,6 +75,7 @@
           <!-- 视频：pending 才显示转码中，processing/success 都尝试播放 -->
           <video v-else-if="media.media_type === 'video' && media.compress_status !== 'pending'"
                  :src="getMediaUrl(media.file_path)" preload="metadata"
+                 :poster="getMediaUrl(media.thumbnail_path)"
                  @error="($event.target as HTMLVideoElement).style.display='none'" />
           <div v-else-if="media.media_type === 'video'"
                class="media-placeholder">
@@ -118,37 +119,25 @@
         <p>加载中...</p>
       </div>
       <div v-else class="history-body" @touchmove.stop>
-        <!-- 当前版本 -->
-        <div class="history-card current">
-          <div class="history-card-bar">
-            <span class="history-badge history-badge-current">当前 v{{ post.edit_version }}</span>
-            <span class="history-card-time">{{ post.updated_at }}</span>
-          </div>
-          <div v-if="post.content" class="history-card-text">{{ post.content }}</div>
-          <div v-if="post.media && post.media.length > 0" class="media-grid" :class="post.media.length === 1 ? 'media-grid-single' : ''">
-            <div v-for="m in post.media" :key="m.id" class="media-item" @click="handleMediaClick(m, post.media.indexOf(m))">
-              <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
-              <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" />
-              <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
-            </div>
-          </div>
-        </div>
-        <!-- 历史版本 -->
-        <div v-if="editHistories.length === 0" class="history-empty">暂无编辑历史</div>
+        <div v-if="editHistories.length === 0 && !post.content && (!post.media || post.media.length === 0)" class="history-empty">暂无编辑历史</div>
+        <!-- 历史版本：复用 BlogPostCard 展示 -->
         <div v-for="h in editHistories" :key="h.id" class="history-card">
           <div class="history-card-bar">
             <span class="history-badge">版本 {{ h.version }}</span>
             <span class="history-card-editor">{{ h.edited_by }}</span>
             <span class="history-card-time">{{ h.created_at }}</span>
           </div>
-          <div v-if="h.content" class="history-card-text">{{ h.content }}</div>
-          <div v-if="h.media_snapshot && parseMediaSnapshot(h.media_snapshot).length > 0"
-               class="media-grid" :class="parseMediaSnapshot(h.media_snapshot).length === 1 ? 'media-grid-single' : ''">
-            <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item"
-                 @click="handleHistoryMediaClick(m, parseMediaSnapshot(h.media_snapshot), mi)">
-              <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
-              <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" />
-              <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
+          <div class="history-post-wrap">
+            <div v-if="h.content" class="post-content-inner"><p>{{ h.content }}</p></div>
+            <div v-if="h.media_snapshot" class="post-media-wrapper">
+              <div class="media-grid" :class="parseMediaSnapshot(h.media_snapshot).length === 1 ? 'media-grid-single' : ''">
+                <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item"
+                     @click="handleHistoryMediaClick(m, parseMediaSnapshot(h.media_snapshot), mi)">
+                  <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
+                  <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" :poster="getMediaUrl(m.thumbnail_path)" />
+                  <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -222,13 +211,25 @@ function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; video
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
-// 触屏滑动
+// 触屏滑动（跟手动画）
 let touchStartX = 0
-function onTouchStart(e: TouchEvent) { touchStartX = e.touches[0].clientX }
-function onTouchEnd(e: TouchEvent) {
-  const diff = touchStartX - e.changedTouches[0].clientX
+let touchCurrentX = 0
+const swipeOffset = ref(0)
+
+function onTouchStart(e: TouchEvent) {
+  touchStartX = e.touches[0].clientX
+  touchCurrentX = touchStartX
+  swipeOffset.value = 0
+}
+function onTouchMove(e: TouchEvent) {
+  touchCurrentX = e.touches[0].clientX
+  swipeOffset.value = touchCurrentX - touchStartX
+}
+function onTouchEnd(_e: TouchEvent) {
+  const diff = touchCurrentX - touchStartX
+  swipeOffset.value = 0
   if (Math.abs(diff) > 60) {
-    if (diff > 0) nextExpanded()
+    if (diff < 0) nextExpanded()
     else prevExpanded()
   }
 }
@@ -415,7 +416,8 @@ defineExpose({ loadHistory })
   position: relative; display: flex; align-items: center; justify-content: center;
   min-height: 150px;
 }
-.expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; }
+.expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; touch-action: pan-y; }
+.swiping img, .swiping video { transition: none !important; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
@@ -451,6 +453,10 @@ defineExpose({ loadHistory })
 .history-card-editor { font-size: 11px; color: #6b7280; }
 .history-card-text { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 14px; color: #1f2937; }
 .history-empty { text-align: center; padding: 20px; color: #9ca3af; font-size: 14px; }
+.history-post-wrap { padding: 0; }
+.history-post-wrap .post-content-inner { padding: 0 0 8px 0; }
+.history-post-wrap .post-content-inner p { color: #1f2937; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.6; margin: 0; }
+.history-post-wrap .post-media-wrapper { padding: 0; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
