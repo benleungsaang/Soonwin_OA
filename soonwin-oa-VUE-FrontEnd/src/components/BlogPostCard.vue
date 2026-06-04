@@ -77,13 +77,24 @@
           </div>
           <!-- 自定义视频控制栏 -->
           <div v-if="expandedMedia?.media_type === 'video'" class="custom-video-controls">
-            <button class="cvc-btn" @click="toggleVideoPlay">
+            <button class="cvc-btn" @click="toggleVideoPlay" :title="videoPlaying ? '暂停' : '播放'">
               <el-icon :size="20"><VideoPlay v-if="!videoPlaying" /><VideoPause v-else /></el-icon>
             </button>
             <div class="cvc-progress" @click="seekVideo" ref="progressRef">
               <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoProgress + '%' }"></div></div>
             </div>
             <span class="cvc-time">{{ formatTime2(videoCurrentTime) }} / {{ formatTime2(videoDuration) }}</span>
+            <div class="cvc-volume-group">
+              <button class="cvc-btn" @click="toggleMute">
+                <el-icon :size="16"><Microphone v-if="!videoMuted" /><MuteNotification v-else /></el-icon>
+              </button>
+              <div class="cvc-volume-slider" @click="setVolume">
+                <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoVolume * 100 + '%' }"></div></div>
+              </div>
+            </div>
+            <button class="cvc-btn" @click="enterFullscreenVideo" title="全屏">
+              <el-icon :size="18"><FullScreen /></el-icon>
+            </button>
           </div>
         </div>
       </div>
@@ -191,7 +202,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, Microphone, MuteNotification, FullScreen, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -226,6 +237,8 @@ const videoPlaying = ref(false)
 const videoCurrentTime = ref(0)
 const videoDuration = ref(0)
 const videoProgress = ref(0)
+const videoMuted = ref(false)
+const videoVolume = ref(1)
 const progressRef = ref<HTMLElement | null>(null)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
@@ -367,6 +380,29 @@ function seekVideo(e: MouseEvent) {
   const rect = bar.getBoundingClientRect()
   const pct = (e.clientX - rect.left) / rect.width
   el.currentTime = pct * videoDuration.value
+}
+function toggleMute() {
+  const el = getVideoEl()
+  if (!el) return
+  el.muted = !el.muted
+  videoMuted.value = el.muted
+}
+function setVolume(e: MouseEvent) {
+  const bar = e.currentTarget as HTMLElement
+  const rect = bar.getBoundingClientRect()
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  const el = getVideoEl()
+  if (!el) return
+  el.volume = pct
+  videoVolume.value = pct
+  if (pct > 0 && el.muted) { el.muted = false; videoMuted.value = false }
+}
+function enterFullscreenVideo() {
+  const el = getVideoEl()
+  if (!el) return
+  if (el.requestFullscreen) el.requestFullscreen()
+  else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
+  else if ((el as any).msRequestFullscreen) (el as any).msRequestFullscreen()
 }
 function handleExpandedImageClick(index: number) {
   if (window.innerWidth > 768) { collapseExpand(); return }
@@ -628,6 +664,8 @@ defineExpose({ loadHistory })
 .cvc-track { height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
 .cvc-fill { height: 100%; background: #fff; border-radius: 2px; transition: width 0.1s; }
 .cvc-time { font-size: 12px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cvc-volume-group { display: flex; align-items: center; gap: 4px; }
+.cvc-volume-slider { width: 50px; cursor: pointer; padding: 8px 0; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
