@@ -584,7 +584,8 @@ defineExpose({ loadHistory })
 }
 /* 视频展开时底部留空间给控制栏 */
 .is-video .expand-nav-left,
-.is-video .expand-nav-right {
+.is-video .expand-nav-right,
+.is-video .expand-nav-center {
   bottom: 64px;
 }
 
