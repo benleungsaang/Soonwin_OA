@@ -12,7 +12,7 @@
         </div>
       </div>
       <div v-if="showActions" class="post-header-actions">
-        <button v-if="canEdit" class="post-icon-btn" title="编辑" @click="$emit('edit')">
+        <button v-if="canEdit && !readonly" class="post-icon-btn" title="编辑" @click="$emit('edit')">
           <el-icon :size="16"><Edit /></el-icon>
         </button>
         <button v-if="canDelete" class="post-icon-btn post-icon-btn-danger" title="删除" @click="$emit('delete')">
@@ -85,19 +85,15 @@
 
     <!-- 功能条（草稿不显示） -->
     <div v-if="!post.is_draft" class="post-actions">
-      <button v-if="canEdit" class="post-action-btn" @click="$emit('edit')">
-        <el-icon :size="15"><Edit /></el-icon>
-        <span>编辑</span>
-      </button>
       <button class="post-action-btn" @click="showComments = !showComments">
         <el-icon :size="15"><ChatDotRound /></el-icon>
         <span>{{ post.comment_count || '留言' }}</span>
       </button>
       <button v-if="!post.is_deleted" class="post-action-btn"
               :class="{ 'post-action-btn-liked': post.is_liked }"
-              :disabled="!!post.is_deleted" @click="$emit('toggle-like')">
+              @click="$emit('toggle-like')">
         <el-icon :size="15"><Star /></el-icon>
-        <span>{{ post.like_count || '点赞' }}</span>
+        <span>{{ post.like_count || '收藏' }}</span>
       </button>
       <button v-if="isAdmin" class="post-action-btn" @click="loadHistory">
         <el-icon :size="15"><Clock /></el-icon>
@@ -110,6 +106,7 @@
       v-if="showComments"
       :post-id="post.id"
       :current-user-id="currentUserId"
+      :readonly="readonly"
       @comment-added="post.comment_count++"
     />
 
@@ -167,7 +164,7 @@ import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
 import BlogCommentSection from './BlogCommentSection.vue'
 
-const props = defineProps<{ post: BlogPost; showActions?: boolean }>()
+const props = defineProps<{ post: BlogPost; showActions?: boolean; readonly?: boolean }>()
 const emit = defineEmits<{
   (e: 'edit'): void; (e: 'delete'): void; (e: 'toggle-like'): void
   (e: 'media-click', media: any, index: number, mediaList?: any[]): void
@@ -424,7 +421,7 @@ defineExpose({ loadHistory })
 .is-video .expand-nav-left,
 .is-video .expand-nav-right,
 .is-video .expand-nav-center {
-  bottom: 44px;
+  bottom: 64px;
 }
 
 /* ===== 编辑历史 ===== */

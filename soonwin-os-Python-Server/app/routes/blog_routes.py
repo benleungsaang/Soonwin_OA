@@ -764,6 +764,52 @@ def delete_comment(post_id, comment_id):
 
 
 # ============================================================
+# 收藏
+# ============================================================
+
+@blog_bp.route('/posts/favorites', methods=['GET'])
+@route_permission(ROUTE_BLOG_MANAGE)
+def get_favorites():
+    """获取当前用户收藏（点赞）的博文列表"""
+    try:
+        user_id = get_user_id_from_token()
+        if not user_id:
+            return jsonify({'success': True, 'data': {'posts': [], 'total': 0}})
+
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+
+        # 查询用户点赞的博文ID
+        liked_post_ids = db.session.query(BlogLike.post_id).filter_by(user_id=user_id).subquery()
+        query = BlogPost.query.filter(
+            BlogPost.id.in_(liked_post_ids),
+            BlogPost.is_deleted == 0,
+            BlogPost.is_draft == 0
+        ).order_by(BlogPost.created_at.desc())
+
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        posts = []
+        for post in pagination.items:
+            d = post.to_dict(include_media=True, include_repost=True)
+            d['is_liked'] = True
+            posts.append(d)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'posts': posts,
+                'total': pagination.total,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': pagination.pages,
+            }
+        })
+    except Exception as e:
+        print(f"获取收藏列表失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================
 # 点赞
 # ============================================================
 

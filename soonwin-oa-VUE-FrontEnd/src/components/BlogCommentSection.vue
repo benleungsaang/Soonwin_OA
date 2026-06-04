@@ -30,8 +30,8 @@
 
     <p v-if="comments.length === 0" class="text-gray-400 text-sm text-center py-2">暂无留言，来说点什么吧</p>
 
-    <!-- 输入区 -->
-    <div class="flex gap-2 mt-2">
+    <!-- 输入区（只读模式隐藏） -->
+    <div v-if="!readonly" class="flex gap-2 mt-2">
       <input v-model="commentText"
              :placeholder="'写留言...'"
              class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg
@@ -59,6 +59,7 @@ const COMMENTS_PREVIEW = 3
 const props = defineProps<{
   postId: number
   currentUserId: string
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
