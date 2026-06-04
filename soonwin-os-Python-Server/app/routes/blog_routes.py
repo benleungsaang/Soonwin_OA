@@ -863,7 +863,7 @@ def get_favorites():
         search = request.args.get('search', '', type=str)
 
         # 查询用户点赞的博文ID
-        liked_post_ids = db.session.query(BlogLike.post_id).filter_by(user_id=user_id).subquery()
+        liked_post_ids = db.select(BlogLike.post_id).where(BlogLike.user_id == user_id).scalar_subquery()
         query = BlogPost.query.filter(
             BlogPost.id.in_(liked_post_ids),
             BlogPost.is_deleted == 0,
