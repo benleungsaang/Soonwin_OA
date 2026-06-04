@@ -7,5 +7,9 @@ export default {
   theme: {
     extend: {},
   },
+  // 关键：关闭 Preflight CSS 重置，避免与 Element Plus 冲突
+  corePlugins: {
+    preflight: false,
+  },
   plugins: [],
 }
