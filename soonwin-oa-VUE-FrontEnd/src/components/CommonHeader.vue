@@ -2,6 +2,9 @@
   <div class="common-header">
     <el-page-header :content="title" @back="goBack">
       <template #extra>
+        <el-button v-if="isAdmin" type="warning" @click="handleRestart" :loading="restarting">
+          <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
+        </el-button>
         <el-button @click="showQrCodeDialog = true">
           <el-icon><Grid /></el-icon><span class="btn-text">二维码</span>
         </el-button>
@@ -22,10 +25,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, provide, onUnmounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, provide, onUnmounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { SwitchButton, Grid } from '@element-plus/icons-vue';
+import { SwitchButton, Grid, RefreshRight } from '@element-plus/icons-vue';
 import QRCode from 'qrcode';
 import {
   getCurrentUserEmpId,
@@ -60,6 +63,26 @@ provide('currentUserRole', currentUserRole);
 // 二维码弹窗
 const showQrCodeDialog = ref(false);
 const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+// 管理员判断
+const isAdmin = computed(() => currentUserRole.value === 'admin');
+// 重启服务
+const restarting = ref(false);
+async function handleRestart() {
+  try {
+    await ElMessageBox.confirm('确定要重启服务器 OA 服务吗？', '确认重启', { type: 'warning' });
+    restarting.value = true;
+    const res = await fetch('/api/admin/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'SoonwinOA_Restart_Key_2026' }),
+    });
+    const data = await res.json();
+    if (data.success) ElMessage.success(data.msg);
+    else ElMessage.error(data.msg);
+  } catch { /* cancelled */ }
+  finally { restarting.value = false }
+}
 
 watch(showQrCodeDialog, async (newVal) => {
   if (newVal) {

@@ -143,26 +143,31 @@ def create_app_with_routes(port=5000):
     if port != 5001:
         @app.route('/api/admin/restart', methods=['POST'])
         def admin_restart():
-            """远程重启 nginx + waitress 服务"""
+            """远程重启 nginx + waitress 服务（先应答再执行，避免被自身中断）"""
             import subprocess
             data = request.get_json() or {}
             if data.get('key') != 'SoonwinOA_Restart_Key_2026':
                 return {"success": False, "msg": "密钥错误"}, 403
 
-            results = []
-            for svc in ['waitress', 'nginx']:
-                try:
-                    r = subprocess.run(['sc', 'query', svc], capture_output=True, text=True, encoding='gbk', timeout=10)
-                    if '1060' in r.stdout or '1060' in r.stderr:
-                        results.append(f'{svc}: 服务不存在')
-                        continue
-                    subprocess.run(['sc', 'stop', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
-                    time.sleep(3)
-                    subprocess.run(['sc', 'start', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
-                    results.append(f'{svc}: 已重启')
-                except Exception as e:
-                    results.append(f'{svc}: 失败 ({e})')
-            return {"success": True, "msg": "; ".join(results)}
+            # 先返回应答，再异步执行重启（避免 waitress 被 stop 时中断响应）
+            def _do_restart():
+                svcs = ['waitress', 'nginx']
+                for svc in svcs:
+                    try:
+                        r = subprocess.run(['sc', 'query', svc], capture_output=True, text=True, encoding='gbk', timeout=10)
+                        if '1060' in r.stdout or '1060' in r.stderr:
+                            continue
+                        subprocess.run(['sc', 'stop', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
+                        time.sleep(3)
+                        subprocess.run(['sc', 'start', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
+                    except Exception:
+                        pass
+
+            import threading
+            t = threading.Thread(target=_do_restart)
+            t.daemon = True
+            t.start()
+            return {"success": True, "msg": "重启命令已提交，约10秒后完成"}
 
     return app
 
