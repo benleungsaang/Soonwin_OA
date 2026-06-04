@@ -53,7 +53,8 @@
             <button @click="openLightboxFromExpand"><el-icon :size="14"><ZoomIn /></el-icon>查看原图</button>
           </div>
         </div>
-        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video' }" ref="expandWrapRef">
+        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video' }" ref="expandWrapRef"
+             @touchstart="onTouchStart" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
           <div class="expand-nav-center" @click="collapseExpand"></div>
@@ -110,18 +111,20 @@
 
     <!-- 编辑历史对话框 -->
     <el-dialog v-if="isAdmin && historyVisible" v-model="historyVisible"
-               title="编辑历史" width="750px" destroy-on-close top="2vh">
-      <div v-if="loadingHistory" style="text-align:center;padding:40px 0">
+               title="编辑历史" width="750px" destroy-on-close top="2vh"
+               :close-on-click-modal="true" @touchmove.stop>
+      <div v-if="loadingHistory" class="history-loading">
         <el-icon class="is-loading" :size="28"><Loading /></el-icon>
-        <p style="margin-top:12px;color:#909399">加载中...</p>
+        <p>加载中...</p>
       </div>
-      <div v-else class="history-list">
-        <div class="history-version history-version-current">
-          <div class="history-version-head">
-            <el-tag type="success" size="small">当前版本 v{{ post.edit_version }}</el-tag>
-            <span class="history-version-time">{{ post.updated_at }}</span>
+      <div v-else class="history-body" @touchmove.stop>
+        <!-- 当前版本 -->
+        <div class="history-card current">
+          <div class="history-card-bar">
+            <span class="history-badge history-badge-current">当前 v{{ post.edit_version }}</span>
+            <span class="history-card-time">{{ post.updated_at }}</span>
           </div>
-          <div v-if="post.content" class="history-version-text">{{ post.content }}</div>
+          <div v-if="post.content" class="history-card-text">{{ post.content }}</div>
           <div v-if="post.media && post.media.length > 0" class="media-grid" :class="post.media.length === 1 ? 'media-grid-single' : ''">
             <div v-for="m in post.media" :key="m.id" class="media-item" @click="handleMediaClick(m, post.media.indexOf(m))">
               <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
@@ -130,13 +133,15 @@
             </div>
           </div>
         </div>
-        <div v-for="h in editHistories" :key="h.id" class="history-version">
-          <div class="history-version-head">
-            <el-tag type="info" size="small">版本 {{ h.version }}</el-tag>
-            <span class="history-version-editor">编辑者：{{ h.edited_by }}</span>
-            <span class="history-version-time">{{ h.created_at }}</span>
+        <!-- 历史版本 -->
+        <div v-if="editHistories.length === 0" class="history-empty">暂无编辑历史</div>
+        <div v-for="h in editHistories" :key="h.id" class="history-card">
+          <div class="history-card-bar">
+            <span class="history-badge">版本 {{ h.version }}</span>
+            <span class="history-card-editor">{{ h.edited_by }}</span>
+            <span class="history-card-time">{{ h.created_at }}</span>
           </div>
-          <div v-if="h.content" class="history-version-text">{{ h.content }}</div>
+          <div v-if="h.content" class="history-card-text">{{ h.content }}</div>
           <div v-if="h.media_snapshot && parseMediaSnapshot(h.media_snapshot).length > 0"
                class="media-grid" :class="parseMediaSnapshot(h.media_snapshot).length === 1 ? 'media-grid-single' : ''">
             <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item"
@@ -147,7 +152,6 @@
             </div>
           </div>
         </div>
-        <el-empty v-if="editHistories.length === 0" description="暂无编辑历史" />
       </div>
     </el-dialog>
   </article>
@@ -217,6 +221,17 @@ function expandMedia(index: number) { expandedIdx.value = index; rotateDeg.value
 function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; videoTimeMap.clear() }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
+
+// 触屏滑动
+let touchStartX = 0
+function onTouchStart(e: TouchEvent) { touchStartX = e.touches[0].clientX }
+function onTouchEnd(e: TouchEvent) {
+  const diff = touchStartX - e.changedTouches[0].clientX
+  if (Math.abs(diff) > 60) {
+    if (diff > 0) nextExpanded()
+    else prevExpanded()
+  }
+}
 function rotateExpanded() {
   rotateDeg.value += 90
   const wrap = expandWrapRef.value
@@ -425,24 +440,25 @@ defineExpose({ loadHistory })
 }
 
 /* ===== 编辑历史 ===== */
-.history-list { max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
-.history-version { padding: 16px; border-radius: 8px; background: #f9fafb; }
-.history-version-current { background: #f0fdf4; border: 1px solid #dcfce7; }
-.history-version-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-.history-version-time { font-size: 12px; color: #9ca3af; }
-.history-version-editor { font-size: 12px; color: #4b5563; }
-.history-version-text { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 14px; color: #1f2937; margin-bottom: 8px; }
+.history-loading { text-align: center; padding: 40px 0; color: #9ca3af; }
+.history-body { max-height: 65vh; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px 0; }
+.history-card { background: #f9fafb; border-radius: 10px; padding: 14px 16px; }
+.history-card.current { background: #f0fdf4; border: 1px solid #dcfce7; }
+.history-card-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.history-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #e5e7eb; color: #6b7280; font-weight: 500; }
+.history-badge-current { background: #22c55e; color: #fff; }
+.history-card-time { font-size: 11px; color: #9ca3af; margin-left: auto; }
+.history-card-editor { font-size: 11px; color: #6b7280; }
+.history-card-text { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 14px; color: #1f2937; }
+.history-empty { text-align: center; padding: 20px; color: #9ca3af; font-size: 14px; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
   .media-grid { gap: 10px; }
-  .media-item img, .media-item video { height: auto; aspect-ratio: 1; max-height: 200px; }
-  .post-card:active { transform: scale(0.98); }
+  .media-item img, .media-item video, .media-placeholder { height: auto; aspect-ratio: 1; max-height: 200px; min-height: 80px; }
+  .media-placeholder { width: 100%; }
 }
 @media (max-width: 640px) {
   .media-grid { grid-template-columns: 1fr 1fr !important; }
-}
-@media (hover: none) {
-  .post-card:active { transform: scale(0.98); }
 }
 </style>
