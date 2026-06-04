@@ -61,7 +61,9 @@
           <div v-if="expandedIdx !== null && expandedMedia?.media_type !== 'video'" class="expand-nav-center" @click="collapseExpand"></div>
           <!-- 视频中部播放按钮（暂停时显示） -->
           <div v-if="expandedMedia?.media_type === 'video' && !videoPlaying" class="cvc-big-play" @click.stop="toggleVideoPlay">
-            <el-icon :size="48"><VideoPlay /></el-icon>
+            <div class="cvc-big-play-circle">
+              <el-icon :size="48"><VideoPlay /></el-icon>
+            </div>
           </div>
           <!-- 轮播轨道：所有媒体水平排列 -->
           <div class="carousel-track" :style="carouselStyle">
@@ -705,7 +707,13 @@ defineExpose({ loadHistory })
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; pointer-events: auto;
 }
-.cvc-big-play:hover { opacity: 0.8; }
+.cvc-big-play-circle {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, transform 0.2s;
+}
+.cvc-big-play-circle:hover { background: rgba(255,255,255,0.4); transform: scale(1.05); }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
