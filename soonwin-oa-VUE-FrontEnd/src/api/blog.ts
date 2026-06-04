@@ -151,10 +151,10 @@ export function toggleLike(postId: number) {
 // 媒体
 // ============================================================
 
-/** 获取媒体文件 URL */
+/** 获取媒体文件 URL（走 nginx 直接发送，与视频管理一致） */
 export function getMediaUrl(filePath: string): string {
   if (!filePath) return ''
-  return `/api/posts/media/${filePath}`
+  return `/assets/PostsMedia/${filePath}`
 }
 
 /** 上传单个媒体文件 */

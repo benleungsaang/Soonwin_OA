@@ -42,14 +42,10 @@ def create_app(port=5000):
         else:
             abort(404)
 
-    # 博客媒体文件 — 使用 send_from_directory（与 Flask 内置静态文件服务一致）
-    @app.route('/api/posts/media/<path:filepath>')
-    def serve_blog_media_file(filepath):
-        import os
-        from flask import send_from_directory, abort
-        filepath = filepath.replace('..', '').replace('\\', '/')
-        directory = os.path.join(app.root_path, '..', 'assets', 'PostsMedia')
-        return send_from_directory(directory, filepath, conditional=True)
+
+    # 博客媒体由 Flask 内置静态文件服务提供（static_folder='../assets', url_prefix='/assets'）
+    # 访问路径 /assets/PostsMedia/... → 实际路径 assets/PostsMedia/...
+    # 生产环境由 nginx 直接发送（sendfile），与视频管理 /assets/Media/Videos/ 一致
 
     # 关键：在 create_app 内部导入模型（延迟导入，打破循环）
     with app.app_context():
