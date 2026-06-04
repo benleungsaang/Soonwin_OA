@@ -112,7 +112,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, HeartFilled } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'

@@ -785,7 +785,6 @@ def toggle_like(post_id):
 # ============================================================
 
 @blog_bp.route('/posts/media/<path:filepath>', methods=['GET'])
-@route_permission(ROUTE_BLOG_MANAGE)
 def serve_blog_media(filepath):
     """提供博客媒体文件访问"""
     try:
