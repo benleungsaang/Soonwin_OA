@@ -159,13 +159,17 @@ def _save_blog_media_file(file):
 @blog_bp.route('/posts', methods=['GET'])
 @route_permission(ROUTE_BLOG_MANAGE)
 def get_posts():
-    """获取已发布的博文列表（分页+搜索）"""
+    """获取已发布的博文列表（分页+搜索+作者筛选）"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         search = request.args.get('search', '', type=str)
+        author = request.args.get('author', '', type=str)
 
         query = BlogPost.query.filter_by(is_deleted=0, is_draft=0)
+
+        if author:
+            query = query.filter(BlogPost.author == author)
 
         if search:
             query = query.filter(
@@ -778,6 +782,7 @@ def get_favorites():
 
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        search = request.args.get('search', '', type=str)
 
         # 查询用户点赞的博文ID
         liked_post_ids = db.session.query(BlogLike.post_id).filter_by(user_id=user_id).subquery()
@@ -785,7 +790,17 @@ def get_favorites():
             BlogPost.id.in_(liked_post_ids),
             BlogPost.is_deleted == 0,
             BlogPost.is_draft == 0
-        ).order_by(BlogPost.created_at.desc())
+        )
+
+        if search:
+            query = query.filter(
+                db.or_(
+                    BlogPost.content.like(f'%{search}%'),
+                    BlogPost.search_field.like(f'%{search}%')
+                )
+            )
+
+        query = query.order_by(BlogPost.created_at.desc())
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         posts = []

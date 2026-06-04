@@ -53,7 +53,7 @@
       <!-- 搜索栏 -->
       <div v-if="activeTab !== 'deleted'" class="search-box">
         <el-icon :size="16" color="#9ca3af" class="search-icon"><Search /></el-icon>
-        <input v-model="searchKeyword" :placeholder="searchPlaceholder" @input="onSearchInput"
+        <input v-model="searchKeyword" :placeholder="searchPlaceholder" @keyup.enter="onSearchEnter"
           class="search-input" />
         <span v-if="filterAuthor" class="filter-tag">
           作者: {{ filterAuthor }} <button @click="filterAuthor = ''" class="filter-tag-close">&times;</button>
@@ -136,8 +136,8 @@ const isAdmin = computed(() => getCurrentUserRole() === 'admin')
 
 const tabs = computed(() => {
   const list: any[] = [{ key: 'published', label: '全部博文' }]
+  if (draftCount.value > 0) list.push({ key: 'draft', label: '草稿' })
   list.push({ key: 'favorites', label: '收藏' })
-  if (draftCount.value > 0) list.push({ key: 'draft', label: '草稿', badge: draftCount.value })
   if (isAdmin.value) list.push({ key: 'deleted', label: '回收站' })
   return list
 })
@@ -207,8 +207,7 @@ async function handlePublish() {
 // ===== 数据加载 =====
 onMounted(async () => { await loadPosts(); checkDraft() })
 
-let searchTimer: any = null
-function onSearchInput() { clearTimeout(searchTimer); searchTimer = setTimeout(() => { currentPage.value = 1; loadPosts() }, 300) }
+function onSearchEnter() { currentPage.value = 1; loadPosts() }
 
 function onFilterAuthor(author: string) { filterAuthor.value = author; activeTab.value = 'published'; currentPage.value = 1; searchKeyword.value = ''; loadPosts() }
 
@@ -232,7 +231,10 @@ async function loadPosts() {
     } else if (activeTab.value === 'favorites') {
       res = await request.get('/api/posts/favorites', { params: { page: currentPage.value, per_page: perPage.value, search: searchKeyword.value || undefined } })
     } else {
-      res = await getPosts({ page: currentPage.value, per_page: perPage.value, search: searchKeyword.value || undefined })
+      const params: any = { page: currentPage.value, per_page: perPage.value }
+      if (searchKeyword.value) params.search = searchKeyword.value
+      if (filterAuthor.value) params.author = filterAuthor.value
+      res = await getPosts(params)
     }
     if (res) { posts.value = res.posts || []; total.value = res.total || 0; totalPages.value = res.total_pages || 0 }
   } catch (e: any) { ElMessage.error('加载失败') }
