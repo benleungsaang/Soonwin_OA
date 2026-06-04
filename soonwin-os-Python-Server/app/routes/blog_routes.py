@@ -315,6 +315,68 @@ def _enqueue_video_tasks_for_post(post_id):
             _add_blog_video_transcode_task(media.id, abs_path)
 
 
+# ============================================================
+# 头像（必须在 /posts/<int:post_id> 之前注册，避免被当作 post_id 解析）
+# ============================================================
+
+@blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
+def serve_avatar(emp_id):
+    """提供用户头像"""
+    try:
+        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.abspath(base_dir)
+        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+            path = os.path.join(base_dir, f'{emp_id}.{ext}')
+            if os.path.exists(path) and os.path.isfile(path):
+                return send_file(path)
+    except Exception as e:
+        print(f"头像获取失败: {e}")
+    abort(404)
+
+
+@blog_bp.route('/posts/avatar/upload', methods=['POST'])
+@require_auth
+def upload_avatar():
+    """上传用户头像"""
+    try:
+        user_id = get_user_id_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': '请先登录'}), 401
+
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'success': False, 'message': '未选择文件'}), 400
+
+        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
+        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+            return jsonify({'success': False, 'message': '仅支持 JPG/PNG/GIF/WEBP 格式'}), 400
+
+        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.abspath(base_dir)
+        os.makedirs(base_dir, exist_ok=True)
+
+        for old_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+            old_path = os.path.join(base_dir, f'{user_id}.{old_ext}')
+            if os.path.exists(old_path):
+                os.remove(old_path)
+
+        save_path = os.path.join(base_dir, f'{user_id}.{ext}')
+        file.save(save_path)
+
+        from PIL import Image
+        img = Image.open(save_path)
+        img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+        img.save(os.path.join(base_dir, f'{user_id}_thumb.{ext}'), quality=85)
+
+        return jsonify({
+            'success': True,
+            'data': {'avatar_url': f'/api/posts/avatar/{user_id}'}
+        })
+    except Exception as e:
+        print(f"上传头像失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @blog_bp.route('/posts/<int:post_id>', methods=['GET'])
 @route_permission(ROUTE_BLOG_MANAGE)
 def get_post(post_id):
@@ -916,70 +978,3 @@ def upload_media():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# ============================================================
-# 头像
-# ============================================================
-
-AVATAR_DIR = 'assets/PostsMedia/Avatar'
-
-
-@blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
-def serve_avatar(emp_id):
-    """提供用户头像"""
-    try:
-        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
-        base_dir = os.path.abspath(base_dir)
-        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-            path = os.path.join(base_dir, f'{emp_id}.{ext}')
-            if os.path.exists(path) and os.path.isfile(path):
-                return send_file(path)
-    except Exception as e:
-        print(f"头像获取失败: {e}")
-    abort(404)
-
-
-@blog_bp.route('/posts/avatar/upload', methods=['POST'])
-@require_auth
-def upload_avatar():
-    """上传用户头像"""
-    try:
-        user_id = get_user_id_from_token()
-        if not user_id:
-            return jsonify({'success': False, 'message': '请先登录'}), 401
-
-        file = request.files.get('file')
-        if not file or not file.filename:
-            return jsonify({'success': False, 'message': '未选择文件'}), 400
-
-        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
-        if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
-            return jsonify({'success': False, 'message': '仅支持 JPG/PNG/GIF/WEBP 格式'}), 400
-
-        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
-        base_dir = os.path.abspath(base_dir)
-        os.makedirs(base_dir, exist_ok=True)
-
-        # 删除旧头像
-        for old_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-            old_path = os.path.join(base_dir, f'{user_id}.{old_ext}')
-            if os.path.exists(old_path):
-                os.remove(old_path)
-
-        # 保存新头像
-        save_path = os.path.join(base_dir, f'{user_id}.{ext}')
-        file.save(save_path)
-
-        # 生成缩略图
-        from PIL import Image
-        img = Image.open(save_path)
-        img.thumbnail((200, 200), Image.Resampling.LANCZOS)
-        thumb_path = os.path.join(base_dir, f'{user_id}_thumb.{ext}')
-        img.save(thumb_path, quality=85)
-
-        return jsonify({
-            'success': True,
-            'data': {'avatar_url': f'/api/posts/avatar/{user_id}'}
-        })
-    except Exception as e:
-        print(f"上传头像失败: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
