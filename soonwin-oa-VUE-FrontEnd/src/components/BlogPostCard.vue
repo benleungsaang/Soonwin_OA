@@ -53,16 +53,22 @@
             <button @click="openLightboxFromExpand"><el-icon :size="14"><ZoomIn /></el-icon>查看原图</button>
           </div>
         </div>
-        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video', 'swiping': swipeOffset !== 0 }" ref="expandWrapRef"
+        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video' }"
+             ref="expandWrapRef" style="touch-action: pan-y"
              @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
           <div class="expand-nav-center" @click="collapseExpand"></div>
-          <img v-if="expandedMedia.media_type === 'image'"
-               :src="getMediaUrl(expandedMedia.file_path)" alt=""
-               :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
-          <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls
-                 :style="{ transform: `rotate(${rotateDeg}deg) translateX(${swipeOffset}px)`, transition: swipeOffset ? 'none' : 'transform 0.3s' }" />
+          <!-- 轮播轨道：所有媒体水平排列 -->
+          <div class="carousel-track" :style="carouselStyle">
+            <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
+              <img v-if="m.media_type === 'image'"
+                   :src="getMediaUrl(m.file_path)" alt=""
+                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" />
+              <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
+                     :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx" />
+            </div>
+          </div>
         </div>
       </div>
       <!-- 媒体缩略网格 -->
@@ -206,16 +212,30 @@ function handleMediaClick(media: any, index: number) {
   else { expandMedia(index) }
 }
 
-function expandMedia(index: number) { expandedIdx.value = index; rotateDeg.value = 0 }
+function expandMedia(index: number) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0 }
 function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; videoTimeMap.clear() }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
-// 触屏滑动（轮播式：头尾相接 + 弹性归位）
+// 轮播式滑动
 let touchStartX = 0
 let touchLastX = 0
 const swipeOffset = ref(0)
 const swipeAnimating = ref(false)
+
+const carouselStyle = computed(() => {
+  const idx = expandedIdx.value || 0
+  const total = props.post.media?.length || 1
+  const base = -idx * 100
+  const w = expandWrapRef.value?.clientWidth || 300
+  const offsetPercent = w > 0 ? (swipeOffset.value / w) * 100 : 0
+  const translateX = base + offsetPercent
+  const transition = swipeOffset.value === 0 ? 'transform 0.3s ease' : 'none'
+  return {
+    transform: `translateX(${translateX}%)`,
+    transition,
+  }
+})
 
 function onTouchStart(e: TouchEvent) {
   if (swipeAnimating.value) return
@@ -226,24 +246,17 @@ function onTouchStart(e: TouchEvent) {
 function onTouchMove(e: TouchEvent) {
   touchLastX = e.touches[0].clientX
   const diff = touchLastX - touchStartX
-  // 头尾边界弹性阻尼（超出时移动距离减半）
+  const total = props.post.media?.length || 1
   const atStart = expandedIdx.value === 0 && diff > 0
-  const atEnd = expandedIdx.value === (props.post.media?.length || 1) - 1 && diff < 0
-  swipeOffset.value = (atStart || atEnd) ? diff * 0.4 : diff
+  const atEnd = expandedIdx.value === total - 1 && diff < 0
+  swipeOffset.value = (atStart || atEnd) ? diff * 0.35 : diff
 }
 function onTouchEnd(_e: TouchEvent) {
   const diff = touchLastX - touchStartX
-  const threshold = 60
+  const threshold = 50
   swipeAnimating.value = true
-  if (diff < -threshold) {
-    if (expandedIdx.value !== null && expandedIdx.value < (props.post.media?.length || 1) - 1) {
-      nextExpanded()
-    }
-  } else if (diff > threshold) {
-    if (expandedIdx.value !== null && expandedIdx.value > 0) {
-      prevExpanded()
-    }
-  }
+  if (diff < -threshold) { nextExpanded() }
+  else if (diff > threshold) { prevExpanded() }
   swipeOffset.value = 0
   setTimeout(() => { swipeAnimating.value = false }, 350)
 }
@@ -430,8 +443,14 @@ defineExpose({ loadHistory })
   position: relative; display: flex; align-items: center; justify-content: center;
   min-height: 150px;
 }
-.expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; touch-action: pan-y; }
-.swiping img, .swiping video { transition: none !important; }
+.expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; }
+.expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
+
+/* 轮播 */
+.carousel-track { display: flex; width: 100%; align-items: center; }
+.carousel-slide { flex: 0 0 100%; display: flex; align-items: center; justify-content: center; }
+.carousel-slide img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; }
+.carousel-slide video { max-width: 100%; max-height: 85vh; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
