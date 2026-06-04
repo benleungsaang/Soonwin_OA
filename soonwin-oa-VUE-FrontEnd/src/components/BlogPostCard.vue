@@ -56,7 +56,7 @@
           <img v-if="expandedMedia.media_type === 'image'"
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
                :style="{ transform: `rotate(${rotateDeg}deg)` }" />
-          <video v-else :ref="setVideoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
+          <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
                  :style="{ transform: `rotate(${rotateDeg}deg)` }"
                  @loadedmetadata="restoreVideoTime" />
         </div>
@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUpdate, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
@@ -185,18 +185,20 @@ const expandWrapRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const videoTimeMap = new Map<number, number>() // 记录每个视频的播放进度
 
-function setVideoRef(el: any) {
-  // 切换前保存当前视频进度
+// DOM更新前保存当前视频进度（避免元素销毁后无法读取currentTime）
+onBeforeUpdate(() => {
   if (videoRef.value && expandedIdx.value !== null) {
     videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
   }
-  videoRef.value = el as HTMLVideoElement
-}
+})
 
+// 视频元素挂载后恢复进度
 function restoreVideoTime() {
-  if (videoRef.value && expandedIdx.value !== null && videoTimeMap.has(expandedIdx.value)) {
-    videoRef.value.currentTime = videoTimeMap.get(expandedIdx.value)!
-  }
+  nextTick(() => {
+    if (videoRef.value && expandedIdx.value !== null && videoTimeMap.has(expandedIdx.value)) {
+      videoRef.value.currentTime = videoTimeMap.get(expandedIdx.value)!
+    }
+  })
 }
 
 const expandedMedia = computed(() => {
@@ -216,21 +218,8 @@ function handleMediaClick(media: any, index: number) {
   else { expandMedia(index) }
 }
 
-function expandMedia(index: number) {
-  // 保存当前视频进度
-  if (videoRef.value && expandedIdx.value !== null) {
-    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
-  }
-  expandedIdx.value = index
-  rotateDeg.value = 0
-}
-function collapseExpand() {
-  if (videoRef.value && expandedIdx.value !== null) {
-    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
-  }
-  expandedIdx.value = null
-  rotateDeg.value = 0
-}
+function expandMedia(index: number) { expandedIdx.value = index; rotateDeg.value = 0 }
+function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; videoTimeMap.clear() }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 function rotateExpanded() {
@@ -373,11 +362,12 @@ defineExpose({ loadHistory })
 
 /* ===== 媒体网格 ===== */
 .post-media-wrapper { padding: 0 16px 12px 16px; }
-.media-grid { display: grid; gap: 4px; grid-template-columns: 1fr 1fr 1fr; }
+.media-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr 1fr; }
 .media-grid-single { grid-template-columns: 1fr; }
 .media-item {
   position: relative; overflow: hidden; background: #000;
   border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.06);
 }
 .media-item img, .media-item video {
   width: 100%; height: 200px; object-fit: cover; display: block;
@@ -447,7 +437,7 @@ defineExpose({ loadHistory })
 
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
-  .media-grid { gap: 8px; }
+  .media-grid { gap: 10px; }
   .media-item img, .media-item video { height: auto; aspect-ratio: 1; max-height: 200px; }
   .post-card:active { transform: scale(0.98); }
 }
