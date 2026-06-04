@@ -95,6 +95,7 @@
             <Item>\assets\Media\</Item>
             <Item>\assets\OrderStatus\</Item>
             <Item>\assets\OrderRecords\</Item>
+            <Item>\assets\PostsMedia\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
