@@ -66,7 +66,8 @@
                    :src="getMediaUrl(m.file_path)" alt=""
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" />
               <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
-                     :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx" />
+                     :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx"
+                     @click.stop />
             </div>
           </div>
         </div>
@@ -441,7 +442,7 @@ defineExpose({ loadHistory })
 .expanded-controls-right { display: flex; gap: 8px; }
 .expanded-media-wrap {
   position: relative; display: flex; align-items: center; justify-content: center;
-  min-height: 150px;
+  min-height: 150px; overflow: hidden;
 }
 .expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; }
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
@@ -499,6 +500,8 @@ defineExpose({ loadHistory })
   .history-body { max-height: 55vh; }
   .history-card { padding: 10px; }
   .history-post-wrap .media-grid { gap: 6px; }
+  .expand-nav-center { display: none; }
+  .expand-nav-left, .expand-nav-right { width: 25%; }
 }
 @media (max-width: 640px) {
   .media-grid { grid-template-columns: 1fr 1fr !important; }
