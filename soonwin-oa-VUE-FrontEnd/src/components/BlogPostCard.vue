@@ -162,10 +162,10 @@
           <div v-for="(m, i) in post.media" :key="m.id" class="fs-slide">
             <img v-if="m.media_type === 'image'"
                  :src="getMediaUrl(m.file_path)" class="fs-img" @click="exitFullscreen" />
-            <video v-else :ref="i === fullscreenIdx ? 'fullscreenVideoRef' : undefined"
+            <video v-else
                    :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
                    class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline
-                   @click="handleFsVideoClick" />
+                   @click.stop="handleFsVideoClick()" />
           </div>
         </div>
       </div>
@@ -203,10 +203,10 @@ const videoTimeMap = new Map<number, number>()
 const directClickExpand = ref(false)
 const fullscreenVisible = ref(false)
 const fullscreenIdx = ref(0)
-const fullscreenVideoRef = ref()
 const fsTouchStartX = ref(0)
 const fsTouchLastX = ref(0)
 const fsSwipeOffset = ref(0)
+const fsSwipeOffsetY = ref(0)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
@@ -262,7 +262,9 @@ const fsCarouselStyle = computed(() => {
   const vw = window.innerWidth || 375
   const offsetPercent = vw > 0 ? (fsSwipeOffset.value / vw) * 100 : 0
   const translateX = base + offsetPercent
-  return { transform: `translateX(${translateX}%)`, transition: fsSwipeOffset.value ? "none" : "transform 0.3s ease" }
+  const translateY = fsSwipeOffsetY.value
+  const trans = (fsSwipeOffset.value === 0 && fsSwipeOffsetY.value === 0) ? 'transform 0.3s ease' : 'none'
+  return { transform: `translate(${translateX}%, ${translateY}px)`, transition: trans }
 })
 
 const carouselStyle = computed(() => {
@@ -326,18 +328,16 @@ function enterFullscreen(index: number) {
 
 function exitFullscreen() {
   fullscreenVisible.value = false
-  const el = fullscreenVideoRef.value
-  if (Array.isArray(el) && el[0]) el[0].pause()
-  else if (el) el.pause()
+  // 暂停所有全屏视频
+  document.querySelectorAll('.fs-video').forEach(v => (v as HTMLVideoElement).pause())
   document.body.style.overflow = ''
 }
 
-function handleFsVideoClick() {
-  const el = fullscreenVideoRef.value
-  const vid = Array.isArray(el) ? el[0] : el
+function handleFsVideoClick(e: Event) {
+  const vid = e.currentTarget as HTMLVideoElement
   if (!vid) return
-  if (vid.paused) vid.play().catch(() => {})
-  else vid.pause()
+  if (vid.paused) { vid.play().catch(() => {}) }
+  else { vid.pause() }
 }
 
 // 全屏滑动
@@ -347,8 +347,12 @@ function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clie
 function onFsTouchMove(e: TouchEvent) {
   fsTouchLastX.value = e.touches[0].clientX
   fsTouchLastY.value = e.touches[0].clientY
-  const diff = fsTouchLastX.value - fsTouchStartX.value
-  if (Math.abs(diff) > 10) e.preventDefault()
+  const diffX = fsTouchLastX.value - fsTouchStartX.value
+  const diffY = fsTouchLastY.value - fsTouchStartY.value
+  // 如果纵向滑动明显，阻止页面滚动
+  if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) e.preventDefault()
+  // 纵向跟手偏移（弹性系数0.4）
+  fsSwipeOffsetY.value = diffY * 0.4
   const total = props.post.media?.length || 1
   const atStart = fullscreenIdx.value === 0 && diff > 0
   const atEnd = fullscreenIdx.value === total - 1 && diff < 0
@@ -358,8 +362,13 @@ function onFsTouchEnd() {
   const diffX = fsTouchLastX.value - fsTouchStartX.value
   const diffY = fsTouchLastY.value - fsTouchStartY.value
   const absX = Math.abs(diffX)
-  // 下划>150px 关闭全屏
-  if (diffY > 100 && Math.abs(diffY) > absX) { exitFullscreen(); return }
+  // 下划 > 80px 关闭全屏（用过渡动画）
+  if (diffY > 80 && Math.abs(diffY) > absX) {
+    fsSwipeOffsetY.value = 600
+    setTimeout(() => exitFullscreen(), 250)
+    return
+  }
+  fsSwipeOffsetY.value = 0
   if (absX > 50) {
     // 水平滑动切换
     if (diffX < -50 && fullscreenIdx.value < (props.post.media?.length || 1) - 1) fullscreenIdx.value++
