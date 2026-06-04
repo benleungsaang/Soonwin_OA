@@ -36,6 +36,12 @@
                 <button class="publish-preview-remove" @click="removePublishFile(i)">&times;</button>
               </div>
             </div>
+            <div v-if="uploadProgress > 0" class="upload-progress-wrap mt-2">
+              <div class="upload-progress-bar">
+                <div class="upload-progress-fill" :style="{ width: uploadProgress + '%' }"></div>
+              </div>
+              <span class="upload-progress-text">{{ uploadProgress }}%</span>
+            </div>
             <div class="flex items-center justify-between pt-3 border-t border-gray-100 mt-2">
               <div class="flex gap-2 items-center">
                 <label class="publish-upload-btn">
@@ -176,6 +182,7 @@ const emptyText = computed(() => {
 const publishContent = ref('')
 const publishFiles = ref<{ type: string; url: string; file: File }[]>([])
 const publishing = ref(false)
+const uploadProgress = ref(0)
 const publishDragOver = ref(false)
 
 function addPublishFiles(files: FileList | File[]) {
@@ -197,33 +204,33 @@ function removePublishFile(i: number) { URL.revokeObjectURL(publishFiles.value[i
 
 async function handleSaveDraft() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入草稿内容'); return }
-  publishing.value = true
+  publishing.value = true; uploadProgress.value = 0
   try {
     const { saveDraft } = await import('@/api/blog')
     const fd = new FormData(); fd.append('content', publishContent.value)
     publishFiles.value.forEach(f => fd.append('media', f.file))
-    await saveDraft(fd)
+    await saveDraft(fd, (pct) => { uploadProgress.value = pct })
     ElMessage.success('草稿已保存')
     publishContent.value = ''; publishFiles.value.forEach(f => URL.revokeObjectURL(f.url)); publishFiles.value = []
     await checkDraft()
   } catch (e: any) { ElMessage.error(e?.response?.data?.message || '保存失败') }
-  finally { publishing.value = false }
+  finally { publishing.value = false; uploadProgress.value = 0 }
 }
 
 async function handlePublish() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入内容或添加媒体'); return }
-  publishing.value = true
+  publishing.value = true; uploadProgress.value = 0
   try {
     const fd = new FormData(); fd.append('content', publishContent.value)
     publishFiles.value.forEach(f => fd.append('media', f.file))
-    await createPost(fd)
+    await createPost(fd, (pct) => { uploadProgress.value = pct })
     ElMessage.success('发布成功')
     publishContent.value = ''
     publishFiles.value.forEach(f => URL.revokeObjectURL(f.url))
     publishFiles.value = []
     currentPage.value = 1; activeTab.value = 'published'; await loadPosts()
   } catch (e: any) { ElMessage.error(e?.response?.data?.message || '发布失败') }
-  finally { publishing.value = false }
+  finally { publishing.value = false; uploadProgress.value = 0 }
 }
 
 // ===== 数据加载 =====
@@ -320,6 +327,10 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .publish-submit-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
 .publish-submit-btn:hover { background: #2563eb; }
 .publish-submit-btn:disabled, .publish-draft-btn:disabled { opacity: 0.6; cursor: default; }
+.upload-progress-wrap { display: flex; align-items: center; gap: 10px; }
+.upload-progress-bar { flex: 1; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.upload-progress-fill { height: 100%; background: #409eff; border-radius: 3px; transition: width 0.3s ease; }
+.upload-progress-text { font-size: 12px; color: #606266; white-space: nowrap; }
 .publish-preview-item { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); }
 .publish-preview-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; background: #ef4444; color: #fff; border: none; border-radius: 50%; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 

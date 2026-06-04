@@ -1,5 +1,6 @@
 /** 博客 API 封装 */
-import request from '@/utils/request'
+import request, { multipartRequest } from '@/utils/request'
+import type { AxiosProgressEvent } from 'axios'
 
 // ============================================================
 // 博文 CRUD
@@ -19,17 +20,28 @@ export function getPost(id: number) {
   return request.get(`/api/posts/${id}`)
 }
 
-/** 创建博文 */
-export function createPost(formData: FormData) {
-  return request.post('/api/posts', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+/** 创建博文（支持上传进度） */
+export function createPost(
+  formData: FormData,
+  onProgress?: (pct: number) => void
+) {
+  return multipartRequest.post('/api/posts', formData, {
+    onUploadProgress: (e: AxiosProgressEvent) => {
+      if (e.total && onProgress) onProgress(Math.round((e.loaded * 100) / e.total))
+    },
   })
 }
 
-/** 更新博文 */
-export function updatePost(id: number, formData: FormData) {
-  return request.put(`/api/posts/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+/** 更新博文（支持上传进度） */
+export function updatePost(
+  id: number,
+  formData: FormData,
+  onProgress?: (pct: number) => void
+) {
+  return multipartRequest.put(`/api/posts/${id}`, formData, {
+    onUploadProgress: (e: AxiosProgressEvent) => {
+      if (e.total && onProgress) onProgress(Math.round((e.loaded * 100) / e.total))
+    },
   })
 }
 
@@ -47,10 +59,15 @@ export function getDraft() {
   return request.get('/api/posts/draft')
 }
 
-/** 保存草稿 */
-export function saveDraft(formData: FormData) {
-  return request.post('/api/posts/draft', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+/** 保存草稿（支持上传进度） */
+export function saveDraft(
+  formData: FormData,
+  onProgress?: (pct: number) => void
+) {
+  return multipartRequest.post('/api/posts/draft', formData, {
+    onUploadProgress: (e: AxiosProgressEvent) => {
+      if (e.total && onProgress) onProgress(Math.round((e.loaded * 100) / e.total))
+    },
   })
 }
 
