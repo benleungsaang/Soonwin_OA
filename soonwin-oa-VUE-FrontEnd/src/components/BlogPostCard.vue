@@ -68,6 +68,7 @@
               <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
                      :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx"
                      :poster="getMediaUrl(m.thumbnail_path)" playsinline
+                     :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }"
                      @click.stop />
             </div>
           </div>
