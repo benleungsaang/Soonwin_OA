@@ -184,15 +184,17 @@ const directClickExpand = ref(false)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
-    if (oldIdx !== null && getVideoEl()) {
-      getVideoEl()?.pause()
-      videoTimeMap.set(oldIdx, getVideoEl()?.currentTime)
+    const oldEl = oldIdx !== null ? getVideoEl() : null
+    if (oldEl) {
+      oldEl.pause()
+      videoTimeMap.set(oldIdx!, oldEl.currentTime)
     }
     if (newIdx !== null) {
       nextTick(() => {
-        if (getVideoEl()) {
-          if (videoTimeMap.has(newIdx)) getVideoEl()?.currentTime = videoTimeMap.get(newIdx)!
-          if (directClickExpand.value) getVideoEl()?.play().catch(() => {})
+        const el = getVideoEl()
+        if (el) {
+          if (videoTimeMap.has(newIdx)) el.currentTime = videoTimeMap.get(newIdx)!
+          if (directClickExpand.value) el.play().catch(() => {})
         }
         directClickExpand.value = false
       })
@@ -217,7 +219,7 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { if (getVideoEl()) { getVideoEl()?.pause(); videoTimeMap.set(expandedIdx.value!, getVideoEl()?.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
+function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
