@@ -8,7 +8,7 @@
         <div class="toolbar-left">
           <el-radio-group v-model="activeTab" size="small" @change="onTabChange">
             <el-radio-button value="published">全部博文</el-radio-button>
-            <el-radio-button v-if="hasDraft" value="draft">草稿</el-radio-button>
+            <el-radio-button v-if="draftCount > 0" value="draft">草稿{{ draftCount > 0 ? `(${draftCount})` : '' }}</el-radio-button>
             <el-radio-button v-if="isAdmin" value="deleted">回收站</el-radio-button>
           </el-radio-group>
         </div>
@@ -87,7 +87,7 @@ import BlogCreateDialog from '@/components/BlogCreateDialog.vue'
 import BlogMediaLightbox from '@/components/BlogMediaLightbox.vue'
 import type { BlogPost, BlogMedia } from '@/types/blog'
 import {
-  getPosts, getPost, getDraft, deletePost, toggleLike,
+  getPosts, getPost, getDraft, deletePost, deleteDraft, toggleLike,
   getDeletedPosts, restorePost, permanentDeletePosts,
 } from '@/api/blog'
 import { getCurrentUserRole } from '@/utils/authUtils'
@@ -103,7 +103,7 @@ const activeTab = ref<'published' | 'draft' | 'deleted'>('published')
 
 const showCreateDialog = ref(false)
 const editingPost = ref<BlogPost | null>(null)
-const hasDraft = ref(false)
+const draftCount = ref(0)
 
 const showLightbox = ref(false)
 const lightboxMediaList = ref<BlogMedia[]>([])
@@ -135,7 +135,7 @@ onMounted(async () => {
 async function checkDraft() {
   try {
     const res: any = await getDraft()
-    hasDraft.value = !!res
+    draftCount.value = Array.isArray(res) ? res.length : (res ? 1 : 0)
   } catch { /* ignore */ }
 }
 
@@ -146,10 +146,10 @@ async function loadPosts() {
     if (activeTab.value === 'deleted') {
       res = await getDeletedPosts({ page: currentPage.value, per_page: perPage.value })
     } else if (activeTab.value === 'draft') {
-      const draft: any = await getDraft()
-      posts.value = draft ? [draft] : []
-      total.value = draft ? 1 : 0
-      totalPages.value = draft ? 1 : 0
+      const drafts: any = await getDraft()
+      posts.value = Array.isArray(drafts) ? drafts : (drafts ? [drafts] : [])
+      total.value = posts.value.length
+      totalPages.value = 1
       loading.value = false
       return
     } else {
@@ -199,19 +199,28 @@ async function onDraftSaved() {
 }
 
 async function handleDelete(post: BlogPost) {
-  const action = activeTab.value === 'deleted'
-    ? '彻底删除后将无法恢复，确定删除？'
-    : '确定将此博文移至回收站？'
+  let action: string
+  if (activeTab.value === 'deleted') {
+    action = '彻底删除后将无法恢复，确定删除？'
+  } else if (post.is_draft) {
+    action = '确定彻底删除此草稿？此操作不可恢复。'
+  } else {
+    action = '确定将此博文移至回收站？'
+  }
   try {
     await ElMessageBox.confirm(action, '提示', { type: 'warning' })
     if (activeTab.value === 'deleted') {
       await permanentDeletePosts([post.id])
       ElMessage.success('已彻底删除')
+    } else if (post.is_draft) {
+      await deleteDraft(post.id)
+      ElMessage.success('草稿已删除')
     } else {
       await deletePost(post.id)
       ElMessage.success('已移至回收站')
     }
     await loadPosts()
+    if (post.is_draft) await checkDraft()
   } catch { /* cancelled */ }
 }
 

@@ -352,22 +352,11 @@ def update_post(post_id):
         post.search_field = content
         post.updated_at = datetime.now()
 
-        # 处理保留的媒体：删除不需要的
+        # 处理保留的媒体：删除不需要的（仅删DB记录，保留物理文件供历史版本引用）
         if keep_media_ids:
             keep_ids = set(int(i) for i in keep_media_ids.split(',') if i.strip().isdigit())
             for media in post.media_list.all():
                 if media.id not in keep_ids:
-                    # 删除物理文件
-                    try:
-                        abs_path = os.path.join(_get_posts_media_dir(), media.file_path)
-                        if os.path.exists(abs_path):
-                            os.remove(abs_path)
-                        if media.thumbnail_path:
-                            thumb_path = os.path.join(_get_posts_media_dir(), media.thumbnail_path)
-                            if os.path.exists(thumb_path):
-                                os.remove(thumb_path)
-                    except Exception as e:
-                        print(f"删除媒体文件失败: {e}")
                     db.session.delete(media)
 
         # 处理新上传的媒体文件
@@ -419,13 +408,15 @@ def delete_post(post_id):
 @blog_bp.route('/posts/draft', methods=['GET'])
 @require_auth
 def get_draft():
-    """获取当前用户的草稿"""
+    """获取当前用户的所有草稿"""
     try:
         user_id = get_user_id_from_token()
-        draft = BlogPost.query.filter_by(author_id=user_id, is_draft=1, is_deleted=0).first()
-        if draft:
-            return jsonify({'success': True, 'data': draft.to_dict(include_media=True)})
-        return jsonify({'success': True, 'data': None})
+        drafts = BlogPost.query.filter_by(author_id=user_id, is_draft=1, is_deleted=0)\
+            .order_by(BlogPost.updated_at.desc()).all()
+        return jsonify({
+            'success': True,
+            'data': [d.to_dict(include_media=True) for d in drafts]
+        })
     except Exception as e:
         print(f"获取草稿失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -434,7 +425,7 @@ def get_draft():
 @blog_bp.route('/posts/draft', methods=['POST'])
 @require_auth
 def save_draft():
-    """保存或替换草稿（每用户仅一条）"""
+    """保存草稿（允许多条草稿）"""
     try:
         content = request.form.get('content', '')
         files = request.files.getlist('media')
@@ -442,33 +433,20 @@ def save_draft():
         user_id = get_user_id_from_token()
         user_name = _get_current_user_name()
 
-        # 查找已有草稿
-        draft = BlogPost.query.filter_by(author_id=user_id, is_draft=1, is_deleted=0).first()
+        # 如果内容为空且无媒体，不保存
+        if not content and not files:
+            return jsonify({'success': False, 'message': '草稿内容不能为空'}), 400
 
-        if draft:
-            # 替换草稿内容
-            draft.content = content
-            draft.search_field = content
-            draft.updated_at = datetime.now()
-            # 删除旧媒体
-            for media in draft.media_list.all():
-                try:
-                    abs_path = os.path.join(_get_posts_media_dir(), media.file_path)
-                    if os.path.exists(abs_path):
-                        os.remove(abs_path)
-                except Exception:
-                    pass
-                db.session.delete(media)
-        else:
-            draft = BlogPost(
-                content=content,
-                author=user_name,
-                author_id=user_id,
-                is_draft=1,
-                search_field=content,
-            )
-            db.session.add(draft)
-            db.session.flush()
+        # 始终创建新草稿
+        draft = BlogPost(
+            content=content,
+            author=user_name,
+            author_id=user_id,
+            is_draft=1,
+            search_field=content,
+        )
+        db.session.add(draft)
+        db.session.flush()
 
         # 处理媒体
         for file in files:
@@ -485,25 +463,31 @@ def save_draft():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@blog_bp.route('/posts/draft', methods=['DELETE'])
+@blog_bp.route('/posts/draft/<int:draft_id>', methods=['DELETE'])
 @require_auth
-def delete_draft():
-    """删除当前用户的草稿"""
+def delete_draft(draft_id):
+    """彻底删除指定的草稿（不进入回收站）"""
     try:
         user_id = get_user_id_from_token()
-        draft = BlogPost.query.filter_by(author_id=user_id, is_draft=1, is_deleted=0).first()
-        if draft:
-            # 删除媒体文件
-            for media in draft.media_list.all():
-                try:
-                    abs_path = os.path.join(_get_posts_media_dir(), media.file_path)
-                    if os.path.exists(abs_path):
-                        os.remove(abs_path)
-                except Exception:
-                    pass
-            db.session.delete(draft)
-            db.session.commit()
-        return jsonify({'success': True, 'message': '草稿已删除'})
+        draft = BlogPost.query.get(draft_id)
+        if not draft:
+            return jsonify({'success': False, 'message': '草稿不存在'}), 404
+        if draft.author_id != user_id:
+            return jsonify({'success': False, 'message': '无权限删除此草稿'}), 403
+        if not draft.is_draft:
+            return jsonify({'success': False, 'message': '该博文不是草稿'}), 400
+
+        # 彻底删除媒体文件和DB记录
+        for media in draft.media_list.all():
+            try:
+                abs_path = os.path.join(_get_posts_media_dir(), media.file_path)
+                if os.path.exists(abs_path):
+                    os.remove(abs_path)
+            except Exception:
+                pass
+        db.session.delete(draft)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '草稿已彻底删除'})
     except Exception as e:
         db.session.rollback()
         print(f"删除草稿失败: {e}")

@@ -85,26 +85,47 @@
 
     <!-- 编辑历史对话框 -->
     <el-dialog v-if="isAdmin && historyVisible" v-model="historyVisible"
-               title="编辑历史" width="700px" destroy-on-close>
-      <div v-if="loadingHistory" style="text-align:center;padding:20px;">
-        <el-icon class="is-loading"><Loading /></el-icon> 加载中...
+               title="编辑历史" width="750px" destroy-on-close top="2vh">
+      <div v-if="loadingHistory" style="text-align:center;padding:40px;">
+        <el-icon class="is-loading" :size="28"><Loading /></el-icon>
+        <p style="margin-top:12px;color:#909399;">加载中...</p>
       </div>
-      <el-timeline v-else>
-        <el-timeline-item
-          v-for="h in editHistories"
-          :key="h.id"
-          :timestamp="h.created_at"
-          placement="top"
-        >
-          <el-card>
-            <div><strong>版本 {{ h.version }}</strong> — 编辑者：{{ h.edited_by }}</div>
-            <div style="white-space: pre-wrap; margin-top: 8px;">{{ h.content }}</div>
-            <div v-if="h.media_snapshot" style="margin-top: 4px; color: #909399; font-size: 12px;">
-              包含 {{ JSON.parse(h.media_snapshot).length }} 个媒体文件
+      <div v-else class="history-list">
+        <!-- 当前版本 -->
+        <div class="history-version current">
+          <div class="version-header">
+            <el-tag type="success" size="small">当前版本 v{{ post.edit_version }}</el-tag>
+            <span class="version-time">{{ post.updated_at }}</span>
+          </div>
+          <!-- 版本内容 -->
+          <div class="version-content" v-if="post.content">{{ post.content }}</div>
+          <div v-if="post.media && post.media.length > 0" class="media-grid" :class="`media-count-${Math.min(post.media.length, 3)}`">
+            <div v-for="m in post.media" :key="m.id" class="media-item">
+              <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
+              <video v-else-if="m.compress_status === 'success'" :src="getMediaUrl(m.file_path)" preload="metadata" />
+              <div v-else class="transcoding-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>{{ m.compress_status === 'failed' ? '转码失败' : '转码中' }}</span></div>
             </div>
-          </el-card>
-        </el-timeline-item>
-      </el-timeline>
+          </div>
+        </div>
+        <!-- 历史版本 -->
+        <div v-for="h in editHistories" :key="h.id" class="history-version">
+          <div class="version-header">
+            <el-tag type="info" size="small">版本 {{ h.version }}</el-tag>
+            <span class="version-editor">编辑者：{{ h.edited_by }}</span>
+            <span class="version-time">{{ h.created_at }}</span>
+          </div>
+          <div class="version-content" v-if="h.content">{{ h.content }}</div>
+          <div v-if="h.media_snapshot && parseMediaSnapshot(h.media_snapshot).length > 0"
+               class="media-grid" :class="`media-count-${Math.min(parseMediaSnapshot(h.media_snapshot).length, 3)}`">
+            <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item">
+              <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
+              <video v-else-if="m.compress_status === 'success'" :src="getMediaUrl(m.file_path)" preload="metadata" />
+              <div v-else class="transcoding-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>{{ m.compress_status === 'failed' ? '转码失败' : '转码中' }}</span></div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-if="editHistories.length === 0" description="暂无编辑历史" />
+      </div>
     </el-dialog>
   </el-card>
 </template>
@@ -160,6 +181,15 @@ async function loadHistory() {
     ElMessage.error('加载编辑历史失败')
   } finally {
     loadingHistory.value = false
+  }
+}
+
+// 解析 media_snapshot JSON 为媒体列表
+function parseMediaSnapshot(snapshot: string): any[] {
+  try {
+    return JSON.parse(snapshot) || []
+  } catch {
+    return []
   }
 }
 
@@ -294,5 +324,48 @@ function formatTime(dateStr: string): string {
   gap: 8px;
   padding-top: 8px;
   border-top: 1px solid #ebeef5;
+}
+
+/* 编辑历史 */
+.history-list {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.history-version {
+  margin-bottom: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.history-version.current {
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+}
+
+.version-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.version-time {
+  font-size: 12px;
+  color: #909399;
+}
+
+.version-editor {
+  font-size: 12px;
+  color: #606266;
+}
+
+.version-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+  margin-bottom: 8px;
 }
 </style>

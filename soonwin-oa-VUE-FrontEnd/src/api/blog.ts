@@ -54,9 +54,9 @@ export function saveDraft(formData: FormData) {
   })
 }
 
-/** 删除草稿 */
-export function deleteDraft() {
-  return request.delete('/api/posts/draft')
+/** 彻底删除草稿（不进回收站） */
+export function deleteDraft(draftId: number) {
+  return request.delete(`/api/posts/draft/${draftId}`)
 }
 
 /** 发布草稿 */
