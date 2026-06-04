@@ -35,7 +35,10 @@ def create_app(port=5000):
             abort(404)
 
         if os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_file(file_path)
+            resp = send_file(file_path, conditional=True)
+            resp.headers['Accept-Ranges'] = 'bytes'
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
         else:
             abort(404)
 

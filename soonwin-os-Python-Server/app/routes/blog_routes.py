@@ -336,7 +336,7 @@ def serve_avatar(emp_id):
     for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
         path = os.path.join(base_dir, f'{emp_id}.{ext}')
         if os.path.exists(path) and os.path.isfile(path):
-            return send_file(path)
+            return send_file(path, conditional=True)
     # 无头像时返回默认人物剪影SVG
     from flask import make_response
     svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
@@ -947,7 +947,17 @@ def serve_blog_media(filepath):
             abort(404)
 
         if os.path.exists(full_path) and os.path.isfile(full_path):
-            return send_file(full_path)
+            # 视频文件使用 conditional=True 支持Range请求（浏览器拖动进度条）
+            ext = os.path.splitext(filepath)[1].lower()
+            mimetype = None
+            if ext == '.mp4':
+                mimetype = 'video/mp4'
+            elif ext == '.webm':
+                mimetype = 'video/webm'
+            resp = send_file(full_path, mimetype=mimetype, conditional=True)
+            resp.headers['Accept-Ranges'] = 'bytes'
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
         else:
             abort(404)
     except Exception as e:
