@@ -12,6 +12,10 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BatchVideoUpload: typeof import('./src/components/BatchVideoUpload.vue')['default']
+    BlogCommentSection: typeof import('./src/components/BlogCommentSection.vue')['default']
+    BlogCreateDialog: typeof import('./src/components/BlogCreateDialog.vue')['default']
+    BlogMediaLightbox: typeof import('./src/components/BlogMediaLightbox.vue')['default']
+    BlogPostCard: typeof import('./src/components/BlogPostCard.vue')['default']
     CommonHeader: typeof import('./src/components/CommonHeader.vue')['default']
     CommonLogDialog: typeof import('./src/components/CommonLogDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']

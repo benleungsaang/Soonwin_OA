@@ -22,6 +22,7 @@ const AttendanceApplyView = () => import('@/views/AttendanceApplyView.vue');
 const AttendanceJsonExportView = () => import('@/views/AttendanceJsonExportView.vue');
 const MachineManagementNewView = () => import('@/views/MachineManagementNewView.vue');
 const QuotationManagementView = () => import('@/views/QuotationManagementView.vue');
+const BlogManagementView = () => import('@/views/BlogManagementView.vue');
 
 
 
@@ -179,6 +180,12 @@ const routes: RouteRecordRaw[] = [
     name: 'quotationManagement',
     component: QuotationManagementView,
     meta: { title: '临时报价单', requiresAuth: true } // requiresAuth 标记需要登录才能访问
+  },
+  {
+    path: '/blog',
+    name: 'blogManagement',
+    component: BlogManagementView,
+    meta: { title: '微博客', requiresAuth: true }
   },
 
 
