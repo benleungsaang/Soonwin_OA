@@ -49,15 +49,16 @@
             <button @click="openLightboxFromExpand"><el-icon :size="14"><ZoomIn /></el-icon>查看原图</button>
           </div>
         </div>
-        <div class="expanded-media-wrap" ref="expandWrapRef">
+        <div class="expanded-media-wrap" :class="{ 'is-video': expandedMedia?.media_type === 'video' }" ref="expandWrapRef">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
           <div class="expand-nav-center" @click="collapseExpand"></div>
           <img v-if="expandedMedia.media_type === 'image'"
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
                :style="{ transform: `rotate(${rotateDeg}deg)` }" />
-          <video v-else :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
-                 :style="{ transform: `rotate(${rotateDeg}deg)` }" />
+          <video v-else :ref="setVideoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
+                 :style="{ transform: `rotate(${rotateDeg}deg)` }"
+                 @loadedmetadata="restoreVideoTime" />
         </div>
       </div>
       <!-- 媒体缩略网格 -->
@@ -181,6 +182,23 @@ const loadingHistory = ref(false)
 const expandedIdx = ref<number | null>(null)
 const rotateDeg = ref(0)
 const expandWrapRef = ref<HTMLElement | null>(null)
+const videoRef = ref<HTMLVideoElement | null>(null)
+const videoTimeMap = new Map<number, number>() // 记录每个视频的播放进度
+
+function setVideoRef(el: any) {
+  // 切换前保存当前视频进度
+  if (videoRef.value && expandedIdx.value !== null) {
+    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
+  }
+  videoRef.value = el as HTMLVideoElement
+}
+
+function restoreVideoTime() {
+  if (videoRef.value && expandedIdx.value !== null && videoTimeMap.has(expandedIdx.value)) {
+    videoRef.value.currentTime = videoTimeMap.get(expandedIdx.value)!
+  }
+}
+
 const expandedMedia = computed(() => {
   if (expandedIdx.value === null || !props.post.media) return null
   return props.post.media[expandedIdx.value] || null
@@ -198,8 +216,21 @@ function handleMediaClick(media: any, index: number) {
   else { expandMedia(index) }
 }
 
-function expandMedia(index: number) { collapseExpand(); expandedIdx.value = index; rotateDeg.value = 0 }
-function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0 }
+function expandMedia(index: number) {
+  // 保存当前视频进度
+  if (videoRef.value && expandedIdx.value !== null) {
+    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
+  }
+  expandedIdx.value = index
+  rotateDeg.value = 0
+}
+function collapseExpand() {
+  if (videoRef.value && expandedIdx.value !== null) {
+    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
+  }
+  expandedIdx.value = null
+  rotateDeg.value = 0
+}
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 function rotateExpanded() {
@@ -397,9 +428,12 @@ defineExpose({ loadHistory })
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
 .expand-nav-center {
-  position: absolute; top: 0; bottom: 44px; left: 33.33%; right: 33.33%;
+  position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
-  /* bottom留44px给视频控制栏，其余区域点击收起 */
+}
+/* 视频展开时底部留空间给控制栏 */
+.is-video .expand-nav-center {
+  bottom: 44px;
 }
 
 /* ===== 编辑历史 ===== */
