@@ -410,9 +410,16 @@ function setVolume(e: MouseEvent) {
 function enterFullscreenVideo() {
   const el = getVideoEl()
   if (!el) return
-  if (el.requestFullscreen) el.requestFullscreen()
-  else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
-  else if ((el as any).msRequestFullscreen) (el as any).msRequestFullscreen()
+  if ((el as any).webkitEnterFullscreen) {
+    // iOS Safari <video> 专用全屏API
+    (el as any).webkitEnterFullscreen()
+  } else if (el.requestFullscreen) {
+    el.requestFullscreen()
+  } else if ((el as any).webkitRequestFullscreen) {
+    (el as any).webkitRequestFullscreen()
+  } else if ((el as any).msRequestFullscreen) {
+    (el as any).msRequestFullscreen()
+  }
 }
 function downloadVideo() {
   const el = getVideoEl()
