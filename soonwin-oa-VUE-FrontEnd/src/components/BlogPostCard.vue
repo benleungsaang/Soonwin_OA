@@ -197,8 +197,6 @@ const directClickExpand = ref(false)
       })
     }
   })
-  }
-})
 
 const expandedMedia = computed(() => {
   if (expandedIdx.value === null || !props.post.media) return null
