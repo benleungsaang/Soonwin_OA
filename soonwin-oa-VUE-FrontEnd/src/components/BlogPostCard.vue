@@ -59,12 +59,6 @@
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
           <div v-if="expandedIdx !== null && expandedMedia?.media_type !== 'video'" class="expand-nav-center" @click="collapseExpand"></div>
-          <!-- 视频中部播放按钮（暂停时显示） -->
-          <div v-if="expandedMedia?.media_type === 'video' && !videoPlaying" class="cvc-big-play" @click.stop="toggleVideoPlay">
-            <div class="cvc-big-play-circle">
-              <el-icon :size="48"><VideoPlay /></el-icon>
-            </div>
-          </div>
           <!-- 轮播轨道：所有媒体水平排列 -->
           <div class="carousel-track" :style="carouselStyle">
             <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
@@ -74,42 +68,10 @@
               <div v-else class="video-rotate-wrap"
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }">
                 <video :ref="i === expandedIdx ? 'videoRef' : undefined"
-                       :src="getMediaUrl(m.file_path)" :controls="false"
+                       :src="getMediaUrl(m.file_path)" controls
                        :poster="getMediaUrl(m.thumbnail_path)" playsinline
-                       @click.stop="toggleVideoPlay" @timeupdate="onVideoTimeUpdate"
-                       @loadedmetadata="onVideoTimeUpdate" @ended="onVideoTimeUpdate" />
+                       @click.stop />
               </div>
-            </div>
-          </div>
-          <!-- 自定义视频控制栏（双行布局） -->
-          <div v-if="expandedMedia?.media_type === 'video'" class="custom-video-controls">
-            <!-- 第一行：播放、进度条、时间 -->
-            <div class="cvc-row1">
-              <button class="cvc-btn cvc-btn-lg" @click="toggleVideoPlay" :title="videoPlaying ? '暂停' : '播放'">
-                <el-icon :size="28"><VideoPlay v-if="!videoPlaying" /><VideoPause v-else /></el-icon>
-              </button>
-              <div class="cvc-progress" @click="seekVideo" ref="progressRef">
-                <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoProgress + '%' }"></div></div>
-              </div>
-              <span class="cvc-time">{{ formatTime2(videoCurrentTime) }} / {{ formatTime2(videoDuration) }}</span>
-            </div>
-            <!-- 第二行：音量、下载、全屏 -->
-            <div class="cvc-row2">
-              <div class="cvc-volume-group">
-                <button class="cvc-btn cvc-btn-md" @click="toggleMute">
-                  <el-icon :size="20"><Microphone v-if="!videoMuted" /><MuteNotification v-else /></el-icon>
-                </button>
-                <div class="cvc-volume-slider" @click="setVolume">
-                  <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoVolume * 100 + '%' }"></div></div>
-                </div>
-              </div>
-              <div class="cvc-spacer"></div>
-              <button class="cvc-btn cvc-btn-md" @click="downloadVideo" title="下载">
-                <el-icon :size="22"><Download /></el-icon>
-              </button>
-              <button class="cvc-btn cvc-btn-md" @click="enterFullscreenVideo" title="全屏">
-                <el-icon :size="22"><FullScreen /></el-icon>
-              </button>
             </div>
           </div>
         </div>
@@ -218,7 +180,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, Microphone, MuteNotification, FullScreen, Download, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -249,13 +211,6 @@ const fsTouchStartX = ref(0)
 const fsTouchLastX = ref(0)
 const fsSwipeOffset = ref(0)
 const fsSwipeOffsetY = ref(0)
-const videoPlaying = ref(false)
-const videoCurrentTime = ref(0)
-const videoDuration = ref(0)
-const videoProgress = ref(0)
-const videoMuted = ref(false)
-const videoVolume = ref(1)
-const progressRef = ref<HTMLElement | null>(null)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
@@ -294,7 +249,7 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0; videoPlaying.value = false }
+function collapseExpand() { const el = getVideoEl(); if (el) { el.pause(); videoTimeMap.set(expandedIdx.value!, el.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
@@ -368,73 +323,6 @@ function rotateExpanded() {
   })
 }
 
-function toggleVideoPlay() {
-  const el = getVideoEl()
-  if (!el) return
-  if (el.paused) { el.play().catch(() => {}); videoPlaying.value = true }
-  else { el.pause(); videoPlaying.value = false }
-}
-function onVideoTimeUpdate() {
-  const el = getVideoEl()
-  if (!el) return
-  videoCurrentTime.value = el.currentTime || 0
-  videoDuration.value = el.duration || 0
-  videoProgress.value = videoDuration.value > 0 ? (videoCurrentTime.value / videoDuration.value) * 100 : 0
-  if (el.paused !== !videoPlaying.value) videoPlaying.value = !el.paused
-}
-function formatTime2(seconds: number): string {
-  if (!seconds || !isFinite(seconds)) return '00:00'
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
-}
-function seekVideo(e: MouseEvent) {
-  const bar = progressRef.value
-  if (!bar) return
-  const el = getVideoEl()
-  if (!el) return
-  const rect = bar.getBoundingClientRect()
-  const pct = (e.clientX - rect.left) / rect.width
-  el.currentTime = pct * videoDuration.value
-}
-function toggleMute() {
-  const el = getVideoEl()
-  if (!el) return
-  el.muted = !el.muted
-  videoMuted.value = el.muted
-}
-function setVolume(e: MouseEvent) {
-  const bar = e.currentTarget as HTMLElement
-  const rect = bar.getBoundingClientRect()
-  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-  const el = getVideoEl()
-  if (!el) return
-  el.volume = pct
-  videoVolume.value = pct
-  if (pct > 0 && el.muted) { el.muted = false; videoMuted.value = false }
-}
-function enterFullscreenVideo() {
-  const el = getVideoEl()
-  if (!el) return
-  if ((el as any).webkitEnterFullscreen) {
-    // iOS Safari <video> 专用全屏API
-    (el as any).webkitEnterFullscreen()
-  } else if (el.requestFullscreen) {
-    el.requestFullscreen()
-  } else if ((el as any).webkitRequestFullscreen) {
-    (el as any).webkitRequestFullscreen()
-  } else if ((el as any).msRequestFullscreen) {
-    (el as any).msRequestFullscreen()
-  }
-}
-function downloadVideo() {
-  const el = getVideoEl()
-  if (!el || !el.src) return
-  const a = document.createElement('a')
-  a.href = el.src
-  a.download = 'video.mp4'
-  a.click()
-}
 function handleExpandedImageClick(index: number) {
   if (window.innerWidth > 768) { collapseExpand(); return }
   enterFullscreen(index)
@@ -683,39 +571,7 @@ defineExpose({ loadHistory })
 .carousel-slide video { max-width: 100%; max-height: 85vh; }
 .video-rotate-wrap { display: flex; align-items: center; justify-content: center; max-width: 100%; max-height: 85vh; transition: transform 0.3s; }
 .video-rotate-wrap video { max-width: 85vh; max-height: 85vw; }
-.custom-video-controls {
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 12px 15px 12px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.6));
-  pointer-events: auto;
-}
-.cvc-row1 { display: flex; align-items: center; gap: 10px; }
-.cvc-row2 { display: flex; align-items: center; gap: 10px; }
-.cvc-btn { background: none; border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.cvc-btn-lg { width: 44px; height: 44px; }
-.cvc-btn-md { width: 40px; height: 40px; }
-.cvc-progress { flex: 1; cursor: pointer; padding: 12px 0; }
-.cvc-track { height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; }
-.cvc-fill { height: 100%; background: #fff; border-radius: 3px; transition: width 0.1s; }
-.cvc-time { font-size: 13px; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
-.cvc-volume-group { display: flex; align-items: center; gap: 6px; flex: 1; }
-.cvc-volume-slider { width: 80px; max-width: 120px; cursor: pointer; padding: 12px 0; }
-.cvc-spacer { flex: 1; }
-.cvc-big-play {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 130px; z-index: 3;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; pointer-events: auto;
-}
-.cvc-big-play-circle {
-  width: 96px; height: 96px; border-radius: 50%;
-  background: rgba(255,255,255,0.65);
-  color: #323232;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.2s, transform 0.2s;
-}
-.cvc-big-play-circle:hover { background: rgba(255,255,255,0.85); transform: scale(1.05); }
-.cvc-big-play-circle :deep(.el-icon) { color: #323232; }
+
 .expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
@@ -736,7 +592,7 @@ defineExpose({ loadHistory })
 .is-video .expand-nav-left,
 .is-video .expand-nav-right,
 .is-video .expand-nav-center {
-  bottom: 130px;
+  bottom: 64px;
 }
 
 /* ===== 编辑历史 ===== */
