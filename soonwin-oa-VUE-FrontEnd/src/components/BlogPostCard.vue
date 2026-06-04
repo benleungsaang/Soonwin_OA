@@ -322,6 +322,7 @@ function rotateExpanded() {
 function enterFullscreen(index: number) {
   if (window.innerWidth > 768) return // 桌面端仍用灯箱
   fullscreenIdx.value = index
+  fsSwipeOffsetY.value = 0 // 复位偏移
   fullscreenVisible.value = true
   document.body.style.overflow = 'hidden'
 }
