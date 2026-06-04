@@ -155,12 +155,13 @@
   <!-- 全屏查看模式（移动端） -->
   <teleport to="body">
     <div v-if="fullscreenVisible" class="fs-overlay" @touchstart="onFsTouchStart" @touchmove="onFsTouchMove" @touchend="onFsTouchEnd">
+      <div class="fs-counter">{{ fullscreenIdx + 1 }} / {{ post.media?.length || 1 }}</div>
       <button class="fs-close" @click="exitFullscreen"><el-icon :size="22"><Close /></el-icon></button>
       <div class="fs-track-wrap">
         <div class="fs-track" :style="fsCarouselStyle">
           <div v-for="(m, i) in post.media" :key="m.id" class="fs-slide">
             <img v-if="m.media_type === 'image'"
-                 :src="getMediaUrl(m.file_path)" class="fs-img" />
+                 :src="getMediaUrl(m.file_path)" class="fs-img" @click="exitFullscreen" />
             <video v-else :ref="i === fullscreenIdx ? 'fullscreenVideoRef' : undefined"
                    :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
                    class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline
@@ -175,7 +176,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -258,7 +259,10 @@ const fsCarouselStyle = computed(() => {
   const idx = fullscreenIdx.value || 0
   const total = props.post.media?.length || 1
   const base = -idx * 100
-  return { transform: `translateX(${base}%)`, transition: fsSwipeOffset.value ? "none" : "transform 0.3s ease" }
+  const vw = window.innerWidth || 375
+  const offsetPercent = vw > 0 ? (fsSwipeOffset.value / vw) * 100 : 0
+  const translateX = base + offsetPercent
+  return { transform: `translateX(${translateX}%)`, transition: fsSwipeOffset.value ? "none" : "transform 0.3s ease" }
 })
 
 const carouselStyle = computed(() => {
@@ -337,9 +341,12 @@ function handleFsVideoClick() {
 }
 
 // 全屏滑动
-function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clientX; fsTouchLastX.value = fsTouchStartX.value; fsSwipeOffset.value = 0 }
+const fsTouchStartY = ref(0)
+const fsTouchLastY = ref(0)
+function onFsTouchStart(e: TouchEvent) { fsTouchStartX.value = e.touches[0].clientX; fsTouchStartY.value = e.touches[0].clientY; fsTouchLastX.value = fsTouchStartX.value; fsSwipeOffset.value = 0; fsTouchLastY.value = fsTouchStartY.value }
 function onFsTouchMove(e: TouchEvent) {
   fsTouchLastX.value = e.touches[0].clientX
+  fsTouchLastY.value = e.touches[0].clientY
   const diff = fsTouchLastX.value - fsTouchStartX.value
   if (Math.abs(diff) > 10) e.preventDefault()
   const total = props.post.media?.length || 1
@@ -348,10 +355,15 @@ function onFsTouchMove(e: TouchEvent) {
   fsSwipeOffset.value = (atStart || atEnd) ? diff * 0.35 : diff
 }
 function onFsTouchEnd() {
-  const diff = fsTouchLastX.value - fsTouchStartX.value
-  if (Math.abs(diff) > 50) {
-    if (diff < -50 && fullscreenIdx.value < (props.post.media?.length || 1) - 1) fullscreenIdx.value++
-    else if (diff > 50 && fullscreenIdx.value > 0) fullscreenIdx.value--
+  const diffX = fsTouchLastX.value - fsTouchStartX.value
+  const diffY = fsTouchLastY.value - fsTouchStartY.value
+  const absX = Math.abs(diffX)
+  // 下划>150px 关闭全屏
+  if (diffY > 100 && Math.abs(diffY) > absX) { exitFullscreen(); return }
+  if (absX > 50) {
+    // 水平滑动切换
+    if (diffX < -50 && fullscreenIdx.value < (props.post.media?.length || 1) - 1) fullscreenIdx.value++
+    else if (diffX > 50 && fullscreenIdx.value > 0) fullscreenIdx.value--
   }
   fsSwipeOffset.value = 0
 }
@@ -598,5 +610,12 @@ defineExpose({ loadHistory })
 .fs-slide { flex: 0 0 100vw; display: flex; align-items: center; justify-content: center; height: 100%; }
 .fs-img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .fs-video { max-width: 100%; max-height: 100%; }
+
+/* 全屏计数器 */
+.fs-counter {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 10; color: #fff; font-size: 14px; background: rgba(0,0,0,0.4);
+  padding: 4px 14px; border-radius: 12px;
+}
 
 </style>
