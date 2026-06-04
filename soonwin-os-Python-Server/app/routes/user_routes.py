@@ -518,7 +518,24 @@ def get_all_routes():
     try:
         from app.constants.simple_permission_constants import ALL_ROUTES
 
-        # 定义与前端 MODULE_CONSTANTS 一致的路由中文名称映射
+        # ============================================================
+        # ⚠️ 重要：新增权限路由时的同步修改清单
+        # ============================================================
+        # 当你新增一个路由权限时，需要同时修改以下 3 个地方：
+        #
+        # 1. app/constants/simple_permission_constants.py
+        #    → 添加 ROUTE_XXX_MANAGE = "xxx_manage" 常量
+        #    → 将常量添加到 ALL_ROUTES 列表中
+        #
+        # 2. 本文件（user_routes.py）← 你在这里！
+        #    → 在下方 route_labels 字典中添加中文名称映射
+        #
+        # 3. soonwin-oa-VUE-FrontEnd/src/utils/authUtils.ts
+        #    → 在 RouteName 类型联合中添加新的路由名称
+        # ============================================================
+        # 路由名称 → 中文显示名称映射表
+        # 用于前端权限分配页面（/api/user/permission/all-routes）展示
+        # 未在此映射表中的路由将自动使用英文 fallback（下划线转空格+首字母大写）
         route_labels = {
             "display_file_manage": "展示文件管理",
             "photo_manage": "照片管理",
@@ -531,16 +548,13 @@ def get_all_routes():
             "expense_manage": "费用管理",
             "log_manage": "日志管理",
             "machine_manage": "机器管理",
-            "machine_list": "机器管理",
+            "machine_list": "设备列表",
             "user_manage": "用户管理",
             "permission_manage": "权限管理",
-            "report_stat": "报表统计",
-            "device_manage": "设备管理",
-            "order_progress_manage": "订单进度管理",
-            "auth_manage": "认证管理",
             "attendance_manage": "考勤管理",
             "quotation_manage": "报价管理",
             "order_record_manage": "订单快速记录",
+            "customer_manage": "客户信息管理",
         }
 
         # 从常量中获取所有路由

@@ -1,9 +1,25 @@
 /**
  * 认证相关的工具函数
+ *
+ * ⚠️ 新增权限路由时的同步修改清单：
+ * ============================================================
+ * 当你新增一个路由权限时，需要同时修改以下 3 个地方：
+ *
+ * 1. 本文件（authUtils.ts）← 你在这里！
+ *    → 在下方 RouteName 类型联合中添加新的路由名称字符串
+ *
+ * 2. soonwin-os-Python-Server/app/constants/simple_permission_constants.py
+ *    → 添加 ROUTE_XXX_MANAGE = "xxx_manage" 常量
+ *    → 将常量添加到 ALL_ROUTES 列表中
+ *
+ * 3. soonwin-os-Python-Server/app/routes/user_routes.py → get_all_routes() 函数
+ *    → 在 route_labels 字典中添加中文名称映射（如 "xxx_manage": "某某管理"）
+ *    → 否则前端将显示英文 fallback（下划线转空格 + 首字母大写）
+ * ============================================================
  */
 
-// 定义路由权限类型（与后端保持一致）
-export type RouteName = 
+// 定义路由权限类型（与后端 simple_permission_constants.py 的 ALL_ROUTES 保持一致）
+export type RouteName =
   | 'display_file_manage'      // 文件展示 - 全员共有
   | 'photo_manage'             // 照片管理 - 全员共有
   | 'punch_manage'             // 打卡 - 全员共有
@@ -15,7 +31,13 @@ export type RouteName =
   | 'expense_manage'           // 费用管理 - 仅管理员
   | 'log_manage'               // 日志管理 - 仅管理员
   | 'machine_manage'           // 设备管理 - 仅管理员
-  | 'user_manage'              // 员工管理 - 仅管理员;
+  | 'machine_list'             // 设备列表 - 全员共有
+  | 'user_manage'              // 员工管理 - 仅管理员
+  | 'permission_manage'        // 权限管理 - 仅管理员
+  | 'attendance_manage'        // 考勤管理 - 全员共有
+  | 'quotation_manage'         // 报价管理 - 销售
+  | 'order_record_manage'      // 订单快速记录 - 仅管理员
+  | 'customer_manage'          // 客户信息管理 - 业务员
 
 // 为了向后兼容：定义模块名称（虽然新的权限系统使用路由名）
 export const ModuleNames = {

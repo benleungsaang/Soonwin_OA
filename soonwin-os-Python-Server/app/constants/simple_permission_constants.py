@@ -1,4 +1,21 @@
-"""简化版权限常量定义"""
+"""简化版权限常量定义
+
+⚠️ 新增权限路由时的同步修改清单：
+============================================================
+当你新增一个路由权限时，需要同时修改以下 3 个地方：
+
+1. 本文件（simple_permission_constants.py）← 你在这里！
+   → 添加 ROUTE_XXX_MANAGE = "xxx_manage" 常量
+   → 将常量添加到 ALL_ROUTES 列表中
+
+2. app/routes/user_routes.py → get_all_routes() 函数
+   → 在 route_labels 字典中添加中文名称映射（如 "xxx_manage": "某某管理"）
+   → 否则前端将显示英文 fallback（下划线转空格 + 首字母大写）
+
+3. soonwin-oa-VUE-FrontEnd/src/utils/authUtils.ts
+   → 在 RouteName 类型联合中添加新的路由名称字符串
+============================================================
+"""
 
 # 全体共有权限的路由
 ROUTE_DISPLAY_FILE_MANAGE = "display_file_manage"  # 文件展示
