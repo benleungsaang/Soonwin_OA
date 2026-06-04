@@ -139,6 +139,31 @@ def create_app_with_routes(port=5000):
     def index():
         return f"✅ Soonwin OA 系统启动成功！数据库迁移已自动完成 (端口: {port})"
 
+    # 管理端点：仅生产环境（5000端口）启用
+    if port != 5001:
+        @app.route('/api/admin/restart', methods=['POST'])
+        def admin_restart():
+            """远程重启 nginx + waitress 服务"""
+            import subprocess
+            data = request.get_json() or {}
+            if data.get('key') != 'SoonwinOA_Restart_Key_2026':
+                return {"success": False, "msg": "密钥错误"}, 403
+
+            results = []
+            for svc in ['waitress', 'nginx']:
+                try:
+                    r = subprocess.run(['sc', 'query', svc], capture_output=True, text=True, encoding='gbk', timeout=10)
+                    if '1060' in r.stdout or '1060' in r.stderr:
+                        results.append(f'{svc}: 服务不存在')
+                        continue
+                    subprocess.run(['sc', 'stop', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
+                    time.sleep(3)
+                    subprocess.run(['sc', 'start', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
+                    results.append(f'{svc}: 已重启')
+                except Exception as e:
+                    results.append(f'{svc}: 失败 ({e})')
+            return {"success": True, "msg": "; ".join(results)}
+
     return app
 
 # ========== 启动入口 ==========
