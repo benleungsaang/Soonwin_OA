@@ -14,6 +14,15 @@
         <h1>{{ appTitle }}</h1>
         <div class="header-actions">
           <el-button
+            class="restart-btn"
+            type="warning"
+            @click="handleRestart"
+            :loading="restarting"
+            v-if="hasToken && userRole === 'admin'"
+          >
+            <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
+          </el-button>
+          <el-button
             class="qr-btn"
             @click="showQrCodeDialog = true"
             v-if="hasToken"
@@ -179,7 +188,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -204,6 +213,18 @@ const appTitle = ref(import.meta.env.VITE_APP_TITLE);
 const activeMenu = ref('1');
 // 是否已登录（存在token）
 const hasToken = ref(false);
+const restarting = ref(false);
+async function handleRestart() {
+  try {
+    await ElMessageBox.confirm('确定要重启服务器 OA 服务吗？', '确认重启', { type: 'warning' });
+    restarting.value = true;
+    const res = await fetch('/api/admin/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'SoonwinOA_Restart_Key_2026' }) });
+    const data = await res.json();
+    if (data.success) ElMessage.success(data.msg);
+    else ElMessage.error(data.msg);
+  } catch { /* cancelled */ }
+  finally { restarting.value = false }
+}
 // 权限是否已加载
 const permissionsLoaded = ref(false);
 // 用户角色
