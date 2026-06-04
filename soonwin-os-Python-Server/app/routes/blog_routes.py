@@ -926,16 +926,13 @@ AVATAR_DIR = 'assets/PostsMedia/Avatar'
 @blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
 def serve_avatar(emp_id):
     """提供用户头像"""
-    try:
-        base_dir = os.path.join(current_app.root_path, '..', AVATAR_DIR) if current_app else _get_posts_media_dir().replace('PostsMedia', 'PostsMedia/Avatar')
-        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-            path = os.path.join(base_dir, f'{emp_id}.{ext}')
-            if os.path.exists(path):
-                return send_file(path)
-        # 默认头像
-        abort(404)
-    except Exception:
-        abort(404)
+    base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+    base_dir = os.path.abspath(base_dir)
+    for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+        path = os.path.join(base_dir, f'{emp_id}.{ext}')
+        if os.path.exists(path) and os.path.isfile(path):
+            return send_file(path)
+    abort(404)
 
 
 @blog_bp.route('/posts/avatar/upload', methods=['POST'])
@@ -955,7 +952,8 @@ def upload_avatar():
         if ext not in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
             return jsonify({'success': False, 'message': '仅支持 JPG/PNG/GIF/WEBP 格式'}), 400
 
-        base_dir = os.path.join(current_app.root_path, '..', AVATAR_DIR) if current_app else os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.join(_get_posts_media_dir(), '..', 'Avatar')
+        base_dir = os.path.abspath(base_dir)
         os.makedirs(base_dir, exist_ok=True)
 
         # 删除旧头像
