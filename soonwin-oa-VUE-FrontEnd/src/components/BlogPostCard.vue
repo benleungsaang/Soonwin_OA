@@ -12,6 +12,10 @@
         </div>
       </div>
       <div v-if="showActions" class="post-header-actions">
+        <button v-if="!post.is_deleted" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
+                :title="post.is_liked ? '取消收藏' : '收藏'" @click="$emit('toggle-like')">
+          <el-icon :size="16"><StarFilled v-if="post.is_liked" style="color:#e6a23c" /><Star v-else /></el-icon>
+        </button>
         <button v-if="canEdit && !readonly" class="post-icon-btn" title="编辑" @click="$emit('edit')">
           <el-icon :size="16"><Edit /></el-icon>
         </button>
@@ -89,12 +93,6 @@
         <el-icon :size="15"><ChatDotRound /></el-icon>
         <span>{{ post.comment_count || '留言' }}</span>
       </button>
-      <button v-if="!post.is_deleted" class="post-action-btn"
-              :class="{ 'post-action-btn-liked': post.is_liked }"
-              @click="$emit('toggle-like')">
-        <el-icon :size="15"><Star /></el-icon>
-        <span>{{ post.like_count || '收藏' }}</span>
-      </button>
       <button v-if="isAdmin" class="post-action-btn" @click="loadHistory">
         <el-icon :size="15"><Clock /></el-icon>
         <span>历史</span>
@@ -158,7 +156,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -354,6 +352,7 @@ defineExpose({ loadHistory })
   transition: color 0.2s, background 0.2s;
 }
 .post-icon-btn:hover { color: #3b82f6; background: #f3f4f6; }
+.post-icon-btn-liked { color: #e6a23c; }
 .post-icon-btn-danger:hover { color: #ef4444; }
 
 /* ===== 媒体网格 ===== */

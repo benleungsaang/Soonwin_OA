@@ -3,8 +3,20 @@
     <CommonHeader title="微博客" />
 
     <div class="blog-container">
+      <!-- 工具栏标签 -->
+      <div class="blog-tabs">
+        <button v-for="tab in tabs" :key="tab.key" @click="switchTab(tab.key)"
+          class="blog-tab" :class="{ active: activeTab === tab.key }">
+          {{ tab.label }}
+          <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
+        </button>
+      </div>
+
       <!-- 发布框（内联） -->
-      <div v-if="activeTab !== 'deleted'" class="publish-box">
+      <div v-if="activeTab !== 'deleted'" class="publish-box" :class="{ 'drag-over': publishDragOver }"
+        @dragover.prevent="publishDragOver = true"
+        @dragleave.prevent="publishDragOver = false"
+        @drop.prevent="onPublishDrop">
         <div class="flex gap-3">
           <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
             <el-icon :size="20" color="#3b82f6"><UserFilled /></el-icon>
@@ -12,7 +24,7 @@
           <div class="flex-1">
             <textarea v-model="publishContent" placeholder="分享生活点滴..." rows="3"
               class="publish-textarea"
-              @paste="onPublishPaste" @dragover.prevent @drop.prevent="onPublishDrop" />
+              @paste="onPublishPaste" />
             <!-- 媒体预览 -->
             <div v-if="publishFiles.length > 0" class="flex flex-wrap gap-2 mt-2">
               <div v-for="(f, i) in publishFiles" :key="i" class="publish-preview-item">
@@ -22,19 +34,18 @@
               </div>
             </div>
             <div class="flex items-center justify-between pt-3 border-t border-gray-100 mt-2">
-              <div class="flex gap-2">
+              <div class="flex gap-2 items-center">
                 <label class="publish-upload-btn">
-                  <el-icon :size="16"><PictureFilled /></el-icon><span class="text-sm ml-1">图片</span>
-                  <input type="file" accept="image/*" multiple hidden @change="onPublishImageSelect" />
-                </label>
-                <label class="publish-upload-btn">
-                  <el-icon :size="16"><VideoCamera /></el-icon><span class="text-sm ml-1">视频</span>
-                  <input type="file" accept="video/*" hidden @change="onPublishVideoSelect" />
+                  <el-icon :size="16"><PictureFilled /></el-icon><span class="text-sm ml-1">多媒体</span>
+                  <input type="file" accept="image/*,video/*" multiple hidden @change="onPublishMediaSelect" />
                 </label>
               </div>
-              <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
-                {{ publishing ? '发布中...' : '发布' }}
-              </button>
+              <div class="flex gap-2">
+                <button class="publish-draft-btn" :disabled="publishing" @click="handleSaveDraft">保存草稿</button>
+                <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
+                  {{ publishing ? '发布中...' : '发布' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -45,15 +56,6 @@
         <el-icon :size="16" color="#9ca3af" class="absolute left-3 top-1/2 -translate-y-1/2"><Search /></el-icon>
         <input v-model="searchKeyword" placeholder="搜索动态..." @input="onSearchInput"
           class="search-input" />
-      </div>
-
-      <!-- 工具栏标签 -->
-      <div class="blog-tabs">
-        <button v-for="tab in tabs" :key="tab.key" @click="switchTab(tab.key)"
-          class="blog-tab" :class="{ active: activeTab === tab.key }">
-          {{ tab.label }}
-          <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
-        </button>
       </div>
 
       <!-- 博文列表 -->
@@ -141,6 +143,7 @@ const emptyText = computed(() => {
 const publishContent = ref('')
 const publishFiles = ref<{ type: string; url: string; file: File }[]>([])
 const publishing = ref(false)
+const publishDragOver = ref(false)
 
 function addPublishFiles(files: FileList | File[]) {
   for (let i = 0; i < files.length; i++) {
@@ -149,16 +152,30 @@ function addPublishFiles(files: FileList | File[]) {
     publishFiles.value.push({ type: f.type.startsWith('video/') ? 'video' : 'image', url: URL.createObjectURL(f), file: f })
   }
 }
-function onPublishImageSelect(e: Event) { const inp = e.target as HTMLInputElement; if (inp.files) addPublishFiles(inp.files); inp.value = '' }
-function onPublishVideoSelect(e: Event) { const inp = e.target as HTMLInputElement; if (inp.files) addPublishFiles(inp.files); inp.value = '' }
+function onPublishMediaSelect(e: Event) { const inp = e.target as HTMLInputElement; if (inp.files) addPublishFiles(inp.files); inp.value = '' }
 function onPublishPaste(e: ClipboardEvent) {
   const items = e.clipboardData?.items; if (!items) return
   const files: File[] = []
   for (let i = 0; i < items.length; i++) { const f = items[i].getAsFile(); if (f) files.push(f) }
   if (files.length > 0) { e.preventDefault(); addPublishFiles(files) }
 }
-function onPublishDrop(e: DragEvent) { if (e.dataTransfer?.files) addPublishFiles(e.dataTransfer.files) }
+function onPublishDrop(e: DragEvent) { publishDragOver.value = false; if (e.dataTransfer?.files) addPublishFiles(e.dataTransfer.files) }
 function removePublishFile(i: number) { URL.revokeObjectURL(publishFiles.value[i].url); publishFiles.value.splice(i, 1) }
+
+async function handleSaveDraft() {
+  if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入草稿内容'); return }
+  publishing.value = true
+  try {
+    const { saveDraft } = await import('@/api/blog')
+    const fd = new FormData(); fd.append('content', publishContent.value)
+    publishFiles.value.forEach(f => fd.append('media', f.file))
+    await saveDraft(fd)
+    ElMessage.success('草稿已保存')
+    publishContent.value = ''; publishFiles.value.forEach(f => URL.revokeObjectURL(f.url)); publishFiles.value = []
+    await checkDraft()
+  } catch (e: any) { ElMessage.error(e?.response?.data?.message || '保存失败') }
+  finally { publishing.value = false }
+}
 
 async function handlePublish() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入内容或添加媒体'); return }
@@ -250,14 +267,17 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 @media (max-width: 768px) { .blog-container { padding: 12px 8px; } }
 
 /* 发布框 */
-.publish-box { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px; }
-.publish-textarea { width: 100%; border: 0; resize: none; outline: none; font-size: 15px; color: #1f2937; padding: 8px; background: transparent; }
-.publish-textarea::placeholder { color: #9ca3af; }
+.publish-box { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px; transition: background 0.2s, box-shadow 0.2s; }
+.publish-box.drag-over { background: rgba(59,130,246,0.04); box-shadow: 0 0 0 2px #3b82f6; }
+.publish-textarea { width: 100%; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; resize: none; outline: none; font-size: 15px; color: #1f2937; padding: 10px; background: #fafafa; box-sizing: border-box; }
+.publish-textarea:focus { border-color: #3b82f6; background: #fff; }
 .publish-upload-btn { display: flex; align-items: center; padding: 8px 10px; color: #9ca3af; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
 .publish-upload-btn:hover { color: #3b82f6; background: #f3f4f6; }
+.publish-draft-btn { background: #fff; color: #6b7280; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; transition: all 0.15s; }
+.publish-draft-btn:hover { background: #f3f4f6; color: #374151; }
 .publish-submit-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
 .publish-submit-btn:hover { background: #2563eb; }
-.publish-submit-btn:disabled { opacity: 0.6; cursor: default; }
+.publish-submit-btn:disabled, .publish-draft-btn:disabled { opacity: 0.6; cursor: default; }
 .publish-preview-item { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); }
 .publish-preview-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; background: #ef4444; color: #fff; border: none; border-radius: 50%; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
