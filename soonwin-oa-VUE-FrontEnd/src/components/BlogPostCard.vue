@@ -177,21 +177,22 @@ const loadingHistory = ref(false)
 const expandedIdx = ref<number | null>(null)
 const rotateDeg = ref(0)
 const expandWrapRef = ref<HTMLElement | null>(null)
-const videoRef = ref<HTMLVideoElement | null>(null)
+const videoRef = ref<HTMLVideoElement | HTMLVideoElement[] | null>(null)
+function getVideoEl() { return Array.isArray(videoRef.value) ? videoRef.value[0] : videoRef.value }
 const videoTimeMap = new Map<number, number>()
 const directClickExpand = ref(false)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
-    if (oldIdx !== null && videoRef.value) {
-      videoRef.value.pause()
-      videoTimeMap.set(oldIdx, videoRef.value.currentTime)
+    if (oldIdx !== null && getVideoEl()) {
+      getVideoEl()?.pause()
+      videoTimeMap.set(oldIdx, getVideoEl()?.currentTime)
     }
     if (newIdx !== null) {
       nextTick(() => {
-        if (videoRef.value) {
-          if (videoTimeMap.has(newIdx)) videoRef.value.currentTime = videoTimeMap.get(newIdx)!
-          if (directClickExpand.value) videoRef.value.play().catch(() => {})
+        if (getVideoEl()) {
+          if (videoTimeMap.has(newIdx)) getVideoEl()?.currentTime = videoTimeMap.get(newIdx)!
+          if (directClickExpand.value) getVideoEl()?.play().catch(() => {})
         }
         directClickExpand.value = false
       })
@@ -216,7 +217,7 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { if (videoRef.value) { videoRef.value.pause(); videoTimeMap.set(expandedIdx.value!, videoRef.value.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
+function collapseExpand() { if (getVideoEl()) { getVideoEl()?.pause(); videoTimeMap.set(expandedIdx.value!, getVideoEl()?.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
