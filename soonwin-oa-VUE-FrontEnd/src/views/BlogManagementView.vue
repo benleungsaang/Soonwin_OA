@@ -256,7 +256,7 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
     const idx = post.media.findIndex(m => m.id === media.id)
     if (idx >= 0) {
       lightboxMediaList.value = post.media.filter(
-        m => m.media_type === 'image' || (m.media_type === 'video' && m.compress_status === 'success')
+        m => m.media_type === 'image' || (m.media_type === 'video' && m.compress_status !== 'pending')
       )
       lightboxIndex.value = lightboxMediaList.value.findIndex(m => m.id === media.id)
       showLightbox.value = true

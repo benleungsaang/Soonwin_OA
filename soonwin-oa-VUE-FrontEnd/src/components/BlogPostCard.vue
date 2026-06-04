@@ -67,14 +67,12 @@
           <img v-if="media.media_type === 'image'"
                :src="getMediaUrl(media.thumbnail_path || media.file_path)"
                alt="" loading="lazy" />
-          <video v-else-if="media.media_type === 'video' && media.compress_status === 'success'"
-                 :src="getMediaUrl(media.file_path)" preload="metadata" />
-          <div v-else-if="media.compress_status === 'failed'"
-               class="media-placeholder" style="color:#f56c6c">
-            <el-icon :size="24"><VideoCamera /></el-icon>
-            <span>转码失败</span>
-          </div>
-          <div v-else class="media-placeholder">
+          <!-- 视频：pending 才显示转码中，processing/success 都尝试播放 -->
+          <video v-else-if="media.media_type === 'video' && media.compress_status !== 'pending'"
+                 :src="getMediaUrl(media.file_path)" preload="metadata"
+                 @error="($event.target as HTMLVideoElement).style.display='none'" />
+          <div v-else-if="media.media_type === 'video'"
+               class="media-placeholder">
             <el-icon :size="24"><VideoCamera /></el-icon>
             <span>转码中</span>
           </div>
@@ -132,7 +130,7 @@
           <div v-if="post.media && post.media.length > 0" class="media-grid" :class="post.media.length === 1 ? 'media-grid-single' : ''">
             <div v-for="m in post.media" :key="m.id" class="media-item" @click="handleMediaClick(m, post.media.indexOf(m))">
               <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
-              <video v-else-if="m.compress_status === 'success'" :src="getMediaUrl(m.file_path)" preload="metadata" />
+              <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" />
               <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
             </div>
           </div>
@@ -149,7 +147,7 @@
             <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item"
                  @click="handleHistoryMediaClick(m, parseMediaSnapshot(h.media_snapshot), mi)">
               <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
-              <video v-else-if="m.compress_status === 'success'" :src="getMediaUrl(m.file_path)" preload="metadata" />
+              <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" />
               <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
             </div>
           </div>
@@ -194,7 +192,7 @@ const canEdit = computed(() => isAdmin.value || props.post.author_id === current
 const canDelete = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
 
 function handleMediaClick(media: any, index: number) {
-  if (media.compress_status === 'pending' || media.compress_status === 'processing' || media.compress_status === 'failed') return
+  if (media.compress_status === 'pending') return
   if (media.media_type === 'video') {
     emit('media-click', media, index)
   } else if (expandedIdx.value === index) {
@@ -227,7 +225,7 @@ function openLightboxFromExpand() {
 }
 
 function handleHistoryMediaClick(media: any, historyMedias: any[], index: number) {
-  const validMedias = historyMedias.filter((m: any) => m.media_type === 'image' || (m.media_type === 'video' && m.compress_status === 'success'))
+  const validMedias = historyMedias.filter((m: any) => m.media_type === 'image' || (m.media_type === 'video' && m.compress_status !== 'pending'))
   const lightboxIndex = validMedias.findIndex((m: any) => m.file_path === media.file_path)
   if (lightboxIndex >= 0) emit('media-click', media, lightboxIndex, validMedias as any)
 }
@@ -395,8 +393,8 @@ defineExpose({ loadHistory })
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
-.expand-nav-left { left: 0; }
-.expand-nav-right { right: 0; }
+.expand-nav-left { left: 0; cursor: w-resize; }
+.expand-nav-right { right: 0; cursor: e-resize; }
 .expand-nav-center {
   position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
