@@ -38,11 +38,33 @@
       <p v-if="post.repost.content" class="text-sm text-gray-600 whitespace-pre-wrap">{{ post.repost.content }}</p>
     </div>
 
-    <!-- 媒体网格 -->
+    <!-- 媒体区域 -->
     <div v-if="post.media && post.media.length > 0" class="post-media-wrapper px-4 pb-3">
-      <div class="media-grid" :class="post.media.length === 1 ? 'grid-cols-1' : ''">
+      <!-- 展开模式 -->
+      <div v-if="expandedIdx !== null" class="expanded-view">
+        <div class="expanded-controls">
+          <button @click="collapseExpand"><el-icon :size="14"><ArrowUp /></el-icon> 收起</button>
+          <div class="flex gap-2">
+            <button @click="rotateExpanded"><el-icon :size="14"><Refresh /></el-icon> 旋转</button>
+            <button @click="openLightboxFromExpand"><el-icon :size="14"><ZoomIn /></el-icon> 查看原图</button>
+          </div>
+        </div>
+        <div class="expanded-media-wrap" ref="expandWrapRef">
+          <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
+          <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
+          <div class="expand-nav-center" @click="collapseExpand"></div>
+          <img v-if="expandedMedia.media_type === 'image'"
+               :src="getMediaUrl(expandedMedia.file_path)" alt=""
+               :style="{ transform: `rotate(${rotateDeg}deg)` }" />
+          <video v-else :src="getMediaUrl(expandedMedia.file_path)" controls
+                 :style="{ transform: `rotate(${rotateDeg}deg)` }" />
+        </div>
+      </div>
+      <!-- 媒体缩略网格 -->
+      <div v-else class="media-grid" :class="post.media.length === 1 ? 'grid-cols-1' : ''">
         <div v-for="(media, index) in post.media" :key="media.id"
-             class="media-item" @click="handleMediaClick(media, index)">
+             class="media-item" :class="{ collapsed: expandedIdx !== null && expandedIdx !== index }"
+             @click="handleMediaClick(media, index)">
           <!-- 图片 -->
           <img v-if="media.media_type === 'image'"
                :src="getMediaUrl(media.thumbnail_path || media.file_path)"
@@ -154,7 +176,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -177,14 +199,84 @@ const historyVisible = ref(false)
 const editHistories = ref<BlogEditHistory[]>([])
 const loadingHistory = ref(false)
 
+// 展开模式
+const expandedIdx = ref<number | null>(null)
+const rotateDeg = ref(0)
+const expandWrapRef = ref<HTMLElement | null>(null)
+
+const expandedMedia = computed(() => {
+  if (expandedIdx.value === null || !props.post.media) return null
+  return props.post.media[expandedIdx.value] || null
+})
+
 const isAdmin = computed(() => getCurrentUserRole() === 'admin')
 const currentUserId = computed(() => getCurrentUserEmpId() || '')
 const canEdit = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
 const canDelete = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
 
 function handleMediaClick(media: any, index: number) {
-  if (media.media_type === 'video' && media.compress_status !== 'success') return
-  emit('media-click', media, index)
+  if (media.compress_status === 'pending' || media.compress_status === 'processing' || media.compress_status === 'failed') return
+  if (media.media_type === 'video') {
+    // 视频直接打开灯箱
+    emit('media-click', media, index)
+  } else {
+    // 图片展开模式
+    if (expandedIdx.value === index) {
+      collapseExpand()
+    } else {
+      expandMedia(index)
+    }
+  }
+}
+
+// ========== 展开模式 ==========
+function expandMedia(index: number) {
+  collapseExpand()
+  expandedIdx.value = index
+  rotateDeg.value = 0
+}
+
+function collapseExpand() {
+  expandedIdx.value = null
+  rotateDeg.value = 0
+}
+
+function prevExpanded() {
+  if (expandedIdx.value !== null && expandedIdx.value > 0) {
+    expandMedia(expandedIdx.value - 1)
+  }
+}
+
+function nextExpanded() {
+  if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) {
+    expandMedia(expandedIdx.value + 1)
+  }
+}
+
+function rotateExpanded() {
+  rotateDeg.value += 90
+  const wrap = expandWrapRef.value
+  const el = wrap?.querySelector('img') || wrap?.querySelector('video')
+  if (!wrap || !el) return
+  const effectiveDeg = rotateDeg.value % 360
+  wrap.style.minHeight = wrap.getBoundingClientRect().height + 'px'
+  requestAnimationFrame(() => {
+    if (effectiveDeg === 90 || effectiveDeg === 270) {
+      const targetH = el.getBoundingClientRect().width
+      wrap.style.minHeight = targetH + 'px'
+      wrap.style.maxHeight = '2000px'
+    } else {
+      wrap.style.minHeight = '150px'
+      wrap.style.maxHeight = 'calc(50vh - 40px)'
+    }
+  })
+}
+
+function openLightboxFromExpand() {
+  if (expandedIdx.value !== null) {
+    collapseExpand()
+    emit('media-click', expandedMedia.value, expandedIdx.value || 0)
+  }
 }
 
 function handleHistoryMediaClick(media: any, historyMedias: any[], index: number) {
@@ -297,6 +389,95 @@ defineExpose({ loadHistory })
 
 .post-card:hover {
   box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+/* 展开模式 - 匹配参考 posts.html */
+.expanded-view {
+  max-height: 50vh;
+  overflow: hidden;
+  background: #f3f4f6;
+  border-radius: 8px;
+  transition: max-height 0.35s ease;
+}
+
+.expanded-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 8px 8px 0 0;
+}
+
+.expanded-controls button {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.expanded-controls button:hover {
+  background: #e5e7eb;
+}
+
+.expanded-media-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: calc(50vh - 40px);
+  overflow: hidden;
+  min-height: 150px;
+  transition: min-height 0.35s ease, max-height 0.35s ease;
+}
+
+.expanded-media-wrap img {
+  max-width: 100%;
+  max-height: calc(50vh - 56px);
+  object-fit: contain;
+  transition: transform 0.3s;
+}
+
+.expanded-media-wrap video {
+  max-width: 100%;
+  max-height: calc(50vh - 56px);
+}
+
+.expand-nav-left,
+.expand-nav-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 33.33%;
+  z-index: 2;
+}
+
+.expand-nav-left {
+  left: 0;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpolyline points='16,4 8,12 16,20' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, w-resize;
+}
+
+.expand-nav-right {
+  right: 0;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, e-resize;
+}
+
+.expand-nav-center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 33.33%;
+  right: 33.33%;
+  z-index: 2;
+  cursor: zoom-out;
+}
+
+.media-item.collapsed {
+  display: none;
 }
 
 /* 移动端 */
