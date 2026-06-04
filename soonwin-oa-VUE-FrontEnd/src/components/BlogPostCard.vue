@@ -57,8 +57,7 @@
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
                :style="{ transform: `rotate(${rotateDeg}deg)` }" />
           <video v-else ref="videoRef" :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
-                 :style="{ transform: `rotate(${rotateDeg}deg)` }"
-                 @loadedmetadata="restoreVideoTime" />
+                 :style="{ transform: `rotate(${rotateDeg}deg)` }" />
         </div>
       </div>
       <!-- 媒体缩略网格 -->
@@ -160,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUpdate, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Edit, Delete, VideoCamera, Star, ChatDotRound, Clock, Loading, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
@@ -183,23 +182,23 @@ const expandedIdx = ref<number | null>(null)
 const rotateDeg = ref(0)
 const expandWrapRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
-const videoTimeMap = new Map<number, number>() // 记录每个视频的播放进度
+const videoTimeMap = new Map<number, number>()
 
-// DOM更新前保存当前视频进度（避免元素销毁后无法读取currentTime）
-onBeforeUpdate(() => {
-  if (videoRef.value && expandedIdx.value !== null) {
-    videoTimeMap.set(expandedIdx.value, videoRef.value.currentTime)
+// 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
+watch(expandedIdx, (newIdx, oldIdx) => {
+  // 保存旧视频进度
+  if (oldIdx !== null && videoRef.value) {
+    videoTimeMap.set(oldIdx, videoRef.value.currentTime)
+  }
+  // 恢复新视频进度
+  if (newIdx !== null) {
+    nextTick(() => {
+      if (videoRef.value && videoTimeMap.has(newIdx)) {
+        videoRef.value.currentTime = videoTimeMap.get(newIdx)!
+      }
+    })
   }
 })
-
-// 视频元素挂载后恢复进度
-function restoreVideoTime() {
-  nextTick(() => {
-    if (videoRef.value && expandedIdx.value !== null && videoTimeMap.has(expandedIdx.value)) {
-      videoRef.value.currentTime = videoTimeMap.get(expandedIdx.value)!
-    }
-  })
-}
 
 const expandedMedia = computed(() => {
   if (expandedIdx.value === null || !props.post.media) return null
@@ -365,9 +364,9 @@ defineExpose({ loadHistory })
 .media-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr 1fr; }
 .media-grid-single { grid-template-columns: 1fr; }
 .media-item {
-  position: relative; overflow: hidden; background: #000;
+  position: relative; overflow: hidden;
   border-radius: 8px; cursor: pointer;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.08);
 }
 .media-item img, .media-item video {
   width: 100%; height: 200px; object-fit: cover; display: block;
@@ -422,6 +421,8 @@ defineExpose({ loadHistory })
   z-index: 2; cursor: zoom-out;
 }
 /* 视频展开时底部留空间给控制栏 */
+.is-video .expand-nav-left,
+.is-video .expand-nav-right,
 .is-video .expand-nav-center {
   bottom: 44px;
 }
