@@ -294,7 +294,9 @@ defineExpose({ loadHistory })
   overflow: hidden; flex-shrink: 0; position: relative;
 }
 .avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
-.avatar-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 0; }
+.avatar-fallback { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; }
+.avatar-fallback > :deep(.el-icon),
+.avatar-fallback > .el-icon { display: flex; align-items: center; justify-content: center; }
 .post-author-name { font-weight: 500; color: #1f2937; font-size: 15px; margin: 0; }
 .post-author-time { font-size: 12px; color: #9ca3af; margin: 2px 0 0 0; }
 .post-header-actions { display: flex; gap: 4px; }

@@ -341,6 +341,7 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .tab-badge { font-size: 11px; background: #3b82f6; color: #fff; border-radius: 10px; padding: 1px 6px; min-width: 16px; text-align: center; }
 
 .blog-feed { min-height: 300px; }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
-.avatar-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
+.avatar-fallback { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; }
+.avatar-fallback > .el-icon { display: flex; align-items: center; justify-content: center; }
 </style>
