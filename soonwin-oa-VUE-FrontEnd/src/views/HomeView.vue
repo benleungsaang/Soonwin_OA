@@ -146,7 +146,7 @@
                     </el-menu-item>
                     <el-menu-item index="20" @click="goToBlog" v-if="hasToken && permissions.blogManage">
                       <el-icon><EditPen /></el-icon>
-                      <span>微博客</span>
+                      <span>工作记录</span>
                     </el-menu-item>
                   </el-menu>
                   <!-- 登录按钮：未登录时显示在其它功能列底部 -->
@@ -253,7 +253,7 @@ const permissionMap = {
   quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' },
   orderRecordManage: { key: 'order_record_manage', name: '订单快速记录', path: '/order-record' },
   customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
-  blogManage: { key: 'blog_manage', name: '微博客', path: '/blog' }
+  blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）

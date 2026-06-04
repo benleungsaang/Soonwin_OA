@@ -1,6 +1,6 @@
 <template>
   <div class="blog-page">
-    <CommonHeader title="微博客" />
+    <CommonHeader title="工作记录" />
 
     <div class="blog-container">
       <!-- 工具栏标签 -->
@@ -25,7 +25,7 @@
           </div>
           <input ref="avatarInputRef" type="file" accept="image/*" hidden @change="onAvatarSelected" />
           <div class="flex-1">
-            <textarea v-model="publishContent" placeholder="分享生活点滴..." rows="3"
+            <textarea v-model="publishContent" placeholder="记录工作点滴..." rows="3"
               class="publish-textarea"
               @paste="onPublishPaste" />
             <!-- 媒体预览 -->

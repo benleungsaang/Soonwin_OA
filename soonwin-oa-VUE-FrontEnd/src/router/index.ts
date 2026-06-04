@@ -185,7 +185,7 @@ const routes: RouteRecordRaw[] = [
     path: '/blog',
     name: 'blogManagement',
     component: BlogManagementView,
-    meta: { title: '微博客', requiresAuth: true }
+    meta: { title: '工作记录', requiresAuth: true }
   },
 
 
