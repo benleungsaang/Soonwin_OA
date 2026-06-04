@@ -1,41 +1,60 @@
 <template>
-  <div class="border-t border-gray-100 bg-gray-50/50 px-4 py-3">
+  <div class="bg-gray-50 border-t border-gray-100 px-4 py-3">
     <!-- 评论列表 -->
-    <div v-if="comments.length > 0" class="space-y-3 mb-3 max-h-72 overflow-y-auto">
-      <div v-for="comment in comments" :key="comment.id" class="flex gap-2.5">
-        <el-avatar :size="28" :icon="UserFilled" class="flex-shrink-0" />
+    <div v-if="showAllComments.length > 0" class="space-y-1.5 mb-2" :class="showAll ? '' : 'max-h-48 overflow-hidden'">
+      <div v-for="comment in showAllComments" :key="comment.id" class="flex items-start gap-2 py-1 group">
+        <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+          <el-icon :size="12" color="#6b7280"><UserFilled /></el-icon>
+        </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-semibold text-blue-500">{{ comment.author }}</span>
-            <span class="text-[11px] text-gray-300">{{ formatTime(comment.created_at) }}</span>
-            <el-button v-if="canDelete(comment)" text size="small" type="danger"
-                       class="!ml-auto !p-0 !h-auto !text-[11px]" @click="handleDelete(comment.id)">
-              删除
-            </el-button>
+            <span class="text-xs font-medium text-gray-600">{{ comment.author }}</span>
+            <span class="text-xs text-gray-400">{{ formatTime(comment.created_at) }}</span>
           </div>
-          <p class="text-sm text-gray-700 mt-0.5 break-words leading-relaxed">{{ comment.content }}</p>
+          <p class="text-sm text-gray-500 mt-0.5 break-words">{{ comment.content }}</p>
         </div>
+        <button v-if="canDelete(comment)"
+                class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 rounded transition-opacity flex-shrink-0"
+                @click="handleDelete(comment.id)">
+          <el-icon :size="12"><Close /></el-icon>
+        </button>
       </div>
     </div>
 
-    <!-- 评论输入 -->
-    <div class="flex gap-2 items-center">
-      <el-input v-model="commentText" placeholder="写下评论..." maxlength="500"
-                size="small" class="flex-1" @keyup.enter="handleSubmit" />
-      <el-button size="small" type="primary" :loading="submitting" @click="handleSubmit" class="flex-shrink-0">
+    <!-- 查看更多 -->
+    <button v-if="comments.length > COMMENTS_PREVIEW && !showAll"
+            class="text-blue-500 text-xs hover:underline mb-2"
+            @click="showAll = true">
+      查看更多留言 ({{ comments.length - COMMENTS_PREVIEW }})
+    </button>
+
+    <p v-if="comments.length === 0" class="text-gray-400 text-sm text-center py-2">暂无留言，来说点什么吧</p>
+
+    <!-- 输入区 -->
+    <div class="flex gap-2 mt-2">
+      <input v-model="commentText"
+             :placeholder="'写留言...'"
+             class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg
+                    focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+             @keydown.enter="handleSubmit" />
+      <button class="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg
+                     hover:bg-blue-600 flex-shrink-0 transition-colors"
+              :disabled="submitting" @click="handleSubmit">
         发送
-      </el-button>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled } from '@element-plus/icons-vue'
+import { UserFilled, Close } from '@element-plus/icons-vue'
 import type { BlogComment } from '@/types/blog'
 import { getComments, createComment, deleteComment } from '@/api/blog'
-import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
+import { getCurrentUserRole } from '@/utils/authUtils'
+
+const COMMENTS_PREVIEW = 3
 
 const props = defineProps<{
   postId: number
@@ -49,6 +68,11 @@ const emit = defineEmits<{
 const comments = ref<BlogComment[]>([])
 const commentText = ref('')
 const submitting = ref(false)
+const showAll = ref(false)
+
+const showAllComments = computed(() => {
+  return showAll.value ? comments.value : comments.value.slice(0, COMMENTS_PREVIEW)
+})
 
 onMounted(async () => {
   try {
@@ -82,7 +106,6 @@ async function handleDelete(commentId: number) {
   try {
     await deleteComment(props.postId, commentId)
     comments.value = comments.value.filter(c => c.id !== commentId)
-    ElMessage.success('评论已删除')
   } catch (err: any) {
     ElMessage.error(err?.response?.data?.message || '删除失败')
   }
@@ -92,10 +115,12 @@ function formatTime(dateStr: string): string {
   if (!dateStr) return ''
   const date = new Date(dateStr.replace(/-/g, '/'))
   const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
-  return dateStr.slice(0, 10)
+  const diff = (now.getTime() - date.getTime()) / 1000
+  if (diff < 60) return '刚刚'
+  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`
 }
 </script>
