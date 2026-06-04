@@ -321,14 +321,20 @@ def _enqueue_video_tasks_for_post(post_id):
 
 @blog_bp.route('/posts/avatar/<emp_id>', methods=['GET'])
 def serve_avatar(emp_id):
-    """提供用户头像"""
+    """提供用户头像，无头像时返回默认SVG"""
     base_dir = os.path.join(current_app.root_path, '..', 'assets', 'PostsMedia', 'Avatar')
     base_dir = os.path.abspath(base_dir)
     for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
         path = os.path.join(base_dir, f'{emp_id}.{ext}')
         if os.path.exists(path) and os.path.isfile(path):
             return send_file(path)
-    abort(404)
+    # 无头像时返回默认占位SVG（避免浏览器404错误）
+    from flask import make_response
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#eff6ff"/><text x="50" y="62" text-anchor="middle" font-size="40" fill="#93c5fd">?</text></svg>'
+    resp = make_response(svg)
+    resp.headers['Content-Type'] = 'image/svg+xml'
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
 
 
 @blog_bp.route('/posts/avatar/upload', methods=['POST'])

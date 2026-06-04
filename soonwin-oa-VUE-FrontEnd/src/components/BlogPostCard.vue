@@ -4,8 +4,7 @@
     <div class="post-header">
       <div class="post-author">
         <div class="post-avatar" @click="$emit('filter-author', post.author)" style="cursor:pointer">
-          <img :src="`/api/posts/avatar/${post.author_id}`" class="avatar-img" @error="($event.target as HTMLImageElement).style.display='none'" />
-          <el-icon :size="20" color="#3b82f6" class="avatar-fallback"><UserFilled /></el-icon>
+          <img :src="`/api/posts/avatar/${post.author_id}`" class="w-full h-full object-cover" />
         </div>
         <div>
           <p class="post-author-name" style="cursor:pointer" @click="$emit('filter-author', post.author)">{{ post.author }}</p>
@@ -291,10 +290,8 @@ defineExpose({ loadHistory })
 .post-avatar {
   width: 40px; height: 40px; border-radius: 50%;
   background: #eff6ff; display: flex; align-items: center; justify-content: center;
-  overflow: hidden; flex-shrink: 0; position: relative;
+  overflow: hidden; flex-shrink: 0;
 }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
-.avatar-fallback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; line-height: 1; }
 .post-author-name { font-weight: 500; color: #1f2937; font-size: 15px; margin: 0; }
 .post-author-time { font-size: 12px; color: #9ca3af; margin: 2px 0 0 0; }
 .post-header-actions { display: flex; gap: 4px; }

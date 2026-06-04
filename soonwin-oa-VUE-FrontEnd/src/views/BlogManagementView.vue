@@ -18,8 +18,7 @@
         @drop.prevent="onPublishDrop">
         <div class="flex gap-3">
           <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden cursor-pointer relative group" @click="triggerAvatarUpload" title="点击更换头像">
-            <img :src="avatarUrl" class="avatar-img" @error="onAvatarError" />
-            <el-icon :size="20" color="#3b82f6" class="avatar-fallback"><UserFilled /></el-icon>
+            <img :src="avatarUrl" class="w-full h-full object-cover" />
             <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
               <el-icon :size="14" color="#fff"><Camera /></el-icon>
             </div>
@@ -143,7 +142,6 @@ const avatarInputRef = ref<HTMLInputElement | null>(null)
 import { getCurrentUserEmpId } from '@/utils/authUtils'
 function getAvatarUrl(empId: string) { return `/api/posts/avatar/${empId}?t=${Date.now()}` }
 function triggerAvatarUpload() { avatarInputRef.value?.click() }
-function onAvatarError(e: Event) { (e.target as HTMLImageElement).style.display = 'none' }
 async function onAvatarSelected(e: Event) {
   const inp = e.target as HTMLInputElement
   const file = inp.files?.[0]; if (!file) return
@@ -341,6 +339,4 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .tab-badge { font-size: 11px; background: #3b82f6; color: #fff; border-radius: 10px; padding: 1px 6px; min-width: 16px; text-align: center; }
 
 .blog-feed { min-height: 300px; }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
-.avatar-fallback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; line-height: 1; }
 </style>
