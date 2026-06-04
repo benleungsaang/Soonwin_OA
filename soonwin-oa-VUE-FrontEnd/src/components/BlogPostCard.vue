@@ -381,32 +381,26 @@ defineExpose({ loadHistory })
 .expanded-controls-right { display: flex; gap: 8px; }
 .expanded-media-wrap {
   position: relative; display: flex; align-items: center; justify-content: center;
-  max-height: calc(50vh - 40px); overflow: hidden; min-height: 150px;
+  max-height: 70vh; overflow: hidden; min-height: 150px;
   transition: min-height 0.35s ease, max-height 0.35s ease;
 }
-.expanded-media-wrap img { max-width: 100%; max-height: calc(50vh - 56px); object-fit: contain; transition: transform 0.3s; }
-.expanded-media-wrap video { max-width: 100%; max-height: calc(50vh - 56px); }
+.expanded-media-wrap img { max-width: 100%; max-height: 60vh; object-fit: contain; transition: transform 0.3s; }
+.expanded-media-wrap video { max-width: 100%; max-height: 60vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
-.expand-nav-left { left: 0; }
-.expand-nav-right { right: 0; }
-.expand-nav-left:hover::after {
-  content: '‹';
-  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  font-size: 48px; color: rgba(0,0,0,0.35); font-weight: 300; line-height: 1;
-  pointer-events: none;
+.expand-nav-left {
+  left: 0;
+  cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><polyline points="16,4 8,12 16,20" fill="none" stroke="%23666" stroke-width="2"/></svg>') 16 16, pointer;
 }
-.expand-nav-right:hover::after {
-  content: '›';
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  font-size: 48px; color: rgba(0,0,0,0.35); font-weight: 300; line-height: 1;
-  pointer-events: none;
+.expand-nav-right {
+  right: 0;
+  cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"><polyline points="8,4 16,12 8,20" fill="none" stroke="%23666" stroke-width="2"/></svg>') 16 16, pointer;
 }
 .expand-nav-center {
-  position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
+  position: absolute; top: 0; height: 55%; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
-}
+  /* 只覆盖顶部55%，底部留给视频控制栏 */
 
 /* ===== 编辑历史 ===== */
 .history-list { max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
