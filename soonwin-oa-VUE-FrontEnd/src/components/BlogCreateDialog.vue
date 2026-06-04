@@ -80,6 +80,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button v-if="isDraft" @click="handleSaveCurrentDraft" :loading="saving">保存</el-button>
         <el-button type="primary" @click="handleSubmit" :loading="saving">
           {{ submitBtnText }}
         </el-button>
@@ -166,19 +167,23 @@ function hasContent(): boolean {
 // 尝试关闭（弹窗确认保存草稿）
 function tryCloseDialog() {
   if (hasContent()) {
+    const confirmText = isDraft.value ? '是否保存当前草稿的修改？' : '当前编辑内容尚未保存，是否保存为草稿？'
     ElMessageBox.confirm(
-      '当前编辑内容尚未保存，是否保存为草稿？',
+      confirmText,
       '提示',
-      { confirmButtonText: '保存草稿', cancelButtonText: '不保存', type: 'warning',
+      { confirmButtonText: '保存', cancelButtonText: '不保存', type: 'warning',
         distinguishCancelAndClose: true, closeOnClickModal: false }
     ).then(() => {
-      handleSaveDraftThenClose()
+      // 编辑草稿时 → 更新原草稿；新发布时 → 创建新草稿
+      if (isDraft.value) {
+        handleSaveCurrentDraftThenClose()
+      } else {
+        handleSaveDraftThenClose()
+      }
     }).catch((action: string) => {
       if (action === 'cancel') {
-        // 不保存，直接关闭
         forceClose()
       }
-      // action === 'close' → 点了右上角× → 不关闭
     })
   } else {
     forceClose()
@@ -187,20 +192,24 @@ function tryCloseDialog() {
 
 async function handleBeforeClose(done: () => void) {
   if (hasContent()) {
+    const confirmText = isDraft.value ? '是否保存当前草稿的修改？' : '当前编辑内容尚未保存，是否保存为草稿？'
     try {
       await ElMessageBox.confirm(
-        '当前编辑内容尚未保存，是否保存为草稿？',
+        confirmText,
         '提示',
-        { confirmButtonText: '保存草稿', cancelButtonText: '不保存', type: 'warning',
+        { confirmButtonText: '保存', cancelButtonText: '不保存', type: 'warning',
           distinguishCancelAndClose: true }
       )
-      await handleSaveDraftThenClose()
+      if (isDraft.value) {
+        await handleSaveCurrentDraftThenClose()
+      } else {
+        await handleSaveDraftThenClose()
+      }
       done()
     } catch (action: any) {
       if (action === 'cancel') {
-        done() // 不保存直接关闭
+        done()
       }
-      // 'close' → 不关闭
     }
   } else {
     done()
@@ -328,6 +337,43 @@ async function handleSaveDraftThenClose() {
     emit('draft-saved')
   } catch (err: any) {
     ElMessage.error(err?.response?.data?.message || '保存草稿失败')
+  } finally {
+    saving.value = false
+    forceClose()
+  }
+}
+
+// 保存当前草稿（更新原草稿，不新建）
+async function handleSaveCurrentDraft() {
+  if (!props.post) return
+  saving.value = true
+  try {
+    const { updatePost } = await import('@/api/blog')
+    const formData = buildFormData()
+    await updatePost(props.post.id, formData)
+    ElMessage.success('草稿已保存')
+    emit('saved')
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleSaveCurrentDraftThenClose() {
+  if (!props.post) {
+    forceClose()
+    return
+  }
+  saving.value = true
+  try {
+    const { updatePost } = await import('@/api/blog')
+    const formData = buildFormData()
+    await updatePost(props.post.id, formData)
+    ElMessage.success('草稿已保存')
+    emit('draft-saved')
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '保存失败')
   } finally {
     saving.value = false
     forceClose()

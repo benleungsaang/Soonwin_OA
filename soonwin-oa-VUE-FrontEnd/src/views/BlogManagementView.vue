@@ -243,8 +243,15 @@ async function handleToggleLike(post: BlogPost) {
   } catch { /* ignore */ }
 }
 
-function handleMediaClick(media: BlogMedia, index: number) {
-  // 找到当前点击媒体所属的博文，获取其全部媒体列表
+function handleMediaClick(media: any, index: number, mediaList?: any[]) {
+  // 如果传入了第三个参数（来自历史版本），直接使用
+  if (mediaList) {
+    lightboxMediaList.value = mediaList
+    lightboxIndex.value = index
+    showLightbox.value = true
+    return
+  }
+  // 否则在当前博文列表中查找
   for (const post of posts.value) {
     const idx = post.media.findIndex(m => m.id === media.id)
     if (idx >= 0) {
@@ -262,22 +269,28 @@ function handleMediaClick(media: BlogMedia, index: number) {
 <style scoped>
 .blog-page {
   min-height: 100vh;
-  background: #f5f7fa;
+  background: #f3f4f6;
 }
 
 .blog-container {
-  max-width: 800px;
+  max-width: 672px;
   margin: 0 auto;
-  padding: 16px 20px;
+  padding: 16px 16px;
+}
+
+@media (max-width: 768px) {
+  .blog-container {
+    padding: 12px 8px;
+  }
 }
 
 .blog-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .toolbar-right {
