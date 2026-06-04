@@ -58,12 +58,13 @@
              @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
           <div v-if="expandedIdx > 0" class="expand-nav-left" @click="prevExpanded"></div>
           <div v-if="expandedIdx < post.media.length - 1" class="expand-nav-right" @click="nextExpanded"></div>
+          <div v-if="expandedIdx !== null" class="expand-nav-center" @click="collapseExpand"></div>
           <!-- 轮播轨道：所有媒体水平排列 -->
           <div class="carousel-track" :style="carouselStyle">
             <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
               <img v-if="m.media_type === 'image'"
                    :src="getMediaUrl(m.file_path)" alt=""
-                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="enterFullscreen(i)" />
+                   :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="handleExpandedImageClick(i)" />
               <video v-else :ref="i === expandedIdx ? 'videoRef' : undefined"
                      :src="getMediaUrl(m.file_path)" :controls="i === expandedIdx"
                      :poster="getMediaUrl(m.thumbnail_path)" playsinline
@@ -319,6 +320,10 @@ function rotateExpanded() {
   })
 }
 
+function handleExpandedImageClick(index: number) {
+  if (window.innerWidth > 768) { collapseExpand(); return }
+  enterFullscreen(index)
+}
 function enterFullscreen(index: number) {
   if (window.innerWidth > 768) return // 桌面端仍用灯箱
   fullscreenIdx.value = index
@@ -573,6 +578,10 @@ defineExpose({ loadHistory })
   right: 0;
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
+.expand-nav-center {
+  position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
+  z-index: 2; cursor: zoom-out;
+}
 /* 视频展开时底部留空间给控制栏 */
 .is-video .expand-nav-left,
 .is-video .expand-nav-right {
@@ -605,6 +614,7 @@ defineExpose({ loadHistory })
   .history-card { padding: 10px; }
   .history-post-wrap .media-grid { gap: 6px; }
   .expand-nav-left, .expand-nav-right { width: 25%; }
+  .expand-nav-center { display: none; }
 }
 @media (max-width: 640px) {
   .media-grid { grid-template-columns: 1fr 1fr !important; }
