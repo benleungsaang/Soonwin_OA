@@ -67,7 +67,7 @@
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="handleExpandedImageClick(i)" />
               <div v-else class="video-rotate-wrap"
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }">
-                <video :ref="i === expandedIdx ? 'videoRef' : undefined"
+                <video
                        :src="getMediaUrl(m.file_path)" controls
                        :poster="getMediaUrl(m.thumbnail_path)" playsinline
                        @click.stop />
@@ -200,8 +200,6 @@ const loadingHistory = ref(false)
 const expandedIdx = ref<number | null>(null)
 const rotateDeg = ref(0)
 const expandWrapRef = ref<HTMLElement | null>(null)
-const videoRef = ref<HTMLVideoElement | HTMLVideoElement[] | null>(null)
-function getVideoEl() { return Array.isArray(videoRef.value) ? videoRef.value[0] : videoRef.value }
 const videoTimeMap = new Map<number, number>()
 const directClickExpand = ref(false)
 const fullscreenVisible = ref(false)
@@ -213,11 +211,13 @@ const fsSwipeOffsetY = ref(0)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
   watch(expandedIdx, (newIdx, oldIdx) => {
-    // 切换前暂停所有展开模式视频（用 DOM 查询，避免 v-for 内 ref 不可靠）
+    // 暂停所有视频（用 DOM 查询）
     document.querySelectorAll('.carousel-slide video').forEach(v => (v as HTMLVideoElement).pause())
     if (newIdx !== null) {
       nextTick(() => {
-        const el = getVideoEl()
+        // 用 DOM 查询找当前展开的视频（v-for 内 ref 不可靠）
+        const videos = document.querySelectorAll('.carousel-slide video')
+        const el = videos[newIdx] as HTMLVideoElement | undefined
         if (el) {
           if (videoTimeMap.has(newIdx)) el.currentTime = videoTimeMap.get(newIdx)!
           if (directClickExpand.value) el.play().catch(() => {})
@@ -245,7 +245,10 @@ function handleMediaClick(media: any, index: number) {
 }
 
 function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
-function collapseExpand() { document.querySelectorAll('.carousel-slide video').forEach(v => (v as HTMLVideoElement).pause()); expandedIdx.value = null; rotateDeg.value = 0 }
+function collapseExpand() {
+  document.querySelectorAll('.carousel-slide video').forEach(v => (v as HTMLVideoElement).pause())
+  expandedIdx.value = null; rotateDeg.value = 0
+}
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
