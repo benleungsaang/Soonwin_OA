@@ -403,7 +403,7 @@ defineExpose({ loadHistory })
 .expand-nav-center {
   position: absolute; top: 0; height: 55%; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
-  /* 只覆盖顶部55%，底部留给视频控制栏 */
+}
 
 /* ===== 编辑历史 ===== */
 .history-list { max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
