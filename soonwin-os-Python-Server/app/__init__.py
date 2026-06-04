@@ -42,6 +42,25 @@ def create_app(port=5000):
         else:
             abort(404)
 
+    # 博客媒体文件服务（与上面同理，在app级注册确保Waitress兼容）
+    @app.route('/api/posts/media/<path:filepath>')
+    def serve_blog_media_file(filepath):
+        import os
+        from flask import send_file, abort
+        filepath = filepath.replace('..', '').replace('\\', '/')
+        file_path = os.path.join(app.root_path, '..', 'assets', 'PostsMedia', filepath)
+        file_path = os.path.abspath(file_path)
+        blog_media_path = os.path.abspath(os.path.join(app.root_path, '..', 'assets', 'PostsMedia'))
+        if not file_path.startswith(blog_media_path):
+            abort(404)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            resp = send_file(file_path, conditional=True)
+            resp.headers['Accept-Ranges'] = 'bytes'
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
+        else:
+            abort(404)
+
     # 关键：在 create_app 内部导入模型（延迟导入，打破循环）
     with app.app_context():
         from .models.employee import Employee

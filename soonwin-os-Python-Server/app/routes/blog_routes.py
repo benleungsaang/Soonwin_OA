@@ -935,61 +935,8 @@ def toggle_like(post_id):
 # 媒体文件访问
 # ============================================================
 
-@blog_bp.route('/posts/media/<path:filepath>', methods=['GET'])
-def serve_blog_media(filepath):
-    """提供博客媒体文件访问（手动处理Range请求，兼容Waitress）"""
-    try:
-        filepath = filepath.replace('..', '').replace('\\', '/')
-        base_dir = _get_posts_media_dir()
-        full_path = os.path.abspath(os.path.join(base_dir, filepath))
-
-        if not full_path.startswith(os.path.abspath(base_dir)):
-            abort(404)
-
-        if not os.path.exists(full_path) or not os.path.isfile(full_path):
-            abort(404)
-
-        file_size = os.path.getsize(full_path)
-        ext = os.path.splitext(filepath)[1].lower()
-        mimetype_map = {'.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg',
-                        '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
-        mimetype = mimetype_map.get(ext, 'application/octet-stream')
-
-        # 手动处理Range请求
-        range_header = request.headers.get('Range')
-        if range_header and range_header.startswith('bytes='):
-            byte_range = range_header[6:]
-            parts = byte_range.split('-')
-            start = int(parts[0]) if parts[0] else 0
-            end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
-            if start >= file_size:
-                return '', 416
-
-            length = min(end - start + 1, file_size - start)
-            with open(full_path, 'rb') as f:
-                f.seek(start)
-                data = f.read(length)
-
-            resp = current_app.response_class(data, 206, mimetype=mimetype,
-                                               direct_passthrough=True)
-            resp.headers['Content-Range'] = f'bytes {start}-{start+len(data)-1}/{file_size}'
-            resp.headers['Content-Length'] = str(len(data))
-            resp.headers['Accept-Ranges'] = 'bytes'
-            return resp
-        else:
-            # 小文件直接发送（图片等）
-            if file_size < 2 * 1024 * 1024:  # < 2MB
-                return send_file(full_path, mimetype=mimetype)
-            # 大文件流式发送
-            resp = current_app.response_class(
-                open(full_path, 'rb'), 200, mimetype=mimetype, direct_passthrough=True
-            )
-            resp.headers['Content-Length'] = str(file_size)
-            resp.headers['Accept-Ranges'] = 'bytes'
-            return resp
-    except Exception as e:
-        print(f"提供媒体文件失败: {e}")
-        abort(404)
+# 博客媒体文件现在由 app/__init__.py 中 app 级路由 serve_blog_media_file 提供
+# （app 级路由在 Waitress 下处理大文件视频更稳定，与视频管理模块一致）
 
 
 @blog_bp.route('/posts/media/upload', methods=['POST'])
