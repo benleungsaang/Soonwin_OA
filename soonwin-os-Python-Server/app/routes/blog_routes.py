@@ -107,9 +107,18 @@ def _add_blog_video_transcode_task(media_id, absolute_file_path):
             output_dir = os.path.dirname(input_path)
             compressed_path = os.path.join(output_dir, f"{file_prefix}_compressed.mp4")
 
-            result = compress_video(input_path, compressed_path, UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD'])
-            if result and os.path.exists(result) and os.path.getsize(result) > 0:
-                _update_blog_media_after_compress(media_id, result, input_path)
+            # 博客视频强制转 H.264（浏览器兼容），不用 copy 逻辑
+            import subprocess
+            cmd = [
+                'ffmpeg', '-i', input_path,
+                '-c:v', 'libx264', '-crf', '26', '-preset', 'fast',
+                '-vf', "scale='min(1280,iw)':-2,fps=30",
+                '-c:a', 'aac', '-b:a', '96k',
+                '-f', 'mp4', '-y', compressed_path
+            ]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode == 0 and os.path.exists(compressed_path) and os.path.getsize(compressed_path) > 0:
+                _update_blog_media_after_compress(media_id, compressed_path, input_path)
             else:
                 media = BlogMedia.query.get(media_id)
                 if media:
