@@ -388,16 +388,13 @@ defineExpose({ loadHistory })
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
-/* 展开导航：hover 显示 ‹ › 箭头指示 */
-.expand-nav-left { left: 0; cursor: pointer; }
-.expand-nav-right { right: 0; cursor: pointer; }
-.expand-nav-left:hover::after {
-  content: '‹'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  font-size: 52px; color: rgba(0,0,0,0.3); font-weight: 200; line-height: 1; pointer-events: none;
+.expand-nav-left {
+  left: 0;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='16,4 8,12 16,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, w-resize;
 }
-.expand-nav-right:hover::after {
-  content: '›'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  font-size: 52px; color: rgba(0,0,0,0.3); font-weight: 200; line-height: 1; pointer-events: none;
+.expand-nav-right {
+  right: 0;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
 .expand-nav-center {
   position: absolute; top: 0; height: 55%; left: 33.33%; right: 33.33%;
