@@ -4,7 +4,8 @@
     <div class="post-header">
       <div class="post-author">
         <div class="post-avatar" @click="$emit('filter-author', post.author)" style="cursor:pointer">
-          <el-icon :size="20" color="#3b82f6"><UserFilled /></el-icon>
+          <img v-if="post.author_id" :src="`/api/posts/avatar/${post.author_id}`" class="w-full h-full object-cover" @error="($event.target as HTMLImageElement).style.display='none'" />
+          <el-icon v-if="!post.author_id" :size="20" color="#3b82f6"><UserFilled /></el-icon>
         </div>
         <div>
           <p class="post-author-name" style="cursor:pointer" @click="$emit('filter-author', post.author)">{{ post.author }}</p>

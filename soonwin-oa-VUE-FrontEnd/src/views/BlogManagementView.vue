@@ -17,9 +17,14 @@
         @dragleave.prevent="publishDragOver = false"
         @drop.prevent="onPublishDrop">
         <div class="flex gap-3">
-          <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <el-icon :size="20" color="#3b82f6"><UserFilled /></el-icon>
+          <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden cursor-pointer relative group" @click="triggerAvatarUpload" title="点击更换头像">
+            <img v-if="avatarUrl" :src="avatarUrl" class="w-full h-full object-cover" />
+            <el-icon v-else :size="20" color="#3b82f6"><UserFilled /></el-icon>
+            <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+              <el-icon :size="14" color="#fff"><Camera /></el-icon>
+            </div>
           </div>
+          <input ref="avatarInputRef" type="file" accept="image/*" hidden @change="onAvatarSelected" />
           <div class="flex-1">
             <textarea v-model="publishContent" placeholder="分享生活点滴..." rows="3"
               class="publish-textarea"
@@ -94,7 +99,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, PictureFilled, VideoCamera, UserFilled } from '@element-plus/icons-vue'
+import { Search, PictureFilled, VideoCamera, UserFilled, Camera } from '@element-plus/icons-vue'
 import CommonHeader from '@/components/CommonHeader.vue'
 import BlogPostCard from '@/components/BlogPostCard.vue'
 import BlogCreateDialog from '@/components/BlogCreateDialog.vue'
@@ -131,6 +136,24 @@ const draftCount = ref(0)
 const showLightbox = ref(false)
 const lightboxMediaList = ref<BlogMedia[]>([])
 const lightboxIndex = ref(0)
+
+// 头像
+const avatarUrl = ref('')
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+import { getCurrentUserEmpId } from '@/utils/authUtils'
+function getAvatarUrl(empId: string) { return `/api/posts/avatar/${empId}?t=${Date.now()}` }
+function triggerAvatarUpload() { avatarInputRef.value?.click() }
+async function onAvatarSelected(e: Event) {
+  const inp = e.target as HTMLInputElement
+  const file = inp.files?.[0]; if (!file) return
+  const fd = new FormData(); fd.append('file', file)
+  try {
+    const res: any = await request.post('/api/posts/avatar/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    if (res?.avatar_url) { avatarUrl.value = res.avatar_url + '?t=' + Date.now() }
+    ElMessage.success('头像已更新')
+  } catch (e: any) { ElMessage.error('上传失败') }
+  finally { inp.value = '' }
+}
 
 const isAdmin = computed(() => getCurrentUserRole() === 'admin')
 
@@ -205,7 +228,11 @@ async function handlePublish() {
 }
 
 // ===== 数据加载 =====
-onMounted(async () => { await loadPosts(); checkDraft() })
+onMounted(async () => {
+  const empId = getCurrentUserEmpId()
+  if (empId) avatarUrl.value = getAvatarUrl(empId)
+  await loadPosts(); checkDraft()
+})
 
 function onSearchEnter() { searchKeyword.value = searchKeyword.value.trim(); currentPage.value = 1; loadPosts() }
 function clearFilterAuthor() { filterAuthor.value = ''; searchKeyword.value = ''; currentPage.value = 1; loadPosts() }
