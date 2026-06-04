@@ -56,7 +56,7 @@
           <img v-if="expandedMedia.media_type === 'image'"
                :src="getMediaUrl(expandedMedia.file_path)" alt=""
                :style="{ transform: `rotate(${rotateDeg}deg)` }" />
-          <video v-else :src="getMediaUrl(expandedMedia.file_path)" controls
+          <video v-else :src="getMediaUrl(expandedMedia.file_path)" controls autoplay
                  :style="{ transform: `rotate(${rotateDeg}deg)` }" />
         </div>
       </div>
@@ -384,7 +384,7 @@ defineExpose({ loadHistory })
   min-height: 150px;
 }
 .expanded-media-wrap img { max-width: 100%; max-height: 85vh; object-fit: contain; transition: transform 0.3s; }
-.expanded-media-wrap video { max-width: 100%; max-height: 85vh; position: relative; z-index: 3; }
+.expanded-media-wrap video { max-width: 100%; max-height: 85vh; }
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
@@ -397,8 +397,9 @@ defineExpose({ loadHistory })
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
 .expand-nav-center {
-  position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%;
+  position: absolute; top: 0; bottom: 44px; left: 33.33%; right: 33.33%;
   z-index: 2; cursor: zoom-out;
+  /* bottom留44px给视频控制栏，其余区域点击收起 */
 }
 
 /* ===== 编辑历史 ===== */
