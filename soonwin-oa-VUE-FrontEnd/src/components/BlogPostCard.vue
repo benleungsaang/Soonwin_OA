@@ -92,6 +92,9 @@
                 <div class="cvc-track"><div class="cvc-fill" :style="{ width: videoVolume * 100 + '%' }"></div></div>
               </div>
             </div>
+            <button class="cvc-btn" @click="downloadVideo" title="下载">
+              <el-icon :size="16"><Download /></el-icon>
+            </button>
             <button class="cvc-btn" @click="enterFullscreenVideo" title="全屏">
               <el-icon :size="18"><FullScreen /></el-icon>
             </button>
@@ -202,7 +205,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, Microphone, MuteNotification, FullScreen, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
+import { UserFilled, Edit, Delete, VideoCamera, VideoPlay, VideoPause, Star, StarFilled, Microphone, MuteNotification, FullScreen, Download, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -403,6 +406,14 @@ function enterFullscreenVideo() {
   if (el.requestFullscreen) el.requestFullscreen()
   else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
   else if ((el as any).msRequestFullscreen) (el as any).msRequestFullscreen()
+}
+function downloadVideo() {
+  const el = getVideoEl()
+  if (!el || !el.src) return
+  const a = document.createElement('a')
+  a.href = el.src
+  a.download = 'video.mp4'
+  a.click()
 }
 function handleExpandedImageClick(index: number) {
   if (window.innerWidth > 768) { collapseExpand(); return }
