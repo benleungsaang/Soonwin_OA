@@ -208,7 +208,7 @@ async function handlePublish() {
 onMounted(async () => { await loadPosts(); checkDraft() })
 
 function onSearchEnter() { searchKeyword.value = searchKeyword.value.trim(); currentPage.value = 1; loadPosts() }
-function clearFilterAuthor() { filterAuthor.value = ''; currentPage.value = 1; loadPosts() }
+function clearFilterAuthor() { filterAuthor.value = ''; searchKeyword.value = ''; currentPage.value = 1; loadPosts() }
 
 function onFilterAuthor(author: string) { filterAuthor.value = author; activeTab.value = 'published'; currentPage.value = 1; searchKeyword.value = ''; loadPosts() }
 
