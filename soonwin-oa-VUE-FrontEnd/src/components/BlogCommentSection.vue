@@ -14,16 +14,16 @@
           <p class="text-sm text-gray-500 mt-0.5 break-words">{{ comment.content }}</p>
         </div>
         <button v-if="canDelete(comment)"
-                class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 rounded transition-opacity flex-shrink-0"
+                class="comment-delete-btn"
                 @click="handleDelete(comment.id)">
-          <el-icon :size="12"><Close /></el-icon>
+          <el-icon :size="11"><Close /></el-icon>
         </button>
       </div>
     </div>
 
     <!-- 查看更多 -->
     <button v-if="comments.length > COMMENTS_PREVIEW && !showAll"
-            class="text-blue-500 text-xs hover:underline mb-2"
+            class="comment-more-btn"
             @click="showAll = true">
       查看更多留言 ({{ comments.length - COMMENTS_PREVIEW }})
     </button>
@@ -32,14 +32,9 @@
 
     <!-- 输入区（只读模式隐藏） -->
     <div v-if="!readonly" class="flex gap-2 mt-2">
-      <input v-model="commentText"
-             :placeholder="'写留言...'"
-             class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg
-                    focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-             @keydown.enter="handleSubmit" />
-      <button class="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg
-                     hover:bg-blue-600 flex-shrink-0 transition-colors"
-              :disabled="submitting" @click="handleSubmit">
+      <input v-model="commentText" placeholder="写留言..."
+             class="comment-input" @keydown.enter="handleSubmit" />
+      <button class="comment-send-btn" :disabled="submitting" @click="handleSubmit">
         发送
       </button>
     </div>
@@ -125,3 +120,43 @@ function formatTime(dateStr: string): string {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`
 }
 </script>
+
+<style scoped>
+/* 留言删除按钮 - hover显示 */
+.comment-delete-btn {
+  opacity: 0;
+  padding: 2px;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.group:hover .comment-delete-btn { opacity: 1; }
+.comment-delete-btn:hover { color: #ef4444; }
+
+/* 查看更多按钮 */
+.comment-more-btn {
+  background: none; border: none; color: #3b82f6; font-size: 12px;
+  cursor: pointer; padding: 0; margin-bottom: 8px;
+}
+.comment-more-btn:hover { text-decoration: underline; }
+
+/* 输入框和发送按钮 */
+.comment-input {
+  flex: 1; padding: 6px 12px; font-size: 13px; border: 1px solid #e5e7eb;
+  border-radius: 8px; outline: none; background: #fff; box-sizing: border-box;
+}
+.comment-input:focus { border-color: #3b82f6; }
+.comment-send-btn {
+  padding: 6px 12px; background: #3b82f6; color: #fff; border: none;
+  border-radius: 8px; font-size: 13px; cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s;
+}
+.comment-send-btn:hover { background: #2563eb; }
+.comment-send-btn:disabled { opacity: 0.6; cursor: default; }
+</style>

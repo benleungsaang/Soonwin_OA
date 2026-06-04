@@ -3,16 +3,16 @@
     <!-- 头部：作者信息 + 删除/编辑 -->
     <div class="post-header">
       <div class="post-author">
-        <div class="post-avatar">
+        <div class="post-avatar" @click="$emit('filter-author', post.author)" style="cursor:pointer">
           <el-icon :size="20" color="#3b82f6"><UserFilled /></el-icon>
         </div>
         <div>
-          <p class="post-author-name">{{ post.author }}</p>
+          <p class="post-author-name" style="cursor:pointer" @click="$emit('filter-author', post.author)">{{ post.author }}</p>
           <p class="post-author-time">{{ formatTime(post.created_at) }}</p>
         </div>
       </div>
       <div v-if="showActions" class="post-header-actions">
-        <button v-if="!post.is_deleted" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
+        <button v-if="!post.is_deleted && !post.is_draft" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
                 :title="post.is_liked ? '取消收藏' : '收藏'" @click="$emit('toggle-like')">
           <el-icon :size="16"><StarFilled v-if="post.is_liked" style="color:#e6a23c" /><Star v-else /></el-icon>
         </button>
@@ -166,6 +166,7 @@ const props = defineProps<{ post: BlogPost; showActions?: boolean; readonly?: bo
 const emit = defineEmits<{
   (e: 'edit'): void; (e: 'delete'): void; (e: 'toggle-like'): void
   (e: 'media-click', media: any, index: number, mediaList?: any[]): void
+  (e: 'filter-author', author: string): void
 }>()
 
 const showComments = ref(false)

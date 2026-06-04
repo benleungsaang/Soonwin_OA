@@ -71,9 +71,8 @@
           @change="handleFileSelect"
         />
         <el-button type="primary" plain @click="($refs.fileInputRef as HTMLInputElement).click()">
-          <el-icon><PictureFilled /></el-icon> 添加图片/视频
+          <el-icon><PictureFilled /></el-icon> 多媒体
         </el-button>
-        <span class="upload-hint">支持拖放文件或 Ctrl+V 粘贴 · JPG/PNG/GIF/WEBP/MP4/AVI/MOV</span>
       </div>
     </div>
 
@@ -121,8 +120,8 @@ const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => {
     if (!val) {
-      // 由 handleBeforeClose 处理
-      tryCloseDialog()
+      // 关闭由 before-close 统一处理，这里直接同步
+      forceClose()
     } else {
       emit('update:visible', val)
     }

@@ -8,7 +8,6 @@
         <button v-for="tab in tabs" :key="tab.key" @click="switchTab(tab.key)"
           class="blog-tab" :class="{ active: activeTab === tab.key }">
           {{ tab.label }}
-          <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
         </button>
       </div>
 
@@ -41,7 +40,7 @@
                 </label>
               </div>
               <div class="flex gap-2">
-                <button class="publish-draft-btn" :disabled="publishing" @click="handleSaveDraft">保存草稿</button>
+                <button v-if="publishContent.trim() || publishFiles.length > 0" class="publish-draft-btn" :disabled="publishing" @click="handleSaveDraft">保存草稿</button>
                 <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
                   {{ publishing ? '发布中...' : '发布' }}
                 </button>
@@ -52,10 +51,13 @@
       </div>
 
       <!-- 搜索栏 -->
-      <div v-if="activeTab === 'published'" class="search-box">
-        <el-icon :size="16" color="#9ca3af" class="absolute left-3 top-1/2 -translate-y-1/2"><Search /></el-icon>
-        <input v-model="searchKeyword" placeholder="搜索动态..." @input="onSearchInput"
+      <div v-if="activeTab !== 'deleted'" class="search-box">
+        <el-icon :size="16" color="#9ca3af" class="search-icon"><Search /></el-icon>
+        <input v-model="searchKeyword" :placeholder="searchPlaceholder" @input="onSearchInput"
           class="search-input" />
+        <span v-if="filterAuthor" class="filter-tag">
+          作者: {{ filterAuthor }} <button @click="filterAuthor = ''" class="filter-tag-close">&times;</button>
+        </span>
       </div>
 
       <!-- 博文列表 -->
@@ -67,6 +69,7 @@
             @edit="openEditDialog(post)"
             @delete="handleDelete(post)"
             @toggle-like="handleToggleLike(post)"
+            @filter-author="onFilterAuthor"
             @media-click="handleMediaClick" />
 
           <div v-if="totalPages > 1" class="flex justify-center mt-6">
@@ -111,7 +114,15 @@ const perPage = ref(20)
 const total = ref(0)
 const totalPages = ref(0)
 const searchKeyword = ref('')
+const filterAuthor = ref('')
 const activeTab = ref<'published' | 'favorites' | 'draft' | 'deleted'>('published')
+
+const searchPlaceholder = computed(() => {
+  if (filterAuthor.value) return '搜索该作者的博文...'
+  if (activeTab.value === 'favorites') return '搜索收藏...'
+  if (activeTab.value === 'draft') return '搜索草稿...'
+  return '搜索动态...'
+})
 
 const showCreateDialog = ref(false)
 const editingPost = ref<BlogPost | null>(null)
@@ -199,7 +210,9 @@ onMounted(async () => { await loadPosts(); checkDraft() })
 let searchTimer: any = null
 function onSearchInput() { clearTimeout(searchTimer); searchTimer = setTimeout(() => { currentPage.value = 1; loadPosts() }, 300) }
 
-function switchTab(key: string) { activeTab.value = key as any; currentPage.value = 1; loadPosts() }
+function onFilterAuthor(author: string) { filterAuthor.value = author; activeTab.value = 'published'; currentPage.value = 1; searchKeyword.value = ''; loadPosts() }
+
+function switchTab(key: string) { activeTab.value = key as any; currentPage.value = 1; searchKeyword.value = ''; filterAuthor.value = ''; loadPosts() }
 
 async function checkDraft() {
   try { const res: any = await getDraft(); draftCount.value = Array.isArray(res) ? res.length : (res ? 1 : 0) }
@@ -217,9 +230,9 @@ async function loadPosts() {
       posts.value = Array.isArray(drafts) ? drafts : (drafts ? [drafts] : [])
       total.value = posts.value.length; totalPages.value = 1; loading.value = false; return
     } else if (activeTab.value === 'favorites') {
-      res = await request.get('/api/posts/favorites', { params: { page: currentPage.value, per_page: perPage.value } })
+      res = await request.get('/api/posts/favorites', { params: { page: currentPage.value, per_page: perPage.value, search: searchKeyword.value || undefined } })
     } else {
-      res = await getPosts({ page: currentPage.value, per_page: perPage.value, search: searchKeyword.value })
+      res = await getPosts({ page: currentPage.value, per_page: perPage.value, search: searchKeyword.value || undefined })
     }
     if (res) { posts.value = res.posts || []; total.value = res.total || 0; totalPages.value = res.total_pages || 0 }
   } catch (e: any) { ElMessage.error('加载失败') }
@@ -282,9 +295,12 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .publish-preview-remove { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; background: #ef4444; color: #fff; border: none; border-radius: 50%; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
 /* 搜索框 */
-.search-box { position: relative; margin-bottom: 12px; }
-.search-input { width: 100%; padding: 10px 16px 10px 38px; border: 1px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
+.search-box { position: relative; margin-bottom: 12px; display: flex; align-items: center; }
+.search-icon { position: absolute; left: 12px; z-index: 1; pointer-events: none; }
+.search-input { width: 100%; padding: 10px 16px 10px 36px; border: 1px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
 .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+.filter-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; background: #eff6ff; color: #3b82f6; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+.filter-tag-close { background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 14px; line-height: 1; }
 
 /* 工具栏 */
 .blog-tabs { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
