@@ -12,7 +12,7 @@
       </div>
 
       <!-- 发布框（内联） -->
-      <div v-if="activeTab !== 'deleted'" class="publish-box" :class="{ 'drag-over': publishDragOver }"
+      <div v-if="activeTab === 'published'" class="publish-box" :class="{ 'drag-over': publishDragOver }"
         @dragover.prevent="publishDragOver = true"
         @dragleave.prevent="publishDragOver = false"
         @drop.prevent="onPublishDrop">
@@ -56,7 +56,7 @@
         <input v-model="searchKeyword" :placeholder="searchPlaceholder" @keyup.enter="onSearchEnter"
           class="search-input" />
         <span v-if="filterAuthor" class="filter-tag">
-          作者: {{ filterAuthor }} <button @click="filterAuthor = ''" class="filter-tag-close">&times;</button>
+          作者: {{ filterAuthor }} <button @click="clearFilterAuthor" class="filter-tag-close">&times;</button>
         </span>
       </div>
 
@@ -207,7 +207,8 @@ async function handlePublish() {
 // ===== 数据加载 =====
 onMounted(async () => { await loadPosts(); checkDraft() })
 
-function onSearchEnter() { currentPage.value = 1; loadPosts() }
+function onSearchEnter() { searchKeyword.value = searchKeyword.value.trim(); currentPage.value = 1; loadPosts() }
+function clearFilterAuthor() { filterAuthor.value = ''; currentPage.value = 1; loadPosts() }
 
 function onFilterAuthor(author: string) { filterAuthor.value = author; activeTab.value = 'published'; currentPage.value = 1; searchKeyword.value = ''; loadPosts() }
 
