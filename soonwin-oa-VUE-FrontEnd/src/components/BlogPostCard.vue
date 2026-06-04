@@ -389,13 +389,14 @@ defineExpose({ loadHistory })
 .expand-nav-left, .expand-nav-right {
   position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2;
 }
+/* 光标：参考原 posts.html 的 URL 编码 SVG 箭头 */
 .expand-nav-left {
   left: 0;
-  cursor: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cG9seWxpbmUgcG9pbnRzPSIxNiw0IDgsMTIgMTYsMjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzY2NiIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+) 16 16, pointer;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='16,4 8,12 16,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, w-resize;
 }
 .expand-nav-right {
   right: 0;
-  cursor: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cG9seWxpbmUgcG9pbnRzPSI4LDQgMTYsMTIgOCwyMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY2IiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=) 16 16, pointer;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2'/%3E%3C/svg%3E") 16 16, e-resize;
 }
 .expand-nav-center {
   position: absolute; top: 0; height: 55%; left: 33.33%; right: 33.33%;
