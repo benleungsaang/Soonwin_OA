@@ -328,9 +328,13 @@ def serve_avatar(emp_id):
         path = os.path.join(base_dir, f'{emp_id}.{ext}')
         if os.path.exists(path) and os.path.isfile(path):
             return send_file(path)
-    # 无头像时返回默认占位SVG（避免浏览器404错误）
+    # 无头像时返回默认人物剪影SVG
     from flask import make_response
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#eff6ff"/><text x="50" y="62" text-anchor="middle" font-size="40" fill="#93c5fd">?</text></svg>'
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+      <rect width="100" height="100" fill="#eff6ff"/>
+      <circle cx="50" cy="36" r="16" fill="#93c5fd"/>
+      <ellipse cx="50" cy="78" rx="28" ry="20" fill="#93c5fd"/>
+    </svg>'''
     resp = make_response(svg)
     resp.headers['Content-Type'] = 'image/svg+xml'
     resp.headers['Cache-Control'] = 'public, max-age=3600'
