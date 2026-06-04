@@ -43,6 +43,9 @@ ROUTE_ORDER_RECORD_MANAGE = "order_record_manage"  # 订单记录管理
 # 业务员权限
 ROUTE_CUSTOMER_MANAGE = "customer_manage"           # 客户信息管理
 
+# 博客管理（全体共有）
+ROUTE_BLOG_MANAGE = "blog_manage"                   # 博客管理
+
 # 为了兼容性，添加旧的命名方式
 ROUTE_DISPLAY_FILE = ROUTE_DISPLAY_FILE_MANAGE
 ROUTE_PHOTO = ROUTE_PHOTO_MANAGE
@@ -79,5 +82,6 @@ ALL_ROUTES = [
     ROUTE_ATTENDANCE_MANAGE,
     ROUTE_QUOTATION_MANAGE,
     ROUTE_ORDER_RECORD_MANAGE,
-    ROUTE_CUSTOMER_MANAGE
+    ROUTE_CUSTOMER_MANAGE,
+    ROUTE_BLOG_MANAGE
 ]
