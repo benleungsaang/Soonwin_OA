@@ -342,6 +342,5 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 
 .blog-feed { min-height: 300px; }
 .avatar-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
-.avatar-fallback { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; }
-.avatar-fallback > .el-icon { display: flex; align-items: center; justify-content: center; }
+.avatar-fallback { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; line-height: 1; }
 </style>
