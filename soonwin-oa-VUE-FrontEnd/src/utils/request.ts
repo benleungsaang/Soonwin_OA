@@ -50,7 +50,7 @@ const getBaseURL = () => {
 
 const service = axios.create({
   baseURL: getBaseURL(),
-  timeout: 5000, // 增加超时时间
+  timeout: 15000, // 移动端网络波动较大，预留足够超时时间
   headers: {
     'Content-Type': 'application/json;charset=utf-8',
   },
@@ -252,23 +252,23 @@ service.interceptors.response.use(
       if (data && typeof data === 'object') {
         // 处理success/data格式的错误响应
         if ('success' in data && !data.success) {
-          errorMsg = data.message || data.msg || `[${status}] ${error.response.statusText || '服务器错误'}`;
+          errorMsg = data.message || data.msg || `服务器错误(${status})，请稍后重试`;
         }
         // 处理code/msg格式的错误响应
         else if (data.code && data.msg) {
-          errorMsg = `[${data.code}] ${data.msg}`;
+          errorMsg = data.msg;
         } else {
-          errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+          errorMsg = `服务器错误(${status})，请稍后重试`;
         }
       } else {
-        errorMsg = `[${status}] ${error.response.statusText || '服务器错误'}`;
+        errorMsg = `服务器错误(${status})，请稍后重试`;
       }
     } else if (error.request) {
-      // 请求已发出但没有收到响应（网络错误等）
-      errorMsg = '网络连接失败，请检查网络';
+      // 请求已发出但没有收到响应（超时、网络断开等）
+      errorMsg = '网络连接超时或信号不稳定，请检查WiFi/移动网络后重试';
     } else {
       // 其他错误
-      errorMsg = error.message || '请求配置错误';
+      errorMsg = error.message || '请求异常，请稍后重试';
     }
     // 显示错误信息，延长显示时间
     ElMessage({

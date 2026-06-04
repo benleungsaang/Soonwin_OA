@@ -293,7 +293,6 @@ const handlePunch = async (): Promise<void> => {
   } catch (error: any) {
     // 7. 异常处理逻辑
     console.error('打卡失败:', error);
-    const errorMsg = error.response?.data?.msg || '打卡失败';
     const empId = userInfo.value.emp_id;
 
     if (!empId) {
@@ -301,16 +300,21 @@ const handlePunch = async (): Promise<void> => {
       return;
     }
 
-    // 8. 处理特定异常场景
+    // 网络超时/连接失败：request.ts已统一显示"网络连接超时或信号不稳定…"提示
+    if (!error.response) {
+      return;
+    }
+
+    // 8. 服务器返回错误，根据错误信息执行对应恢复流程（request.ts已显示具体错误消息）
+    const errorMsg = error.response?.data?.msg || '';
+    const errorStatus = error.response?.data?.data?.status;
+
     if (errorMsg.includes('设备ID未提供') || errorMsg.includes('需要绑定设备')) {
       // 首次打卡绑定设备
       await handleFirstPunch(empId);
-    } else if (errorMsg.includes('设备ID变化') || error.response?.data?.data?.status === 'device_change_required') {
+    } else if (errorMsg.includes('设备ID变化') || errorStatus === 'device_change_required') {
       // 设备ID变化确认
       await confirmDeviceChange(empId);
-    } else {
-      // 通用错误提示
-      ElMessage.error(errorMsg);
     }
   } finally {
     // 9. 重置加载状态

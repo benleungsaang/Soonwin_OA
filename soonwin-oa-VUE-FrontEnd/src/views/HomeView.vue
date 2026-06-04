@@ -1,17 +1,33 @@
 ﻿<template>
   <div class="home-container">
+    <!-- 二维码弹窗 -->
+    <el-dialog v-model="showQrCodeDialog" title="网站二维码" width="300px" align-center>
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <canvas ref="qrCodeCanvasRef"></canvas>
+        <p style="margin-top: 10px; color: #666; font-size: 13px;">扫描二维码访问网站首页</p>
+      </div>
+    </el-dialog>
+
     <el-container style="height: 100vh;">
       <!-- 头部区域：标题 + 右上角退出登录 -->
       <el-header class="header">
         <h1>{{ appTitle }}</h1>
-        <el-button
-          icon="SwitchButton"
-          class="logout-btn"
-          @click="logout"
-          v-if="hasToken"
-        >
-          {{ currentUserName && currentUserEmpId ? `用户 ${currentUserEmpId} [ ${currentUserName} ] 登出` : '登出' }}
-        </el-button>
+        <div class="header-actions">
+          <el-button
+            class="qr-btn"
+            @click="showQrCodeDialog = true"
+            v-if="hasToken"
+          >
+            <el-icon><Grid /></el-icon><span class="btn-text">二维码</span>
+          </el-button>
+          <el-button
+            class="logout-btn"
+            @click="logout"
+            v-if="hasToken"
+          >
+            <el-icon><SwitchButton /></el-icon><span class="btn-text">{{ currentUserName && currentUserEmpId ? `用户 ${currentUserEmpId} [ ${currentUserName} ] 登出` : '登出' }}</span>
+          </el-button>
+        </div>
       </el-header>
 
       <!-- 主体菜单区域：靠上展示无位移 -->
@@ -155,13 +171,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import QRCode from 'qrcode';
 // 导入权限工具函数
 import {
   hasToken as checkHasToken,
@@ -191,6 +208,21 @@ const userRole = ref<string | null>(null);
 const currentUserName = ref<string | null>(null);
 // 当前用户员工ID
 const currentUserEmpId = ref<string | null>(null);
+
+// 二维码弹窗
+const showQrCodeDialog = ref(false);
+const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+watch(showQrCodeDialog, async (newVal) => {
+  if (newVal) {
+    await nextTick();
+    if (qrCodeCanvasRef.value) {
+      const rootUrl = window.location.origin + '/';
+      await QRCode.toCanvas(qrCodeCanvasRef.value, rootUrl, { width: 200, margin: 2 });
+    }
+  }
+});
+
 // 折叠状态控制：默认订单跟进展开，其余折叠
 const collapseStatus = ref({
   resource: false,  // 资源管理：默认折叠
@@ -375,14 +407,30 @@ const logout = async () => {
 }
 
 .logout-btn {
-  position: absolute;
-  right: 20px;
   color: rgb(255, 255, 255);
   background-color: rgba(82, 177, 255, 0.1);
   font-size: 14px;
   border: rgba(0, 0, 0, 0.2) solid 1px;
 }
 .logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.header-actions {
+  position: absolute;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.qr-btn {
+  color: rgb(255, 255, 255);
+  background-color: rgba(82, 177, 255, 0.1);
+  font-size: 14px;
+  border: rgba(0, 0, 0, 0.2) solid 1px;
+}
+.qr-btn:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
@@ -527,13 +575,25 @@ const logout = async () => {
   .resource-column { order: 2; } /* 资源管理-第2 */
   .other-column { order: 3; }   /* 其它功能-第3 */
 
-  /* 移动端样式优化 */
-  .header h1 {
-    font-size: 18px;
+  /* 头部移动端：改为两端对齐，防止标题与按钮重叠 */
+  .header {
+    justify-content: space-between;
+    padding: 0 10px;
+    height: 50px;
   }
-  .logout-btn {
-    font-size: 12px;
-    right: 10px;
+  .header h1 {
+    font-size: 15px;
+    flex-shrink: 1;
+    margin-right: 8px;
+  }
+  .header-actions {
+    position: static;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .logout-btn, .qr-btn {
+    font-size: 11px;
+    padding: 5px 8px;
   }
   .card {
     width: 95%;
@@ -552,10 +612,22 @@ const logout = async () => {
 /* 小屏手机适配（480px以下） */
 @media (max-width: 480px) {
   .header {
-    padding: 0 10px;
+    padding: 0 6px;
+    height: 44px;
   }
   .header h1 {
-    font-size: 16px;
+    font-size: 13px;
+    margin-right: 4px;
+  }
+  .header-actions {
+    gap: 3px;
+  }
+  .logout-btn, .qr-btn {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+  .btn-text {
+    display: none;
   }
   .el-menu-item {
     height: 45px !important;

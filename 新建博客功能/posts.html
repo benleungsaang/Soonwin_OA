@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>微博客</title>
+  <link rel="icon" href="/static/elephant.ico" type="image/x-icon">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: '#1f2937',
+          },
+        },
+      }
+    }
+  </script>
+
+  <style>
+    input[type="file"] { display: none; }
+    .sidebar-item:hover { background-color: #f3f4f6; }
+    .sidebar-item.active { background-color: #eff6ff; color: #3b82f6; }
+    .sidebar-icon.active { background-color: #eff6ff; color: #3b82f6; }
+
+    /* 触控优化 */
+    html { touch-action: manipulation; scrollbar-gutter: stable; }
+    @media (max-width: 768px) {
+      button, label, a, input[type="checkbox"], select { min-height: 44px; min-width: 44px; }
+    }
+    @media (hover: hover) {
+      .sidebar-item:hover { background-color: #f3f4f6; }
+    }
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.75);
+      color: white;
+      padding: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px));
+      border-radius: 8px;
+      z-index: 9999;
+      animation: fadeInOut 2s ease-in-out;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .media-grid { display: grid; gap: 4px; grid-template-columns: 1fr 1fr 1fr; }
+    .media-grid.col-1 { grid-template-columns: 1fr; }
+    .media-item { position: relative; overflow: hidden; background: #000; border-radius: 8px; cursor: pointer; }
+    .video-badge { position: absolute; right: 6px; bottom: 6px; background: rgba(0,0,0,0.65); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; gap: 3px; pointer-events: none; }
+    .media-item img, .media-item video { width: 100%; height: 200px; object-fit: cover; display: block; }
+    .post-media-wrapper { padding: 0; }
+    .post-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .post-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+    /* Lightbox */
+    .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+    .lightbox-content { position: relative; max-width: 100%; max-height: 70vh; display: flex; align-items: center; justify-content: center; cursor: default; }
+    .lightbox-content img, .lightbox-content video { max-width: 100%; max-height: 70vh; object-fit: contain; pointer-events: none; }
+    .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; z-index: 10; }
+    .lightbox-nav:hover { background: rgba(0,0,0,0.8); }
+    .lightbox-nav.prev { left: 20px; }
+    .lightbox-nav.next { right: 20px; }
+    .lightbox-back { position: absolute; top: 20px; left: 20px; width: 40px; height: 40px; background: rgba(0,0,0,0.5); border: none; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    .lightbox-back:hover { background: rgba(0,0,0,0.8); }
+    .lightbox-counter { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 14px; background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 12px; }
+    .preview-item { position: relative; }
+    .preview-item .remove-btn { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: #ef4444; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+    .post-form-area.drag-over { background-color: rgba(59, 130, 246, 0.1); border: 2px dashed #3b82f6; border-radius: 12px; }
+    /* 移动端适配 */
+    @media screen and (min-width: 769px) {
+      #mobile-header { display: none !important; }
+      #desktop-sidebar { display: flex !important; }
+      main { padding-left: 56px !important; }
+    }
+    @media screen and (max-width: 768px) {
+      #mobile-header { display: block !important; }
+      #desktop-sidebar { display: none !important; }
+      main { margin-left: 0 !important; padding: 72px 16px 16px 16px !important; max-width: 100% !important; }
+      .post-form-area { padding: 12px !important; }
+      .post-form-area textarea { font-size: 16px; }
+      .preview-item { width: 60px !important; height: 60px !important; }
+      .toast { bottom: max(80px, calc(env(safe-area-inset-bottom, 0px) + 16px)) !important; top: auto !important; }
+      /* 媒体网格触控间距 */
+      .media-grid { gap: 8px; }
+      .media-item img, .media-item video { height: auto; aspect-ratio: 1; max-height: 200px; }
+      /* 文章卡片触控反馈 */
+      .post-card:active { transform: scale(0.98); }
+      /* Lightbox 移动端 */
+      .lightbox-nav { width: 44px; height: 44px; }
+      .lightbox-nav.prev { left: 8px; }
+      .lightbox-nav.next { right: 8px; }
+      .lightbox-back { width: 44px; height: 44px; top: 12px; left: 12px; }
+      .lightbox-counter { top: 16px; }
+      .lightbox-content img, .lightbox-content video { max-height: 60vh; }
+      /* 移除无效hover */
+      .post-card:hover { box-shadow: none; }
+    }
+    @media (hover: none) {
+      .post-card:active { transform: scale(0.98); }
+    }
+    @media screen and (max-width: 640px) {
+      .media-grid { grid-template-columns: 1fr 1fr !important; }
+    }
+    /* 展开模式 */
+    .expanded-view { max-height: 50vh; overflow: hidden; background: #f3f4f6; border-radius: 8px; transition: max-height 0.35s ease; }
+    .expanded-controls { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.05); border-radius: 8px 8px 0 0; }
+    .expanded-controls button { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; cursor: pointer; }
+    .expanded-controls button:hover { background: #e5e7eb; }
+    .expanded-media-wrap { position: relative; display: flex; align-items: center; justify-content: center; max-height: calc(50vh - 40px); overflow: hidden; min-height: 150px; transition: min-height 0.35s ease, max-height 0.35s ease; }
+    .expanded-media-wrap img { max-width: 100%; max-height: calc(50vh - 56px); object-fit: contain; transition: transform 0.3s; }
+    .expanded-media-wrap video { max-width: 100%; max-height: calc(50vh - 56px); }
+    .expand-nav-left, .expand-nav-right { position: absolute; top: 0; bottom: 0; width: 33.33%; z-index: 2; }
+    .expand-nav-left { left: 0; cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpolyline points='16,4 8,12 16,20' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, w-resize; }
+    .expand-nav-right { right: 0; cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpolyline points='8,4 16,12 8,20' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 12 12, e-resize; }
+    .expand-nav-center { position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%; z-index: 2; cursor: zoom-out; }
+    .media-item.collapsed { display: none; }
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex">
+  <!-- 移动端顶部导航 -->
+  <header id="mobile-header" class="fixed top-0 left-0 right-0 bg-white shadow-md z-50 px-4 py-3 hidden">
+    <div class="flex items-center justify-between">
+      <button id="mobile-menu-btn" class="p-2 -ml-2 text-gray-600">
+        <i class="fa fa-bars text-xl"></i>
+      </button>
+      <span class="text-lg font-bold text-gray-800">微博客</span>
+      <div class="w-10"></div>
+    </div>
+  </header>
+
+  <!-- 移动端侧边抽屉 -->
+  <div id="mobile-drawer" class="fixed inset-0 z-50 hidden">
+    <div id="drawer-overlay" class="absolute inset-0 bg-black/50"></div>
+    <aside id="drawer-content" class="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-xl transform -translate-x-full transition-transform duration-300">
+      <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+        <h1 class="text-lg font-bold text-gray-800">物流工具</h1>
+        <button id="close-drawer" class="p-2 text-gray-400"><i class="fa fa-times text-xl"></i></button>
+      </div>
+      <nav class="flex-1 py-4">
+        <a href="/" class="sidebar-item flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fa fa-check-square-o w-5"></i><span>待办事项</span>
+        </a>
+        <a href="/cargo" class="sidebar-item flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fa fa-cubes w-5"></i><span>货物计算</span>
+        </a>
+        <a href="/posts" class="sidebar-item active flex items-center gap-3 px-4 py-3 text-gray-700">
+          <i class="fa fa-instagram w-5"></i><span>微博客</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t border-gray-200 text-xs text-gray-400">
+        <p>端口: 5123</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 桌面端折叠侧边栏 -->
+  <aside id="desktop-sidebar" class="fixed left-0 top-0 bottom-0 w-14 bg-white shadow-lg flex flex-col items-center py-3 z-30">
+    <button id="desktop-menu-btn" class="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors mb-4" title="展开菜单">
+      <i class="fa fa-bars text-lg"></i>
+    </button>
+    <nav class="flex-1 flex flex-col gap-1 py-2">
+      <a href="/" class="sidebar-icon w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary transition-colors" title="待办事项">
+        <i class="fa fa-check-square-o text-lg"></i>
+      </a>
+      <a href="/cargo" class="sidebar-icon w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary transition-colors" title="货物计算">
+        <i class="fa fa-cubes text-lg"></i>
+      </a>
+      <a href="/posts" class="sidebar-icon active w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary transition-colors" title="微博客">
+        <i class="fa fa-instagram text-lg"></i>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 p-6 max-w-2xl mx-auto">
+    <!-- 发布框 -->
+    <div class="bg-white rounded-xl shadow-md p-4 mb-6 post-form-area">
+      <div class="flex gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <i class="fa fa-user text-primary"></i>
+        </div>
+        <div class="flex-1">
+          <textarea id="post-content" placeholder="分享生活点滴..." rows="3"
+            style="padding: 10px;"
+            class="w-full border-0 focus:ring-0 resize-none text-gray-800 placeholder-gray-400 text-lg"></textarea>
+
+          <!-- 图片预览区 -->
+          <div id="preview-area" class="hidden mb-3">
+            <div class="flex flex-wrap gap-2" id="preview-list"></div>
+          </div>
+
+          <!-- 视频预览区 -->
+          <div id="video-preview-area" class="hidden mb-3"></div>
+
+          <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+            <div class="flex gap-2">
+              <label class="p-2 text-gray-400 hover:text-primary cursor-pointer rounded-lg hover:bg-gray-100">
+                <i class="fa fa-image"></i>
+                <span class="text-sm ml-1">图片</span>
+                <input type="file" id="image-input" accept="image/*" multiple onchange="handleImageSelect(this)">
+              </label>
+              <label class="p-2 text-gray-400 hover:text-primary cursor-pointer rounded-lg hover:bg-gray-100">
+                <i class="fa fa-video-camera"></i>
+                <span class="text-sm ml-1">视频</span>
+                <input type="file" id="video-input" accept="video/*" onchange="handleVideoSelect(this)">
+              </label>
+            </div>
+            <button onclick="createPost()" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg font-medium">
+              发布
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div class="mb-4">
+      <div class="relative">
+        <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        <input type="text" id="search-posts" placeholder="搜索动态..."
+          class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+      </div>
+    </div>
+
+    <!-- 动态列表 -->
+    <div id="posts-feed" class="space-y-6"></div>
+  </main>
+
+  <!-- 转发弹窗 -->
+  <div id="repost-modal" class="fixed inset-0 z-[10001] hidden flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" onclick="closeRepost()"></div>
+    <div class="relative bg-white rounded-xl shadow-xl mx-4 w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <h3 class="font-medium text-gray-800">转发动态</h3>
+        <button onclick="closeRepost()" class="p-1 text-gray-400 hover:text-gray-600"><i class="fa fa-times text-lg"></i></button>
+      </div>
+      <div class="overflow-y-auto p-4">
+        <textarea id="repost-comment" placeholder="说点什么吧..." rows="3"
+          class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none resize-none mb-3"></textarea>
+        <div id="repost-preview" class="p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm text-gray-500"></div>
+      </div>
+      <div class="flex gap-2 px-4 py-3 border-t border-gray-100">
+        <button onclick="closeRepost()" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm">取消</button>
+        <button onclick="submitRepost()" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm">转发</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
+    <button class="lightbox-back" onclick="closeLightbox()"><i class="fa fa-arrow-left"></i></button>
+    <span class="lightbox-counter" id="lb-counter"></span>
+    <button class="lightbox-nav prev" id="lb-prev" onclick="event.stopPropagation(); prevMedia()"><i class="fa fa-chevron-left"></i></button>
+    <div class="lightbox-content" id="lightbox-media" onclick="event.stopPropagation()"></div>
+    <button class="lightbox-nav next" id="lb-next" onclick="event.stopPropagation(); nextMedia()"><i class="fa fa-chevron-right"></i></button>
+  </div>
+
+  <script>
+    const API = '/api/posts';
+    let posts = [];
+    let selectedImages = [];
+    let selectedVideos = [];
+    let searchTerm = '';
+
+    // 点赞状态
+    if (!window._likedPosts) window._likedPosts = new Set();
+
+    // Lightbox state
+    let lbPostId = null;
+    let lbIdx = 0;
+    let lbMedia = [];
+
+    // 展开模式状态
+    let expandedPostId = null;
+    let expandedIdx = null;
+    let rotateDeg = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPosts();
+      setupImageUpload();
+      // 搜索（含留言内容）
+      let searchTimer;
+      document.getElementById('search-posts').addEventListener('input', (e) => {
+        searchTerm = e.target.value.trim();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadPosts(), 300);
+      });
+      // 移动端 textarea 节省空间
+      if (window.innerWidth <= 768) {
+        const ta = document.getElementById('post-content');
+        if (ta) ta.setAttribute('rows', '2');
+      }
+    });
+
+    // ========== Posts Loading & Rendering ==========
+    async function loadPosts() {
+      try {
+        let url = API;
+        if (searchTerm) url += `?search=${encodeURIComponent(searchTerm)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        posts = data.posts || [];
+        renderPosts();
+      } catch (e) {
+        console.error('加载失败:', e);
+      }
+    }
+
+    function renderPosts() {
+      const feed = document.getElementById('posts-feed');
+
+      if (posts.length === 0 && !searchTerm) {
+        feed.innerHTML = `
+          <div class="text-center py-12 text-gray-400">
+            <i class="fa fa-instagram text-4xl mb-3 opacity-30"></i>
+            <p>还没有动态，发布第一条吧</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (posts.length === 0 && searchTerm) {
+        feed.innerHTML = `
+          <div class="text-center py-12 text-gray-400">
+            <i class="fa fa-search text-4xl mb-3 opacity-30"></i>
+            <p>没有找到匹配的动态</p>
+          </div>
+        `;
+        return;
+      }
+
+      feed.innerHTML = posts.map(post => {
+        const media = post.media || [];
+        const gridClass = media.length === 1 ? '' : 'col-3';
+
+        const liked = window._likedPosts && window._likedPosts.has(post.id);
+        const likeCount = post.likeCount || 0;
+
+        return `
+          <article class="post-card bg-white rounded-xl shadow-md overflow-hidden" data-post-id="${post.id}">
+            <div class="p-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                  <img src="/static/elephant.ico" alt="avatar" class="w-full h-full object-cover">
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">我</p>
+                  <p class="text-xs text-gray-400">${formatTime(post.createdAt)}</p>
+                </div>
+              </div>
+              <button onclick="deletePost('${post.id}')" class="p-2 text-gray-400 hover:text-danger rounded-lg hover:bg-gray-100">
+                <i class="fa fa-trash-o"></i>
+              </button>
+            </div>
+            ${post.content ? `
+            <div class="px-4 pb-3">
+              <p class="text-gray-800 whitespace-pre-wrap">${escapeHtml(post.content)}</p>
+            </div>
+            ` : ''}
+            ${post.repost ? `
+            <!-- 转发的原帖 -->
+            <div class="mx-4 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer" onclick="event.stopPropagation();">
+              <div class="flex items-center gap-2 mb-1">
+                <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                  <img src="/static/elephant.ico" alt="" class="w-full h-full object-cover">
+                </div>
+                <span class="text-xs font-medium text-gray-700">我</span>
+                <span class="text-xs text-gray-400">${formatTime(post.repost.createdAt)}</span>
+              </div>
+              ${post.repost.content ? `<p class="text-sm text-gray-600 whitespace-pre-wrap">${escapeHtml(post.repost.content)}</p>` : ''}
+              ${(post.repost.media || []).length > 0 ? `
+              <div class="media-grid ${(post.repost.media || []).length === 1 ? '' : 'col-3'} mt-2">
+                ${post.repost.media.map(m => m.mediaType === 'video'
+                  ? `<div class="media-item"><video src="${m.url}" preload="metadata" class="w-full h-20 object-cover rounded"></video><span class="video-badge"><i class="fa fa-video-camera"></i>视频</span></div>`
+                  : `<div class="media-item"><img src="${m.thumbnailUrl || m.url}" alt="" class="w-full h-20 object-cover rounded"></div>`
+                ).join('')}
+              </div>
+              ` : ''}
+            </div>
+            ` : ''}
+            ${media.length > 0 ? `
+            <div class="post-media-wrapper px-4 pb-3">
+              <div class="media-grid ${gridClass}">
+                ${media.map((m, idx) => `
+                  <div class="media-item" onclick="${m.mediaType === 'video' ? `openLightbox('${post.id}', ${idx})` : `expandMedia('${post.id}', ${idx})`}">
+                    ${m.mediaType === 'video'
+                      ? `<video src="${m.url}" preload="metadata"></video><span class="video-badge"><i class="fa fa-video-camera"></i>视频</span>`
+                      : `<picture>
+                        <source srcset="${m.thumbnailUrl || m.url}">
+                        <img src="${m.url}" alt="" loading="lazy">
+                      </picture>`
+                    }
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            ` : ''}
+            <!-- 功能条 -->
+            <div class="flex items-center border-t border-gray-50 text-gray-400 text-sm">
+              <button onclick="openRepost('${post.id}')" class="flex-1 flex items-center justify-center gap-1 py-2.5 hover:text-gray-600 transition-colors">
+                <i class="fa fa-share"></i>
+                <span>转发</span>
+              </button>
+              <button onclick="toggleComments('${post.id}')" class="flex-1 flex items-center justify-center gap-1 py-2.5 hover:text-primary transition-colors">
+                <i class="fa fa-comment-o"></i>
+                <span id="comment-count-${post.id}">${post.commentCount || '留言'}</span>
+              </button>
+              <button onclick="toggleLike('${post.id}')" class="flex-1 flex items-center justify-center gap-1 py-2.5 hover:text-danger transition-colors ${liked ? 'text-danger' : ''}">
+                <i class="fa ${liked ? 'fa-heart' : 'fa-heart-o'}"></i>
+                <span id="like-count-${post.id}">${likeCount || '点赞'}</span>
+              </button>
+            </div>
+            <!-- 留言区域 -->
+            <div id="comments-section-${post.id}" class="hidden bg-gray-50 border-t border-gray-100 px-4 py-3"></div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    // ========== Lightbox ==========
+    function openLightbox(postId, idx) {
+      const post = posts.find(p => p.id === postId);
+      if (!post) return;
+
+      lbPostId = postId;
+      lbMedia = post.media || [];
+      lbIdx = idx;
+
+      renderLightboxMedia();
+      document.getElementById('lightbox').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      document.addEventListener('touchmove', preventScroll, { passive: false });
+    }
+
+    function renderLightboxMedia() {
+      const container = document.getElementById('lightbox-media');
+      const m = lbMedia[lbIdx];
+      if (!m) return;
+
+      if (m.mediaType === 'video') {
+        container.innerHTML = `<video src="${m.url}" controls autoplay class="max-w-full max-h-[70vh]"></video>`;
+      } else {
+        container.innerHTML = `<img src="${m.url}" alt="" class="max-w-full max-h-[70vh] object-contain">`;
+      }
+
+      document.getElementById('lb-counter').textContent = `${lbIdx + 1} / ${lbMedia.length}`;
+      document.getElementById('lb-prev').style.display = (lbIdx <= 0 || lbMedia.length <= 1) ? 'none' : 'flex';
+      document.getElementById('lb-next').style.display = (lbIdx >= lbMedia.length - 1 || lbMedia.length <= 1) ? 'none' : 'flex';
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.add('hidden');
+      document.body.style.overflow = '';
+      document.removeEventListener('touchmove', preventScroll);
+    }
+
+    function prevMedia() {
+      if (lbIdx > 0) {
+        lbIdx--;
+        renderLightboxMedia();
+      }
+    }
+
+    function nextMedia() {
+      if (lbIdx < lbMedia.length - 1) {
+        lbIdx++;
+        renderLightboxMedia();
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!document.getElementById('lightbox').classList.contains('hidden')) {
+          closeLightbox();
+        }
+      }
+      if (e.key === 'ArrowLeft') prevMedia();
+      if (e.key === 'ArrowRight') nextMedia();
+    });
+
+    // ========== 展开模式 ==========
+    function expandMedia(postId, idx) {
+      if (expandedPostId === postId && expandedIdx === idx) { collapseMedia(); return; }
+      collapseMedia();
+      expandedPostId = postId;
+      expandedIdx = idx;
+      rotateDeg = 0;
+      const article = document.querySelector(`[data-post-id="${postId}"]`);
+      const mediaWrapper = article.querySelector('.post-media-wrapper');
+      const post = posts.find(p => p.id === postId);
+      const m = post.media[idx];
+      const hasPrev = idx > 0;
+      const hasNext = idx < post.media.length - 1;
+
+      mediaWrapper.innerHTML = `
+        <div class="expanded-view">
+          <div class="expanded-controls">
+            <button onclick="collapseMedia()"><i class="fa fa-chevron-up"></i> 收起</button>
+            <div class="flex gap-2">
+              <button onclick="event.stopPropagation(); rotateExpanded()"><i class="fa fa-repeat"></i> 旋转</button>
+              <button onclick="openLightbox('${postId}', ${idx})"><i class="fa fa-search-plus"></i> 查看原图</button>
+            </div>
+          </div>
+          <div class="expanded-media-wrap">
+            ${hasPrev ? '<div class="expand-nav-left" onclick="event.stopPropagation(); prevExpanded()"></div>' : ''}
+            ${hasNext ? '<div class="expand-nav-right" onclick="event.stopPropagation(); nextExpanded()"></div>' : ''}
+            <div class="expand-nav-center" onclick="collapseMedia()"></div>
+            ${m.mediaType === 'video'
+              ? `<video src="${m.url}" controls></video>`
+              : `<img src="${m.url}" alt="" style="transform: rotate(0deg);">`
+            }
+          </div>
+        </div>
+      `;
+      article.querySelectorAll('.media-item').forEach(el => el.classList.add('collapsed'));
+      // 滚动到展开区域（仅当展开区不在视野内）
+      const expanded = article.querySelector('.expanded-view');
+      if (expanded) expanded.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function collapseMedia() {
+      if (!expandedPostId) return;
+      const article = document.querySelector(`[data-post-id="${expandedPostId}"]`);
+      if (article) {
+        article.querySelectorAll('.media-item').forEach(el => el.classList.remove('collapsed'));
+      }
+      expandedPostId = null;
+      expandedIdx = null;
+      rotateDeg = 0;
+      renderPosts();
+    }
+
+    function prevExpanded() {
+      const post = posts.find(p => p.id === expandedPostId);
+      if (post && expandedIdx > 0) {
+        expandMedia(expandedPostId, expandedIdx - 1);
+      }
+    }
+
+    function nextExpanded() {
+      const post = posts.find(p => p.id === expandedPostId);
+      if (post && expandedIdx < post.media.length - 1) {
+        expandMedia(expandedPostId, expandedIdx + 1);
+      }
+    }
+
+    function rotateExpanded() {
+      rotateDeg += 90;
+      const view = document.querySelector('.expanded-view');
+      const wrap = document.querySelector('.expanded-media-wrap');
+      const article = document.querySelector(`[data-post-id="${expandedPostId}"]`);
+      const img = wrap?.querySelector('img');
+      const vid = wrap?.querySelector('video');
+      const el = img || vid;
+      if (!el) return;
+      el.style.transform = `rotate(${rotateDeg}deg)`;
+      const effectiveDeg = rotateDeg % 360;
+      // 定锚当前高度为显式像素值，使 transition 可插值
+      if (wrap) wrap.style.minHeight = wrap.getBoundingClientRect().height + 'px';
+      if (view) view.style.maxHeight = view.getBoundingClientRect().height + 'px';
+      // 强制重排后设置目标值
+      requestAnimationFrame(() => {
+        if (effectiveDeg === 90 || effectiveDeg === 270) {
+          const targetH = el.getBoundingClientRect().width;
+          if (wrap) { wrap.style.minHeight = targetH + 'px'; wrap.style.maxHeight = '2000px'; }
+          if (view) view.style.maxHeight = '2000px';
+        } else {
+          if (wrap) { wrap.style.minHeight = '150px'; wrap.style.maxHeight = 'calc(50vh - 40px)'; }
+          if (view) view.style.maxHeight = '50vh';
+        }
+      });
+    }
+
+    // ========== Image/Video Upload ==========
+    function handleImageSelect(input) {
+      const files = Array.from(input.files);
+      if (files.length === 0) return;
+
+      if (selectedImages.length + files.length > 9) {
+        showToast('最多只能选择9张图片');
+        return;
+      }
+
+      files.forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          selectedImages.push({ file, preview: e.target.result });
+          renderPreviews();
+        };
+        reader.readAsDataURL(file);
+      });
+      input.value = '';
+    }
+
+    function handleVideoSelect(input) {
+      const files = Array.from(input.files);
+      if (files.length === 0) return;
+
+      if (selectedVideos.length + files.length > 1) {
+        showToast('最多只能选择1个视频');
+        return;
+      }
+
+      files.forEach(file => {
+        if (!file.type.startsWith('video/')) return;
+        const url = URL.createObjectURL(file);
+        selectedVideos.push({ file, preview: url });
+        renderVideoPreviews();
+      });
+      input.value = '';
+    }
+
+    function renderVideoPreviews() {
+      const area = document.getElementById('video-preview-area');
+      if (!area) return;
+
+      if (selectedVideos.length === 0) {
+        area.classList.add('hidden');
+        return;
+      }
+
+      area.classList.remove('hidden');
+      area.innerHTML = `<div class="flex flex-wrap gap-2" id="video-preview-list"></div>`;
+      const list = document.getElementById('video-preview-list');
+      list.innerHTML = selectedVideos.map((vid, i) => `
+        <div class="preview-item w-20 h-20 rounded-lg overflow-hidden border border-gray-200 relative">
+          <video src="${vid.preview}" class="w-full h-full object-cover"></video>
+          <span class="remove-btn" onclick="removeVideo(${i})">×</span>
+        </div>
+      `).join('');
+    }
+
+    function removeVideo(index) {
+      URL.revokeObjectURL(selectedVideos[index].preview);
+      selectedVideos.splice(index, 1);
+      renderVideoPreviews();
+    }
+
+    function removeImage(index) {
+      selectedImages.splice(index, 1);
+      renderPreviews();
+    }
+
+    function setupImageUpload() {
+      const textarea = document.getElementById('post-content');
+
+      textarea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        textarea.closest('.post-form-area')?.classList.add('drag-over');
+      });
+
+      textarea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        textarea.closest('.post-form-area')?.classList.remove('drag-over');
+      });
+
+      textarea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        textarea.closest('.post-form-area')?.classList.remove('drag-over');
+
+        const files = Array.from(e.dataTransfer.files);
+        const imageFiles = files.filter(f => f.type.startsWith('image/'));
+        const videoFiles = files.filter(f => f.type.startsWith('video/'));
+
+        if (imageFiles.length > 0) {
+          if (selectedImages.length + imageFiles.length > 9) {
+            showToast('最多只能选择9张图片');
+            return;
+          }
+          imageFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              selectedImages.push({ file, preview: ev.target.result });
+              renderPreviews();
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        if (videoFiles.length > 0) {
+          if (selectedVideos.length + videoFiles.length > 1) {
+            showToast('最多只能选择1个视频');
+            return;
+          }
+          videoFiles.forEach(file => {
+            const url = URL.createObjectURL(file);
+            selectedVideos.push({ file, preview: url });
+            renderVideoPreviews();
+          });
+        }
+      });
+
+      textarea.addEventListener('paste', (e) => {
+        const items = Array.from(e.clipboardData.items);
+
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            e.preventDefault();
+            const file = item.getAsFile();
+            if (!file) return;
+            if (selectedImages.length >= 9) {
+              showToast('最多只能选择9张图片');
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              selectedImages.push({ file, preview: ev.target.result });
+              renderPreviews();
+            };
+            reader.readAsDataURL(file);
+            return;
+          }
+          if (item.type.startsWith('video/')) {
+            e.preventDefault();
+            const file = item.getAsFile();
+            if (!file) return;
+            if (selectedVideos.length >= 1) {
+              showToast('最多只能选择1个视频');
+              return;
+            }
+            const url = URL.createObjectURL(file);
+            selectedVideos.push({ file, preview: url });
+            renderVideoPreviews();
+            return;
+          }
+        }
+      });
+    }
+
+    function renderPreviews() {
+      const area = document.getElementById('preview-area');
+      const list = document.getElementById('preview-list');
+
+      if (selectedImages.length === 0) {
+        area.classList.add('hidden');
+        return;
+      }
+
+      area.classList.remove('hidden');
+      list.innerHTML = selectedImages.map((img, i) => `
+        <div class="preview-item w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
+          <img src="${img.preview}" class="w-full h-full object-cover">
+          <span class="remove-btn" onclick="removeImage(${i})">×</span>
+        </div>
+      `).join('');
+    }
+
+    async function createPost() {
+      const content = document.getElementById('post-content').value.trim();
+
+      if (!content && selectedImages.length === 0 && selectedVideos.length === 0) {
+        showToast('请输入内容或选择媒体');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('content', content);
+
+      selectedImages.forEach(img => {
+        formData.append('media', img.file);
+      });
+
+      selectedVideos.forEach(vid => {
+        formData.append('media', vid.file);
+      });
+
+      try {
+        const res = await fetch(API, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('发布失败');
+
+        document.getElementById('post-content').value = '';
+        selectedImages = [];
+        selectedVideos.forEach(vid => URL.revokeObjectURL(vid.preview));
+        selectedVideos = [];
+        renderPreviews();
+        renderVideoPreviews();
+        showToast('发布成功');
+        loadPosts();
+      } catch (e) {
+        console.error(e);
+        showToast('发布失败');
+      }
+    }
+
+    async function deletePost(id) {
+      if (!confirm('确定要删除这条动态吗？')) return;
+
+      try {
+        await fetch(`${API}/${id}`, { method: 'DELETE' });
+        showToast('已删除');
+        loadPosts();
+      } catch (e) {
+        console.error(e);
+        showToast('删除失败');
+      }
+    }
+
+    // ========== Repost ==========
+    let repostPostId = null;
+
+    function openRepost(postId) {
+      repostPostId = postId;
+      const post = posts.find(p => p.id === postId);
+      if (!post) return;
+
+      document.getElementById('repost-comment').value = '';
+      document.getElementById('repost-preview').innerHTML = `
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs font-medium text-gray-700">@我</span>
+          <span class="text-xs text-gray-400">${formatTime(post.createdAt)}</span>
+        </div>
+        ${post.content ? `<p class="text-gray-600 whitespace-pre-wrap">${escapeHtml(post.content)}</p>` : '<p class="text-gray-400">[图片/视频]</p>'}
+      `;
+      document.getElementById('repost-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeRepost() {
+      document.getElementById('repost-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+      repostPostId = null;
+    }
+
+    async function submitRepost() {
+      if (!repostPostId) return;
+      const comment = document.getElementById('repost-comment').value.trim();
+
+      const formData = new FormData();
+      formData.append('content', comment);
+      formData.append('repostFrom', repostPostId);
+
+      try {
+        const res = await fetch(API, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('转发失败');
+        closeRepost();
+        showToast('转发成功');
+        await loadPosts();
+      } catch (e) {
+        console.error(e);
+        showToast('转发失败');
+      }
+    }
+
+    // ========== Like ==========
+    function toggleLike(postId) {
+      if (window._likedPosts.has(postId)) {
+        window._likedPosts.delete(postId);
+      } else {
+        window._likedPosts.add(postId);
+      }
+      const post = posts.find(p => p.id === postId);
+      if (post) post.likeCount = (post.likeCount || 0) + (window._likedPosts.has(postId) ? 1 : -1);
+      const countEl = document.getElementById(`like-count-${postId}`);
+      if (!countEl) return;
+      const postCards = document.querySelectorAll(`[data-post-id="${postId}"]`);
+      if (postCards.length === 0) return;
+      // 重新渲染这条帖子
+      const article = postCards[0];
+      const temp = document.createElement('div');
+      const liked = window._likedPosts.has(postId);
+      const likeCount = post.likeCount || 0;
+      const btn = article.querySelector('[onclick^="toggleLike"]');
+      if (btn) {
+        btn.className = `flex-1 flex items-center justify-center gap-1 py-2.5 hover:text-danger transition-colors ${liked ? 'text-danger' : ''}`;
+        btn.querySelector('i').className = `fa ${liked ? 'fa-heart' : 'fa-heart-o'}`;
+        const span = btn.querySelector('span');
+        span.textContent = likeCount || '点赞';
+        span.id = `like-count-${postId}`;
+      }
+    }
+
+    // ========== Comments ==========
+    async function toggleComments(postId) {
+      const section = document.getElementById(`comments-section-${postId}`);
+      if (!section) return;
+
+      if (section.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+        await loadComments(postId);
+      } else {
+        section.classList.add('hidden');
+      }
+    }
+
+    async function loadComments(postId) {
+      const section = document.getElementById(`comments-section-${postId}`);
+      if (!section) return;
+
+      try {
+        const res = await fetch(`${API}/${postId}/comments`);
+        const data = await res.json();
+        const comments = data.comments || [];
+        window[`_allComments_${postId}`] = comments;
+        renderComments(postId, comments);
+      } catch (e) {
+        console.error('加载留言失败:', e);
+      }
+    }
+
+    const COMMENTS_PREVIEW = 3;
+
+    function renderComments(postId, comments, showAll = false) {
+      const section = document.getElementById(`comments-section-${postId}`);
+      if (!section) return;
+
+      const visible = showAll ? comments : comments.slice(0, COMMENTS_PREVIEW);
+      const hiddenCount = comments.length - COMMENTS_PREVIEW;
+
+      section.innerHTML = `
+        <div class="space-y-1.5 mb-2" id="comments-list-${postId}">
+          ${comments.length === 0
+            ? '<p class="text-gray-400 text-sm text-center py-2">暂无留言，来说点什么吧</p>'
+            : visible.map(c => `
+              <div class="flex items-start gap-2 py-1 group">
+                <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                  <i class="fa fa-user text-gray-500 text-xs"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-gray-600">${escapeHtml(c.author)}</span>
+                    <span class="text-xs text-gray-400">${formatTime(c.createdAt)}</span>
+                  </div>
+                  <p class="text-sm text-gray-500 mt-0.5 break-words">${escapeHtml(c.content)}</p>
+                </div>
+                <button onclick="deleteComment('${postId}', '${c.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-danger rounded transition-opacity flex-shrink-0">
+                  <i class="fa fa-times text-xs"></i>
+                </button>
+              </div>
+            `).join('')
+          }
+        </div>
+        ${hiddenCount > 0 && !showAll
+          ? `<button onclick="renderComments('${postId}', window._allComments_${postId}, true)" class="text-primary text-xs hover:underline mb-2">查看更多留言 (${hiddenCount})</button>`
+          : ''}
+        <div class="flex gap-2">
+          <input type="text" id="comment-input-${postId}" placeholder="写留言..."
+            class="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary outline-none bg-white"
+            onkeydown="if(event.key==='Enter') submitComment('${postId}')">
+          <button onclick="submitComment('${postId}')" class="px-3 py-1.5 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 flex-shrink-0">发送</button>
+        </div>
+      `;
+    }
+
+    async function submitComment(postId) {
+      const input = document.getElementById(`comment-input-${postId}`);
+      if (!input) return;
+      const content = input.value.trim();
+      if (!content) return;
+
+      try {
+        const res = await fetch(`${API}/${postId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ author: '我', content })
+        });
+        if (!res.ok) throw new Error('留言失败');
+        input.value = '';
+
+        // 更新本地帖子留言计数
+        const post = posts.find(p => p.id === postId);
+        if (post) post.commentCount = (post.commentCount || 0) + 1;
+        const countEl = document.getElementById(`comment-count-${postId}`);
+        if (countEl) countEl.textContent = post.commentCount;
+
+        await loadComments(postId);
+      } catch (e) {
+        console.error(e);
+        showToast('留言失败');
+      }
+    }
+
+    async function deleteComment(postId, commentId) {
+      if (!confirm('确定要删除这条留言吗？')) return;
+
+      try {
+        await fetch(`${API}/${postId}/comments/${commentId}`, { method: 'DELETE' });
+
+        // 更新本地帖子留言计数
+        const post = posts.find(p => p.id === postId);
+        if (post) post.commentCount = Math.max(0, (post.commentCount || 1) - 1);
+        const countEl = document.getElementById(`comment-count-${postId}`);
+        if (countEl) countEl.textContent = post.commentCount;
+
+        await loadComments(postId);
+      } catch (e) {
+        console.error(e);
+        showToast('删除失败');
+      }
+    }
+
+    // ========== Utilities ==========
+    function formatTime(isoString) {
+      if (!isoString) return '';
+      const date = new Date(isoString);
+      const now = new Date();
+      const diff = (now - date) / 1000;
+
+      if (diff < 60) return '刚刚';
+      if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+
+      const pad = n => String(n).padStart(2, '0');
+      const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+      // 昨天
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) return `昨天 ${time}`;
+
+      // 今年内
+      if (date.getFullYear() === now.getFullYear()) {
+        return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+      }
+
+      return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showToast(message) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    // 移动端导航
+    function preventScroll(e) { e.preventDefault(); }
+    function initMobileNav() {
+      const menuBtn = document.getElementById('mobile-menu-btn');
+      const drawer = document.getElementById('mobile-drawer');
+      const overlay = document.getElementById('drawer-overlay');
+      const drawerContent = document.getElementById('drawer-content');
+      const closeBtn = document.getElementById('close-drawer');
+
+      function openDrawer() {
+        drawer.classList.remove('hidden');
+        requestAnimationFrame(() => drawerContent.classList.remove('-translate-x-full'));
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('touchmove', preventScroll, { passive: false });
+      }
+      function closeDrawer() {
+        drawerContent.classList.add('-translate-x-full');
+        setTimeout(() => drawer.classList.add('hidden'), 300);
+        document.body.style.overflow = '';
+        document.removeEventListener('touchmove', preventScroll);
+      }
+
+      const desktopMenuBtn = document.getElementById('desktop-menu-btn');
+      menuBtn?.addEventListener('click', openDrawer);
+      desktopMenuBtn?.addEventListener('click', openDrawer);
+      overlay?.addEventListener('click', closeDrawer);
+      closeBtn?.addEventListener('click', closeDrawer);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+    }
+    initMobileNav();
+  </script>
+</body>
+</html>

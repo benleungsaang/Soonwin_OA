@@ -2,20 +2,31 @@
   <div class="common-header">
     <el-page-header :content="title" @back="goBack">
       <template #extra>
+        <el-button @click="showQrCodeDialog = true">
+          <el-icon><Grid /></el-icon><span class="btn-text">二维码</span>
+        </el-button>
         <el-button @click="logout">
-          <el-icon><SwitchButton /></el-icon>用户 {{ currentUserEmpId && currentUserName ? currentUserEmpId + ' [ ' + currentUserName + ' ]' : (currentUserEmpId ? currentUserEmpId : '登录') }} 登出
+          <el-icon><SwitchButton /></el-icon><span class="btn-text">用户 {{ currentUserEmpId && currentUserName ? currentUserEmpId + ' [ ' + currentUserName + ' ]' : (currentUserEmpId ? currentUserEmpId : '登录') }} 登出</span>
         </el-button>
       </template>
     </el-page-header>
     <el-divider></el-divider>
+
+    <el-dialog v-model="showQrCodeDialog" title="网站二维码" width="300px" align-center>
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <canvas ref="qrCodeCanvasRef"></canvas>
+        <p style="margin-top: 10px; color: #666; font-size: 13px;">扫描二维码访问网站首页</p>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, provide, onUnmounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref, onMounted, provide, onUnmounted } from 'vue';
-import { SwitchButton } from '@element-plus/icons-vue';
+import { SwitchButton, Grid } from '@element-plus/icons-vue';
+import QRCode from 'qrcode';
 import {
   getCurrentUserEmpId,
   getCurrentUserName,
@@ -45,6 +56,20 @@ const currentUserRole = ref<string | null>(null);
 provide('currentUserEmpId', currentUserEmpId);
 provide('currentUserName', currentUserName);
 provide('currentUserRole', currentUserRole);
+
+// 二维码弹窗
+const showQrCodeDialog = ref(false);
+const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+watch(showQrCodeDialog, async (newVal) => {
+  if (newVal) {
+    await nextTick();
+    if (qrCodeCanvasRef.value) {
+      const rootUrl = window.location.origin + '/';
+      await QRCode.toCanvas(qrCodeCanvasRef.value, rootUrl, { width: 200, margin: 2 });
+    }
+  }
+});
 
 // 返回上一级路由（基于路由层级，非历史记录）
 const goBack = () => {
@@ -144,8 +169,45 @@ onUnmounted(() => {
 .common-header {
   padding: 0 20px;
 }
-.el-icon{
+.el-icon {
   margin-right: 5px;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+}
+.el-button {
+  display: inline-flex !important;
+  align-items: center !important;
 }
 
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .common-header {
+    padding: 0 10px;
+  }
+  .common-header :deep(.el-page-header__extra) {
+    display: flex;
+    gap: 4px;
+  }
+  .common-header :deep(.el-page-header__extra) .el-button {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .common-header :deep(.el-page-header__content) {
+    font-size: 13px;
+  }
+  .common-header :deep(.el-page-header__extra) .el-button {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .btn-text {
+    display: none;
+  }
+  .el-icon {
+    margin-right: 0;
+  }
+}
 </style>
