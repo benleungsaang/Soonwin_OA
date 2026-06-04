@@ -179,20 +179,24 @@ const rotateDeg = ref(0)
 const expandWrapRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const videoTimeMap = new Map<number, number>()
+const directClickExpand = ref(false)
 
 // 监听 expandedIdx 变化：切换前保存进度，切换后恢复进度
-watch(expandedIdx, (newIdx, oldIdx) => {
-  // 保存旧视频进度
-  if (oldIdx !== null && videoRef.value) {
-    videoTimeMap.set(oldIdx, videoRef.value.currentTime)
-  }
-  // 恢复新视频进度
-  if (newIdx !== null) {
-    nextTick(() => {
-      if (videoRef.value && videoTimeMap.has(newIdx)) {
-        videoRef.value.currentTime = videoTimeMap.get(newIdx)!
-      }
-    })
+  watch(expandedIdx, (newIdx, oldIdx) => {
+    if (oldIdx !== null && videoRef.value) {
+      videoRef.value.pause()
+      videoTimeMap.set(oldIdx, videoRef.value.currentTime)
+    }
+    if (newIdx !== null) {
+      nextTick(() => {
+        if (videoRef.value) {
+          if (videoTimeMap.has(newIdx)) videoRef.value.currentTime = videoTimeMap.get(newIdx)!
+          if (directClickExpand.value) videoRef.value.play().catch(() => {})
+        }
+        directClickExpand.value = false
+      })
+    }
+  })
   }
 })
 
@@ -210,11 +214,11 @@ function handleMediaClick(media: any, index: number) {
   if (media.compress_status === 'pending') return
   // 统一先展开模式查看（图片和视频均适用），点击"查看原图"再进灯箱
   if (expandedIdx.value === index) { collapseExpand() }
-  else { expandMedia(index) }
+  else { expandMedia(index, true) }
 }
 
-function expandMedia(index: number) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0 }
-function collapseExpand() { expandedIdx.value = null; rotateDeg.value = 0; videoTimeMap.clear() }
+function expandMedia(index: number, fromClick = false) { expandedIdx.value = index; rotateDeg.value = 0; swipeOffset.value = 0; directClickExpand.value = fromClick }
+function collapseExpand() { if (videoRef.value) { videoRef.value.pause(); videoTimeMap.set(expandedIdx.value!, videoRef.value.currentTime) } expandedIdx.value = null; rotateDeg.value = 0 }
 function prevExpanded() { if (expandedIdx.value !== null && expandedIdx.value > 0) expandMedia(expandedIdx.value - 1) }
 function nextExpanded() { if (expandedIdx.value !== null && props.post.media && expandedIdx.value < props.post.media.length - 1) expandMedia(expandedIdx.value + 1) }
 
