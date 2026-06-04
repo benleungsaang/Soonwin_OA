@@ -207,7 +207,7 @@
             <video v-else
                    :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
                    class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline
-                   @click.stop="handleFsVideoClick()" />
+                   @click.stop="handleFsVideoClick" />
           </div>
         </div>
       </div>
@@ -475,9 +475,9 @@ function onFsTouchMove(e: TouchEvent) {
   // 纵向跟手偏移（弹性系数0.4）
   fsSwipeOffsetY.value = diffY * 0.4
   const total = props.post.media?.length || 1
-  const atStart = fullscreenIdx.value === 0 && diff > 0
-  const atEnd = fullscreenIdx.value === total - 1 && diff < 0
-  fsSwipeOffset.value = (atStart || atEnd) ? diff * 0.35 : diff
+  const atStart = fullscreenIdx.value === 0 && diffX > 0
+  const atEnd = fullscreenIdx.value === total - 1 && diffX < 0
+  fsSwipeOffset.value = (atStart || atEnd) ? diffX * 0.35 : diffX
 }
 function onFsTouchEnd() {
   const diffX = fsTouchLastX.value - fsTouchStartX.value
