@@ -15,9 +15,9 @@
         <button v-if="isAdmin && !readonly && (post.edit_version > 1)" class="post-icon-btn" title="编辑历史" @click="loadHistory">
           <el-icon :size="16"><Clock /></el-icon>
         </button>
-        <button v-if="!post.is_deleted && !post.is_draft" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
-                :title="post.is_liked ? '取消收藏' : '收藏'" @click="$emit('toggle-like')">
-          <el-icon :size="16"><StarFilled v-if="post.is_liked" style="color:#e6a23c" /><Star v-else /></el-icon>
+        <button v-if="!post.is_deleted && !post.is_draft" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_favorited }"
+                :title="post.is_favorited ? '取消收藏' : '收藏'" @click="$emit('toggle-favorite')">
+          <el-icon :size="16"><StarFilled v-if="post.is_favorited" style="color:#e6a23c" /><Star v-else /></el-icon>
         </button>
         <button v-if="canEdit && !readonly" class="post-icon-btn" title="编辑" @click="$emit('edit')">
           <el-icon :size="16"><Edit /></el-icon>
@@ -198,7 +198,7 @@ import BlogCommentSection from './BlogCommentSection.vue'
 
 const props = defineProps<{ post: BlogPost; showActions?: boolean; readonly?: boolean }>()
 const emit = defineEmits<{
-  (e: 'edit'): void; (e: 'delete'): void; (e: 'toggle-like'): void
+  (e: 'edit'): void; (e: 'delete'): void; (e: 'toggle-like'): void; (e: 'toggle-favorite'): void
   (e: 'media-click', media: any, index: number, mediaList?: any[]): void
   (e: 'filter-author', author: string): void
 }>()
@@ -218,7 +218,7 @@ async function loadLikers() {
   if (likersLoaded.value) return
   try {
     const res: any = await getPostLikes(props.post.id)
-    if (res?.data) likers.value = res.data
+    if (Array.isArray(res)) likers.value = res
     likersLoaded.value = true
   } catch { /* ignore */ }
 }

@@ -195,12 +195,15 @@ def get_posts():
         user_id = get_user_id_from_token()
         for post in pagination.items:
             post_dict = post.to_dict(include_media=True, include_repost=True)
-            # 标记当前用户是否已点赞
+            # 标记当前用户是否已点赞/收藏
             if user_id:
                 post_dict['is_liked'] = BlogLike.query.filter_by(
                     post_id=post.id, user_id=user_id).first() is not None
+                post_dict['is_favorited'] = BlogFavorite.query.filter_by(
+                    post_id=post.id, user_id=user_id).first() is not None
             else:
                 post_dict['is_liked'] = False
+                post_dict['is_favorited'] = False
             posts.append(post_dict)
 
         return jsonify({
@@ -405,8 +408,14 @@ def get_post(post_id):
         post_dict = post.to_dict(include_media=True, include_repost=True)
 
         user_id = get_user_id_from_token()
-        post_dict['is_liked'] = BlogLike.query.filter_by(
-            post_id=post.id, user_id=user_id).first() is not None if user_id else False
+        if user_id:
+            post_dict['is_liked'] = BlogLike.query.filter_by(
+                post_id=post.id, user_id=user_id).first() is not None
+            post_dict['is_favorited'] = BlogFavorite.query.filter_by(
+                post_id=post.id, user_id=user_id).first() is not None
+        else:
+            post_dict['is_liked'] = False
+            post_dict['is_favorited'] = False
 
         return jsonify({'success': True, 'data': post_dict})
     except Exception as e:
@@ -852,7 +861,7 @@ def delete_comment(post_id, comment_id):
 @blog_bp.route('/posts/favorites', methods=['GET'])
 @route_permission(ROUTE_BLOG_MANAGE)
 def get_favorites():
-    """获取当前用户收藏（点赞）的博文列表"""
+    """获取当前用户收藏的博文列表"""
     try:
         user_id = get_user_id_from_token()
         if not user_id:
@@ -862,10 +871,10 @@ def get_favorites():
         per_page = request.args.get('per_page', 20, type=int)
         search = request.args.get('search', '', type=str)
 
-        # 查询用户点赞的博文ID
-        liked_post_ids = db.select(BlogLike.post_id).where(BlogLike.user_id == user_id).scalar_subquery()
+        # 查询用户收藏的博文ID
+        fav_post_ids = db.select(BlogFavorite.post_id).where(BlogFavorite.user_id == user_id).scalar_subquery()
         query = BlogPost.query.filter(
-            BlogPost.id.in_(liked_post_ids),
+            BlogPost.id.in_(fav_post_ids),
             BlogPost.is_deleted == 0,
             BlogPost.is_draft == 0
         )
@@ -884,7 +893,7 @@ def get_favorites():
         posts = []
         for post in pagination.items:
             d = post.to_dict(include_media=True, include_repost=True)
-            d['is_liked'] = True
+            d['is_favorited'] = True
             posts.append(d)
 
         return jsonify({
@@ -928,6 +937,31 @@ def toggle_like(post_id):
     except Exception as e:
         db.session.rollback()
         print(f"点赞操作失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@blog_bp.route('/posts/<int:post_id>/favorite', methods=['POST'])
+@require_auth
+def toggle_favorite(post_id):
+    """切换收藏状态"""
+    try:
+        user_id = get_user_id_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': '请先登录'}), 401
+
+        existing = BlogFavorite.query.filter_by(post_id=post_id, user_id=user_id).first()
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+            return jsonify({'success': True, 'data': {'favorited': False}})
+        else:
+            fav = BlogFavorite(post_id=post_id, user_id=user_id)
+            db.session.add(fav)
+            db.session.commit()
+            return jsonify({'success': True, 'data': {'favorited': True}})
+    except Exception as e:
+        db.session.rollback()
+        print(f"收藏操作失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

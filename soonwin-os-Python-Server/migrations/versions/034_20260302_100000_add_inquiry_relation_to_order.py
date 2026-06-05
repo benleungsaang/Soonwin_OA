@@ -11,7 +11,7 @@ from datetime import datetime
 
 # revision identifiers
 revision = '034_20260302_100000_add_inquiry_relation_to_order'
-down_revision = '033_20260228_100000_add_attendance_permission'
+down_revision = '033_20260228_100000'
 branch_labels = None
 depends_on = None
 

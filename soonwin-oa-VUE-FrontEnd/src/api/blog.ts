@@ -147,6 +147,11 @@ export function toggleLike(postId: number) {
   return request.post(`/api/posts/${postId}/like`)
 }
 
+/** 切换收藏 */
+export function toggleFavorite(postId: number) {
+  return request.post(`/api/posts/${postId}/favorite`)
+}
+
 /** 获取点赞用户列表 */
 export function getPostLikes(postId: number) {
   return request.get(`/api/posts/${postId}/likes`)

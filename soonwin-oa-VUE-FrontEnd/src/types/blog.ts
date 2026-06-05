@@ -27,7 +27,9 @@ export interface BlogPost {
   edit_version: number
   comment_count: number
   like_count: number
+  favorite_count: number
   is_liked: boolean
+  is_favorited: boolean
   media: BlogMedia[]
   created_at: string
   updated_at: string

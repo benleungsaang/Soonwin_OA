@@ -89,6 +89,7 @@
             @edit="openEditDialog(post)"
             @delete="handleDelete(post)"
             @toggle-like="handleToggleLike(post)"
+            @toggle-favorite="handleToggleFavorite(post)"
             @filter-author="onFilterAuthor"
             @media-click="handleMediaClick" />
 
@@ -340,6 +341,11 @@ async function handleDelete(post: BlogPost) {
 
 async function handleToggleLike(post: BlogPost) {
   try { const res: any = await toggleLike(post.id); if (res) { post.is_liked = res.liked; post.like_count += res.liked ? 1 : -1 } }
+  catch { /* ignore */ }
+}
+
+async function handleToggleFavorite(post: BlogPost) {
+  try { const { toggleFavorite } = await import('@/api/blog'); const res: any = await toggleFavorite(post.id); if (res) { post.is_favorited = res.favorited; post.favorite_count += res.favorited ? 1 : -1 } }
   catch { /* ignore */ }
 }
 

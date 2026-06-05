@@ -28,6 +28,8 @@ class BlogPost(db.Model):
                                 cascade='all, delete-orphan')
     likes = db.relationship('BlogLike', backref='post', lazy='dynamic',
                              cascade='all, delete-orphan')
+    favorites = db.relationship('BlogFavorite', backref='post', lazy='dynamic',
+                                 cascade='all, delete-orphan')
     edit_histories = db.relationship('BlogEditHistory', backref='post', lazy='dynamic',
                                       cascade='all, delete-orphan',
                                       order_by='BlogEditHistory.version.desc()')
@@ -44,6 +46,7 @@ class BlogPost(db.Model):
             'edit_version': self.edit_version,
             'comment_count': self.comments.filter_by(is_deleted=0).count(),
             'like_count': self.likes.count(),
+            'favorite_count': self.favorites.count(),
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
         }
@@ -156,4 +159,18 @@ class BlogLike(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint('post_id', 'user_id', name='uq_post_user_like'),
+    )
+
+
+class BlogFavorite(db.Model):
+    """博客收藏表"""
+    __tablename__ = 'blog_favorite'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
+    user_id = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint('post_id', 'user_id', name='uq_post_user_fav'),
     )
