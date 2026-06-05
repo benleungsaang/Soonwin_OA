@@ -143,41 +143,23 @@ def create_app_with_routes(port=5000):
     if port != 5001:
         @app.route('/api/admin/restart', methods=['POST'])
         def admin_restart():
-            """远程重启 nginx + waitress 服务（先应答再执行，避免被自身中断）"""
+            """远程重启服务：调用独立脚本处理备份/同步/启停全流程"""
             import subprocess
             data = request.get_json() or {}
             if data.get('key') != 'SoonwinOA_Restart_Key_2026':
                 return {"success": False, "msg": "密钥错误"}, 403
 
-            # 先返回应答，再异步执行重启（避免 waitress 被 stop 时中断响应）
-            def _do_restart():
-                # 步骤0：同步数据库结构（dev 库结构 → prod 库，保留 prod 数据）
-                try:
-                    from app.utils.db_sync_utils import sync_prod_structure
-                    base_dir = os.path.dirname(os.path.abspath(__file__))
-                    dev_db = os.path.join(base_dir, 'soonwin_oa_dev.db')
-                    prod_db = os.path.join(base_dir, 'soonwin_oa.db')
-                    sync_prod_structure(dev_db, prod_db)
-                except Exception as e:
-                    print(f"[DB Sync] 数据库同步异常: {e}")
-
-                svcs = ['waitress', 'nginx']
-                for svc in svcs:
-                    try:
-                        r = subprocess.run(['sc', 'query', svc], capture_output=True, text=True, encoding='gbk', timeout=10)
-                        if '1060' in r.stdout or '1060' in r.stderr:
-                            continue
-                        subprocess.run(['sc', 'stop', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
-                        time.sleep(3)
-                        subprocess.run(['sc', 'start', svc], capture_output=True, text=True, encoding='gbk', timeout=30)
-                    except Exception:
-                        pass
-
-            import threading
-            t = threading.Thread(target=_do_restart)
-            t.daemon = True
-            t.start()
-            return {"success": True, "msg": "重启命令已提交，约10秒后完成"}
+            # 启动独立重启脚本（子进程，读取磁盘最新文件，不受 Flask 进程新旧影响）
+            script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'restart_services.py')
+            try:
+                subprocess.Popen(
+                    [sys.executable, script],
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
+                )
+                return {"success": True, "msg": "重启命令已提交，约15秒后完成"}
+            except Exception as e:
+                print(f"[Restart] 启动重启脚本失败: {e}")
+                return {"success": False, "msg": f"启动重启脚本失败: {e}"}, 500
 
     return app
 
