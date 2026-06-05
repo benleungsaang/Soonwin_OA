@@ -151,6 +151,16 @@ def create_app_with_routes(port=5000):
 
             # 先返回应答，再异步执行重启（避免 waitress 被 stop 时中断响应）
             def _do_restart():
+                # 步骤0：同步数据库结构（dev 库结构 → prod 库，保留 prod 数据）
+                try:
+                    from app.utils.db_sync_utils import sync_prod_structure
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    dev_db = os.path.join(base_dir, 'soonwin_oa_dev.db')
+                    prod_db = os.path.join(base_dir, 'soonwin_oa.db')
+                    sync_prod_structure(dev_db, prod_db)
+                except Exception as e:
+                    print(f"[DB Sync] 数据库同步异常: {e}")
+
                 svcs = ['waitress', 'nginx']
                 for svc in svcs:
                     try:
