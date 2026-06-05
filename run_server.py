@@ -490,18 +490,19 @@ http {{
                 except:
                     pass
 
-                # 2c. PowerShell移除僵死TCP连接 ← 核心：专治幽灵端口
+                # 2c. PowerShell移除僵死TCP连接（Win10 1809+有效，老版本自动跳过）
                 try:
                     ps_cmd = (
                         f'Get-NetTCPConnection -LocalPort {port} '
                         f'-ErrorAction SilentlyContinue | '
                         f'Remove-NetTCPConnection -Force -ErrorAction SilentlyContinue'
                     )
-                    subprocess.run(
+                    ps_result = subprocess.run(
                         ['powershell', '-Command', ps_cmd],
                         capture_output=True, timeout=10
                     )
-                    print(f"[v] 已通过PowerShell移除端口{port}的TCP连接条目")
+                    if ps_result.returncode == 0:
+                        print(f"[v] 已通过PowerShell移除端口{port}的TCP连接条目")
                 except:
                     pass
 
@@ -793,6 +794,9 @@ http {{
         print("[v] 开发版启动完毕！")
         print(f"[?]  后端：http://localhost:{backend_port}")
         print(f"[?]  前端：http://localhost:{frontend_port}")
+        if backend_port != 5001:
+            print(f"[!] 注意：后端端口因占用改为了 {backend_port}")
+            print(f"    如需前端访问，请修改 vite.config.ts 中 proxy target 为 :{backend_port}")
         print("=" * 55)
         self._wait_for_input()
 
