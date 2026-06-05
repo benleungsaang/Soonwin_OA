@@ -17,7 +17,6 @@
         </Include>
         <Exclude>
             <Item>*.tmp</Item>
-            <Item>*.db</Item>
             <Item>*.temp</Item>
             <Item>*~</Item>
             <Item>\System Volume Information\</Item>
@@ -96,6 +95,8 @@
             <Item>\assets\OrderStatus\</Item>
             <Item>\assets\OrderRecords\</Item>
             <Item>\assets\PostsMedia\</Item>
+            <Item>\soonwin_oa.db</Item>
+            <Item>\数据库备份文件\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
