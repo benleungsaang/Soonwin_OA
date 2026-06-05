@@ -12,17 +12,27 @@ _SYSTEM_TABLES = {
     'alembic_version', '_migration_history', '_migrate_history',
 }
 
+# 备份目录名
+_BACKUP_DIR_NAME = "数据库备份文件"
 
-def backup_prod_db(prod_db_path):
-    """备份生产数据库，文件名加日期前缀"""
-    dir_name = os.path.dirname(prod_db_path)
-    base_name = os.path.basename(prod_db_path)
+
+def _get_backup_dir(db_path):
+    """获取备份目录路径，不存在则创建"""
+    backup_dir = os.path.join(os.path.dirname(os.path.abspath(db_path)), _BACKUP_DIR_NAME)
+    os.makedirs(backup_dir, exist_ok=True)
+    return backup_dir
+
+
+def _backup_single_db(db_path):
+    """备份单个数据库到备份目录，返回备份路径"""
+    backup_dir = _get_backup_dir(db_path)
+    base_name = os.path.basename(db_path)
     date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
     name_without_ext, ext = os.path.splitext(base_name)
     backup_name = f"{name_without_ext}_{date_str}{ext}"
-    backup_path = os.path.join(dir_name, backup_name)
+    backup_path = os.path.join(backup_dir, backup_name)
 
-    src = sqlite3.connect(prod_db_path)
+    src = sqlite3.connect(db_path)
     dst = sqlite3.connect(backup_path)
     try:
         src.backup(dst)
@@ -32,6 +42,16 @@ def backup_prod_db(prod_db_path):
 
     print(f"[DB Sync] 数据库已备份: {backup_path}")
     return backup_path
+
+
+def backup_all_dbs(dev_db_path, prod_db_path):
+    """同时备份 dev 和 prod 两个数据库到备份目录"""
+    paths = []
+    if os.path.exists(dev_db_path):
+        paths.append(_backup_single_db(dev_db_path))
+    if os.path.exists(prod_db_path):
+        paths.append(_backup_single_db(prod_db_path))
+    return paths
 
 
 def _get_create_sqls(conn):
@@ -89,9 +109,9 @@ def sync_prod_structure(dev_db_path, prod_db_path):
     for d in diffs:
         print(f"  {d}")
 
-    # 步骤2：备份生产库
+    # 步骤2：备份 dev 和 prod 两个库
     try:
-        backup_path = backup_prod_db(prod_db_path)
+        backup_paths = backup_all_dbs(dev_db_path, prod_db_path)
     except Exception as e:
         print(f"[DB Sync] 备份失败: {e}")
         return False
@@ -107,7 +127,7 @@ def sync_prod_structure(dev_db_path, prod_db_path):
     except Exception as e:
         prod_conn.rollback()
         print(f"[DB Sync] 结构同步失败: {e}")
-        print(f"[DB Sync] 备份文件: {backup_path}，可用于手动恢复")
+        print(f"[DB Sync] 备份文件: {backup_paths}，可用于手动恢复")
         return False
     finally:
         dev_conn.close()
