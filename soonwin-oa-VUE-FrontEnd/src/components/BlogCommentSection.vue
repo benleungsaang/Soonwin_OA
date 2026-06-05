@@ -3,8 +3,10 @@
     <!-- 评论列表 -->
     <div v-if="showAllComments.length > 0" class="space-y-1.5 mb-2" :class="showAll ? '' : 'max-h-48 overflow-hidden'">
       <div v-for="comment in showAllComments" :key="comment.id" class="flex items-start gap-2 py-1 group">
-        <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-          <el-icon :size="12" color="#6b7280"><UserFilled /></el-icon>
+        <div class="w-6 h-6 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
+          <img v-if="comment.author_id" :src="`/api/posts/avatar/${comment.author_id}`"
+               class="w-full h-full object-cover" @error="($event.target as HTMLImageElement).style.display='none'" />
+          <el-icon v-if="!comment.author_id" :size="12" color="#6b7280"><UserFilled /></el-icon>
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">

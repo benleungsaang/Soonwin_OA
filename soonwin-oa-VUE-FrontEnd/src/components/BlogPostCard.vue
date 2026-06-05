@@ -12,6 +12,9 @@
         </div>
       </div>
       <div v-if="showActions" class="post-header-actions">
+        <button v-if="isAdmin && !readonly" class="post-icon-btn" title="编辑历史" @click="loadHistory">
+          <el-icon :size="16"><Clock /></el-icon>
+        </button>
         <button v-if="!post.is_deleted && !post.is_draft" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
                 :title="post.is_liked ? '取消收藏' : '收藏'" @click="$emit('toggle-like')">
           <el-icon :size="16"><StarFilled v-if="post.is_liked" style="color:#e6a23c" /><Star v-else /></el-icon>
@@ -110,18 +113,13 @@
               @click="$emit('toggle-like')"
               @mouseenter="onLikeEnter"
               @mouseleave="onLikeLeave">
-        <span class="like-emoji">{{ post.is_liked ? '👍' : '👍' }}</span>
-        <span>{{ post.like_count || '点赞' }}</span>
+        <span class="like-emoji">👍</span>
         <div v-if="showLikersTooltip && likers.length > 0" class="likers-tooltip">
           <div v-for="user in likers" :key="user.user_id" class="liker-row">
             <img :src="`/api/posts/avatar/${user.user_id}`" class="liker-avatar" />
             <span class="liker-name">{{ user.name }}</span>
           </div>
         </div>
-      </button>
-      <button v-if="isAdmin" class="post-action-btn" @click="loadHistory">
-        <el-icon :size="15"><Clock /></el-icon>
-        <span>历史</span>
       </button>
     </div>
 
@@ -473,7 +471,6 @@ defineExpose({ loadHistory })
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  overflow: hidden;
   margin-bottom: 24px;
   transition: transform 0.2s, box-shadow 0.2s;
 }
