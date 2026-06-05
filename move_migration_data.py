@@ -378,7 +378,9 @@ def main():
     while True:
         show_menu()
         try:
-            choice = input("请输入功能编号: ").strip()
+            choice = input("请输入功能编号（直接回车=完整迁移包）: ").strip()
+            if choice == "":
+                choice = "1"
             if choice == "0":
                 print("\n[退出] 脚本已退出，感谢使用！")
                 break
