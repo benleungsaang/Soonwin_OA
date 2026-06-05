@@ -12,30 +12,11 @@ import sys
 import time
 from datetime import datetime
 
-# ======================== 路径自动检测 ========================
+# ======================== 路径 ========================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 后端目录（可能是开发路径或部署路径）
 DEV_DB = os.path.join(SCRIPT_DIR, "soonwin_oa_dev.db")
 PROD_DB = os.path.join(SCRIPT_DIR, "soonwin_oa.db")
 BACKUP_DIR = os.path.join(SCRIPT_DIR, "数据库备份文件")
-
-# 端口
-BACKEND_PORT = 5000
-NGINX_PORT = 5183
-
-# nginx 路径（与 run_server.py 一致）
-PARENT_DIR = os.path.dirname(SCRIPT_DIR)
-NGINX_PATH = os.path.join(PARENT_DIR, "nginx-1.28.1", "nginx.exe")
-if not os.path.exists(NGINX_PATH):
-    # 兜底：检查常见位置
-    NGINX_PATH = r"C:\nginx\nginx.exe"
-NGINX_CONF = os.path.join(os.path.dirname(NGINX_PATH), "conf", "nginx.conf")
-if not os.path.exists(NGINX_CONF):
-    NGINX_CONF = os.path.join(os.path.dirname(NGINX_PATH), "..", "conf", "nginx.conf")
-
-VENV_ACTIVATE = os.path.join(SCRIPT_DIR, "venv", "Scripts", "activate.bat")
-WSGI_FILE = os.path.join(SCRIPT_DIR, "wsgi.py")
 
 # 系统表
 _SYSTEM_TABLES = {
@@ -44,112 +25,117 @@ _SYSTEM_TABLES = {
     "_migration_history", "_migrate_history",
 }
 
+# 服务名搜索关键词（按顺序匹配，找到第一个就停止搜索）
+_SERVICE_KEYWORDS = ["waitress", "nginx", "SoonwinOA", "OA_Backend"]
 
-# ======================== 服务启停（进程管理，非 Windows 服务） ========================
-def _get_pids_by_port(port):
-    """通过 netstat 获取占用指定端口的 PID 列表"""
+
+# ======================== 服务管理（Windows 服务） ========================
+def _find_services():
+    """搜索系统中含有关键词的 Windows 服务，返回 {关键词: 服务名} 映射"""
     try:
         result = subprocess.run(
-            ["netstat", "-ano", "-p", "tcp"],
+            ["sc", "query", "state=", "all"],
             capture_output=True, text=True, encoding="gbk", timeout=15,
         )
-        pids = set()
-        for line in result.stdout.splitlines():
-            if f":{port}" in line and ("LISTENING" in line or "ESTABLISHED" in line):
-                parts = line.strip().split()
-                if parts:
-                    pids.add(parts[-1])
-        return list(pids)
     except Exception as e:
-        print(f"  查询端口 {port} 失败: {e}")
-        return []
+        print(f"[Restart] 查询服务列表失败: {e}")
+        return {}
+
+    # 解析 SERVICE_NAME 行
+    lines = result.stdout.splitlines()
+    service_names = []
+    for line in lines:
+        line = line.strip()
+        if line.startswith("SERVICE_NAME:"):
+            name = line.split(":", 1)[1].strip()
+            service_names.append(name)
+
+    # 按关键词匹配
+    found = {}
+    for svc in service_names:
+        svc_lower = svc.lower()
+        for kw in _SERVICE_KEYWORDS:
+            if kw.lower() in svc_lower and kw not in found:
+                found[kw] = svc
+
+    return found
 
 
-def _kill_pids(pids, label=""):
-    """强制终止指定 PID 列表"""
-    for pid in pids:
-        if pid == "0" or pid == "4":
-            continue  # 跳过系统进程
-        try:
-            subprocess.run(
-                ["taskkill", "/F", "/PID", pid],
-                capture_output=True, text=True, encoding="gbk", timeout=10,
-            )
-            print(f"  已终止 {label} (PID: {pid})")
-        except Exception as e:
-            print(f"  终止 PID {pid} 失败: {e}")
+def _get_svc_state(svc_name):
+    """查询服务运行状态，返回 'RUNNING' / 'STOPPED' / 'UNKNOWN'"""
+    try:
+        r = subprocess.run(
+            ["sc", "query", svc_name],
+            capture_output=True, text=True, encoding="gbk", timeout=10,
+        )
+        for line in r.stdout.splitlines():
+            if "STATE" in line.upper():
+                if "RUNNING" in line.upper():
+                    return "RUNNING"
+                if "STOPPED" in line.upper():
+                    return "STOPPED"
+        return "UNKNOWN"
+    except Exception:
+        return "UNKNOWN"
 
 
 def stop_services():
-    """停止后端和 Nginx 进程"""
-    print("[Restart] 停止后端 (端口 5000)...")
-    pids = _get_pids_by_port(BACKEND_PORT)
-    if pids:
-        _kill_pids(pids, "waitress")
-    else:
-        print("  端口 5000 无进程")
+    """停止所有匹配的 Windows 服务"""
+    svc_map = _find_services()
+    if not svc_map:
+        print("[Restart] 未找到匹配的 Windows 服务，跳过停止")
+        return svc_map
 
-    print("[Restart] 停止 Nginx (端口 5183)...")
-    # 先尝试优雅停止
-    if os.path.exists(NGINX_PATH):
+    print(f"[Restart] 找到服务: {svc_map}")
+
+    for kw, svc_name in svc_map.items():
+        state = _get_svc_state(svc_name)
+        print(f"  {svc_name} = {state}")
+        if state == "RUNNING":
+            print(f"  停止 {svc_name} ...")
+            try:
+                subprocess.run(
+                    ["sc", "stop", svc_name],
+                    capture_output=True, text=True, encoding="gbk", timeout=60,
+                )
+                # 等待服务完全停止
+                for _ in range(30):
+                    if _get_svc_state(svc_name) == "STOPPED":
+                        print(f"  {svc_name} 已停止")
+                        break
+                    time.sleep(1)
+                else:
+                    print(f"  [!] {svc_name} 停止超时(30s)")
+            except Exception as e:
+                print(f"  停止 {svc_name} 异常: {e}")
+
+    return svc_map
+
+
+def start_services(svc_map=None):
+    """启动之前找到的服务"""
+    if svc_map is None:
+        svc_map = _find_services()
+    if not svc_map:
+        print("[Restart] 未找到匹配的 Windows 服务，跳过启动")
+        return
+
+    for kw, svc_name in svc_map.items():
+        state = _get_svc_state(svc_name)
+        if state == "RUNNING":
+            print(f"  {svc_name} 已在运行，跳过")
+            continue
+        print(f"  启动 {svc_name} ...")
         try:
             subprocess.run(
-                [NGINX_PATH, "-s", "stop"],
-                capture_output=True, text=True, encoding="gbk", timeout=15,
+                ["sc", "start", svc_name],
+                capture_output=True, text=True, encoding="gbk", timeout=60,
             )
-        except Exception:
-            pass
-    time.sleep(2)
-    # 再强制清理端口
-    pids = _get_pids_by_port(NGINX_PORT)
-    if pids:
-        _kill_pids(pids, "nginx")
-    else:
-        print("  端口 5183 无进程")
-
-    time.sleep(1)
-
-
-def start_services():
-    """启动后端和 Nginx"""
-    # 启动后端
-    print("[Restart] 启动后端 (端口 5000)...")
-    if not os.path.exists(VENV_ACTIVATE):
-        print(f"  [!] 虚拟环境不存在: {VENV_ACTIVATE}")
-    elif not os.path.exists(WSGI_FILE):
-        print(f"  [!] wsgi.py 不存在: {WSGI_FILE}")
-    else:
-        cmd = (
-            f'cd /d "{SCRIPT_DIR}" && '
-            f'call "{VENV_ACTIVATE}" && '
-            f'waitress-serve --host=0.0.0.0 --port={BACKEND_PORT} wsgi:application'
-        )
-        try:
-            subprocess.Popen(
-                cmd, shell=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-            )
-            print("  waitress 已启动")
+            time.sleep(3)
+            new_state = _get_svc_state(svc_name)
+            print(f"  {svc_name} = {new_state}")
         except Exception as e:
-            print(f"  启动 waitress 失败: {e}")
-    time.sleep(3)
-
-    # 启动 Nginx
-    print("[Restart] 启动 Nginx (端口 5183)...")
-    if not os.path.exists(NGINX_PATH):
-        print(f"  [!] nginx.exe 不存在: {NGINX_PATH}")
-    elif not os.path.exists(NGINX_CONF):
-        print(f"  [!] nginx.conf 不存在: {NGINX_CONF}")
-    else:
-        try:
-            subprocess.run(
-                [NGINX_PATH, "-c", NGINX_CONF],
-                capture_output=True, text=True, encoding="gbk", timeout=15,
-            )
-            print("  nginx 已启动")
-        except Exception as e:
-            print(f"  启动 nginx 失败: {e}")
-    time.sleep(2)
+            print(f"  启动 {svc_name} 异常: {e}")
 
 
 # ======================== 数据库备份 ========================
@@ -157,7 +143,6 @@ def backup_databases():
     """备份 dev 和 prod 两个数据库"""
     os.makedirs(BACKUP_DIR, exist_ok=True)
     date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     paths = []
     for db_path in [DEV_DB, PROD_DB]:
         if not os.path.exists(db_path):
@@ -165,7 +150,6 @@ def backup_databases():
             continue
         name, ext = os.path.splitext(os.path.basename(db_path))
         backup_path = os.path.join(BACKUP_DIR, f"{name}_{date_str}{ext}")
-
         src = sqlite3.connect(db_path)
         dst = sqlite3.connect(backup_path)
         try:
@@ -173,10 +157,8 @@ def backup_databases():
         finally:
             src.close()
             dst.close()
-
         print(f"  备份: {backup_path}")
         paths.append(backup_path)
-
     return paths
 
 
@@ -193,7 +175,6 @@ def _get_create_sqls(conn):
 
 
 def compare_schemas():
-    """比较 dev 和 prod 结构"""
     dev_conn = sqlite3.connect(DEV_DB)
     prod_conn = sqlite3.connect(PROD_DB)
     try:
@@ -212,7 +193,6 @@ def compare_schemas():
 
 
 def sync_structure():
-    """以 dev 结构为准更新 prod，保留 prod 数据"""
     is_same, diffs = compare_schemas()
     if is_same:
         print("[DB Sync] 库结构一致，无需同步")
@@ -226,35 +206,25 @@ def sync_structure():
     prod_conn = sqlite3.connect(PROD_DB)
     try:
         cursor = prod_conn.cursor()
-
-        # 收集 dev 表
         dev_cursor = dev_conn.cursor()
         dev_cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table'")
-        dev_tables = {}
-        for n, s in dev_cursor.fetchall():
-            if n not in _SYSTEM_TABLES and s:
-                dev_tables[n] = s
+        dev_tables = {n: s for n, s in dev_cursor.fetchall() if n not in _SYSTEM_TABLES and s}
 
-        # 收集 prod 表
         prod_cursor = prod_conn.cursor()
         prod_cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table'")
-        prod_tables = {}
-        for n, s in prod_cursor.fetchall():
-            if n not in _SYSTEM_TABLES and s:
-                prod_tables[n] = " ".join(s.split())
+        prod_tables = {n: " ".join(s.split()) for n, s in prod_cursor.fetchall() if n not in _SYSTEM_TABLES and s}
 
         # 新建表
         for t in sorted(set(dev_tables.keys()) - set(prod_tables.keys())):
             print(f"[DB Sync] 创建新表: {t}")
             cursor.execute(dev_tables[t])
 
-        # 重建结构变化的表
+        # 重建变化表
         for t in set(dev_tables.keys()) & set(prod_tables.keys()):
             new_sql = " ".join(dev_tables[t].split())
             if new_sql == prod_tables[t]:
                 continue
             print(f"[DB Sync] 重建表: {t}")
-
             try:
                 prod_cursor.execute(f"SELECT * FROM [{t}]")
                 old_rows = prod_cursor.fetchall()
@@ -269,7 +239,6 @@ def sync_structure():
             temp = f"{t}_sync_temp"
             cursor.execute(f"ALTER TABLE [{t}] RENAME TO [{temp}]")
             cursor.execute(dev_tables[t])
-
             if old_rows and compatible:
                 ph = ",".join(["?" for _ in compatible])
                 ins = f"INSERT INTO [{t}] ({','.join(compatible)}) VALUES ({ph})"
@@ -281,11 +250,8 @@ def sync_structure():
                         pass
             cursor.execute(f"DROP TABLE [{temp}]")
 
-        # 同步索引
-        dev_cursor.execute(
-            "SELECT name, sql, tbl_name FROM sqlite_master "
-            "WHERE type='index' AND sql IS NOT NULL"
-        )
+        # 索引
+        dev_cursor.execute("SELECT name, sql, tbl_name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
         prod_cursor.execute("SELECT name FROM sqlite_master WHERE type='index'")
         existing = {r[0] for r in prod_cursor.fetchall()}
         for idx_name, idx_sql, tbl_name in dev_cursor.fetchall():
@@ -318,10 +284,7 @@ def main():
 
     # 1. 停服务
     print("\n[1/4] 停止服务...")
-    try:
-        stop_services()
-    except Exception as e:
-        print(f"停止异常: {e}")
+    svc_map = stop_services()
 
     # 2. 备份数据库
     print("\n[2/4] 备份数据库...")
@@ -339,7 +302,7 @@ def main():
 
     # 4. 启服务
     print("\n[4/4] 启动服务...")
-    start_services()
+    start_services(svc_map)
 
     print("\n" + "=" * 50)
     print("  重启完成")
