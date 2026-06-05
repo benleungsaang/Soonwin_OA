@@ -16,6 +16,7 @@
     >
       <!-- 内容输入 -->
       <el-input
+        ref="contentInputRef"
         v-model="content"
         type="textarea"
         :rows="5"
@@ -73,6 +74,16 @@
         <el-button type="primary" plain @click="($refs.fileInputRef as HTMLInputElement).click()">
           <el-icon><PictureFilled /></el-icon> 多媒体
         </el-button>
+        <el-button plain @click="emojiPickerVisible = !emojiPickerVisible">
+          🙂
+        </el-button>
+        <div class="emoji-wrapper">
+          <emoji-picker
+            v-if="emojiPickerVisible"
+            class="emoji-picker"
+            @emoji-click="handleEmojiClick"
+          />
+        </div>
       </div>
     </div>
 
@@ -89,9 +100,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { PictureFilled, UploadFilled } from '@element-plus/icons-vue'
+import 'emoji-picker-element'
 import type { BlogPost, BlogMedia } from '@/types/blog'
 import { getMediaUrl } from '@/api/blog'
 
@@ -144,6 +156,8 @@ const submitBtnText = computed(() => {
 })
 
 const content = ref('')
+const contentInputRef = ref<any>(null)
+const emojiPickerVisible = ref(false)
 const mediaPreviews = ref<MediaPreview[]>([])
 const existingMedia = ref<ExistingMediaItem[]>([])
 const saving = ref(false)
@@ -277,6 +291,27 @@ function removeMedia(index: number) {
 
 function toggleKeepExisting(item: ExistingMediaItem) {
   item.keep = !item.keep
+}
+
+// ========== Emoji ==========
+
+function handleEmojiClick(event: any) {
+  const emoji: string = event.detail.emoji.unicode
+  const textarea = contentInputRef.value?.$el?.querySelector('textarea')
+  if (textarea) {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    content.value =
+      content.value.substring(0, start) + emoji + content.value.substring(end)
+    nextTick(() => {
+      const pos = start + emoji.length
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  } else {
+    content.value += emoji
+  }
+  emojiPickerVisible.value = false
 }
 
 // ========== 提交 ==========
@@ -468,6 +503,21 @@ async function handleSaveCurrentDraftThenClose() {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  position: relative;
+}
+
+.emoji-wrapper {
+  position: relative;
+}
+
+.emoji-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 200;
+  margin-bottom: 4px;
+  height: 320px;
+  --num-columns: 8;
 }
 
 .upload-hint {

@@ -23,7 +23,13 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
 
   return {
     plugins: [
-      vue(),
+      vue({
+        template: {
+          compilerOptions: {
+            isCustomElement: (tag) => tag === 'emoji-picker',
+          },
+        },
+      }),
       // 自动导入 Vue 相关 API（如 ref、reactive、onMounted 等）
       AutoImport({
         resolvers: [ElementPlusResolver()], // 同时自动导入 Element Plus 的 API（如 ElMessage）
