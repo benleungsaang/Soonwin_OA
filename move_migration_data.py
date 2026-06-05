@@ -24,8 +24,9 @@ BACKEND_ROOT_FILES = [
     # "soonwin_oa.db",
     "soonwin_oa_dev.db",
     "requirements.txt",
-    "run.py",          # 新增：缺失的run.py
-    "wsgi.py"          # 新增：缺失的wsgi.py
+    "run.py",               # Flask 入口
+    "wsgi.py",              # WSGI 入口
+    "restart_services.py",  # 独立重启脚本（备份/同步/启停）
 ]
 
 # 需要复制的后端子文件夹
