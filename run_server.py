@@ -431,7 +431,9 @@ http {{
 
     def kill_port_process(self, port: int):
         """
-        强制杀死占用指定端口的所有进程（Windows增强版）
+        强制杀死占用指定端口的所有进程（Windows增强版 - 支持幽灵端口）
+        针对进程已死但端口仍被内核占用的「幽灵端口」问题，
+        使用PowerShell Remove-NetTCPConnection 直接移除TCP连接条目。
         :param port: 要释放的端口号
         """
         try:
@@ -443,7 +445,7 @@ http {{
                 encoding='gbk'
             )
             lines = result.stdout.split('\n')
-            pids = set()  # 用集合去重，避免重复杀进程
+            pids = set()
 
             for line in lines:
                 line_stripped = line.strip()
@@ -456,46 +458,76 @@ http {{
                         continue
 
             if not pids:
-                print(f"[v] {port}端口未被占用，nginx 启动成功！")
+                print(f"[v] {port}端口未被占用，启动成功！")
                 return
 
-            # 步骤2：终止所有关联PID（包括子进程）
-            for pid in pids:
-                # 先尝试正常终止
-                try:
-                    subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True, check=True)
-                    print(f"[v] 已强制终止PID {pid}（占用{port}端口）")
-                except subprocess.CalledProcessError:
-                    # 若正常终止失败，尝试终止进程树
+            # 步骤2：多轮尝试释放端口（最多3轮）
+            for attempt in range(3):
+                print(f"[v] 第{attempt+1}轮尝试释放端口{port}...")
+
+                # 2a. 强制终止关联PID及其进程树
+                for pid in pids:
                     try:
-                        subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True)
-                        print(f"[v] 已强制终止PID {pid}及其子进程（占用{port}端口）")
+                        subprocess.run(
+                            ['taskkill', '/F', '/T', '/PID', pid],
+                            capture_output=True, timeout=5
+                        )
+                        print(f"[v] 已尝试终止PID {pid}及其子进程")
                     except:
-                        print(f"[!] 终止PID {pid}失败，请手动结束进程")
+                        pass
 
-            # 步骤3：额外终止所有nginx.exe和python.exe进程（兜底）
+                # 2b. 额外终止常见占用进程（兜底）
+                try:
+                    subprocess.run(['taskkill', '/F', '/IM', 'nginx.exe'], capture_output=True)
+                except:
+                    pass
+                try:
+                    subprocess.run(
+                        ['taskkill', '/F', '/IM', 'python.exe',
+                         '/FI', 'WINDOWTITLE eq OA System - *后端*'],
+                        capture_output=True
+                    )
+                except:
+                    pass
+
+                # 2c. PowerShell移除僵死TCP连接 ← 核心：专治幽灵端口
+                try:
+                    ps_cmd = (
+                        f'Get-NetTCPConnection -LocalPort {port} '
+                        f'-ErrorAction SilentlyContinue | '
+                        f'Remove-NetTCPConnection -Force -ErrorAction SilentlyContinue'
+                    )
+                    subprocess.run(
+                        ['powershell', '-Command', ps_cmd],
+                        capture_output=True, timeout=10
+                    )
+                    print(f"[v] 已通过PowerShell移除端口{port}的TCP连接条目")
+                except:
+                    pass
+
+                # 2d. 等待端口释放（逐轮递增等待时间）
+                wait_time = 5 + attempt * 5
+                print(f"[v] 等待{wait_time}秒，让{port}端口完全释放...")
+                time.sleep(wait_time)
+
+                # 2e. 检查端口状态
+                if self.check_port_with_netstat(port):
+                    print(f"[v] {port}端口已成功释放")
+                    return
+
+            # 步骤3：最终尝试 - 直接 bind 测试端口是否实际可用
+            # 极少数情况下 netstat 条目过时但端口实际可绑定
             try:
-                subprocess.run(['taskkill', '/F', '/IM', 'nginx.exe'], capture_output=True)
-                print(f"[v] 已终止所有nginx.exe进程（兜底）")
-            except:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_sock:
+                    test_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    test_sock.bind(('0.0.0.0', port))
+                    test_sock.close()
+                print(f"[v] {port}端口实际可用（netstat显示为过期条目），继续启动")
+                return
+            except OSError:
                 pass
 
-            try:
-                subprocess.run(['taskkill', '/F', '/IM', 'python.exe', '/FI', 'WINDOWTITLE eq OA System - *后端*'],
-                              capture_output=True)
-                print(f"[v] 已终止所有后端Python进程（兜底）")
-            except:
-                pass
-
-            # 步骤4：等待端口释放（关键：给Windows足够时间清理端口）
-            print(f"[v] 等待5秒，让{port}端口完全释放...")
-            time.sleep(5)
-
-            # 步骤5：再次检查端口状态
-            if self.check_port_with_netstat(port):
-                print(f"[v] {port}端口已成功释放")
-            else:
-                print(f"[!] {port}端口仍显示被占用，可能是Windows网络栈延迟，建议等待10秒后重试")
+            print(f"[!] 端口{port}释放失败，建议重启系统后重试")
 
         except Exception as e:
             print(f"[!] 释放{port}端口失败: {e}")
@@ -723,13 +755,22 @@ http {{
             print(f"[!] 端口{backend_port}已被占用，尝试强制释放...")
             self.kill_port_process(backend_port)
             if not self.check_port_with_netstat(backend_port):
-                print(f"[!] 端口{backend_port}释放失败，启动服务失败")
-                self._wait_for_input()
-                return
+                print(f"[!] 端口{backend_port}释放失败")
+                # 提供备用端口选择
+                print("[?] 是否尝试其他端口？(如有，需同步修改 vite.config.ts 的 proxy 目标)")
+                for alt_port in [5000, 5002, 5003, 5010]:
+                    if self.check_port_with_netstat(alt_port):
+                        backend_port = alt_port
+                        print(f"[v] 已切换到备用端口 {backend_port}")
+                        break
+                else:
+                    print("[!] 无可用备用端口，启动服务失败")
+                    self._wait_for_input()
+                    return
 
         # 开发时使用普通方式启动服务
-        backend_cmd = r"python .\run.py --port 5001"
-        self.start_process(backend_cmd, cwd=self.backend_dir, name="开发版后端(5001)")
+        backend_cmd = f"python .\\run.py --port {backend_port}"
+        self.start_process(backend_cmd, cwd=self.backend_dir, name=f"开发版后端({backend_port})")
         time.sleep(2)
 
         # 启动前端 (端口5173)
