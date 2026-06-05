@@ -931,6 +931,26 @@ def toggle_like(post_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@blog_bp.route('/posts/<int:post_id>/likes', methods=['GET'])
+@require_auth
+def get_post_likes(post_id):
+    """获取点赞该博文的用户列表"""
+    try:
+        from app.models.employee import Employee
+        likes = BlogLike.query.filter_by(post_id=post_id).order_by(BlogLike.created_at.desc()).all()
+        users = []
+        for like in likes:
+            emp = Employee.query.filter_by(emp_id=like.user_id).first()
+            users.append({
+                'user_id': like.user_id,
+                'name': emp.name if emp else like.user_id,
+            })
+        return jsonify({'success': True, 'data': users})
+    except Exception as e:
+        print(f"获取点赞列表失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ============================================================
 # 媒体文件访问
 # ============================================================

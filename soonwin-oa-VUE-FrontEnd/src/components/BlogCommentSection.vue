@@ -32,8 +32,20 @@
 
     <!-- 输入区（只读模式隐藏） -->
     <div v-if="!readonly" class="flex gap-2 mt-2">
-      <input v-model="commentText" placeholder="写留言..."
+      <input ref="commentInputRef" v-model="commentText" placeholder="写留言..."
              class="comment-input" @keydown.enter="handleSubmit" />
+      <div class="comment-emoji-area">
+        <button class="comment-emoji-btn" @click="commentEmojiVisible = !commentEmojiVisible">
+          🙂
+        </button>
+        <div ref="commentEmojiWrapperRef" class="emoji-wrapper">
+          <emoji-picker
+            v-if="commentEmojiVisible"
+            class="emoji-picker"
+            @emoji-click="handleCommentEmoji"
+          />
+        </div>
+      </div>
       <button class="comment-send-btn" :disabled="submitting" @click="handleSubmit">
         发送
       </button>
@@ -42,9 +54,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Close } from '@element-plus/icons-vue'
+import 'emoji-picker-element'
 import type { BlogComment } from '@/types/blog'
 import { getComments, createComment, deleteComment } from '@/api/blog'
 import { getCurrentUserRole } from '@/utils/authUtils'
@@ -65,6 +78,40 @@ const comments = ref<BlogComment[]>([])
 const commentText = ref('')
 const submitting = ref(false)
 const showAll = ref(false)
+
+// Emoji
+const commentEmojiVisible = ref(false)
+const commentEmojiWrapperRef = ref<HTMLElement | null>(null)
+const commentInputRef = ref<HTMLInputElement | null>(null)
+
+function handleCommentEmoji(event: any) {
+  const emoji: string = event.detail.emoji.unicode
+  const input = commentInputRef.value
+  if (input) {
+    const start = input.selectionStart
+    const end = input.selectionEnd
+    commentText.value =
+      commentText.value.substring(0, start) + emoji + commentText.value.substring(end)
+    nextTick(() => {
+      const pos = start + emoji.length
+      input.setSelectionRange(pos, pos)
+      input.focus()
+    })
+  } else {
+    commentText.value += emoji
+  }
+  commentEmojiVisible.value = false
+}
+
+function onCommentEmojiOutsideClick(e: MouseEvent) {
+  if (!commentEmojiVisible.value) return
+  const target = e.target as HTMLElement
+  if (commentEmojiWrapperRef.value?.contains(target)) return
+  if (target.closest('.comment-emoji-btn')) return
+  commentEmojiVisible.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onCommentEmojiOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onCommentEmojiOutsideClick))
 
 const showAllComments = computed(() => {
   return showAll.value ? comments.value : comments.value.slice(0, COMMENTS_PREVIEW)
@@ -152,6 +199,21 @@ function formatTime(dateStr: string): string {
   border-radius: 8px; outline: none; background: #fff; box-sizing: border-box;
 }
 .comment-input:focus { border-color: #3b82f6; }
+.comment-emoji-area { position: relative; display: flex; align-items: center; }
+.comment-emoji-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 8px; background: none; border: none; cursor: pointer;
+  border-radius: 8px; font-size: 18px; line-height: 1; transition: all 0.15s;
+  color: #9ca3af;
+}
+.comment-emoji-btn:hover { color: #3b82f6; background: #f3f4f6; }
+.comment-emoji-area .emoji-wrapper { position: relative; }
+.comment-emoji-area .emoji-picker {
+  position: absolute; bottom: 100%; right: 0; z-index: 200;
+  margin-bottom: 4px; height: 260px; border-radius: 12px;
+  --num-columns: 8; --border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
 .comment-send-btn {
   padding: 6px 12px; background: #3b82f6; color: #fff; border: none;
   border-radius: 8px; font-size: 13px; cursor: pointer; flex-shrink: 0;

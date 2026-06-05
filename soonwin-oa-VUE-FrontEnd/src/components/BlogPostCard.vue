@@ -106,6 +106,19 @@
         <el-icon :size="15"><ChatDotRound /></el-icon>
         <span>{{ post.comment_count || '留言' }}</span>
       </button>
+      <button class="post-action-btn" :class="{ 'post-action-btn-liked': post.is_liked }"
+              @click="$emit('toggle-like')"
+              @mouseenter="onLikeEnter"
+              @mouseleave="onLikeLeave">
+        <span class="like-emoji">{{ post.is_liked ? '👍' : '👍' }}</span>
+        <span>{{ post.like_count || '点赞' }}</span>
+        <div v-if="showLikersTooltip && likers.length > 0" class="likers-tooltip">
+          <div v-for="user in likers" :key="user.user_id" class="liker-row">
+            <img :src="`/api/posts/avatar/${user.user_id}`" class="liker-avatar" />
+            <span class="liker-name">{{ user.name }}</span>
+          </div>
+        </div>
+      </button>
       <button v-if="isAdmin" class="post-action-btn" @click="loadHistory">
         <el-icon :size="15"><Clock /></el-icon>
         <span>历史</span>
@@ -181,7 +194,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Edit, Delete, VideoCamera, Star, StarFilled, ChatDotRound, Clock, Loading, Close, ArrowUp, Refresh, ZoomIn } from '@element-plus/icons-vue'
 import type { BlogPost, BlogEditHistory } from '@/types/blog'
-import { getMediaUrl, getEditHistory } from '@/api/blog'
+import { getMediaUrl, getEditHistory, getPostLikes } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
 import BlogCommentSection from './BlogCommentSection.vue'
 
@@ -196,6 +209,33 @@ const showComments = ref(false)
 const historyVisible = ref(false)
 const editHistories = ref<BlogEditHistory[]>([])
 const loadingHistory = ref(false)
+
+// 点赞悬停
+const likers = ref<{ user_id: string; name: string }[]>([])
+const showLikersTooltip = ref(false)
+const likersLoaded = ref(false)
+let likeLeaveTimer: ReturnType<typeof setTimeout> | null = null
+
+async function loadLikers() {
+  if (likersLoaded.value) return
+  try {
+    const res: any = await getPostLikes(props.post.id)
+    if (res?.data) likers.value = res.data
+    likersLoaded.value = true
+  } catch { /* ignore */ }
+}
+
+function onLikeEnter() {
+  if (likeLeaveTimer) { clearTimeout(likeLeaveTimer); likeLeaveTimer = null }
+  loadLikers()
+  showLikersTooltip.value = true
+}
+
+function onLikeLeave() {
+  likeLeaveTimer = setTimeout(() => {
+    showLikersTooltip.value = false
+  }, 200)
+}
 
 const expandedIdx = ref<number | null>(null)
 const rotateDeg = ref(0)
@@ -495,10 +535,42 @@ defineExpose({ loadHistory })
   color: inherit;
   font-size: inherit;
   transition: color 0.2s;
+  position: relative;
 }
 .post-action-btn:hover { color: #4b5563; }
 .post-action-btn-liked { color: #ef4444 !important; }
 .post-action-btn:disabled { opacity: 0.5; cursor: default; }
+
+.like-emoji { font-size: 15px; line-height: 1; }
+
+.likers-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  margin-bottom: 6px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 8px 0;
+  min-width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.liker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  white-space: nowrap;
+}
+.liker-row:hover { background: #f3f4f6; }
+.liker-avatar {
+  width: 20px; height: 20px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+}
+.liker-name { font-size: 13px; color: #374151; }
 
 .post-icon-btn {
   padding: 8px;
