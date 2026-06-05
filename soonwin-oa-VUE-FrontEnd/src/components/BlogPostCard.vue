@@ -12,7 +12,7 @@
         </div>
       </div>
       <div v-if="showActions" class="post-header-actions">
-        <button v-if="isAdmin && !readonly" class="post-icon-btn" title="编辑历史" @click="loadHistory">
+        <button v-if="isAdmin && !readonly && (post.edit_version > 1)" class="post-icon-btn" title="编辑历史" @click="loadHistory">
           <el-icon :size="16"><Clock /></el-icon>
         </button>
         <button v-if="!post.is_deleted && !post.is_draft" class="post-icon-btn" :class="{ 'post-icon-btn-liked': post.is_liked }"
@@ -494,7 +494,7 @@ defineExpose({ loadHistory })
 .post-header-actions { display: flex; gap: 4px; }
 
 /* ===== 内容 ===== */
-.post-body { padding: 0 16px 12px 16px; }
+.post-body { padding: 0 16px 12px 68px; }
 .post-text { color: #1f2937; white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.6; margin: 0; }
 
 /* ===== 转发 ===== */
