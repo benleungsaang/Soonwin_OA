@@ -119,7 +119,7 @@
           <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
         </svg>
         <span v-if="post.like_count" class="like-count">{{ post.like_count }}</span>
-        <div v-if="showLikersTooltip && likers.length > 0" class="likers-tooltip">
+        <div v-if="likers.length > 0" v-show="showLikersTooltip" class="likers-tooltip">
           <div v-for="user in likers" :key="user.user_id" class="liker-row">
             <img :src="`/api/posts/avatar/${user.user_id}`" class="liker-avatar" />
             <span class="liker-name">{{ user.name }}</span>
