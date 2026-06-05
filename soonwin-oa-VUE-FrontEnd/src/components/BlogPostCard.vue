@@ -3,7 +3,7 @@
     <!-- 头部：作者信息 + 删除/编辑 -->
     <div class="post-header">
       <div class="post-author">
-        <div class="post-avatar" @click="$emit('filter-author', post.author)" style="cursor:pointer">
+        <div class="post-avatar" @click="showAvatarPreview = true" style="cursor:pointer">
           <img :src="`/api/posts/avatar/${post.author_id}`" class="w-full h-full object-cover" />
         </div>
         <div>
@@ -113,7 +113,12 @@
               @click="$emit('toggle-like')"
               @mouseenter="onLikeEnter"
               @mouseleave="onLikeLeave">
-        <span class="like-emoji">👍</span>
+        <svg class="like-svg" viewBox="0 0 24 24" width="16" height="16"
+             stroke="currentColor" stroke-width="2" :fill="post.is_liked ? 'currentColor' : 'none'"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+        <span v-if="post.like_count" class="like-count">{{ post.like_count }}</span>
         <div v-if="showLikersTooltip && likers.length > 0" class="likers-tooltip">
           <div v-for="user in likers" :key="user.user_id" class="liker-row">
             <img :src="`/api/posts/avatar/${user.user_id}`" class="liker-avatar" />
@@ -167,6 +172,13 @@
     </el-dialog>
   </article>
 
+  <!-- 头像预览 -->
+  <teleport to="body">
+    <div v-if="showAvatarPreview" class="avatar-overlay" @click="showAvatarPreview = false">
+      <img :src="`/api/posts/avatar/${post.author_id}`" class="avatar-preview-img" />
+    </div>
+  </teleport>
+
   <!-- 全屏查看模式（移动端） -->
   <teleport to="body">
     <div v-if="fullscreenVisible" class="fs-overlay" @touchstart="onFsTouchStart" @touchmove="onFsTouchMove" @touchend="onFsTouchEnd">
@@ -204,6 +216,7 @@ const emit = defineEmits<{
 }>()
 
 const showComments = ref(false)
+const showAvatarPreview = ref(false)
 const historyVisible = ref(false)
 const editHistories = ref<BlogEditHistory[]>([])
 const loadingHistory = ref(false)
@@ -211,21 +224,27 @@ const loadingHistory = ref(false)
 // 点赞悬停
 const likers = ref<{ user_id: string; name: string }[]>([])
 const showLikersTooltip = ref(false)
-const likersLoaded = ref(false)
+let likersLoaded = false
 let likeLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
-async function loadLikers() {
-  if (likersLoaded.value) return
+async function loadLikers(force = false) {
+  if (!force && likersLoaded) return
   try {
     const res: any = await getPostLikes(props.post.id)
     if (Array.isArray(res)) likers.value = res
-    likersLoaded.value = true
+    likersLoaded = true
   } catch { /* ignore */ }
 }
 
+// 点赞数量变化时（点赞/取消后）重新加载点赞列表
+watch(() => props.post.like_count, () => {
+  likersLoaded = false
+  loadLikers(true)
+})
+
 function onLikeEnter() {
   if (likeLeaveTimer) { clearTimeout(likeLeaveTimer); likeLeaveTimer = null }
-  loadLikers()
+  loadLikers() // 首次 hover 加载，后续从缓存读取
   showLikersTooltip.value = true
 }
 
@@ -535,10 +554,11 @@ defineExpose({ loadHistory })
   position: relative;
 }
 .post-action-btn:hover { color: #4b5563; }
-.post-action-btn-liked { color: #ef4444 !important; }
+.post-action-btn-liked { color: #e6a23c !important; }
 .post-action-btn:disabled { opacity: 0.5; cursor: default; }
 
-.like-emoji { font-size: 15px; line-height: 1; }
+.like-svg { flex-shrink: 0; }
+.like-count { font-size: 13px; line-height: 1; }
 
 .likers-tooltip {
   position: absolute;
@@ -718,6 +738,19 @@ defineExpose({ loadHistory })
   position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
   z-index: 10; color: #fff; font-size: 14px; background: rgba(0,0,0,0.4);
   padding: 4px 14px; border-radius: 12px;
+}
+
+/* 头像预览 */
+.avatar-overlay {
+  position: fixed; inset: 0; z-index: 10002;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out;
+}
+.avatar-preview-img {
+  width: 200px; height: 200px; border-radius: 50%;
+  object-fit: cover; border: 4px solid #fff;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
 }
 
 </style>

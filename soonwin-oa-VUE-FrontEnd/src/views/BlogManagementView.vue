@@ -78,6 +78,9 @@
         <span v-if="filterAuthor" class="filter-tag">
           作者: {{ filterAuthor }} <button @click="clearFilterAuthor" class="filter-tag-close">&times;</button>
         </span>
+        <button v-if="searchKeyword || filterAuthor" class="search-clear-btn" @click="handleClearSearch">
+          清除
+        </button>
       </div>
 
       <!-- 博文列表 -->
@@ -288,6 +291,7 @@ onMounted(async () => {
 
 function onSearchEnter() { searchKeyword.value = searchKeyword.value.trim(); currentPage.value = 1; loadPosts() }
 function clearFilterAuthor() { filterAuthor.value = ''; searchKeyword.value = ''; currentPage.value = 1; loadPosts() }
+function handleClearSearch() { searchKeyword.value = ''; filterAuthor.value = ''; currentPage.value = 1; loadPosts() }
 
 function onFilterAuthor(author: string) { filterAuthor.value = author; activeTab.value = 'published'; currentPage.value = 1; searchKeyword.value = ''; loadPosts() }
 
@@ -394,8 +398,14 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .search-icon { position: absolute; left: 12px; z-index: 1; pointer-events: none; }
 .search-input { width: 100%; padding: 10px 16px 10px 36px; border: 1px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
 .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-.filter-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; background: #eff6ff; color: #3b82f6; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+.filter-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; background: #eff6ff; color: #3b82f6; border-radius: 6px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
 .filter-tag-close { background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 14px; line-height: 1; }
+.search-clear-btn {
+  flex-shrink: 0; padding: 4px 10px; margin-left: 6px;
+  background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px;
+  font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.search-clear-btn:hover { background: #e5e7eb; color: #374151; }
 
 /* 工具栏 */
 .blog-tabs { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }

@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file, abort
 from app.utils.simple_auth_utils import route_permission
 from app.utils.auth_utils import require_auth, require_admin, get_user_id_from_token, get_user_role_from_token
 from app.constants.simple_permission_constants import ROUTE_BLOG_MANAGE
-from app.models.blog import BlogPost, BlogMedia, BlogEditHistory, BlogComment, BlogLike
+from app.models.blog import BlogPost, BlogMedia, BlogEditHistory, BlogComment, BlogLike, BlogFavorite
 from app.utils.upload_utils import (
     save_uploaded_file, generate_unique_filename, sanitize_filename,
     process_image_with_variants, process_video_with_variants,
