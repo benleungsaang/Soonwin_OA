@@ -97,6 +97,7 @@
             <Item>\assets\PostsMedia\</Item>
             <Item>\soonwin_oa.db</Item>
             <Item>\数据库备份文件\</Item>
+            <Item>\restart_services.bat</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>

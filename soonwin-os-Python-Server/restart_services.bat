@@ -1,0 +1,1 @@
+python ./restart_services.py

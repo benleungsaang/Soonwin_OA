@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { UserFilled, Close } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
 import type { BlogComment } from '@/types/blog'
@@ -149,9 +149,16 @@ async function handleSubmit() {
 
 async function handleDelete(commentId: number) {
   try {
+    await ElMessageBox.confirm('确定要删除这条留言吗？', '删除确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
     await deleteComment(props.postId, commentId)
     comments.value = comments.value.filter(c => c.id !== commentId)
+    ElMessage.success('留言已删除')
   } catch (err: any) {
+    if (err === 'cancel') return
     ElMessage.error(err?.response?.data?.message || '删除失败')
   }
 }
