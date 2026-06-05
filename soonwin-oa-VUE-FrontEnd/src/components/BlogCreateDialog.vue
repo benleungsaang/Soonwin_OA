@@ -63,20 +63,20 @@
 
       <!-- 文件选择按钮 -->
       <div class="upload-actions">
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,video/mp4,video/avi,video/mov,video/mkv,video/wmv"
-          multiple
-          style="display: none"
-          @change="handleFileSelect"
-        />
-        <el-button type="primary" plain @click="($refs.fileInputRef as HTMLInputElement).click()">
-          <el-icon><PictureFilled /></el-icon> 多媒体
-        </el-button>
-        <el-button plain @click="emojiPickerVisible = !emojiPickerVisible">
+        <label class="publish-upload-btn">
+          <el-icon :size="16"><PictureFilled /></el-icon>
+          <span>多媒体</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,video/mp4,video/avi,video/mov,video/mkv,video/wmv"
+            multiple
+            hidden
+            @change="handleFileSelect"
+          />
+        </label>
+        <button class="publish-emoji-btn" @click="emojiPickerVisible = !emojiPickerVisible">
           🙂
-        </el-button>
+        </button>
         <div class="emoji-wrapper">
           <emoji-picker
             v-if="emojiPickerVisible"
@@ -501,9 +501,41 @@ async function handleSaveCurrentDraftThenClose() {
 .upload-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   flex-wrap: wrap;
   position: relative;
+}
+
+.publish-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  color: #9ca3af;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.publish-upload-btn:hover {
+  color: #3b82f6;
+  background: #f3f4f6;
+}
+
+.publish-emoji-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+.publish-emoji-btn:hover {
+  background: #f3f4f6;
 }
 
 .emoji-wrapper {

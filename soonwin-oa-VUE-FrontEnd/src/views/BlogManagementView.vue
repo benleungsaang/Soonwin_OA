@@ -25,7 +25,7 @@
           </div>
           <input ref="avatarInputRef" type="file" accept="image/*" hidden @change="onAvatarSelected" />
           <div class="flex-1">
-            <textarea v-model="publishContent" placeholder="记录工作点滴..." rows="3"
+            <textarea ref="publishTextareaRef" v-model="publishContent" placeholder="记录工作点滴..." rows="3"
               class="publish-textarea"
               @paste="onPublishPaste" />
             <!-- 媒体预览 -->
@@ -48,6 +48,16 @@
                   <el-icon :size="16"><PictureFilled /></el-icon><span class="text-sm ml-1">多媒体</span>
                   <input type="file" accept="image/*,video/*" multiple hidden @change="onPublishMediaSelect" />
                 </label>
+                <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible">
+                  🙂
+                </button>
+                <div class="emoji-wrapper">
+                  <emoji-picker
+                    v-if="publishEmojiVisible"
+                    class="emoji-picker"
+                    @emoji-click="handlePublishEmoji"
+                  />
+                </div>
               </div>
               <div class="flex gap-2">
                 <button v-if="publishContent.trim() || publishFiles.length > 0" class="publish-draft-btn" :disabled="publishing" @click="handleSaveDraft">保存草稿</button>
@@ -102,9 +112,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, PictureFilled, VideoCamera, UserFilled, Camera } from '@element-plus/icons-vue'
+import 'emoji-picker-element'
 import CommonHeader from '@/components/CommonHeader.vue'
 import BlogPostCard from '@/components/BlogPostCard.vue'
 import BlogCreateDialog from '@/components/BlogCreateDialog.vue'
@@ -184,6 +195,8 @@ const publishFiles = ref<{ type: string; url: string; file: File }[]>([])
 const publishing = ref(false)
 const uploadProgress = ref(0)
 const publishDragOver = ref(false)
+const publishEmojiVisible = ref(false)
+const publishTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 function addPublishFiles(files: FileList | File[]) {
   for (let i = 0; i < files.length; i++) {
@@ -201,6 +214,26 @@ function onPublishPaste(e: ClipboardEvent) {
 }
 function onPublishDrop(e: DragEvent) { publishDragOver.value = false; if (e.dataTransfer?.files) addPublishFiles(e.dataTransfer.files) }
 function removePublishFile(i: number) { URL.revokeObjectURL(publishFiles.value[i].url); publishFiles.value.splice(i, 1) }
+
+// ===== Emoji =====
+function handlePublishEmoji(event: any) {
+  const emoji: string = event.detail.emoji.unicode
+  const textarea = publishTextareaRef.value
+  if (textarea) {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    publishContent.value =
+      publishContent.value.substring(0, start) + emoji + publishContent.value.substring(end)
+    nextTick(() => {
+      const pos = start + emoji.length
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  } else {
+    publishContent.value += emoji
+  }
+  publishEmojiVisible.value = false
+}
 
 async function handleSaveDraft() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入草稿内容'); return }
@@ -320,8 +353,12 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .publish-box.drag-over { background: rgba(59,130,246,0.04); box-shadow: 0 0 0 2px #3b82f6; }
 .publish-textarea { width: 100%; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; resize: none; outline: none; font-size: 15px; color: #1f2937; padding: 10px; background: #fafafa; box-sizing: border-box; }
 .publish-textarea:focus { border-color: #3b82f6; background: #fff; }
-.publish-upload-btn { display: flex; align-items: center; padding: 8px 10px; color: #9ca3af; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
+.publish-upload-btn { display: inline-flex; align-items: center; gap: 4px; padding: 8px 10px; color: #9ca3af; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
 .publish-upload-btn:hover { color: #3b82f6; background: #f3f4f6; }
+.publish-emoji-btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px; background: none; border: none; cursor: pointer; border-radius: 8px; font-size: 18px; line-height: 1; transition: all 0.15s; }
+.publish-emoji-btn:hover { background: #f3f4f6; }
+.emoji-wrapper { position: relative; }
+.emoji-picker { position: absolute; bottom: 100%; left: 0; z-index: 200; margin-bottom: 4px; height: 320px; --num-columns: 8; }
 .publish-draft-btn { background: #fff; color: #6b7280; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; transition: all 0.15s; }
 .publish-draft-btn:hover { background: #f3f4f6; color: #374151; }
 .publish-submit-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
