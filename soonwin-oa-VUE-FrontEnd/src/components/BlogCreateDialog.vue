@@ -77,7 +77,7 @@
         <button class="publish-emoji-btn" @click="emojiPickerVisible = !emojiPickerVisible">
           🙂
         </button>
-        <div class="emoji-wrapper">
+        <div ref="emojiWrapperRef" class="emoji-wrapper">
           <emoji-picker
             v-if="emojiPickerVisible"
             class="emoji-picker"
@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { PictureFilled, UploadFilled } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
@@ -158,10 +158,22 @@ const submitBtnText = computed(() => {
 const content = ref('')
 const contentInputRef = ref<any>(null)
 const emojiPickerVisible = ref(false)
+const emojiWrapperRef = ref<HTMLElement | null>(null)
 const mediaPreviews = ref<MediaPreview[]>([])
 const existingMedia = ref<ExistingMediaItem[]>([])
 const saving = ref(false)
 const dragOver = ref(false)
+
+// 点击 emoji 面板外部时关闭
+function onEmojiOutsideClick(e: MouseEvent) {
+  if (!emojiPickerVisible.value) return
+  const target = e.target as HTMLElement
+  if (emojiWrapperRef.value?.contains(target)) return
+  if (target.closest('.publish-emoji-btn')) return
+  emojiPickerVisible.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onEmojiOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onEmojiOutsideClick))
 
 // 初始化数据
 watch(() => props.visible, (val) => {
@@ -549,7 +561,10 @@ async function handleSaveCurrentDraftThenClose() {
   z-index: 200;
   margin-bottom: 4px;
   height: 320px;
+  border-radius: 12px;
   --num-columns: 8;
+  --border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
 .upload-hint {

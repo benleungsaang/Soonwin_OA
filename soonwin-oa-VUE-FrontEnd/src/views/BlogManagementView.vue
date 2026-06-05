@@ -51,7 +51,7 @@
                 <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible">
                   🙂
                 </button>
-                <div class="emoji-wrapper">
+                <div ref="publishEmojiWrapperRef" class="emoji-wrapper">
                   <emoji-picker
                     v-if="publishEmojiVisible"
                     class="emoji-picker"
@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, PictureFilled, VideoCamera, UserFilled, Camera } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
@@ -196,7 +196,19 @@ const publishing = ref(false)
 const uploadProgress = ref(0)
 const publishDragOver = ref(false)
 const publishEmojiVisible = ref(false)
+const publishEmojiWrapperRef = ref<HTMLElement | null>(null)
 const publishTextareaRef = ref<HTMLTextAreaElement | null>(null)
+
+// 点击 emoji 面板外部时关闭
+function onPublishEmojiOutsideClick(e: MouseEvent) {
+  if (!publishEmojiVisible.value) return
+  const target = e.target as HTMLElement
+  if (publishEmojiWrapperRef.value?.contains(target)) return
+  if (target.closest('.publish-emoji-btn')) return
+  publishEmojiVisible.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onPublishEmojiOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onPublishEmojiOutsideClick))
 
 function addPublishFiles(files: FileList | File[]) {
   for (let i = 0; i < files.length; i++) {
@@ -358,7 +370,7 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .publish-emoji-btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px; background: none; border: none; cursor: pointer; border-radius: 8px; font-size: 18px; line-height: 1; transition: all 0.15s; }
 .publish-emoji-btn:hover { background: #f3f4f6; }
 .emoji-wrapper { position: relative; }
-.emoji-picker { position: absolute; bottom: 100%; left: 0; z-index: 200; margin-bottom: 4px; height: 320px; --num-columns: 8; }
+.emoji-picker { position: absolute; bottom: 100%; left: 0; z-index: 200; margin-bottom: 4px; height: 320px; border-radius: 12px; --num-columns: 8; --border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
 .publish-draft-btn { background: #fff; color: #6b7280; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; transition: all 0.15s; }
 .publish-draft-btn:hover { background: #f3f4f6; color: #374151; }
 .publish-submit-btn { background: #3b82f6; color: #fff; border: none; padding: 8px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
