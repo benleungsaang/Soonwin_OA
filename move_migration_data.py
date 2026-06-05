@@ -32,7 +32,6 @@ BACKEND_ROOT_FILES = [
 BACKEND_FOLDERS = [
     "app",
     "migrations",
-    "instance",
     "other"
 ]
 
@@ -49,7 +48,6 @@ SCRIPT_ROOT_FILES = [
 # 额外部署文件（OA根目录下）
 EXTRA_DEPLOY_FILES = [
     "Soonwin OA 系统 - Windows 生产环境部署指南.md",
-    "启动服务器_生产环境_迁移版.bat"
 ]
 
 # 后端排除的冗余文件/文件夹【保持】：保留assets整体排除（核心！）
@@ -119,7 +117,7 @@ def generate_requirements_txt():
 
     # 获取用户确认
     confirm = input("\n是否生成requirements.txt？(y/N，直接回车不生成): ").strip().lower()
-    if confirm in ['n', 'N']:
+    if confirm not in ['y', 'Y']:
         print("使用现有的requirements.txt文件。")
         return
 
