@@ -1,6 +1,8 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 import config
+import sys
+import os
 # 从 extensions.py 导入扩展（而非本地初始化）
 from extensions import db, migrate
 
@@ -170,6 +172,51 @@ def create_app(port=5000):
         # 设置博客功能的处理队列
         from .routes.blog_routes import set_app_instance as set_blog_app_instance
         set_blog_app_instance(app)
+
+    # ========== 管理端点：远程重启服务 ==========
+    # 仅在非开发端口启用（5001 留给本地调试用，不需要重启能力）
+    if port != 5001:
+        @app.route('/api/admin/restart', methods=['POST'])
+        def admin_restart():
+            """远程重启服务：调用独立脚本处理备份/同步/启停全流程"""
+            import subprocess
+            from datetime import datetime
+
+            data = request.get_json() or {}
+            if data.get('key') != 'SoonwinOA_Restart_Key_2026':
+                return {"success": False, "msg": "密钥错误"}, 403
+
+            # restart_services.py 在 app/ 的上级目录（项目根目录）
+            script = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), '..', 'restart_services.py'))
+            script_dir = os.path.dirname(script)
+
+            # 输出重定向到日志文件，避免 Windows 服务无控制台导致 print() 异常
+            log_path = os.path.join(script_dir, 'restart_output.log')
+            try:
+                with open(log_path, 'a', encoding='utf-8') as log:
+                    log.write(f"\n{'='*60}\n")
+                    log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 远程重启触发\n")
+                    log.write(f"{'='*60}\n")
+                    log.flush()
+
+                    proc = subprocess.Popen(
+                        [sys.executable, script],
+                        cwd=script_dir,
+                        stdin=subprocess.DEVNULL,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
+                    )
+                    log.write(f"子进程 PID: {proc.pid}\n")
+                    log.flush()
+
+                print(f"[Restart] 重启脚本已启动, PID={proc.pid}, 日志: {log_path}")
+                return {"success": True, "msg": "重启命令已提交，约15秒后完成",
+                        "pid": proc.pid, "log": "restart_output.log"}
+            except Exception as e:
+                print(f"[Restart] 启动重启脚本失败: {e}")
+                return {"success": False, "msg": f"启动重启脚本失败: {e}"}, 500
 
     return app
 
