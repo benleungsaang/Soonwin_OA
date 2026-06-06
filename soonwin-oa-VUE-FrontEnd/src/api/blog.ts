@@ -3,6 +3,22 @@ import request, { multipartRequest } from '@/utils/request'
 import type { AxiosProgressEvent } from 'axios'
 
 // ============================================================
+// 类型定义
+// ============================================================
+
+/** 预上传媒体文件的返回信息（两阶段上传） */
+export interface UploadedMediaInfo {
+  file_path: string
+  thumbnail_path: string
+  media_type: 'image' | 'video'
+  file_size: number
+  filename: string
+  width: number
+  height: number
+  duration: number
+}
+
+// ============================================================
 // 博文 CRUD
 // ============================================================
 
@@ -167,9 +183,73 @@ export function getMediaUrl(filePath: string): string {
   return `/assets/PostsMedia/${filePath}`
 }
 
-/** 上传单个媒体文件 */
-export function uploadMedia(formData: FormData) {
-  return request.post('/api/posts/media/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+/** 上传单个媒体文件（两阶段上传的阶段一：独立超时 + 进度）
+ *
+ * 与旧版 uploadMedia 的关键区别：
+ * 1. 使用 multipartRequest（超时更长）而非 request（15s）
+ * 2. 支持 onProgress 回调，前端可显示每个文件的上传进度
+ * 3. 每个文件独立请求，不会因为合并上传大文件导致超时误报
+ * 4. 后端完整处理（图片缩略图 + 视频元数据提取），不堆积到 POST /posts
+ */
+export function uploadSingleFile(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<UploadedMediaInfo> {
+  const fd = new FormData()
+  fd.append('file', file)
+  return multipartRequest.post('/api/posts/media/upload', fd, {
+    timeout: 120000, // 单文件 2 分钟，足够大文件上传
+    onUploadProgress: (e: AxiosProgressEvent) => {
+      if (e.total && onProgress) onProgress(Math.round((e.loaded * 100) / e.total))
+    },
   })
+}
+
+/** 上传单个媒体文件（旧接口，保留向后兼容） */
+export function uploadMedia(formData: FormData) {
+  return multipartRequest.post('/api/posts/media/upload', formData, {
+    timeout: 120000,
+  })
+}
+
+// ============================================================
+// 两阶段上传 API（推荐使用，根治超时问题）
+// ============================================================
+
+/** 创建博文（使用已上传的文件引用，不含二进制数据，请求瞬间完成） */
+export function createPostFromUploaded(
+  content: string,
+  uploadedMedia: UploadedMediaInfo[],
+  repostFrom?: number
+) {
+  const fd = new FormData()
+  fd.append('content', content)
+  fd.append('uploaded_media', JSON.stringify(uploadedMedia))
+  if (repostFrom) fd.append('repost_from', String(repostFrom))
+  return multipartRequest.post('/api/posts', fd)
+}
+
+/** 更新博文（使用已上传的文件引用） */
+export function updatePostFromUploaded(
+  id: number,
+  content: string,
+  uploadedMedia: UploadedMediaInfo[],
+  keepMediaIds: number[]
+) {
+  const fd = new FormData()
+  fd.append('content', content)
+  fd.append('uploaded_media', JSON.stringify(uploadedMedia))
+  fd.append('keep_media_ids', keepMediaIds.join(','))
+  return multipartRequest.put(`/api/posts/${id}`, fd)
+}
+
+/** 保存草稿（使用已上传的文件引用） */
+export function saveDraftFromUploaded(
+  content: string,
+  uploadedMedia: UploadedMediaInfo[]
+) {
+  const fd = new FormData()
+  fd.append('content', content)
+  fd.append('uploaded_media', JSON.stringify(uploadedMedia))
+  return multipartRequest.post('/api/posts/draft', fd)
 }

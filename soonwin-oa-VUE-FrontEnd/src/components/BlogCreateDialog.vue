@@ -28,11 +28,18 @@
 
       <!-- 媒体预览区（新选择的文件） -->
       <div v-if="mediaPreviews.length > 0" class="media-preview-area">
-        <div v-for="(item, index) in mediaPreviews" :key="'new-'+index" class="preview-item">
+        <div v-for="(item, index) in mediaPreviews" :key="'new-'+index" class="preview-item"
+             :class="{ uploading: !item.uploadDone && item.uploadProgress > 0 }">
           <img v-if="item.type === 'image'" :src="item.url" alt="" />
           <video v-else-if="item.type === 'video'" :src="item.url" controls />
           <div class="preview-badge">{{ item.type === 'video' ? '视频' : '图片' }}</div>
-          <el-button class="preview-remove-btn" type="danger" size="small" circle
+          <!-- 上传进度条 -->
+          <div v-if="!item.uploadDone && item.uploadProgress > 0" class="upload-progress-bar">
+            <div class="upload-progress-fill" :style="{ width: item.uploadProgress + '%' }"></div>
+            <span class="upload-progress-text">{{ item.uploadProgress }}%</span>
+          </div>
+          <el-button v-if="!item.uploadDone || item.uploadProgress === 0"
+            class="preview-remove-btn" type="danger" size="small" circle
             @click="removeMedia(index)">×</el-button>
         </div>
       </div>
@@ -111,6 +118,8 @@ interface MediaPreview {
   type: 'image' | 'video'
   url: string
   file: File
+  uploadProgress: number  // 0-100，单文件上传进度
+  uploadDone: boolean      // 是否已上传完成
 }
 
 interface ExistingMediaItem extends BlogMedia {
@@ -164,6 +173,9 @@ const existingMedia = ref<ExistingMediaItem[]>([])
 const saving = ref(false)
 const dragOver = ref(false)
 
+// 缓存已上传文件的元数据（用于提交失败后重试时复用，避免重复上传）
+const cachedUploadedMedia = ref<import('@/api/blog').UploadedMediaInfo[]>([])
+
 // 点击 emoji 面板外部时关闭
 function onEmojiOutsideClick(e: MouseEvent) {
   if (!emojiPickerVisible.value) return
@@ -181,6 +193,7 @@ watch(() => props.visible, (val) => {
     content.value = props.post?.content || ''
     mediaPreviews.value = []
     existingMedia.value = (props.post?.media || []).map(m => ({ ...m, keep: true }))
+    cachedUploadedMedia.value = []
   }
 })
 
@@ -245,6 +258,7 @@ function forceClose() {
   cleanupPreviews()
   content.value = ''
   existingMedia.value = []
+  cachedUploadedMedia.value = []
   emit('update:visible', false)
 }
 
@@ -256,6 +270,7 @@ function cleanupPreviews() {
 // ========== 文件处理 ==========
 
 function addFiles(files: FileList | File[]) {
+  cachedUploadedMedia.value = []  // 新文件加入，缓存失效
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue
@@ -264,6 +279,8 @@ function addFiles(files: FileList | File[]) {
       type: file.type.startsWith('video/') ? 'video' : 'image',
       url,
       file,
+      uploadProgress: 0,
+      uploadDone: false,
     })
   }
 }
@@ -297,12 +314,14 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 function removeMedia(index: number) {
+  cachedUploadedMedia.value = []  // 文件变更，缓存失效
   URL.revokeObjectURL(mediaPreviews.value[index].url)
   mediaPreviews.value.splice(index, 1)
 }
 
 function toggleKeepExisting(item: ExistingMediaItem) {
   item.keep = !item.keep
+  cachedUploadedMedia.value = []  // 媒体集合变更，缓存失效
 }
 
 // ========== Emoji ==========
@@ -326,9 +345,47 @@ function handleEmojiClick(event: any) {
   emojiPickerVisible.value = false
 }
 
+// ========== 两阶段上传 ==========
+
+/**
+ * 阶段一：逐个上传文件（每个文件独立请求、独立超时、独立进度）
+ *
+ * 这是根治超时误报的核心逻辑：
+ * - 旧方案：所有文件塞进一个 FormData → 单请求可能 30s 超时
+ * - 新方案：每个文件单独上传 → 每文件 120s 独立超时 → 不会因总量大而误报
+ *
+ * 返回已上传文件的元数据，供阶段二提交博文时引用。
+ * 若之前已上传成功（缓存存在），直接复用，避免重复上传。
+ */
+async function uploadAllFiles(): Promise<import('@/api/blog').UploadedMediaInfo[]> {
+  // 如果已有缓存（上次提交失败但文件上传成功），直接复用
+  if (cachedUploadedMedia.value.length > 0) {
+    return cachedUploadedMedia.value
+  }
+
+  const { uploadSingleFile } = await import('@/api/blog')
+  const results: import('@/api/blog').UploadedMediaInfo[] = []
+
+  for (const item of mediaPreviews.value) {
+    if (item.uploadDone) continue
+    item.uploadProgress = 0
+    const result = await uploadSingleFile(item.file, (pct) => {
+      item.uploadProgress = pct
+    })
+    item.uploadDone = true
+    item.uploadProgress = 100
+    results.push(result)
+  }
+
+  // 缓存结果，防止提交失败后重试时丢失
+  cachedUploadedMedia.value = results
+  return results
+}
+
 // ========== 提交 ==========
 
 function buildFormData(): FormData {
+  // 保留向后兼容（未被新流程使用的场景）
   const formData = new FormData()
   formData.append('content', content.value)
   mediaPreviews.value.forEach(item => formData.append('media', item.file))
@@ -347,25 +404,30 @@ async function handleSubmit() {
   }
   saving.value = true
   try {
-    const { createPost, updatePost, publishDraft } = await import('@/api/blog')
-    const formData = buildFormData()
+    const { createPostFromUploaded, updatePostFromUploaded, publishDraft } = await import('@/api/blog')
 
+    // 阶段一：逐个上传文件（每文件独立超时，不会误报）
+    const uploadedMedia = await uploadAllFiles()
+
+    // 阶段二：提交博文元数据（仅有文本 + 文件路径引用，请求瞬间完成）
     if (isDraft.value && props.post) {
-      // 编辑草稿 → 先更新再发布
-      await updatePost(props.post.id, formData)
+      await updatePostFromUploaded(props.post.id, content.value, uploadedMedia,
+        existingMedia.value.filter(m => m.keep).map(m => m.id))
       await publishDraft(props.post.id)
       ElMessage.success('草稿已发布')
     } else if (isEdit.value && props.post) {
-      await updatePost(props.post.id, formData)
+      await updatePostFromUploaded(props.post.id, content.value, uploadedMedia,
+        existingMedia.value.filter(m => m.keep).map(m => m.id))
       ElMessage.success('博文已更新')
     } else {
-      await createPost(formData)
+      await createPostFromUploaded(content.value, uploadedMedia)
       ElMessage.success('博文已发布')
     }
     emit('saved')
     forceClose()
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '操作失败')
+    const msg = err?.response?.data?.message || err?.message || '操作失败'
+    ElMessage.error(msg)
   } finally {
     saving.value = false
   }
@@ -374,15 +436,13 @@ async function handleSubmit() {
 async function handleSaveDraftThenClose() {
   saving.value = true
   try {
-    const { saveDraft } = await import('@/api/blog')
-    const formData = new FormData()
-    formData.append('content', content.value)
-    mediaPreviews.value.forEach(item => formData.append('media', item.file))
-    await saveDraft(formData)
+    const uploadedMedia = await uploadAllFiles()
+    const { saveDraftFromUploaded } = await import('@/api/blog')
+    await saveDraftFromUploaded(content.value, uploadedMedia)
     ElMessage.success('草稿已保存')
     emit('draft-saved')
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '保存草稿失败')
+    ElMessage.error(err?.response?.data?.message || err?.message || '保存草稿失败')
   } finally {
     saving.value = false
     forceClose()
@@ -394,13 +454,14 @@ async function handleSaveCurrentDraft() {
   if (!props.post) return
   saving.value = true
   try {
-    const { updatePost } = await import('@/api/blog')
-    const formData = buildFormData()
-    await updatePost(props.post.id, formData)
+    const uploadedMedia = await uploadAllFiles()
+    const { updatePostFromUploaded } = await import('@/api/blog')
+    await updatePostFromUploaded(props.post.id, content.value, uploadedMedia,
+      existingMedia.value.filter(m => m.keep).map(m => m.id))
     ElMessage.success('草稿已保存')
     emit('saved')
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '保存失败')
+    ElMessage.error(err?.response?.data?.message || err?.message || '保存失败')
   } finally {
     saving.value = false
   }
@@ -413,13 +474,14 @@ async function handleSaveCurrentDraftThenClose() {
   }
   saving.value = true
   try {
-    const { updatePost } = await import('@/api/blog')
-    const formData = buildFormData()
-    await updatePost(props.post.id, formData)
+    const uploadedMedia = await uploadAllFiles()
+    const { updatePostFromUploaded } = await import('@/api/blog')
+    await updatePostFromUploaded(props.post.id, content.value, uploadedMedia,
+      existingMedia.value.filter(m => m.keep).map(m => m.id))
     ElMessage.success('草稿已保存')
     emit('draft-saved')
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '保存失败')
+    ElMessage.error(err?.response?.data?.message || err?.message || '保存失败')
   } finally {
     saving.value = false
     forceClose()
@@ -477,6 +539,38 @@ async function handleSaveCurrentDraftThenClose() {
 
 .preview-item.removed {
   opacity: 0.35;
+}
+
+.preview-item.uploading {
+  opacity: 0.7;
+}
+
+.upload-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 0 0 8px 8px;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  background: #409eff;
+  border-radius: 0 0 0 8px;
+  transition: width 0.3s ease;
+}
+
+.upload-progress-text {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
 }
 
 .preview-badge {

@@ -127,8 +127,10 @@ import BlogMediaLightbox from '@/components/BlogMediaLightbox.vue'
 import type { BlogPost, BlogMedia } from '@/types/blog'
 import {
   getPosts, getDraft, deletePost, deleteDraft, toggleLike,
-  getDeletedPosts, restorePost, permanentDeletePosts, createPost,
+  getDeletedPosts, restorePost, permanentDeletePosts,
+  uploadSingleFile, createPostFromUploaded, saveDraftFromUploaded,
 } from '@/api/blog'
+import type { UploadedMediaInfo } from '@/api/blog'
 import { getCurrentUserRole } from '@/utils/authUtils'
 import request from '@/utils/request'
 
@@ -252,18 +254,38 @@ function handlePublishEmoji(event: any) {
   publishEmojiVisible.value = false
 }
 
+/**
+ * 逐个上传快速发布表单中的所有文件（两阶段上传的阶段一）
+ * 每文件独立超时（120s），不会因合并上传大文件导致超时误报
+ */
+async function uploadAllPublishFiles(): Promise<UploadedMediaInfo[]> {
+  const results: UploadedMediaInfo[] = []
+  const total = publishFiles.value.length
+
+  for (let i = 0; i < publishFiles.value.length; i++) {
+    const f = publishFiles.value[i]
+    const result = await uploadSingleFile(f.file, (pct) => {
+      // 总体进度 = (已完成文件 + 当前文件进度) / 总文件数
+      uploadProgress.value = Math.round((i * 100 + pct) / total)
+    })
+    results.push(result)
+  }
+  uploadProgress.value = 100
+  return results
+}
+
 async function handleSaveDraft() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入草稿内容'); return }
   publishing.value = true; uploadProgress.value = 0
   try {
-    const { saveDraft } = await import('@/api/blog')
-    const fd = new FormData(); fd.append('content', publishContent.value)
-    publishFiles.value.forEach(f => fd.append('media', f.file))
-    await saveDraft(fd, (pct) => { uploadProgress.value = pct })
+    // 阶段一：逐个上传文件
+    const uploadedMedia = await uploadAllPublishFiles()
+    // 阶段二：提交草稿元数据（瞬间完成）
+    await saveDraftFromUploaded(publishContent.value, uploadedMedia)
     ElMessage.success('草稿已保存')
     publishContent.value = ''; publishFiles.value.forEach(f => URL.revokeObjectURL(f.url)); publishFiles.value = []
     await checkDraft()
-  } catch (e: any) { ElMessage.error(e?.response?.data?.message || '保存失败') }
+  } catch (e: any) { ElMessage.error(e?.response?.data?.message || e?.message || '保存失败') }
   finally { publishing.value = false; uploadProgress.value = 0 }
 }
 
@@ -271,15 +293,16 @@ async function handlePublish() {
   if (!publishContent.value.trim() && publishFiles.value.length === 0) { ElMessage.warning('请输入内容或添加媒体'); return }
   publishing.value = true; uploadProgress.value = 0
   try {
-    const fd = new FormData(); fd.append('content', publishContent.value)
-    publishFiles.value.forEach(f => fd.append('media', f.file))
-    await createPost(fd, (pct) => { uploadProgress.value = pct })
+    // 阶段一：逐个上传文件
+    const uploadedMedia = await uploadAllPublishFiles()
+    // 阶段二：提交博文元数据（瞬间完成）
+    await createPostFromUploaded(publishContent.value, uploadedMedia)
     ElMessage.success('发布成功')
     publishContent.value = ''
     publishFiles.value.forEach(f => URL.revokeObjectURL(f.url))
     publishFiles.value = []
     currentPage.value = 1; activeTab.value = 'published'; await loadPosts()
-  } catch (e: any) { ElMessage.error(e?.response?.data?.message || '发布失败') }
+  } catch (e: any) { ElMessage.error(e?.response?.data?.message || e?.message || '发布失败') }
   finally { publishing.value = false; uploadProgress.value = 0 }
 }
 

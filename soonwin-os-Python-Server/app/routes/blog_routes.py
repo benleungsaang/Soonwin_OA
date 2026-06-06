@@ -224,16 +224,25 @@ def get_posts():
 @blog_bp.route('/posts', methods=['POST'])
 @route_permission(ROUTE_BLOG_MANAGE)
 def create_post():
-    """创建博文（含媒体上传）"""
+    """创建博文（支持两种模式）
+
+    模式一（传统）：文件随 FormData 一并上传（media 字段）
+    模式二（两阶段）：先逐个调 /posts/media/upload 上传文件，
+                   再通过 uploaded_media 参数传入文件元数据 JSON
+    """
     try:
         content = request.form.get('content', '')
         repost_from = request.form.get('repost_from', type=int)
+        uploaded_media_json = request.form.get('uploaded_media', '')
         files = request.files.getlist('media')
 
         user_id = get_user_id_from_token()
         user_name = _get_current_user_name()
 
-        if not content and not files:
+        has_uploaded = bool(uploaded_media_json)
+        has_files = bool(files and any(f and f.filename for f in files))
+
+        if not content and not has_files and not has_uploaded:
             return jsonify({'success': False, 'message': '内容或媒体不能都为空'}), 400
 
         post = BlogPost(
@@ -247,7 +256,17 @@ def create_post():
         db.session.add(post)
         db.session.flush()
 
-        # 处理媒体文件
+        # 模式二：从预上传的文件元数据创建媒体记录
+        if has_uploaded:
+            try:
+                uploaded_list = json.loads(uploaded_media_json)
+                for item in uploaded_list:
+                    _create_media_from_uploaded(item, post.id)
+            except (json.JSONDecodeError, ValueError) as e:
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f'媒体数据格式错误: {str(e)}'}), 400
+
+        # 模式一：处理直接上传的媒体文件（向后兼容）
         for file in files:
             if not file or not file.filename:
                 continue
@@ -311,6 +330,30 @@ def _process_post_media(file, post_id):
         width=width,
         height=height,
         duration=duration,
+        compress_status=compress_status,
+    )
+    db.session.add(media)
+    db.session.flush()
+
+
+def _create_media_from_uploaded(item, post_id):
+    """从预上传的媒体文件元数据创建 BlogMedia 记录（两阶段上传用）
+
+    与 _process_post_media 不同，此函数不操作文件系统 —— 文件已在上传阶段
+    保存并处理完毕。它仅根据传入的元数据创建数据库记录。
+    """
+    compress_status = 'pending' if item.get('media_type') == 'video' else 'success'
+
+    media = BlogMedia(
+        post_id=post_id,
+        media_type=item.get('media_type', 'image'),
+        file_path=item.get('file_path', ''),
+        thumbnail_path=item.get('thumbnail_path', ''),
+        original_filename=item.get('filename', ''),
+        file_size=item.get('file_size', 0),
+        width=item.get('width', 0),
+        height=item.get('height', 0),
+        duration=item.get('duration', 0.0),
         compress_status=compress_status,
     )
     db.session.add(media)
@@ -441,6 +484,7 @@ def update_post(post_id):
 
         content = request.form.get('content', post.content)
         keep_media_ids = request.form.get('keep_media_ids', '')  # 保留的媒体ID列表，逗号分隔
+        uploaded_media_json = request.form.get('uploaded_media', '')
         files = request.files.getlist('media')
 
         # 保存编辑历史（版本号递增前保存当前版本）
@@ -472,7 +516,17 @@ def update_post(post_id):
                 if media.id not in keep_ids:
                     db.session.delete(media)
 
-        # 处理新上传的媒体文件
+        # 模式二：从预上传的文件元数据创建媒体记录
+        if uploaded_media_json:
+            try:
+                uploaded_list = json.loads(uploaded_media_json)
+                for item in uploaded_list:
+                    _create_media_from_uploaded(item, post.id)
+            except (json.JSONDecodeError, ValueError) as e:
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f'媒体数据格式错误: {str(e)}'}), 400
+
+        # 模式一：处理新上传的媒体文件（向后兼容）
         for file in files:
             if not file or not file.filename:
                 continue
@@ -541,16 +595,20 @@ def get_draft():
 @blog_bp.route('/posts/draft', methods=['POST'])
 @require_auth
 def save_draft():
-    """保存草稿（允许多条草稿）"""
+    """保存草稿（允许多条草稿，支持两阶段上传）"""
     try:
         content = request.form.get('content', '')
+        uploaded_media_json = request.form.get('uploaded_media', '')
         files = request.files.getlist('media')
 
         user_id = get_user_id_from_token()
         user_name = _get_current_user_name()
 
+        has_uploaded = bool(uploaded_media_json)
+        has_files = bool(files and any(f and f.filename for f in files))
+
         # 如果内容为空且无媒体，不保存
-        if not content and not files:
+        if not content and not has_files and not has_uploaded:
             return jsonify({'success': False, 'message': '草稿内容不能为空'}), 400
 
         # 始终创建新草稿
@@ -564,7 +622,17 @@ def save_draft():
         db.session.add(draft)
         db.session.flush()
 
-        # 处理媒体
+        # 模式二：从预上传的文件元数据创建媒体记录
+        if has_uploaded:
+            try:
+                uploaded_list = json.loads(uploaded_media_json)
+                for item in uploaded_list:
+                    _create_media_from_uploaded(item, draft.id)
+            except (json.JSONDecodeError, ValueError) as e:
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f'媒体数据格式错误: {str(e)}'}), 400
+
+        # 模式一：处理直接上传的媒体文件（向后兼容）
         for file in files:
             if not file or not file.filename:
                 continue
@@ -996,7 +1064,12 @@ def get_post_likes(post_id):
 @blog_bp.route('/posts/media/upload', methods=['POST'])
 @route_permission(ROUTE_BLOG_MANAGE)
 def upload_media():
-    """单独上传媒体文件（用于 ImageUploadPreview 组件）"""
+    """单独上传媒体文件（含完整处理：缩略图生成、视频元数据提取）
+
+    此端点是两阶段上传的核心：前端先逐个调用此接口上传文件，
+    全部完成后再调用 POST /posts 提交博文元数据 + 文件引用。
+    这样每个文件有独立的超时和进度，不会因为合并上传导致误报超时。
+    """
     try:
         file = request.files.get('file')
         if not file or not file.filename:
@@ -1009,13 +1082,30 @@ def upload_media():
         file_prefix = os.path.splitext(info['filename'])[0]
 
         thumbnail_path = ''
+        width, height, duration = 0, 0, 0.0
+
         if info['media_type'] == 'image':
             try:
                 result = process_image_with_variants(abs_path, base_dir, file_prefix, ext)
                 if result and 'paths' in result:
                     thumbnail_path = result['paths'].get('thumbnail', '')
+                    width = result.get('original_width', 0)
+                    height = result.get('original_height', 0)
             except Exception:
                 thumbnail_path = info['relative_path']
+
+        elif info['media_type'] == 'video':
+            # 视频也在此处生成缩略图和提取元数据，
+            # 避免这些耗时操作堆积在 POST /posts 的单个请求中
+            try:
+                result = process_video_with_variants(abs_path, base_dir, file_prefix, ext)
+                if result and 'paths' in result:
+                    thumbnail_path = result['paths'].get('thumbnail', '')
+                    duration = result.get('duration', 0.0)
+                    width = result.get('width', 0)
+                    height = result.get('height', 0)
+            except Exception as e:
+                print(f"视频缩略图生成失败: {e}")
 
         return jsonify({
             'success': True,
@@ -1025,6 +1115,9 @@ def upload_media():
                 'media_type': info['media_type'],
                 'file_size': info['file_size'],
                 'filename': info['filename'],
+                'width': width,
+                'height': height,
+                'duration': duration,
             }
         })
     except Exception as e:
