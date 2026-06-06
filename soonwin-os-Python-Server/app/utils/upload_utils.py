@@ -13,7 +13,7 @@ import threading
 from flask import current_app
 from werkzeug.utils import secure_filename
 import imghdr
-from PIL import Image
+from PIL import Image, ImageOps
 
 # 上传配置
 UPLOAD_CONFIG = {
@@ -324,6 +324,10 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
         }
 
     img = Image.open(file_path)
+    # 应用 EXIF 旋转信息：手机竖拍照片的像素数据实际是横的，
+    # EXIF Orientation 标签告诉浏览器旋转显示。必须将旋转"烤入"像素，
+    # 否则生成的 WebP 缩略图方向会与原图不一致。
+    img = ImageOps.exif_transpose(img)
     original_width, original_height = img.size
     max_original_side = max(original_width, original_height)
 
