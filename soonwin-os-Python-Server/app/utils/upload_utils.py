@@ -307,8 +307,9 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
     生成规则：
     - thumbnail: 最大 800px WebP（列表网格用，2x 视网膜屏）
     - display:   最大 1600px WebP（展开轮播用，2x 展示宽度）
+    - 缩略图尺寸超过原图时不放大，在原尺寸转为 WebP
     - 原图保留不变（灯箱查看原图时使用）
-    - 所有变体尺寸均不超过原始图片尺寸（避免放大失真）
+    - 始终生成 WebP，无论是否需要缩放——确保格式统一
 
     :param file_path: 原图路径
     :param base_save_dir: 基础存储目录
@@ -336,7 +337,7 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
 
     for variant, max_size in max_sizes.items():
         if max_original_side > max_size:
-            # 需要缩小
+            # 需要缩小 → resize + WebP
             scale = max_size / max_original_side
             new_width = int(original_width * scale)
             new_height = int(original_height * scale)
@@ -349,9 +350,14 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
             resized_img.save(webp_path, 'WEBP', quality=80)
             result_paths[variant] = os.path.relpath(webp_path, base_save_dir).replace('\\', '/')
         else:
-            # 原图尺寸已小于目标尺寸：不放大，直接使用原图路径
-            # 注意：原图格式可能不是 WebP，但小图用原格式也无妨
-            result_paths[variant] = os.path.relpath(file_path, base_save_dir).replace('\\', '/')
+            # 原图尺寸已小于目标尺寸，无需缩小。
+            # 但仍需转为 WebP——否则小图永远停留在 JPG/PNG 原格式，格式不统一。
+            webp_path = os.path.join(save_dir, f"{file_prefix}_{variant}.webp")
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img.convert('RGB').save(webp_path, 'WEBP', quality=80)
+            else:
+                img.save(webp_path, 'WEBP', quality=80)
+            result_paths[variant] = os.path.relpath(webp_path, base_save_dir).replace('\\', '/')
 
     return {
         'paths': result_paths,
