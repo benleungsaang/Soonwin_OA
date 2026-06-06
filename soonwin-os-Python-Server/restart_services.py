@@ -283,25 +283,27 @@ def main():
     print("=" * 50)
 
     # 1. 停服务
-    print("\n[1/4] 停止服务...")
+    print("\n[1/3] 停止服务...")
     svc_map = stop_services()
 
-    # 2. 备份数据库
-    print("\n[2/4] 备份数据库...")
+    # 2. 检查 + 按需同步数据库结构（仅在有差异时备份）
+    print("\n[2/3] 检查数据库结构...")
     try:
-        backup_databases()
+        is_same, diffs = compare_schemas()
+        if is_same:
+            print("[DB] 库结构一致，无需同步，跳过备份")
+        else:
+            print(f"[DB] 检测到 {len(diffs)} 处差异:")
+            for d in diffs:
+                print(f"  - {d}")
+            print("[DB] 先备份再同步...")
+            backup_databases()
+            sync_structure()
     except Exception as e:
-        print(f"备份异常: {e}")
+        print(f"数据库处理异常: {e}")
 
-    # 3. 同步数据库结构
-    print("\n[3/4] 同步数据库结构...")
-    try:
-        sync_structure()
-    except Exception as e:
-        print(f"同步异常: {e}")
-
-    # 4. 启服务
-    print("\n[4/4] 启动服务...")
+    # 3. 启服务
+    print("\n[3/3] 启动服务...")
     start_services(svc_map)
 
     print("\n" + "=" * 50)
