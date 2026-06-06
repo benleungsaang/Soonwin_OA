@@ -191,6 +191,10 @@ def get_posts():
         query = query.order_by(BlogPost.created_at.desc())
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
+        # 懒迁移：检测当前页图片是否需要生成 v2 WebP 缩略图
+        for item in pagination.items:
+            ensure_v2_thumbnails(item.media_list.all())
+
         posts = []
         user_id = get_user_id_from_token()
         for post in pagination.items:
@@ -375,6 +379,79 @@ def _enqueue_video_tasks_for_post(post_id):
 
 
 # ============================================================
+# 懒迁移：旧图片自动按新规格生成 v2 WebP 缩略图
+# ============================================================
+
+def _generate_v2_thumbnails(media_id):
+    """为单张旧图片生成 v2 WebP 缩略图（处理队列回调用）
+
+    从 file_path（原图）重新生成 thumbnail(800px WebP) 和 display(1600px WebP)。
+    仅在原图文件存在且 media 确实缺少 v2 缩略图时才执行，保证幂等。
+    """
+    try:
+        media = BlogMedia.query.get(media_id)
+        if not media or media.media_type != 'image':
+            return
+        # 已有 v2 缩略图 → 跳过
+        if media.display_path and media.thumbnail_path:
+            return
+
+        base_dir = _get_posts_media_dir()
+        abs_path = os.path.join(base_dir, media.file_path)
+        if not os.path.exists(abs_path):
+            print(f"[V2Migrate] 原图不存在，跳过 media_id={media_id}: {abs_path}")
+            return
+
+        file_prefix = os.path.splitext(os.path.basename(media.file_path))[0]
+        ext = os.path.splitext(media.file_path)[1].lstrip('.').lower()
+
+        result = process_image_with_variants(abs_path, base_dir, file_prefix, ext)
+        if result and 'paths' in result:
+            new_thumb = result['paths'].get('thumbnail', '')
+            new_display = result['paths'].get('display', '')
+            if new_thumb:
+                media.thumbnail_path = new_thumb
+            if new_display:
+                media.display_path = new_display
+            if result.get('original_width'):
+                media.width = result['original_width']
+            if result.get('original_height'):
+                media.height = result['original_height']
+            db.session.commit()
+            print(f"[V2Migrate] media_id={media_id} v2 缩略图已生成 "
+                  f"thumb={new_thumb} display={new_display}")
+    except Exception as e:
+        db.session.rollback()
+        print(f"[V2Migrate] media_id={media_id} 生成失败: {e}")
+
+
+def ensure_v2_thumbnails(media_list):
+    """检测列表中的旧图片，异步提交到处理队列生成 v2 WebP 缩略图
+
+    调用时机：博文列表/详情接口返回数据后，传入当前页的 media 列表。
+    仅提交缺少 display_path 的图片；已处理的跳过。完全非阻塞。
+    """
+    if not media_list:
+        return
+    pending_ids = [
+        m.id for m in media_list
+        if m.media_type == 'image' and not m.display_path
+    ]
+    if not pending_ids:
+        return
+
+    print(f"[V2Migrate] 发现 {len(pending_ids)} 张旧图片需生成 v2 缩略图，已入队")
+
+    processing_queue = get_processing_queue()
+    for mid in pending_ids:
+        processing_queue.add_task(
+            task_type="blog_v2_thumbnail_migrate",
+            handler_func=_generate_v2_thumbnails,
+            media_id=mid,
+        )
+
+
+# ============================================================
 # 头像（必须在 /posts/<int:post_id> 之前注册，避免被当作 post_id 解析）
 # ============================================================
 
@@ -451,6 +528,9 @@ def get_post(post_id):
         post = BlogPost.query.get(post_id)
         if not post:
             return jsonify({'success': False, 'message': '博文不存在'}), 404
+
+        # 懒迁移：检测旧图片
+        ensure_v2_thumbnails(post.media_list.all())
 
         post_dict = post.to_dict(include_media=True, include_repost=True)
 
@@ -587,6 +667,9 @@ def get_draft():
         user_id = get_user_id_from_token()
         drafts = BlogPost.query.filter_by(author_id=user_id, is_draft=1, is_deleted=0)\
             .order_by(BlogPost.updated_at.desc()).all()
+        # 懒迁移
+        for d in drafts:
+            ensure_v2_thumbnails(d.media_list.all())
         return jsonify({
             'success': True,
             'data': [d.to_dict(include_media=True) for d in drafts]
@@ -725,6 +808,10 @@ def get_deleted_posts():
 
         query = BlogPost.query.filter_by(is_deleted=1).order_by(BlogPost.deleted_at.desc())
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        # 懒迁移
+        for item in pagination.items:
+            ensure_v2_thumbnails(item.media_list.all())
 
         posts = [p.to_dict(include_media=True) for p in pagination.items]
         # 补充删除信息
@@ -962,6 +1049,11 @@ def get_favorites():
         query = query.order_by(BlogPost.created_at.desc())
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        # 懒迁移
+        for item in pagination.items:
+            ensure_v2_thumbnails(item.media_list.all())
+
         posts = []
         for post in pagination.items:
             d = post.to_dict(include_media=True, include_repost=True)
