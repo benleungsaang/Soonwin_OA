@@ -3,7 +3,7 @@
     <div
       v-if="visible"
       class="lightbox-overlay"
-      @click.self="close"
+      @click="onOverlayClick"
       @keydown="handleKeydown"
     >
       <!-- 控件层：绝对定位，pointer-events: none 让空白处点击穿透到 overlay 触发关闭 -->
@@ -157,6 +157,58 @@ function onGlobalMouseUp() {
   if (isDragging.value) {
     isDragging.value = false
   }
+}
+
+/**
+ * overlay 点击处理：判断点击是否落在图片的视觉区域内
+ *
+ * 不能用 @click.self 或 DOM 命中检测，因为 CSS transform: scale()
+ * 不改变元素的布局盒 —— 缩放后图片视觉上变小/变大，但 getBoundingClientRect()
+ * 返回的始终是 transform 前的原始尺寸。必须用坐标数学计算视觉边界。
+ */
+function onOverlayClick(e: MouseEvent) {
+  // 如果点击目标是按钮/控件，不处理（按钮有自己的 handler + stopPropagation）
+  const target = e.target as HTMLElement
+  if (target.closest('.lightbox-close, .lightbox-arrow, .lightbox-zoom-reset')) {
+    return
+  }
+
+  const img = imageRef.value
+  if (!img) {
+    // 无图片（如视频模式）：点击 overlay 任意位置关闭
+    close()
+    return
+  }
+
+  const rect = img.getBoundingClientRect()   // transform 前的布局盒
+  const s = scale.value
+  const px = panX.value
+  const py = panY.value
+
+  // 视觉尺寸 = 布局盒 × scale
+  const vw = rect.width * s
+  const vh = rect.height * s
+  // 缩放以 transform-origin: center 为中心 → 视觉盒中心 = 布局盒中心
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  // 视觉左上角（平移前）
+  let vl = cx - vw / 2
+  let vt = cy - vh / 2
+  // translate 在 scale 之后应用 → 视觉偏移 = pan × scale（屏幕像素）
+  vl += px * s
+  vt += py * s
+
+  if (
+    e.clientX >= vl &&
+    e.clientX <= vl + vw &&
+    e.clientY >= vt &&
+    e.clientY <= vt + vh
+  ) {
+    // 点击在图片视觉区域内 → 不关闭
+    return
+  }
+  // 点击在图片外 → 关闭
+  close()
 }
 
 // ========== 缩放 ==========
