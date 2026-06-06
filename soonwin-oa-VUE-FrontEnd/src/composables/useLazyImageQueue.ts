@@ -2,12 +2,13 @@
  * 图片懒加载并发控制队列
  *
  * 核心逻辑：
- * - 限制同时加载的图片数（默认 4 张），防止并发拥塞
+ * - 限制同时加载的图片数为 2，优先保证顶部（最新）内容先展示
+ * - 队列 FIFO + DOM 从上到下 observe → 用户先看到最新博文的图片
  * - 超出并发上限的请求排队，前一张完成后自动出队
  * - 使用浏览器原生 Image 预加载，失败也释放槽位
  */
 
-const MAX_CONCURRENT = 4
+const MAX_CONCURRENT = 2
 
 interface QueueItem {
   url: string
