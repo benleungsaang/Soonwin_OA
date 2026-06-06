@@ -97,6 +97,9 @@ class BlogMedia(db.Model):
             'duration': self.duration or 0.0,
             'compress_status': self.compress_status,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
+            # 计算字段：是否已生成 v2 WebP 缩略图（零 DB 开销）
+            # 旧图片 display_path 为空 → False；新图片两路径均非空 → True
+            'has_v2_thumbnails': bool(self.display_path and self.thumbnail_path),
         }
 
 

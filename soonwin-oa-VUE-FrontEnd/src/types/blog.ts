@@ -6,6 +6,7 @@ export interface BlogMedia {
   file_path: string
   thumbnail_path: string
   display_path: string  // 展示用 WebP（1600px，展开轮播使用，灯箱才加载原图 file_path）
+  has_v2_thumbnails: boolean  // 是否已生成 v2 WebP 缩略图（旧图片为 false，无需 DB 查询）
   original_filename: string
   file_size: number
   width: number
