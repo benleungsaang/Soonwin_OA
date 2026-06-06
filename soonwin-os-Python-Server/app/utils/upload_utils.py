@@ -335,10 +335,19 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
 
             # 确定保存路径
             save_dir = os.path.dirname(file_path)
-            variant_path = os.path.join(save_dir, f"{file_prefix}_{variant}.{ext}")
-            resized_img.save(variant_path, quality=85)
 
-            result_paths[variant] = os.path.relpath(variant_path, base_save_dir).replace('\\', '/')
+            if variant == 'thumbnail':
+                # 缩略图统一保存为 WebP（比 JPEG/PNG 节省 25-35% 空间，所有现代浏览器均支持）
+                webp_path = os.path.join(save_dir, f"{file_prefix}_thumbnail.webp")
+                # RGBA/LA/P 模式需转为 RGB（WebP lossy 不支持 alpha，缩略图无需透明度）
+                if resized_img.mode in ('RGBA', 'LA', 'P'):
+                    resized_img = resized_img.convert('RGB')
+                resized_img.save(webp_path, 'WEBP', quality=80)
+                result_paths[variant] = os.path.relpath(webp_path, base_save_dir).replace('\\', '/')
+            else:
+                variant_path = os.path.join(save_dir, f"{file_prefix}_{variant}.{ext}")
+                resized_img.save(variant_path, quality=85)
+                result_paths[variant] = os.path.relpath(variant_path, base_save_dir).replace('\\', '/')
         else:
             # 不需要压缩，使用原图
             result_paths[variant] = os.path.relpath(file_path, base_save_dir).replace('\\', '/')

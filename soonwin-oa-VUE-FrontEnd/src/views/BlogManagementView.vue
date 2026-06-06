@@ -96,9 +96,9 @@
             @filter-author="onFilterAuthor"
             @media-click="handleMediaClick" />
 
-          <div v-if="totalPages > 1" class="flex justify-center mt-6">
-            <el-pagination v-model:current-page="currentPage" :total="total"
-              :page-size="perPage" layout="prev, pager, next" @current-change="loadPosts" />
+          <!-- 无限滚动哨兵：距底部 600px 触发加载下一页 -->
+          <div v-if="hasMore" ref="sentinelRef" class="scroll-sentinel">
+            <span v-if="isLoadingMore" class="scroll-loading">加载中…</span>
           </div>
         </template>
         <el-empty v-else-if="!loading" :description="emptyText" />
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, PictureFilled, VideoCamera, UserFilled, Camera } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
@@ -132,14 +132,15 @@ import {
 } from '@/api/blog'
 import type { UploadedMediaInfo } from '@/api/blog'
 import { getCurrentUserRole } from '@/utils/authUtils'
+import { useInfiniteScroll } from '@/composables/useInfiniteScroll'
 import request from '@/utils/request'
 
 const loading = ref(false)
 const posts = ref<BlogPost[]>([])
-const currentPage = ref(1)
-const perPage = ref(20)
+const currentPage = ref(1)       // 内部追踪，用于翻页请求
+const perPage = ref(10)           // 首屏 10 条
+const hasMore = ref(false)        // 是否还有更多数据
 const total = ref(0)
-const totalPages = ref(0)
 const searchKeyword = ref('')
 const filterAuthor = ref('')
 const hasCommittedSearch = ref(false)
@@ -333,16 +334,30 @@ async function checkDraft() {
   catch { /* ignore */ }
 }
 
-async function loadPosts() {
+/**
+ * 加载博文列表
+ * @param reset - true=重置列表从第1页加载，false=追加下一页（无限滚动）
+ */
+async function loadPosts(reset = true) {
+  if (reset) {
+    currentPage.value = 1
+    posts.value = []
+    hasMore.value = false
+  }
   loading.value = true
   try {
     let res: any
     if (activeTab.value === 'deleted') {
       res = await getDeletedPosts({ page: currentPage.value, per_page: perPage.value })
     } else if (activeTab.value === 'draft') {
+      // 草稿：一次性全量加载，无分页
       const drafts: any = await getDraft()
       posts.value = Array.isArray(drafts) ? drafts : (drafts ? [drafts] : [])
-      total.value = posts.value.length; totalPages.value = 1; loading.value = false; return
+      hasMore.value = false
+      loading.value = false
+      // 哨兵刷新（草稿加载后 DOM 变化）
+      refreshSentinel()
+      return
     } else if (activeTab.value === 'favorites') {
       res = await request.get('/api/posts/favorites', { params: { page: currentPage.value, per_page: perPage.value, search: searchKeyword.value || undefined } })
     } else {
@@ -351,10 +366,41 @@ async function loadPosts() {
       if (filterAuthor.value) params.author = filterAuthor.value
       res = await getPosts(params)
     }
-    if (res) { posts.value = res.posts || []; total.value = res.total || 0; totalPages.value = res.total_pages || 0 }
+    if (res) {
+      const newPosts = res.posts || []
+      if (reset) {
+        posts.value = newPosts
+      } else {
+        // 追加模式：合并去重（防止网络重复请求导致重复数据）
+        const existingIds = new Set(posts.value.map(p => p.id))
+        posts.value.push(...newPosts.filter(p => !existingIds.has(p.id)))
+      }
+      total.value = res.total || 0
+      hasMore.value = currentPage.value < (res.total_pages || 0)
+    }
   } catch (e: any) { ElMessage.error('加载失败') }
-  finally { loading.value = false }
+  finally {
+    loading.value = false
+    // 数据更新后刷新哨兵观察（新元素可能把哨兵推出视口）
+    nextTick(() => refreshSentinel())
+  }
 }
+
+/** 无限滚动：加载下一页 */
+async function loadMorePosts() {
+  if (!hasMore.value || loading.value) return
+  currentPage.value++
+  await loadPosts(false)
+}
+
+// ========== 无限滚动哨兵 ==========
+const { sentinelRef, isLoadingMore, refresh: refreshSentinel } = useInfiniteScroll(
+  loadMorePosts,
+  {
+    threshold: 600,
+    enabled: () => hasMore.value && !loading.value && activeTab.value !== 'draft',
+  }
+)
 
 function openEditDialog(post: BlogPost) { editingPost.value = post; showCreateDialog.value = true }
 async function onPostSaved() { showCreateDialog.value = false; editingPost.value = null; currentPage.value = 1; await loadPosts(); await checkDraft() }
@@ -446,4 +492,17 @@ function handleMediaClick(media: any, index: number, mediaList?: any[]) {
 .tab-badge { font-size: 11px; background: #3b82f6; color: #fff; border-radius: 10px; padding: 1px 6px; min-width: 16px; text-align: center; }
 
 .blog-feed { min-height: 300px; }
+
+/* 无限滚动哨兵 */
+.scroll-sentinel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 40px;
+  margin: 12px 0;
+}
+.scroll-loading {
+  font-size: 13px;
+  color: #9ca3af;
+}
 </style>

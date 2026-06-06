@@ -72,6 +72,7 @@ declare module 'vue' {
     ErrorFallbackImage: typeof import('./src/components/ErrorFallbackImage.vue')['default']
     ImageUploadPreview: typeof import('./src/components/ImageUploadPreview.vue')['default']
     JsonImportExport: typeof import('./src/components/JsonImportExport.vue')['default']
+    LazyImage: typeof import('./src/components/LazyImage.vue')['default']
     QuotationTempPreview: typeof import('./src/components/QuotationTempPreview.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

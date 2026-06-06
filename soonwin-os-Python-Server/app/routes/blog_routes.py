@@ -171,7 +171,7 @@ def get_posts():
     """获取已发布的博文列表（分页+搜索+作者筛选）"""
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '', type=str)
         author = request.args.get('author', '', type=str)
 
@@ -717,7 +717,7 @@ def get_deleted_posts():
     """获取已删除的博文列表（仅管理员）"""
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
 
         query = BlogPost.query.filter_by(is_deleted=1).order_by(BlogPost.deleted_at.desc())
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -936,7 +936,7 @@ def get_favorites():
             return jsonify({'success': True, 'data': {'posts': [], 'total': 0}})
 
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '', type=str)
 
         # 查询用户收藏的博文ID

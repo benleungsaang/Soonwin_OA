@@ -83,11 +83,11 @@
       <div v-else class="media-grid" :class="post.media.length === 1 ? 'media-grid-single' : ''">
         <div v-for="(media, index) in post.media" :key="media.id"
              class="media-item" @click="handleMediaClick(media, index)">
-          <img v-if="media.media_type === 'image'"
+          <LazyImage v-if="media.media_type === 'image'"
                :src="getMediaUrl(media.thumbnail_path || media.file_path)"
-               alt="" loading="lazy" />
-          <!-- 视频：pending 才显示转码中，processing/success 都尝试播放 -->
-          <video v-else-if="media.media_type === 'video' && media.compress_status !== 'pending'"
+               alt="" />
+          <!-- 视频：pending/processing 显示转码中占位，success 才尝试播放 -->
+          <video v-else-if="media.media_type === 'video' && media.compress_status !== 'pending' && media.compress_status !== 'processing'"
                  :src="getMediaUrl(media.file_path)" preload="metadata"
                  :poster="getMediaUrl(media.thumbnail_path)"
                  @error="($event.target as HTMLVideoElement).style.display='none'" />
@@ -207,6 +207,7 @@ import type { BlogPost, BlogEditHistory } from '@/types/blog'
 import { getMediaUrl, getEditHistory, getPostLikes } from '@/api/blog'
 import { getCurrentUserRole, getCurrentUserEmpId } from '@/utils/authUtils'
 import BlogCommentSection from './BlogCommentSection.vue'
+import LazyImage from './LazyImage.vue'
 
 const props = defineProps<{ post: BlogPost; showActions?: boolean; readonly?: boolean }>()
 const emit = defineEmits<{
@@ -295,7 +296,15 @@ const canEdit = computed(() => isAdmin.value || props.post.author_id === current
 const canDelete = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
 
 function handleMediaClick(media: any, index: number) {
-  if (media.compress_status === 'pending') return
+  // 视频转码中/待处理时点击给出明确提示，而非静默忽略
+  if (media.compress_status === 'pending' || media.compress_status === 'processing') {
+    ElMessage({
+      message: '视频转码处理中，处理完成后自动恢复正常使用',
+      type: 'info',
+      duration: 3000,
+    })
+    return
+  }
   // 统一先展开模式查看（图片和视频均适用），点击"查看原图"再进灯箱
   if (expandedIdx.value === index) { collapseExpand() }
   else { expandMedia(index, true) }
@@ -617,6 +626,10 @@ defineExpose({ loadHistory })
 .media-item img, .media-item video {
   width: 100%; height: 200px; object-fit: cover; display: block;
 }
+/* LazyImage 根元素也占满网格单元（Vue3 scoped CSS 可穿透子组件根元素） */
+.media-item :deep(.lazy-img-wrapper) {
+  width: 100%; height: 200px; display: block;
+}
 .media-placeholder {
   width: 100%; height: 200px; display: flex;
   flex-direction: column; align-items: center; justify-content: center;
@@ -703,7 +716,7 @@ defineExpose({ loadHistory })
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
   .media-grid { gap: 10px; }
-  .media-item img, .media-item video, .media-placeholder { height: auto; aspect-ratio: 1; max-height: 200px; min-height: 80px; }
+  .media-item img, .media-item video, .media-item :deep(.lazy-img-wrapper), .media-placeholder { height: auto; aspect-ratio: 1; max-height: 200px; min-height: 80px; }
   .media-placeholder { width: 100%; }
   .history-body { max-height: 55vh; }
   .history-card { padding: 10px; }
