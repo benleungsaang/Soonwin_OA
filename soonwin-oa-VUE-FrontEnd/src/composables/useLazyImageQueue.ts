@@ -1,25 +1,33 @@
 /**
- * 图片懒加载并发控制队列
+ * 图片懒加载优先级队列
  *
  * 核心逻辑：
- * - 限制同时加载的图片数为 2，优先保证顶部（最新）内容先展示
- * - 队列 FIFO + DOM 从上到下 observe → 用户先看到最新博文的图片
- * - 超出并发上限的请求排队，前一张完成后自动出队
+ * - 并发上限 4：保证加载速度，不因排队而拖慢整体
+ * - 优先级排序：按元素在页面的 Y 坐标，上方图片优先出队
+ *   → 顶部最新博文最先加载，同时下面可见图片并发不浪费带宽
  * - 使用浏览器原生 Image 预加载，失败也释放槽位
  */
 
-const MAX_CONCURRENT = 2
+const MAX_CONCURRENT = 4
 
 interface QueueItem {
   url: string
+  priority: number   // 越小越优先（= 元素距页面顶部的 Y 坐标）
   resolve: (url: string) => void
 }
 
 let activeCount = 0
 const pending: QueueItem[] = []
 
+/** 按优先级升序排列（Y 坐标小的在上面 → 先加载） */
+function sortPending() {
+  pending.sort((a, b) => a.priority - b.priority)
+}
+
 function processQueue() {
   while (activeCount < MAX_CONCURRENT && pending.length > 0) {
+    // 每次取之前按优先级重排（新入队的可能优先级更高）
+    sortPending()
     const item = pending.shift()!
     activeCount++
 
@@ -31,7 +39,6 @@ function processQueue() {
     }
     img.onerror = () => {
       activeCount--
-      // 加载失败也释放槽位并返回 url（组件自行决定是否回退展示）
       item.resolve(item.url)
       processQueue()
     }
@@ -40,26 +47,21 @@ function processQueue() {
 }
 
 /**
- * 将图片 URL 加入加载队列，返回 Promise 在图片加载完成（或失败）后 resolve。
- * 调用方在 resolve 后设置 img.src 即可从浏览器缓存即时展示。
+ * 将图片 URL 加入优先级队列。
+ * @param url 图片地址
+ * @param priority 越小越优先（默认 0 = 最高优先级）
  */
-export function enqueueImageLoad(url: string): Promise<string> {
+export function enqueueImageLoad(url: string, priority = 0): Promise<string> {
   return new Promise((resolve) => {
-    pending.push({ url, resolve })
+    pending.push({ url, priority, resolve })
     processQueue()
   })
 }
 
-/**
- * 获取当前正在加载的图片数（调试用）
- */
 export function getActiveCount(): number {
   return activeCount
 }
 
-/**
- * 获取当前排队的图片数（调试用）
- */
 export function getPendingCount(): number {
   return pending.length
 }

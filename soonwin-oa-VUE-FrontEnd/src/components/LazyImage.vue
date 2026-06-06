@@ -54,7 +54,9 @@ let observer: IntersectionObserver | null = null
 function triggerLoad() {
   if (!props.src) return
 
-  enqueueImageLoad(props.src).then(() => {
+  // 优先级 = 元素距页面顶部的 Y 坐标（越小越靠上 → 越优先加载）
+  const priority = rootRef.value?.getBoundingClientRect().top ?? 0
+  enqueueImageLoad(props.src, priority).then(() => {
     // 图片已被浏览器缓存，直接赋值 src 即为即时展示
     displaySrc.value = props.src
     loaded.value = true
