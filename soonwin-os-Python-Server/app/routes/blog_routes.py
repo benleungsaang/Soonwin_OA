@@ -292,6 +292,7 @@ def _process_post_media(file, post_id):
     ext = info['ext']
 
     thumbnail_path = ''
+    display_path = ''
     width, height, duration = 0, 0, 0.0
     compress_status = 'success'
 
@@ -302,6 +303,7 @@ def _process_post_media(file, post_id):
             result = process_image_with_variants(abs_path, base_dir, file_prefix, ext)
             if result and 'paths' in result:
                 thumbnail_path = result['paths'].get('thumbnail', '')
+                display_path = result['paths'].get('display', '')
                 width = result.get('original_width', 0)
                 height = result.get('original_height', 0)
         except Exception as e:
@@ -325,6 +327,7 @@ def _process_post_media(file, post_id):
         media_type=info['media_type'],
         file_path=info['relative_path'],
         thumbnail_path=thumbnail_path,
+        display_path=display_path,
         original_filename=info['filename'],
         file_size=info['file_size'],
         width=width,
@@ -349,6 +352,7 @@ def _create_media_from_uploaded(item, post_id):
         media_type=item.get('media_type', 'image'),
         file_path=item.get('file_path', ''),
         thumbnail_path=item.get('thumbnail_path', ''),
+        display_path=item.get('display_path', ''),
         original_filename=item.get('filename', ''),
         file_size=item.get('file_size', 0),
         width=item.get('width', 0),
@@ -1082,6 +1086,7 @@ def upload_media():
         file_prefix = os.path.splitext(info['filename'])[0]
 
         thumbnail_path = ''
+        display_path = ''
         width, height, duration = 0, 0, 0.0
 
         if info['media_type'] == 'image':
@@ -1089,6 +1094,7 @@ def upload_media():
                 result = process_image_with_variants(abs_path, base_dir, file_prefix, ext)
                 if result and 'paths' in result:
                     thumbnail_path = result['paths'].get('thumbnail', '')
+                    display_path = result['paths'].get('display', '')
                     width = result.get('original_width', 0)
                     height = result.get('original_height', 0)
             except Exception:
@@ -1112,6 +1118,7 @@ def upload_media():
             'data': {
                 'file_path': info['relative_path'],
                 'thumbnail_path': thumbnail_path,
+                'display_path': display_path,
                 'media_type': info['media_type'],
                 'file_size': info['file_size'],
                 'filename': info['filename'],

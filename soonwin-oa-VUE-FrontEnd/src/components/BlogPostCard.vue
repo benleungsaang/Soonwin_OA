@@ -66,7 +66,7 @@
           <div class="carousel-track" :style="carouselStyle">
             <div v-for="(m, i) in post.media" :key="m.id" class="carousel-slide">
               <img v-if="m.media_type === 'image'"
-                   :src="getMediaUrl(m.file_path)" alt=""
+                   :src="getMediaUrl(m.display_path || m.file_path)" alt=""
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }" @click="handleExpandedImageClick(i)" />
               <div v-else class="video-rotate-wrap"
                    :style="{ transform: i === expandedIdx ? `rotate(${rotateDeg}deg)` : '' }">
@@ -188,7 +188,7 @@
         <div class="fs-track" :style="fsCarouselStyle">
           <div v-for="(m, i) in post.media" :key="m.id" class="fs-slide">
             <img v-if="m.media_type === 'image'"
-                 :src="getMediaUrl(m.file_path)" class="fs-img" @click="exitFullscreen" />
+                 :src="getMediaUrl(m.display_path || m.file_path)" class="fs-img" @click="exitFullscreen" />
             <video v-else
                    :src="getMediaUrl(m.file_path)" :controls="i === fullscreenIdx"
                    class="fs-video" :poster="getMediaUrl(m.thumbnail_path)" playsinline />

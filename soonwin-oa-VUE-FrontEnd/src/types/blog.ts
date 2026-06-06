@@ -5,6 +5,7 @@ export interface BlogMedia {
   media_type: 'image' | 'video'
   file_path: string
   thumbnail_path: string
+  display_path: string  // 展示用 WebP（1600px，展开轮播使用，灯箱才加载原图 file_path）
   original_filename: string
   file_size: number
   width: number

@@ -10,6 +10,7 @@ import type { AxiosProgressEvent } from 'axios'
 export interface UploadedMediaInfo {
   file_path: string
   thumbnail_path: string
+  display_path: string  // 展示用 WebP（1600px），展开轮播用
   media_type: 'image' | 'video'
   file_size: number
   filename: string

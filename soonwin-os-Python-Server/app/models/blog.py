@@ -69,8 +69,9 @@ class BlogMedia(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
     media_type = db.Column(db.String(10), nullable=False, default='image')  # 'image' 或 'video'
-    file_path = db.Column(db.String(500), nullable=False)  # 相对于 assets/PostsMedia 的路径
-    thumbnail_path = db.Column(db.String(500), nullable=True, default='')
+    file_path = db.Column(db.String(500), nullable=False)  # 相对于 assets/PostsMedia 的路径（原图，灯箱查看原图时用）
+    thumbnail_path = db.Column(db.String(500), nullable=True, default='')  # 缩略图 WebP（800px，列表网格用）
+    display_path = db.Column(db.String(500), nullable=True, default='')  # 展示图 WebP（1600px，展开轮播用）
     original_filename = db.Column(db.String(255), nullable=True, default='')
     file_size = db.Column(db.BigInteger, nullable=True, default=0)
     width = db.Column(db.Integer, nullable=True, default=0)
@@ -88,6 +89,7 @@ class BlogMedia(db.Model):
             'media_type': self.media_type,
             'file_path': self.file_path,
             'thumbnail_path': self.thumbnail_path or '',
+            'display_path': self.display_path or '',
             'original_filename': self.original_filename or '',
             'file_size': self.file_size or 0,
             'width': self.width or 0,

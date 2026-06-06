@@ -302,20 +302,25 @@ def save_uploaded_file(file, base_save_dir, use_date_subdir=True, custom_filenam
 
 def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_sizes=None):
     """
-    处理图片，生成不同尺寸的变体
+    处理图片，生成两种 WebP 变体（用于分級加载）
+
+    生成规则：
+    - thumbnail: 最大 800px WebP（列表网格用，2x 视网膜屏）
+    - display:   最大 1600px WebP（展开轮播用，2x 展示宽度）
+    - 原图保留不变（灯箱查看原图时使用）
+    - 所有变体尺寸均不超过原始图片尺寸（避免放大失真）
+
     :param file_path: 原图路径
     :param base_save_dir: 基础存储目录
     :param file_prefix: 文件前缀
-    :param ext: 文件扩展名
+    :param ext: 文件扩展名（原图格式，仅用于回退命名）
     :param max_sizes: 最大尺寸配置 {'variant_name': max_size}
     :return: 各变体的路径
     """
     if max_sizes is None:
-        # 默认图片尺寸配置
         max_sizes = {
-            'thumbnail': 400,    # 缩略图最大400px
-            'normal': 1280,      # 普通图最大1280px
-            'original': 2560     # 原图最大2560px
+            'thumbnail': 800,   # 缩略图：2x 列表网格尺寸，WebP
+            'display': 1600,    # 展示图：2x 展开轮播宽度，WebP
         }
 
     img = Image.open(file_path)
@@ -323,33 +328,25 @@ def process_image_with_variants(file_path, base_save_dir, file_prefix, ext, max_
     max_original_side = max(original_width, original_height)
 
     result_paths = {}
+    save_dir = os.path.dirname(file_path)
 
-    # 按配置生成各尺寸图片
     for variant, max_size in max_sizes.items():
         if max_original_side > max_size:
-            # 需要压缩
+            # 需要缩小
             scale = max_size / max_original_side
             new_width = int(original_width * scale)
             new_height = int(original_height * scale)
             resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-            # 确定保存路径
-            save_dir = os.path.dirname(file_path)
-
-            if variant == 'thumbnail':
-                # 缩略图统一保存为 WebP（比 JPEG/PNG 节省 25-35% 空间，所有现代浏览器均支持）
-                webp_path = os.path.join(save_dir, f"{file_prefix}_thumbnail.webp")
-                # RGBA/LA/P 模式需转为 RGB（WebP lossy 不支持 alpha，缩略图无需透明度）
-                if resized_img.mode in ('RGBA', 'LA', 'P'):
-                    resized_img = resized_img.convert('RGB')
-                resized_img.save(webp_path, 'WEBP', quality=80)
-                result_paths[variant] = os.path.relpath(webp_path, base_save_dir).replace('\\', '/')
-            else:
-                variant_path = os.path.join(save_dir, f"{file_prefix}_{variant}.{ext}")
-                resized_img.save(variant_path, quality=85)
-                result_paths[variant] = os.path.relpath(variant_path, base_save_dir).replace('\\', '/')
+            # 统一保存为 WebP（节省 25-35% 空间）
+            webp_path = os.path.join(save_dir, f"{file_prefix}_{variant}.webp")
+            if resized_img.mode in ('RGBA', 'LA', 'P'):
+                resized_img = resized_img.convert('RGB')
+            resized_img.save(webp_path, 'WEBP', quality=80)
+            result_paths[variant] = os.path.relpath(webp_path, base_save_dir).replace('\\', '/')
         else:
-            # 不需要压缩，使用原图
+            # 原图尺寸已小于目标尺寸：不放大，直接使用原图路径
+            # 注意：原图格式可能不是 WebP，但小图用原格式也无妨
             result_paths[variant] = os.path.relpath(file_path, base_save_dir).replace('\\', '/')
 
     return {
