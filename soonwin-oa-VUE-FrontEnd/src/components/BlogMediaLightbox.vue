@@ -54,7 +54,7 @@
           :src="getMediaUrl(currentMedia.file_path)"
           alt=""
           class="lightbox-media"
-          :class="{ 'is-dragging': isDragging, 'can-zoom': true }"
+          :class="{ 'is-dragging': isDragging }"
           :style="imageTransform"
           @load="onImageLoad"
           @mousedown.prevent="onDragStart"
@@ -358,17 +358,13 @@ onUnmounted(() => {
   -webkit-user-drag: none;
 }
 
-/* 1x 时：点击穿透到 overlay → 关闭 */
+/* 默认：手掌图标（可拖拽/交互） */
 .lightbox-media:not(.is-dragging) {
-  cursor: zoom-in;
+  cursor: grab;
 }
 
-/* 放大后：显示拖拽光标 */
+/* 拖拽中：握拳图标 */
 .lightbox-media.is-dragging {
   cursor: grabbing;
-}
-
-.lightbox-media.can-zoom {
-  cursor: zoom-in;
 }
 </style>
