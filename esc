@@ -1,0 +1,53 @@
+[1mdiff --git a/deepseek cost/amount-2026-6.csv b/deepseek cost/amount-2026-6.csv[m
+[1mdeleted file mode 100644[m
+[1mindex e9ed0bc..0000000[m
+[1m--- a/deepseek cost/amount-2026-6.csv[m	
+[1m+++ /dev/null[m
+[36m@@ -1,32 +0,0 @@[m
+[31m-﻿user_id,utc_date,model,api_key_name,api_key,type,price,amount[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-pro,家里用,sk-5647b***********************a6e5,output_tokens,0.000006,45109[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-pro,家里用,sk-5647b***********************a6e5,request_count,,66[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-pro,家里用,sk-5647b***********************a6e5,input_cache_hit_tokens,0.000000025,5432192[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-pro,家里用,sk-5647b***********************a6e5,input_cache_miss_tokens,0.000003,151839[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-flash,家里用,sk-5647b***********************a6e5,output_tokens,0.000002,15737[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-flash,家里用,sk-5647b***********************a6e5,request_count,,5[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-flash,家里用,sk-5647b***********************a6e5,input_cache_miss_tokens,0.000001,20505[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-pro,公司用,sk-e35bc***********************611a,output_tokens,0.000006,303020[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-pro,公司用,sk-e35bc***********************611a,request_count,,777[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.000000025,247598976[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000003,423498[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-flash,公司用,sk-e35bc***********************611a,output_tokens,0.000002,89905[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-flash,公司用,sk-e35bc***********************611a,request_count,,199[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.00000002,64335232[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000001,788815[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-pro,公司用,sk-e35bc***********************611a,output_tokens,0.000006,73234[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-pro,公司用,sk-e35bc***********************611a,request_count,,116[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.000000025,14360192[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000003,353433[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-flash,公司用,sk-e35bc***********************611a,output_tokens,0.000002,148673[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-flash,公司用,sk-e35bc***********************611a,request_count,,354[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.00000002,35153792[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000001,301823[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-pro,公司用,sk-e35bc***********************611a,output_tokens,0.000006,138524[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-pro,公司用,sk-e35bc***********************611a,request_count,,294[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.000000025,46464128[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-pro,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000003,165563[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-flash,公司用,sk-e35bc***********************611a,output_tokens,0.000002,15763[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-flash,公司用,sk-e35bc***********************611a,request_count,,15[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_hit_tokens,0.00000002,375040[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-flash,公司用,sk-e35bc***********************611a,input_cache_miss_tokens,0.000001,137697[m
+[1mdiff --git a/deepseek cost/cost-2026-6.csv b/deepseek cost/cost-2026-6.csv[m
+[1mdeleted file mode 100644[m
+[1mindex 7626c64..0000000[m
+[1m--- a/deepseek cost/cost-2026-6.csv[m	
+[1m+++ /dev/null[m
+[36m@@ -1,9 +0,0 @@[m
+[31m-﻿user_id,utc_date,model,wallet_type,cost,currency[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-pro,Paid,0.8619758000000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-03,deepseek-v4-flash,Paid,0.0519790000000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-pro,Paid,9.2785884000000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-04,deepseek-v4-flash,Paid,2.2553296400000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-pro,Paid,1.8587078000000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-05,deepseek-v4-flash,Paid,1.3022448400000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-pro,Paid,2.4894362000000000,CNY[m
+[31m-84a876a6-c4b0-4cbe-89f7-5d752670c0fb,2026-06-06,deepseek-v4-flash,Paid,0.1767238000000000,CNY[m
