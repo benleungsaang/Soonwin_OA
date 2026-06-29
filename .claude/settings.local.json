@@ -10,7 +10,8 @@
       "Bash(python -c \"from app.models.order_record import OrderRecord, OrderRecordIncome, OrderRecordExpense; from extensions import db; db.create_all\\(\\); print\\('Database tables created successfully'\\)\")",
       "Bash(python *)",
       "Bash(sqlite3 *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(yarn add *)"
     ]
   }
 }

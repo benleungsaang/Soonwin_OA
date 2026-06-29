@@ -4,9 +4,9 @@ yarn dev
 yarn build:prod
 生成静态文件
 
+执行 E:\Soonwin_OA\复制后端开发环境到桌面.bat 或直接运行 move
 
-复制后端开发环境到桌面.bat
+会把更新文件复制到桌面，再执行sync同步到到服务器即可
 
-更新到服务器即可
 
-注意如果更新的是后端pyton文件，服务器上的服务需要重启才能生效
+然后在服务器页面中执行“重启服务”功能，会自动把最新的soonwin_oa_deb.db数据结构更新到soonwin_oa.db中

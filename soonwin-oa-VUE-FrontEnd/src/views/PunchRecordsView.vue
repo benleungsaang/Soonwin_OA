@@ -32,7 +32,7 @@
           <el-button type="primary" @click="fetchPunchRecords">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
           <el-button type="success" @click="refreshData">刷新</el-button>
-          <el-button type="warning" @click="exportToTxt">导出CSV</el-button>
+          <el-button type="warning" @click="exportToXlsx">导出XLSX</el-button>
         </el-form-item>
       </el-form>
 
@@ -136,8 +136,11 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import * as XLSX from 'xlsx';
 import request from '@/utils/request';
 import { PunchRecord } from '@/types';
+import { getOperations } from '@/api/attendance';
+import { AttendanceOperation } from '@/types/attendance';
 import CommonHeader from '@/components/CommonHeader.vue';
 
 // 路由实例
@@ -287,15 +290,18 @@ const closeDetailDialog = () => {
   selectedRecord.value = null;
 };
 
-// 导出打卡记录到txt文件
-const exportToTxt = async () => {
+
+// 导出打卡与考勤记录到 XLSX
+// 打卡区：按"员工 × 当前日期范围"展开完整矩阵，缺卡日保留行（时间留空）
+// 考勤区：单 sheet 内隔一行，列出每位命中员工在日期范围内的考勤操作
+const exportToXlsx = async () => {
   try {
     ElMessage.info('正在导出数据，请稍候...');
-    
-    // 获取所有符合筛选条件的数据（不分页）
+
+    // 1. 拉所有命中筛选的打卡记录（不分页）
     const params = {
       page: 1,
-      size: 999999,  // 获取所有数据
+      size: 999999,
       name: searchForm.value.name || undefined,
       emp_id: searchForm.value.empId || undefined,
       punch_type: searchForm.value.punchType || undefined,
@@ -303,31 +309,32 @@ const exportToTxt = async () => {
       end_date: searchForm.value.punchTimeRange?.[1] || undefined,
     };
 
-    const response = await request.get('/api/punch-records', { params });
-    const allRecords = response.list || [];
+    const punchResp = await request.get('/api/punch-records', { params });
+    const allRecords: PunchRecord[] = punchResp.list || [];
 
     if (allRecords.length === 0) {
-      ElMessage.warning('没有可导出的数据');
+      ElMessage.warning('没有可导出的打卡数据');
       return;
     }
 
-    // 按员工和日期分组处理数据
-    const recordMap = new Map<string, Map<string, {上班: PunchRecord[], 下班: PunchRecord[]}>>();
+    // 2. 按员工（用工号做 key）+ 日期聚合
+    const recordMap = new Map<string, Map<string, { 上班: PunchRecord[]; 下班: PunchRecord[] }>>();
+    // 记录员工信息（用工号索引，避免姓名变化导致重复员工）
+    const empInfoMap = new Map<string, { emp_id: string; name: string }>();
 
     allRecords.forEach(record => {
-      const empKey = `${record.emp_id}_${record.name}`;
+      const empKey = record.emp_id;
+      empInfoMap.set(empKey, { emp_id: record.emp_id, name: record.name });
       const dateStr = formatDateToYMD(new Date(record.punch_time));
 
       if (!recordMap.has(empKey)) {
         recordMap.set(empKey, new Map());
       }
       const dateMap = recordMap.get(empKey)!;
-
       if (!dateMap.has(dateStr)) {
         dateMap.set(dateStr, { 上班: [], 下班: [] });
       }
       const typeRecords = dateMap.get(dateStr)!;
-
       if (record.punch_type === '上班打卡') {
         typeRecords.上班.push(record);
       } else if (record.punch_type === '下班打卡') {
@@ -335,84 +342,162 @@ const exportToTxt = async () => {
       }
     });
 
-    // 处理每个员工每天的数据：合并到一行
-    const processedData: Array<{
-      emp_id: string;
-      name: string;
-      date: string;
-      punch_in_time: string;
-      punch_out_time: string;
-    }> = [];
+    // 3. 计算日期范围数组
+    // 优先用用户选的日期范围；没选则用数据中实际存在的日期范围
+    let dateList: string[] = [];
+    if (searchForm.value.punchTimeRange?.[0] && searchForm.value.punchTimeRange?.[1]) {
+      dateList = getDateRangeList(
+        searchForm.value.punchTimeRange[0],
+        searchForm.value.punchTimeRange[1]
+      );
+    } else {
+      const dateSet = new Set<string>();
+      recordMap.forEach(dateMap => {
+        dateMap.forEach((_, d) => dateSet.add(d));
+      });
+      dateList = Array.from(dateSet).sort();
+    }
 
-    recordMap.forEach((dateMap, empKey) => {
-      const dates = Array.from(dateMap.keys()).sort();  // 按日期排序
+    // 4. 构建 AOA（打卡区）
+    const aoa: any[][] = [];
+    aoa.push(['工号', '姓名', '日期', '上班打卡时间', '下班打卡时间']);
 
-      dates.forEach(dateStr => {
-        const typeRecords = dateMap.get(dateStr)!;
+    const sortedEmpKeys = Array.from(recordMap.keys()).sort();
 
-        // 获取最早上班时间
+    sortedEmpKeys.forEach(empKey => {
+      const emp = empInfoMap.get(empKey)!;
+      const dateMap = recordMap.get(empKey)!;
+
+      dateList.forEach(dateStr => {
+        const typeRecords = dateMap.get(dateStr);
+
         let punchInTime = '';
-        if (typeRecords.上班.length > 0) {
-          const earliest = typeRecords.上班.reduce((min, record) => {
-            return new Date(record.punch_time) < new Date(min.punch_time) ? record : min;
-          });
-          punchInTime = new Date(earliest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-        }
-
-        // 获取最晚下班时间
         let punchOutTime = '';
-        if (typeRecords.下班.length > 0) {
-          const latest = typeRecords.下班.reduce((max, record) => {
-            return new Date(record.punch_time) > new Date(max.punch_time) ? record : max;
-          });
-          punchOutTime = new Date(latest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        if (typeRecords) {
+          if (typeRecords.上班.length > 0) {
+            const earliest = typeRecords.上班.reduce((min, record) =>
+              new Date(record.punch_time) < new Date(min.punch_time) ? record : min
+            );
+            punchInTime = new Date(earliest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          }
+          if (typeRecords.下班.length > 0) {
+            const latest = typeRecords.下班.reduce((max, record) =>
+              new Date(record.punch_time) > new Date(max.punch_time) ? record : max
+            );
+            punchOutTime = new Date(latest.punch_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          }
         }
 
-        // 提取员工信息
-        const [empId, name] = empKey.split('_');
-
-        processedData.push({
-          emp_id: empId,
-          name: name,
-          date: dateStr,
-          punch_in_time: punchInTime,
-          punch_out_time: punchOutTime
-        });
+        aoa.push([emp.emp_id, emp.name, dateStr, punchInTime, punchOutTime]);
       });
     });
 
-    // 按日期和员工排序
-    processedData.sort((a, b) => {
-      if (a.date !== b.date) {
-        return a.date.localeCompare(b.date);
+    // 5. 拉命中员工在日期范围内的考勤操作
+    const attendanceOps: AttendanceOperation[] = [];
+    const startTime = searchForm.value.punchTimeRange?.[0]
+      ? `${searchForm.value.punchTimeRange[0]} 00:00:00` : undefined;
+    const endTime = searchForm.value.punchTimeRange?.[1]
+      ? `${searchForm.value.punchTimeRange[1]} 23:59:59` : undefined;
+
+    // 后端 get_operations 一次只支持单个 emp_id，逐位员工拉取
+    for (const empId of sortedEmpKeys) {
+      try {
+        const ops = await getOperations({
+          emp_id: empId,
+          start_time: startTime,
+          end_time: endTime,
+        });
+        if (Array.isArray(ops)) {
+          attendanceOps.push(...ops);
+        }
+      } catch (err) {
+        console.warn(`拉取员工 ${empId} 考勤记录失败`, err);
       }
-      return a.emp_id.localeCompare(b.emp_id);
-    });
+    }
 
-    // 生成CSV内容，添加UTF-8 BOM头确保Excel正确显示中文
-    const BOM = '\uFEFF';
-    let csvContent = BOM + '工号,姓名,日期,上班打卡时间,下班打卡时间\n';
-    processedData.forEach(item => {
-      csvContent += `${item.emp_id},${item.name},${item.date},${item.punch_in_time},${item.punch_out_time}\n`;
-    });
+    // 6. 空一行 → 考勤表头 → 考勤记录
+    aoa.push([]);
+    aoa.push(['工号', '姓名', '操作类型', '开始时间', '结束时间', '时长(小时)', '事由', '状态', '申请时间']);
 
-    // 创建Blob并下载
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `打卡记录_${formatDate(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    attendanceOps
+      .sort((a, b) => {
+        if (a.emp_id !== b.emp_id) return a.emp_id.localeCompare(b.emp_id);
+        return (a.start_time || '').localeCompare(b.start_time || '');
+      })
+      .forEach(op => {
+        aoa.push([
+          op.emp_id,
+          op.name,
+          OPERATION_TYPE_LABELS[op.operation_type] || op.operation_type,
+          op.start_time || '',
+          op.end_time || '',
+          op.duration ?? '',
+          op.reason || '',
+          OPERATION_STATUS_LABELS[op.operation_status] || op.operation_status,
+          op.create_time || '',
+        ]);
+      });
 
-    ElMessage.success(`导出成功，共 ${processedData.length} 条记录`);
+    // 7. 生成 XLSX
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // 设置列宽
+    ws['!cols'] = [
+      { wch: 12 }, // 工号
+      { wch: 12 }, // 姓名
+      { wch: 18 }, // 日期 / 开始时间
+      { wch: 18 }, // 上班打卡时间 / 结束时间
+      { wch: 18 }, // 下班打卡时间 / 时长
+      { wch: 30 }, // 事由
+      { wch: 12 }, // 状态
+      { wch: 18 }, // 申请时间
+      { wch: 10 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '打卡与考勤');
+
+    XLSX.writeFile(wb, `打卡考勤_${formatDate(new Date())}.xlsx`);
+
+    // 统计打卡行数：第三列存在且是日期串的行（排除空行与考勤表头）
+    const punchRowCount = aoa.filter(r => r[0] && r[2] && r.length >= 3).length - 1; // 减去表头
+    ElMessage.success(`导出成功：打卡 ${punchRowCount} 行，考勤 ${attendanceOps.length} 条`);
   } catch (error) {
     console.error('Export error:', error);
     ElMessage.error('导出失败');
   }
 };
+
+// 生成 [start, end] 区间内所有日期字符串（YYYY-MM-DD，含首尾）
+const getDateRangeList = (startDate: string, endDate: string): string[] => {
+  const result: string[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const cur = new Date(start);
+  while (cur <= end) {
+    result.push(formatDateToYMD(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+};
+
+// 考勤操作类型 / 状态中文标签
+const OPERATION_TYPE_LABELS: Record<string, string> = {
+  leave: '请假',
+  overtime: '加班',
+  make_up: '补卡',
+  appeal: '申诉',
+  business_trip: '出差',
+  adjust: '调整',
+};
+
+const OPERATION_STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  submitted: '待审批',
+  approving: '审批中',
+  approved: '已批准',
+  rejected: '已驳回',
+  cancelled: '已撤销',
+};
+
 </script>
 
 <style scoped>
