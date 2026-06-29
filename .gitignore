@@ -114,3 +114,8 @@ assets/
 soonwin-oa-VUE-FrontEnd/.history/
 # Python后端项目历史记录
 soonwin-os-Python-Server/.history/
+
+# ===================== 独立子项目（保持各自 git 历史） =====================
+# 货柜排布/ 目录是独立 git 仓库，主仓库不追踪其内容
+# 它的 Container.html 会按需复制到 soonwin-oa-VUE-FrontEnd/public/
+货柜排布/
