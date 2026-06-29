@@ -11,8 +11,8 @@ from sqlalchemy import text
 import json
 
 # revision identifiers
-revision = '039'
-down_revision = '038'
+revision = '039_20260429_100000_merge_order_record_items'
+down_revision = '038_20260309_100000_add_currency_info_to_quotation_temp'
 branch_labels = None
 depends_on = None
 

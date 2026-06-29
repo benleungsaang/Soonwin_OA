@@ -12,8 +12,8 @@ import json
 
 
 # revision identifiers, used by Alembic.
-revision = '035_20260305_100000'
-down_revision = '034_20260302_100000'
+revision = '035_20260305_100000_add_occurred_date_to_expense'
+down_revision = '034_20260302_100000_add_inquiry_relation_to_order'
 branch_labels = None
 depends_on = None
 

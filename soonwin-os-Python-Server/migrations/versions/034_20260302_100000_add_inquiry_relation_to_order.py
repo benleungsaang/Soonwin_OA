@@ -18,8 +18,10 @@ depends_on = None
 
 def upgrade():
     # 添加 inquiry_id 字段到 Order 表
+    # 说明：SQLite + batch_alter_table 不支持带默认值的 NOT NULL 列添加，
+    #       对于已有数据的表，必须先以 nullable=True 添加，再在业务层强制必填。
     with op.batch_alter_table('Order', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('inquiry_id', sa.Integer(), nullable=False, comment='关联询盘ID'))
+        batch_op.add_column(sa.Column('inquiry_id', sa.Integer(), nullable=True, comment='关联询盘ID'))
         # 设置外键约束
         batch_op.create_foreign_key('fk_order_inquiry_id', 'Inquiry', ['inquiry_id'], ['id'])
 

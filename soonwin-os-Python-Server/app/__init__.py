@@ -153,6 +153,10 @@ def create_app(port=5000):
         from .routes.config_routes import config_bp
         app.register_blueprint(config_bp, url_prefix='/api')
 
+        # 注册货柜排布相关路由蓝图
+        from .routes.container_layout_routes import container_layout_bp
+        app.register_blueprint(container_layout_bp, url_prefix='/api')
+
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance
         set_app_instance(app)

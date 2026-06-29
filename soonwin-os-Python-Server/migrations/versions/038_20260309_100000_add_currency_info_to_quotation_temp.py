@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
 # revision identifiers
-revision = '038_20260309_100000'
+revision = '038_20260309_100000_add_currency_info_to_quotation_temp'
 down_revision = '037_20260308_100000_remove_quotation_temp_order_mark_unique_constraint'
 branch_labels = None
 depends_on = None

@@ -39,6 +39,7 @@ export type RouteName =
   | 'order_record_manage'      // 订单快速记录 - 仅管理员
   | 'customer_manage'          // 客户信息管理 - 业务员
   | 'blog_manage'              // 博客管理 - 全员共有
+  | 'container_layout_manage'  // 货柜排布 - 全员共有
 
 // 为了向后兼容：定义模块名称（虽然新的权限系统使用路由名）
 export const ModuleNames = {

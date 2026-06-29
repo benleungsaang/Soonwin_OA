@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '037_20260308_100000'
+revision = '037_20260308_100000_remove_quotation_temp_order_mark_unique_constraint'
 down_revision = '036_20260305_103000_add_inquiry_communication_media_table'
 branch_labels = None
 depends_on = None

@@ -11,7 +11,7 @@ from datetime import datetime
 import os
 
 # revision identifiers, used by Alembic.
-revision = '036'
+revision = '036_20260305_103000_add_inquiry_communication_media_table'
 down_revision = '035_20260305_100000_add_occurred_date_to_expense'
 branch_labels = None
 depends_on = None

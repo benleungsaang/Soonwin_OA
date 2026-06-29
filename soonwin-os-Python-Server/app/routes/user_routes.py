@@ -556,6 +556,7 @@ def get_all_routes():
             "order_record_manage": "订单快速记录",
             "customer_manage": "客户信息管理",
             "blog_manage": "工作记录",
+            "container_layout_manage": "货柜排布",
         }
 
         # 从常量中获取所有路由
