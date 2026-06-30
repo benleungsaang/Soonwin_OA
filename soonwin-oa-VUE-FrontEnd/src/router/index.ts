@@ -23,6 +23,7 @@ const AttendanceJsonExportView = () => import('@/views/AttendanceJsonExportView.
 const MachineManagementNewView = () => import('@/views/MachineManagementNewView.vue');
 const QuotationManagementView = () => import('@/views/QuotationManagementView.vue');
 const BlogManagementView = () => import('@/views/BlogManagementView.vue');
+const ContainerLayoutView = () => import('@/views/ContainerLayoutView.vue');
 
 
 
@@ -186,6 +187,12 @@ const routes: RouteRecordRaw[] = [
     name: 'blogManagement',
     component: BlogManagementView,
     meta: { title: '工作记录', requiresAuth: true }
+  },
+  {
+    path: '/container-layout',
+    name: 'containerLayout',
+    component: ContainerLayoutView,
+    meta: { title: '货柜排布', requiresAuth: true }
   },
 
 

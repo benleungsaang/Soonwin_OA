@@ -157,6 +157,10 @@
                       <el-icon><EditPen /></el-icon>
                       <span>工作记录</span>
                     </el-menu-item>
+                    <el-menu-item index="21" @click="goToContainerLayout" v-if="hasToken && permissions.containerLayoutManage">
+                      <el-icon><Box /></el-icon>
+                      <span>货柜排布</span>
+                    </el-menu-item>
                   </el-menu>
                   <!-- 登录按钮：未登录时显示在其它功能列底部 -->
                   <el-menu class="menu-list login-menu" v-if="!hasToken">
@@ -188,7 +192,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -274,7 +278,8 @@ const permissionMap = {
   quotationManage: { key: 'quotation_manage', name: '临时报价', path: '/quotation-management' },
   orderRecordManage: { key: 'order_record_manage', name: '订单快速记录', path: '/order-record' },
   customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
-  blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' }
+  blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' },
+  containerLayoutManage: { key: 'container_layout_manage', name: '货柜排布', path: '/container-layout' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -326,6 +331,7 @@ const goToQuotationManagement = () => navigateToPage('quotationManage');
 const goToOrderRecordManage = () => navigateToPage('orderRecordManage');
 const goToCustomerManage = () => navigateToPage('customerManage');
 const goToBlog = () => navigateToPage('blogManage');
+const goToContainerLayout = () => navigateToPage('containerLayoutManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {
