@@ -1450,6 +1450,7 @@
             plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
             offset: new THREE.Vector3(),
             useVertical: false,
+            startScreenY: 0,
         };
         const dragRaycaster = new THREE.Raycaster();
         const dragMouseNDC = new THREE.Vector2();
@@ -1717,6 +1718,7 @@
                     dragState.cargoIdx = hitIdx;
                     dragState.startMeshPos.copy(mesh.position);
                     dragState.useVertical = isShiftDown;
+                    dragState.startScreenY = event.clientY;
 
                     updateDragPlane();
                     const _startPt = new THREE.Vector3();
@@ -1765,6 +1767,7 @@
                         dragState.cargoIdx = repIdx;
                         dragState.startMeshPos.copy(mesh.position);
                         dragState.useVertical = isShiftDown;
+                        dragState.startScreenY = event.clientY;
                         updateDragPlane();
                         const _startPt = new THREE.Vector3();
                         if (dragRaycaster.ray.intersectPlane(dragState.plane, _startPt)) {
@@ -1789,20 +1792,29 @@
 
             screenToNDC(event.clientX, event.clientY);
             dragRaycaster.setFromCamera(dragMouseNDC, camera);
-            const intersection = new THREE.Vector3();
-            if (!dragRaycaster.ray.intersectPlane(dragState.plane, intersection)) return;
 
-            // 1) 先按"参考货物"算它的原始位置增量（不单独 clamp）
-            //    然后按"所有选中都不出界"来统一约束 delta
-            const newCenter = intersection.sub(dragState.offset);
-            let rawPx, rawPy, rawPz;
             const sx = refCargo.sx, sy = refCargo.sy, sz = refCargo.sz;
+            let rawPx, rawPy, rawPz;
+
+            // ── 垂直移动：从屏幕空间鼠标 Y 偏移换算（不依赖平面求交，避免垂直平面相交失败） ──
             if (dragState.useVertical) {
-                const deltaY = newCenter.y - dragState.startMeshPos.y;
+                const screenDeltaY = dragState.startScreenY - event.clientY;
+                const viewH = renderer.domElement.clientHeight;
+                const ndcPos = dragState.startMeshPos.clone().project(camera);
+                const ndcPosUp = ndcPos.clone();
+                ndcPosUp.y += 2 / Math.max(viewH, 1);
+                ndcPos.unproject(camera);
+                ndcPosUp.unproject(camera);
+                const mmPerPixelY = ndcPosUp.y - ndcPos.y;
+                const deltaY = screenDeltaY * mmPerPixelY;
                 rawPx = dragState.startMeshPos.x - sx / 2;
                 rawPy = dragState.startMeshPos.y - sy / 2 + deltaY;
                 rawPz = dragState.startMeshPos.z - sz / 2;
             } else {
+                // ── 水平移动：射线与水平面求交 ──
+                const intersection = new THREE.Vector3();
+                if (!dragRaycaster.ray.intersectPlane(dragState.plane, intersection)) return;
+                const newCenter = intersection.sub(dragState.offset);
                 const fixedY = refCargo.py + sy / 2;
                 rawPx = newCenter.x - sx / 2;
                 rawPy = fixedY - sy / 2;
@@ -1901,6 +1913,7 @@
                 if (dragState.active && !dragState.useVertical) {
                     dragState.useVertical = true;
                     dragState.startMeshPos.copy(dragState.mesh.position);
+                    dragState.startScreenY = event.clientY;
                     updateDragPlane();
                 }
             }
