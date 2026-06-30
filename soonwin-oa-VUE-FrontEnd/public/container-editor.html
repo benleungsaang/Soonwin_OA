@@ -1535,15 +1535,15 @@
                     dragState.cargoIdx = hitIdx;
                     dragState.startMeshPos.copy(mesh.position);
                     dragState.useVertical = isShiftDown;
-                    dragState.offset.copy(intersects[0].point).sub(mesh.position);
 
                     updateDragPlane();
-                    // 垂直拖动：用平面交点重算 offset，消除表面击中点的 Y 偏置
-                    if (dragState.useVertical) {
-                        const _pt = new THREE.Vector3();
-                        dragRaycaster.ray.intersectPlane(dragState.plane, _pt);
-                        dragState.offset.copy(_pt).sub(dragState.mesh.position);
-                    }
+                    // 关键：offset 用"按下时鼠标在拖动平面上的交点 - mesh 中心"
+                    // 不能用 intersects[0].point（那是 mesh 表面点，跟平面交点不一致，
+                    // 会导致首次 move 时货物瞬间漂移到表面点的水平投影）
+                    const _startPt = new THREE.Vector3();
+                    dragRaycaster.ray.intersectPlane(dragState.plane, _startPt);
+                    dragState.offset.copy(_startPt).sub(dragState.mesh.position);
+
                     controls.enabled = false;
                     mesh.material.emissiveIntensity = 0.6;
                     state.selectedCargo = hitIdx;
@@ -1599,21 +1599,14 @@
             dragState.startMouse.set(event.clientX, event.clientY);
             dragState.useVertical = isShiftDown;
 
-            if (hitMesh) {
-                dragState.offset.copy(intersects[0].point).sub(mesh.position);
-            } else {
-                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-                const pt = new THREE.Vector3();
-                dragRaycaster.ray.intersectPlane(plane, pt);
-                dragState.offset.copy(pt).sub(mesh.position);
-            }
-
+            // 关键：offset 一律用"按下时鼠标在拖动平面上的交点 - mesh 中心"。
+            // 避免 intersects[0].point（表面点）造成的初始位置漂移。
             updateDragPlane();
-            // 垂直拖动：用平面交点重算 offset，消除表面击中点的 Y 偏置
-            if (dragState.useVertical) {
-                const _pt = new THREE.Vector3();
-                dragRaycaster.ray.intersectPlane(dragState.plane, _pt);
-                dragState.offset.copy(_pt).sub(dragState.mesh.position);
+            const _startPt = new THREE.Vector3();
+            if (dragRaycaster.ray.intersectPlane(dragState.plane, _startPt)) {
+                dragState.offset.copy(_startPt).sub(dragState.mesh.position);
+            } else {
+                dragState.offset.set(0, 0, 0);
             }
             mesh.material.emissiveIntensity = 0.6;
         }
