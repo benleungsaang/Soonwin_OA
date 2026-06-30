@@ -2275,8 +2275,28 @@
                 return false;
             }
 
+            const existingCount = state.cargos.length;
             state.cargos.push(...newCargos);
-            autoLayout(state.cargos);
+
+            if (existingCount > 0) {
+                // ── 已有货物：新货物放到货柜外部，不干扰现有布局 ──
+                // 1) 对新货物单独做 autoLayout（确定相对位置，不交叉）
+                autoLayout(newCargos, true);
+                // 2) 计算现有货物最大 Z 范围
+                let maxZ = 0;
+                for (let i = 0; i < existingCount; i++) {
+                    const c = state.cargos[i];
+                    maxZ = Math.max(maxZ, c.pz + c.sz);
+                }
+                // 3) 新货物平移到现有货物之后（Z 方向外部）
+                for (const c of newCargos) {
+                    c.pz += maxZ + 10;  // 10 = GAP
+                }
+            } else {
+                // ── 无现有货物：在货柜内排布，可超出边界 ──
+                autoLayout(state.cargos, true);
+            }
+
             rebuildCargoMeshes();
             updateStats();
             saveState();
