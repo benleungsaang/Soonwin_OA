@@ -1511,9 +1511,21 @@
         }
 
         function onCanvasMouseDown(event) {
-            if (event.button !== 0) return;
             if (editModal.classList.contains('active')) return;
             if (event.target !== renderer.domElement) return;
+
+            // 右键：仅在"点击选中"模式下作为"取消选中"快捷键
+            if (event.button === 2) {
+                if (state.interactionMode === 'select' &&
+                    state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                    deselectCargo();
+                }
+                return;
+            }
+
+            if (event.button !== 0) return;
 
             screenToNDC(event.clientX, event.clientY);
             dragRaycaster.setFromCamera(dragMouseNDC, camera);
@@ -1682,6 +1694,11 @@
         renderer.domElement.addEventListener('pointerdown', onCanvasMouseDown, true);
         window.addEventListener('pointermove', onCanvasMouseMove);
         window.addEventListener('pointerup', onCanvasMouseUp);
+
+        // 阻止 canvas 上浏览器默认右键菜单（避免与右键取消选中冲突）
+        renderer.domElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
 
         // Shift 状态：拖动中按下/释放 Shift 时实时切换 plane
         document.addEventListener('keydown', (e) => {
