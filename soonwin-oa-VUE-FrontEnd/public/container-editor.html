@@ -946,14 +946,12 @@
                 货物6, 800*500*1000</textarea>
                 <div class="import-actions">
                     <button class="btn btn-primary" id="loadCargoBtn">📥 添加货物</button>
-                    <button class="btn btn-danger" id="clearCargoBtn">🗑 清空</button>
-                    <button class="btn btn-success" id="resetLayoutBtn">🔄 重置布局</button>
                 </div>
             </div>
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><button class="btn btn-sm" id="copyAllBtn" title="以导入格式复制全部货物到剪贴板">📋 复制当前货物</button></span></div>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span><span class="tb-dropdown-hint">移除所有货物</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span><span class="tb-dropdown-hint">货物靠原点重新排布</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span><span class="tb-dropdown-hint">以导入格式复制到剪贴板</span></div></div></div></span></div>
                 <div class="cargo-list-container" id="cargoList"></div>
             </div>
 
@@ -2225,6 +2223,7 @@
         //  核心操作函数
         // ============================================================
         function loadCargosFromText(text) {
+            // @returns {boolean} true=至少成功添加了一批货物；false=全部失败
             const lines = text.split('\n').filter(line => line.trim());
             const newCargos = [];
             const errors = [];
@@ -2274,7 +2273,7 @@
 
             if (!newCargos.length) {
                 alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm)');
-                return;
+                return false;
             }
 
             state.cargos.push(...newCargos);
@@ -2282,6 +2281,7 @@
             rebuildCargoMeshes();
             updateStats();
             saveState();
+            return true;
         }
 
         function clearAllCargos() {
@@ -2861,9 +2861,11 @@
 
         loadCargoBtn.addEventListener('click', () => {
             const text = cargoInput.value;
-            loadCargosFromText(text);
-            // 添加成功后清空输入框
-            cargoInput.value = '';
+            if (loadCargosFromText(text)) {
+                // 至少成功添加了一部分 → 清空输入框供下次输入
+                cargoInput.value = '';
+            }
+            // 全部失败 → 保留输入框内容供用户修改
         });
 
         clearCargoBtn.addEventListener('click', clearAllCargos);
@@ -2872,20 +2874,49 @@
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
-        // 复制全部货物到剪贴板（以导入格式：名称, 长*宽*高）
-        // navigator.clipboard 在 http:// 下不可用，统一用 textarea 方案
-        copyAllBtn.addEventListener('click', () => {
-            if (!state.cargos.length) { alert('当前没有货物'); return; }
-            const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
-            const text = lines.join('\n');
-            const oldVal = cargoInput.value;
-            cargoInput.value = text;
-            cargoInput.select();
-            document.execCommand('copy');
-            cargoInput.value = oldVal;
-            const orig = copyAllBtn.textContent;
-            copyAllBtn.textContent = '✅ 已复制';
-            setTimeout(() => { copyAllBtn.textContent = orig; }, 2000);
+        // ============================================================
+        //  货物列表操作下拉菜单（清空 / 重置布局 / 复制当前货物）
+        // ============================================================
+        const cargoActionBtn = $('#cargoActionBtn');
+        const cargoActionMenu = $('#cargoActionMenu');
+
+        cargoActionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = cargoActionMenu.style.display !== 'none';
+            cargoActionMenu.style.display = isOpen ? 'none' : 'block';
+        });
+
+        cargoActionMenu.querySelectorAll('.tb-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = item.dataset.action;
+                cargoActionMenu.style.display = 'none';
+                if (action === 'clearAll') {
+                    clearAllCargos();
+                } else if (action === 'resetLayout') {
+                    resetLayout();
+                } else if (action === 'copyAll') {
+                    if (!state.cargos.length) { alert('当前没有货物'); return; }
+                    const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
+                    const text = lines.join('\n');
+                    const oldVal = cargoInput.value;
+                    cargoInput.value = text;
+                    cargoInput.select();
+                    document.execCommand('copy');
+                    cargoInput.value = oldVal;
+                    const orig = item.querySelector('.tb-dropdown-label').textContent;
+                    item.querySelector('.tb-dropdown-label').textContent = '✅ 已复制';
+                    setTimeout(() => {
+                        item.querySelector('.tb-dropdown-label').textContent = orig;
+                    }, 2000);
+                }
+            });
+        });
+
+        document.addEventListener('click', () => {
+            if (cargoActionMenu.style.display !== 'none') {
+                cargoActionMenu.style.display = 'none';
+            }
         });
         vpDeselectBtn.addEventListener('click', deselectCargo);
         vpRotateBtn.addEventListener('click', () => {
