@@ -1160,11 +1160,10 @@
         const overflowToggleLabel = $('#overflowToggleLabel');
         const cargoInput = $('#cargoInput');
         const loadCargoBtn = $('#loadCargoBtn');
-        const clearCargoBtn = $('#clearCargoBtn');
-        const resetLayoutBtn = $('#resetLayoutBtn');
+        // clearCargoBtn 和 resetLayoutBtn 已移至 ⚙️ 操作下拉菜单，不再需要独立元素
         const cargoListEl = $('#cargoList');
         const cargoCount = $('#cargoCount');
-        const copyAllBtn = $('#copyAllBtn');
+        // copyAllBtn 已移至 ⚙️ 操作下拉菜单，不再需要独立元素
         const usedVolume = $('#usedVolume');
         const totalVolume = $('#totalVolume');
         const utilRate = $('#utilRate');
@@ -2868,8 +2867,6 @@
             // 全部失败 → 保留输入框内容供用户修改
         });
 
-        clearCargoBtn.addEventListener('click', clearAllCargos);
-        resetLayoutBtn.addEventListener('click', resetLayout);
         exportBtn.addEventListener('click', exportLayout);
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
