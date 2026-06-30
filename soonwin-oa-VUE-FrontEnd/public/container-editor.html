@@ -977,7 +977,7 @@
             </div>
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
-            <div id="hint">🖱 左键拖拽旋转 · 滚轮缩放 · 右键平移 · 点击货物选中拖动 · Shift+调高度</div>
+            <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
             <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
             <div id="cargoContextMenu" style="display:none;">
                 <div class="ctx-item" data-action="rotate" title="水平旋转 90°">↻ 水平旋转货物</div>
@@ -2096,13 +2096,13 @@
                 }
                 detailEl.style.display = 'block';
                 hintEl.textContent = inDirect
-                    ? '🖱 拖动移动货物 · Shift+垂直 · 滚轮缩放'
-                    : '🖱 点击空白处拖动当前货物 · Shift+垂直 · Esc/🔽 取消选中';
+                    ? '🖱 拖动移动货物 · 按着 SHIFT 垂直移动 · 按着 CTRL 多选货物'
+                    : '🖱 点击空白处拖动当前货物 · 按着 SHIFT 垂直移动 · Esc/🔽 取消选中';
             } else {
                 detailEl.style.display = 'none';
                 hintEl.textContent = inDirect
-                    ? '🖱 点击货物即拖 · 滚轮缩放 · 右键平移'
-                    : '🖱 点击货物选中拖动 · 滚轮缩放 · 右键平移';
+                    ? '🖱 点击货物即拖 · 按着 CTRL 多选货物 · 右键平移'
+                    : '🖱 点击货物选中拖动 · 按着 CTRL 多选货物 · 右键平移';
             }
         }
 
