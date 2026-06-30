@@ -106,6 +106,8 @@ assets/
 nginx-1.28.1/
 nginx_pid/
 其它文件/
+# 辅助脚本中的测试/临时数据目录，不跟踪
+辅助脚本/20260306 易读格式写入json文件/
 # 取反保留：Python后端项目的assets/TemplateImg目录（及内部所有内容）
 !assets/TemplateImg/
 !assets/TemplateImg/**/*
