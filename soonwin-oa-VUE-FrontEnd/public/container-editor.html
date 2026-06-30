@@ -592,16 +592,89 @@
             font-weight: 500;
         }
 
-        /* 顶部居中工具栏 */
+        /* 顶部工具栏：左 通用功能 / 右 货物操作 */
         #view-toolbar {
             position: absolute;
             top: 16px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 20px;
+            right: 20px;
             display: flex;
-            gap: 8px;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
             z-index: 10;
             pointer-events: none;
+        }
+
+        #view-toolbar .tb-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* 模式选择下拉 */
+        .tb-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tb-dropdown-toggle::after {
+            content: ' ▾';
+            font-size: 10px;
+            opacity: 0.7;
+            margin-left: 2px;
+        }
+
+        .tb-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            min-width: 200px;
+            background: rgba(20, 20, 40, 0.96);
+            backdrop-filter: blur(8px);
+            border: 1px solid #2a2a5e;
+            border-radius: 10px;
+            padding: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            z-index: 20;
+        }
+
+        .tb-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #ccc;
+            transition: background 0.15s;
+        }
+
+        .tb-dropdown-item:hover {
+            background: rgba(233, 69, 96, 0.2);
+            color: #fff;
+        }
+
+        .tb-dropdown-item.tb-active-item {
+            background: rgba(233, 69, 96, 0.15);
+            color: #ffd93d;
+        }
+
+        .tb-dropdown-icon {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .tb-dropdown-label {
+            font-size: 13px;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .tb-dropdown-hint {
+            font-size: 11px;
+            color: #888;
         }
 
         #view-toolbar .tb-btn {
@@ -834,8 +907,8 @@
 
             <div class="panel-actions panel-actions-rows">
                 <div class="panel-actions-row">
-                    <button class="btn" id="saveBtn" title="保存当前方案到云端">保存</button>
-                    <button class="btn" id="saveAsBtn" title="复制为新方案">另存为</button>
+                    <button class="btn" id="saveBtn" title="保存当前方案到云端">💾 保存</button>
+                    <button class="btn" id="saveAsBtn" title="复制为新方案">📋 另存为</button>
                 </div>
                 <div class="panel-actions-row">
                     <button class="btn" id="exportBtn" title="下载到本地">📤 导出本地文件</button>
@@ -861,14 +934,33 @@
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
             <div id="hint">🖱 左键拖拽旋转 · 滚轮缩放 · 右键平移 · 点击货物选中拖动 · Shift+调高度</div>
-            <!-- 顶部居中工具栏 -->
+            <!-- 顶部工具栏：左=通用功能 / 右=货物操作 -->
             <div id="view-toolbar">
-                <span class="tb-btn tb-active" id="modeToggle">⛏ 即点即拖</span>
-                <span class="tb-btn tb-warn" id="vpDeselectBtn" style="display:none;">✕ 取消选中</span>
-                <span class="tb-btn tb-info" id="vpRotateBtn" style="display:none;">↻ 水平旋转货物</span>
-                <span class="tb-btn tb-drop" id="vpDropBtn" style="display:none;">↓ 货物跌落</span>
-                <span class="tb-btn tb-info" id="vpCheckBtn" title="检查出界和交叉碰撞">🔍 检查出界情况</span>
-                <span class="tb-btn tb-warn" id="vpCompactBtn" title="将所有货物紧靠原点重新排布">⬇ 紧靠原点</span>
+                <div class="tb-group tb-left">
+                    <!-- 模式选择：点击后弹出下拉菜单 -->
+                    <div class="tb-dropdown" id="modeDropdown">
+                        <span class="tb-btn tb-active tb-dropdown-toggle" id="modeToggle">⛏ 即点即拖</span>
+                        <div class="tb-dropdown-menu" id="modeDropdownMenu" style="display:none;">
+                            <div class="tb-dropdown-item" data-mode="direct">
+                                <span class="tb-dropdown-icon">⛏</span>
+                                <span class="tb-dropdown-label">即点即拖</span>
+                                <span class="tb-dropdown-hint">点击货物直接拖动</span>
+                            </div>
+                            <div class="tb-dropdown-item" data-mode="select">
+                                <span class="tb-dropdown-icon">👆</span>
+                                <span class="tb-dropdown-label">点击选中</span>
+                                <span class="tb-dropdown-hint">先选中再拖动</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="tb-btn tb-info" id="vpCheckBtn" title="检查出界和交叉碰撞">🔍 检查出界情况</span>
+                    <span class="tb-btn tb-warn" id="vpCompactBtn" title="将所有货物紧靠原点重新排布">⬇ 紧靠原点</span>
+                </div>
+                <div class="tb-group tb-right">
+                    <span class="tb-btn tb-warn" id="vpDeselectBtn" style="display:none;">✕ 取消选中</span>
+                    <span class="tb-btn tb-info" id="vpRotateBtn" style="display:none;">↻ 水平旋转货物</span>
+                    <span class="tb-btn tb-drop" id="vpDropBtn" style="display:none;">↓ 货物跌落</span>
+                </div>
             </div>
         </div>
     </div>
@@ -2564,14 +2656,52 @@
                 modeToggle.textContent = '👆 点击选中';
                 modeToggle.classList.remove('tb-active');
             }
+            // 刷新下拉列表中的"当前选中"高亮
+            updateModeDropdownActive();
             saveState();
             renderCargoList();
         }
 
-        modeToggle.addEventListener('click', () => {
-            const newMode = state.interactionMode === 'direct' ? 'select' : 'direct';
-            switchMode(newMode);
+        // 模式选择下拉菜单
+        const modeDropdown = $('#modeDropdown');
+        const modeDropdownMenu = $('#modeDropdownMenu');
+
+        function updateModeDropdownActive() {
+            modeDropdownMenu.querySelectorAll('.tb-dropdown-item').forEach(item => {
+                if (item.dataset.mode === state.interactionMode) {
+                    item.classList.add('tb-active-item');
+                } else {
+                    item.classList.remove('tb-active-item');
+                }
+            });
+        }
+
+        modeToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = modeDropdownMenu.style.display !== 'none';
+            modeDropdownMenu.style.display = isOpen ? 'none' : 'block';
         });
+
+        modeDropdownMenu.querySelectorAll('.tb-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const mode = item.dataset.mode;
+                if (mode && (mode === 'direct' || mode === 'select')) {
+                    switchMode(mode);
+                }
+                modeDropdownMenu.style.display = 'none';
+            });
+        });
+
+        // 点击页面其他地方关闭下拉
+        document.addEventListener('click', () => {
+            if (modeDropdownMenu.style.display !== 'none') {
+                modeDropdownMenu.style.display = 'none';
+            }
+        });
+
+        // 初始化下拉高亮
+        updateModeDropdownActive();
 
         window.addEventListener('resize', () => {
             const w = viewport.clientWidth;
