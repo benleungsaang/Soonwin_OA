@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>货柜装货空间可视化工具</title>
+    <style>
+        /* -------------------- 全局重置 -------------------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* -------------------- 布局 -------------------- */
+        #app {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* -------------------- 左侧面板 -------------------- */
+        #panel {
+            width: 420px;
+            min-width: 420px;
+            background: #16213e;
+            padding: 20px 18px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            border-right: 2px solid #0f3460;
+            z-index: 10;
+            height: 100vh;
+        }
+
+        #panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #panel::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+
+        #panel h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #e94560;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #0f3460;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #panel h1 small {
+            font-size: 13px;
+            font-weight: 400;
+            color: #aaa;
+            margin-left: auto;
+        }
+
+        .section {
+            background: #1a1a3e;
+            border-radius: 10px;
+            padding: 14px 16px;
+            border: 1px solid #2a2a5e;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #a8d8ea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 货柜选择 */
+        .container-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .container-selector button {
+            background: #0f3460;
+            border: none;
+            color: #ccc;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .container-selector button:hover {
+            background: #1a4a7a;
+            color: #fff;
+        }
+
+        .container-selector button.active {
+            background: #e94560;
+            color: #fff;
+            border-color: #ff6b81;
+            box-shadow: 0 0 12px rgba(233, 69, 96, 0.4);
+        }
+
+        .custom-container {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .custom-container input {
+            width: 70px;
+            padding: 4px 6px;
+            background: #0a0a2a;
+            border: 1px solid #2a2a5e;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        .custom-container label {
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .custom-container button {
+            background: #0f3460;
+            border: none;
+            color: #ccc;
+            padding: 4px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .custom-container button:hover {
+            background: #1a4a7a;
+            color: #fff;
+        }
+
+        /* 允许溢出开关 */
+        .overflow-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #aaa;
+            cursor: pointer;
+            margin-top: 10px;
+            padding: 6px 10px;
+            background: rgba(255, 170, 68, 0.06);
+            border: 1px solid rgba(255, 170, 68, 0.15);
+            border-radius: 6px;
+            transition: 0.2s;
+            user-select: none;
+        }
+
+        .overflow-toggle:hover {
+            background: rgba(255, 170, 68, 0.12);
+            color: #fff;
+        }
+
+        .overflow-toggle input {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: #ffaa44;
+        }
+
+        .overflow-toggle.checked {
+            color: #ffaa44;
+            background: rgba(255, 170, 68, 0.18);
+            border-color: rgba(255, 170, 68, 0.5);
+        }
+
+        /* 货物导入 */
+        .import-area textarea {
+            width: 100%;
+            height: 100px;
+            background: #0a0a2a;
+            border: 1px solid #2a2a5e;
+            border-radius: 8px;
+            color: #e0e0e0;
+            padding: 10px;
+            font-size: 13px;
+            resize: vertical;
+            font-family: 'Consolas', monospace;
+            line-height: 1.6;
+        }
+
+        .import-area textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .import-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: #0f3460;
+            border: none;
+            color: #e0e0e0;
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: #1a4a7a;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #ff6b81;
+        }
+
+        .btn-danger {
+            background: #6b2a3a;
+            color: #ffb3b3;
+        }
+
+        .btn-danger:hover {
+            background: #8a3a4a;
+        }
+
+        .btn-success {
+            background: #1b7a4a;
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background: #2a9a5a;
+        }
+
+        /* 货物列表 - 撑满 section 剩余空间 */
+        .section.flex-grow {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .cargo-list-container {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-right: 4px;
+        }
+
+        .cargo-list-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .cargo-list-container::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+
+        .cargo-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
+            gap: 2px 8px;
+            background: #0a0a2a;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            border-left: 4px solid #e94560;
+            transition: 0.15s;
+            cursor: pointer;
+        }
+
+        .cargo-item:hover {
+            background: #1a1a4a;
+        }
+
+        .cargo-item.selected {
+            background: #2a2a5e;
+            border-left-color: #ffd93d;
+        }
+
+        .cargo-item .cargo-row1 {
+            grid-column: 1;
+            grid-row: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .cargo-item .cargo-row2 {
+            grid-column: 1;
+            grid-row: 2;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .cargo-item .cargo-actions {
+            grid-column: 2;
+            grid-row: 1 / 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding-left: 6px;
+        }
+
+        .cargo-item .color-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: 0.2s;
+        }
+
+        .cargo-item .color-dot:hover {
+            border-color: #fff;
+            transform: scale(1.1);
+        }
+
+        .cargo-item .cargo-index {
+            color: #8899aa;
+            font-size: 12px;
+            font-family: monospace;
+            min-width: 28px;
+            user-select: none;
+        }
+
+        .cargo-item .cargo-name {
+            flex: 1;
+            font-weight: 500;
+            cursor: pointer;
+            min-width: 60px;
+        }
+
+        .cargo-item .cargo-name:hover {
+            color: #ffd93d;
+        }
+
+        .cargo-item .cargo-size {
+            color: #aaa;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .cargo-item .cargo-size:hover {
+            background: #1a2a4a;
+            color: #fff;
+        }
+
+        .cargo-item .cargo-pos {
+            color: #7aa;
+            font-size: 11px;
+            font-family: monospace;
+        }
+
+        .cargo-item .cargo-delete {
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 4px;
+            opacity: 0.5;
+            transition: 0.2s;
+        }
+
+        .cargo-item .cargo-delete:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        .cargo-item .cargo-rotate {
+            color: #4d96ff;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 4px;
+            opacity: 0.5;
+            transition: 0.2s;
+            user-select: none;
+        }
+
+        .cargo-item .cargo-rotate:hover {
+            opacity: 1;
+            transform: scale(1.2) rotate(90deg);
+        }
+
+        /* 统计信息 */
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 16px;
+            font-size: 14px;
+        }
+
+        .stats span {
+            color: #aaa;
+        }
+
+        .stats .value {
+            color: #fff;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .stats .highlight {
+            color: #e94560;
+        }
+
+        /* 底部操作 */
+        .panel-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        /* 编辑弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #1a1a3e;
+            border: 1px solid #2a2a5e;
+            border-radius: 16px;
+            padding: 30px 36px;
+            min-width: 360px;
+            max-width: 480px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal h2 {
+            color: #a8d8ea;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .modal .field {
+            margin-bottom: 14px;
+        }
+
+        .modal .field label {
+            display: block;
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+
+        .modal .field input {
+            width: 100%;
+            padding: 8px 12px;
+            background: #0a0a2a;
+            border: 1px solid #2a2a5e;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .modal .field input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .modal .field input[type="color"] {
+            height: 44px;
+            padding: 4px;
+            cursor: pointer;
+        }
+
+        .modal .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+
+        .modal .modal-actions .btn {
+            padding: 8px 24px;
+        }
+
+        /* -------------------- 3D视图 -------------------- */
+        #viewport {
+            flex: 1;
+            height: 100vh;
+            background: #0d0d1a;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #viewport canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 右上角信息覆盖层 */
+        #viewport-info {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(6px);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            border: 1px solid #2a2a5e;
+            pointer-events: none;
+            text-align: right;
+            line-height: 1.6;
+            z-index: 5;
+        }
+
+        #viewport-info .label {
+            color: #aaa;
+        }
+
+        #viewport-info .val {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        /* 顶部居中工具栏 */
+        #view-toolbar {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #view-toolbar .tb-btn {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(6px);
+            border: 1px solid #2a2a5e;
+            color: #ccc;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        #view-toolbar .tb-btn:hover {
+            background: rgba(233, 69, 96, 0.25);
+            border-color: #e94560;
+            color: #fff;
+        }
+
+        #view-toolbar .tb-btn.tb-active {
+            background: rgba(233, 69, 96, 0.2);
+            border-color: #e94560;
+            color: #ffd93d;
+        }
+
+        #view-toolbar .tb-btn.tb-warn {
+            border-color: rgba(255, 170, 68, 0.3);
+            color: #ffd93d;
+        }
+
+        #view-toolbar .tb-btn.tb-warn:hover {
+            background: rgba(255, 170, 68, 0.25);
+            border-color: #ffaa44;
+        }
+
+        #view-toolbar .tb-btn.tb-info {
+            border-color: rgba(77, 150, 255, 0.3);
+            color: #4d96ff;
+        }
+
+        #view-toolbar .tb-btn.tb-info:hover {
+            background: rgba(77, 150, 255, 0.2);
+            border-color: #4d96ff;
+        }
+
+        #view-toolbar .tb-btn.tb-drop {
+            border-color: rgba(107, 203, 119, 0.3);
+            color: #6bcb77;
+        }
+
+        #view-toolbar .tb-btn.tb-drop:hover {
+            background: rgba(107, 203, 119, 0.2);
+            border-color: #6bcb77;
+        }
+
+        /* 选中货物详情框（独立于货柜信息） */
+        #viewport-info-detail {
+            position: absolute;
+            top: 135px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            border: 1px solid #2a2a5e;
+            pointer-events: none;
+            text-align: right;
+            line-height: 1.7;
+            z-index: 5;
+            min-width: 170px;
+            display: none;
+        }
+
+        #viewport-info-detail .label {
+            color: #aaa;
+        }
+
+        #viewport-info-detail .val {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        #viewport-info-detail .val.name {
+            color: #ffd93d;
+            font-weight: 600;
+        }
+
+        /* XYZ 轴指示器（左上角） */
+        #axes-indicator {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            width: 110px;
+            height: 110px;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+
+        #axes-indicator canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 左下角提示 */
+        #hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #aaa;
+            border: 1px solid #2a2a5e;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 响应式 */
+        @media (max-width: 820px) {
+            #panel {
+                width: 340px;
+                min-width: 340px;
+                padding: 14px 12px;
+            }
+
+            .custom-container input {
+                width: 56px;
+            }
+        }
+
+        @media (max-width: 700px) {
+            #app {
+                flex-direction: column;
+            }
+
+            #panel {
+                width: 100%;
+                min-width: unset;
+                height: 50vh;
+                border-right: none;
+                border-bottom: 2px solid #0f3460;
+            }
+
+            #viewport {
+                height: 50vh;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <!-- 左侧面板 -->
+        <div id="panel">
+            <h1>
+                📦 货柜装货
+                <small>3D 可视化</small>
+            </h1>
+
+            <!-- 货柜选择 -->
+            <div class="section">
+                <div class="section-title">🚛 货柜选择</div>
+                <div class="container-selector" id="containerSelector">
+                    <button data-name="20尺普柜" data-l="5890" data-w="2350" data-h="2390">20尺普柜</button>
+                    <button data-name="40尺普柜" data-l="12030" data-w="2350" data-h="2390" class="active">40尺普柜</button>
+                    <button data-name="40尺高柜" data-l="12030" data-w="2350" data-h="2690">40尺高柜</button>
+                    <button data-name="45尺高柜" data-l="13580" data-w="2350" data-h="2690">45尺高柜</button>
+                </div>
+                <div class="custom-container">
+                    <label>自定义 (mm)</label>
+                    <input type="number" id="customL" value="12030" placeholder="长" />
+                    <input type="number" id="customW" value="2350" placeholder="宽" />
+                    <input type="number" id="customH" value="2390" placeholder="高" />
+                    <button id="applyCustom">应用</button>
+                </div>
+                <label class="overflow-toggle" id="overflowToggleLabel" title="勾选后允许货物尺寸/拖动/旋转超出货柜边界（临时选项）">
+                    <input type="checkbox" id="allowOverflow" />
+                    <span>⚠️ 允许货物超出货柜边界</span>
+                </label>
+            </div>
+
+            <!-- 货物导入 -->
+            <div class="section import-area">
+                <div class="section-title">📋 导入货物</div>
+                <textarea id="cargoInput"
+                    placeholder="每行一个：名称, 长*宽*高 (mm)&#10;例如：&#10;货物1, 1390*840*1550&#10;货物2, 1390*840*1550">货物1, 1390*840*1550
+                    货物2, 1390*840*1550
+                    货物3, 1390*840*1550
+                    货物4, 1200*800*1400
+                    货物5, 1000*600*1200
+                货物6, 800*500*1000</textarea>
+                <div class="import-actions">
+                    <button class="btn btn-primary" id="loadCargoBtn">📥 加载货物</button>
+                    <button class="btn btn-danger" id="clearCargoBtn">🗑 清空</button>
+                    <button class="btn btn-success" id="resetLayoutBtn">🔄 重置布局</button>
+                </div>
+            </div>
+
+            <!-- 货物列表 -->
+            <div class="section flex-grow">
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>)</div>
+                <div class="cargo-list-container" id="cargoList"></div>
+            </div>
+
+            <!-- 统计 -->
+            <div class="section">
+                <div class="section-title">📊 空间利用率</div>
+                <div class="stats">
+                    <span>已用体积</span>
+                    <span class="value" id="usedVolume">0 mm³</span>
+                    <span>总体积</span>
+                    <span class="value" id="totalVolume">0 mm³</span>
+                    <span>利用率</span>
+                    <span class="value highlight" id="utilRate">0%</span>
+                    <span>货物数量</span>
+                    <span class="value" id="statCount">0</span>
+                </div>
+            </div>
+
+            <div class="panel-actions">
+                <button class="btn" id="saveBtn" disabled title="加载方案后可用">☁ 保存到云端</button>
+                <button class="btn" id="saveAsBtn">📋 另存为新方案</button>
+                <button class="btn" id="exportBtn">📤 导出 JSON</button>
+                <button class="btn" id="importBtn">📥 导入 JSON</button>
+            </div>
+        </div>
+
+        <!-- 3D 视口 -->
+        <div id="viewport">
+            <div id="viewport-info">
+                <div><span class="label">货柜</span> <span class="val" id="infoContainer">40尺普柜</span></div>
+                <div><span class="label">尺寸</span> <span class="val" id="infoSize">12030 × 2350 × 2390 mm</span></div>
+                <div><span class="label">货物数量</span> <span class="val" id="infoCargoCount">0</span></div>
+            </div>
+            <!-- 选中货物详情框 -->
+            <div id="viewport-info-detail">
+                <div><span class="label">序号</span> <span class="val name" id="detailIndex">—</span></div>
+                <div><span class="label">名称</span> <span class="val" id="detailName">—</span></div>
+                <div><span class="label">尺寸</span> <span class="val" id="detailSize">—</span></div>
+                <div><span class="label">坐标</span> <span class="val" id="detailPos">—</span></div>
+            </div>
+            <!-- XYZ 轴指示器 -->
+            <div id="axes-indicator"></div>
+            <div id="hint">🖱 左键拖拽旋转 · 滚轮缩放 · 右键平移 · 点击货物选中拖动 · Shift+调高度</div>
+            <!-- 顶部居中工具栏 -->
+            <div id="view-toolbar">
+                <span class="tb-btn tb-active" id="modeToggle">⛏ 即点即拖</span>
+                <span class="tb-btn tb-warn" id="vpDeselectBtn" style="display:none;">✕ 取消选中</span>
+                <span class="tb-btn tb-info" id="vpRotateBtn" style="display:none;">↻ 水平旋转货物</span>
+                <span class="tb-btn tb-drop" id="vpDropBtn" style="display:none;">↓ 货物跌落</span>
+                <span class="tb-btn tb-info" id="vpCheckBtn" title="检查出界和交叉碰撞">🔍 检查出界情况</span>
+                <span class="tb-btn tb-warn" id="vpCompactBtn" title="将所有货物紧靠原点重新排布">⬇ 紧靠原点</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑弹窗 -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <h2>✏️ 编辑货物</h2>
+            <div class="field">
+                <label>货物名称</label>
+                <input type="text" id="editName" />
+            </div>
+            <div class="field">
+                <label>尺寸 (长 × 宽 × 高 mm)</label>
+                <input type="text" id="editSize" placeholder="例如: 1390*840*1550" />
+            </div>
+            <div class="field">
+                <label>颜色</label>
+                <input type="color" id="editColor" />
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="editCancelBtn">取消</button>
+                <button class="btn btn-primary" id="editSaveBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 检查结果弹窗 -->
+    <div class="modal-overlay" id="checkModal">
+        <div class="modal" style="min-width:420px;max-width:520px;">
+            <h2>🔍 检查结果</h2>
+            <div id="checkResultContent" style="max-height:400px;overflow-y:auto;font-size:13px;line-height:1.8;color:#ccc;white-space:pre-wrap;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="checkModalCloseBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js 及依赖 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // ============================================================
+        //  模块导入
+        // ============================================================
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ============================================================
+        //  状态管理
+        // ============================================================
+        const state = {
+            container: { name: '40尺普柜', l: 12030, w: 2350, h: 2390 },
+            cargos: [], // { id, name, sx, sy, sz, px, py, pz, color }
+            cargoMeshes: [], // 与 cargos 同步
+            selectedCargo: null,
+            colorIndex: 0,
+            editIndex: -1,
+            allowOverflow: false, // 临时允许货物超出货柜边界
+            interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
+        };
+
+        // 预设颜色板 (明亮)
+        const COLOR_PALETTE = [
+            '#e94560', '#ff6b6b', '#ffa94d', '#ffd93d', '#6bcb77',
+            '#4d96ff', '#845ef7', '#cc5de8', '#20c997', '#ff922b',
+            '#339af0', '#f06595', '#5c7cfa', '#fcc419', '#51cf66',
+            '#ff6b35', '#7c6a46', '#2b8a3e', '#c92a2a', '#1864ab',
+        ];
+
+        function getNextColor() {
+            const c = COLOR_PALETTE[state.colorIndex % COLOR_PALETTE.length];
+            state.colorIndex++;
+            return c;
+        }
+
+        // ============================================================
+        //  DOM 引用
+        // ============================================================
+        const $ = (sel) => document.querySelector(sel);
+        const $$ = (sel) => document.querySelectorAll(sel);
+
+        const containerSelector = $('#containerSelector');
+        const customL = $('#customL');
+        const customW = $('#customW');
+        const customH = $('#customH');
+        const applyCustom = $('#applyCustom');
+        const allowOverflow = $('#allowOverflow');
+        const overflowToggleLabel = $('#overflowToggleLabel');
+        const cargoInput = $('#cargoInput');
+        const loadCargoBtn = $('#loadCargoBtn');
+        const clearCargoBtn = $('#clearCargoBtn');
+        const resetLayoutBtn = $('#resetLayoutBtn');
+        const cargoListEl = $('#cargoList');
+        const cargoCount = $('#cargoCount');
+        const usedVolume = $('#usedVolume');
+        const totalVolume = $('#totalVolume');
+        const utilRate = $('#utilRate');
+        const statCount = $('#statCount');
+        const infoContainer = $('#infoContainer');
+        const infoSize = $('#infoSize');
+        const infoCargoCount = $('#infoCargoCount');
+        const detailName = $('#detailName');
+        const detailIndex = $('#detailIndex');
+        const detailSize = $('#detailSize');
+        const detailPos = $('#detailPos');
+        const hintEl = $('#hint');
+        const exportBtn = $('#exportBtn');
+        const importBtn = $('#importBtn');
+        const saveBtn = $('#saveBtn');
+        const saveAsBtn = $('#saveAsBtn');
+        const vpDeselectBtn = $('#vpDeselectBtn');
+        const vpRotateBtn = $('#vpRotateBtn');
+        const vpDropBtn = $('#vpDropBtn');
+        const vpCheckBtn = $('#vpCheckBtn');
+        const vpCompactBtn = $('#vpCompactBtn');
+        const modeToggle = $('#modeToggle');
+        const viewport = $('#viewport');
+
+        // 编辑弹窗
+        const editModal = $('#editModal');
+        const editName = $('#editName');
+        const editSize = $('#editSize');
+        const editColor = $('#editColor');
+        const editSaveBtn = $('#editSaveBtn');
+        const editCancelBtn = $('#editCancelBtn');
+
+        // ============================================================
+        //  Three.js 场景
+        // ============================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0d0d1a);
+
+        const camera = new THREE.PerspectiveCamera(40, viewport.clientWidth / viewport.clientHeight, 100, 100000);
+        camera.position.set(8000, 5000, 9000);
+        camera.lookAt(3000, 1000, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        viewport.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(3000, 1200, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.12;
+        controls.update();
+
+        // ---- 左上角 XYZ 轴指示器 ----
+        const axesContainer = document.getElementById('axes-indicator');
+        const axesRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        axesRenderer.setSize(110, 110);
+        axesRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        axesRenderer.setClearColor(0x000000, 0);
+        axesContainer.appendChild(axesRenderer.domElement);
+
+        const axesScene = new THREE.Scene();
+        const axesCam = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+        const axesDist = 180;
+        axesCam.position.set(axesDist, axesDist, axesDist);
+        axesCam.lookAt(0, 0, 0);
+
+        const axesHelper2 = new THREE.AxesHelper(90);
+        axesScene.add(axesHelper2);
+
+        // X/Y/Z 文字标签
+        function makeAxisLabel(text, color, pos) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.font = 'bold 42px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 32, 32);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+            const spr = new THREE.Sprite(mat);
+            spr.position.copy(pos);
+            spr.scale.set(28, 28, 1);
+            return spr;
+        }
+        axesScene.add(makeAxisLabel('X', '#ff4444', new THREE.Vector3(100, 0, 0)));
+        axesScene.add(makeAxisLabel('Y', '#44ff44', new THREE.Vector3(0, 100, 0)));
+        axesScene.add(makeAxisLabel('Z', '#4488ff', new THREE.Vector3(0, 0, 100)));
+
+        // 轴指示器背景微光
+        const ringGeo = new THREE.RingGeometry(80, 95, 48);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x2a2a5e, side: THREE.DoubleSide, transparent: true, opacity: 0.3,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = -2;
+        axesScene.add(ring);
+
+        // ---- 灯光 ----
+        const ambient = new THREE.AmbientLight(0x404060, 0.6);
+        scene.add(ambient);
+
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        dirLight.position.set(5000, 12000, 8000);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 1000;
+        dirLight.shadow.camera.far = 30000;
+        dirLight.shadow.camera.left = -10000;
+        dirLight.shadow.camera.right = 10000;
+        dirLight.shadow.camera.top = 10000;
+        dirLight.shadow.camera.bottom = -10000;
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+        fillLight.position.set(-3000, 4000, -5000);
+        scene.add(fillLight);
+
+        const backLight = new THREE.DirectionalLight(0xffaa66, 0.2);
+        backLight.position.set(-2000, 3000, -8000);
+        scene.add(backLight);
+
+        // ============================================================
+        //  网格 & 地面辅助
+        // ============================================================
+        let gridHelper = null;
+        let containerWireframe = null;
+        let floorPlane = null;
+        let axesHelper = null;
+
+        function buildScene() {
+            if (gridHelper) {
+                scene.remove(gridHelper);
+                gridHelper = null;
+            }
+            if (containerWireframe) {
+                scene.remove(containerWireframe);
+                containerWireframe = null;
+            }
+            if (floorPlane) {
+                scene.remove(floorPlane);
+                floorPlane = null;
+            }
+            if (axesHelper) {
+                scene.remove(axesHelper);
+                axesHelper = null;
+            }
+
+            const { l, w, h } = state.container;
+
+            // 网格 (XZ平面)
+            const gridSize = Math.max(l, w) * 1.4;
+            gridHelper = new THREE.GridHelper(gridSize, 20, 0x444466, 0x222244);
+            gridHelper.position.set(l / 2, 0, w / 2);
+            scene.add(gridHelper);
+
+            // 地面半透明辅助平面
+            const planeGeo = new THREE.PlaneGeometry(l * 1.2, w * 1.2);
+            const planeMat = new THREE.MeshStandardMaterial({
+                color: 0x1a1a3e,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide,
+            });
+            floorPlane = new THREE.Mesh(planeGeo, planeMat);
+            floorPlane.rotation.x = -Math.PI / 2;
+            floorPlane.position.set(l / 2, -1, w / 2);
+            floorPlane.receiveShadow = true;
+            scene.add(floorPlane);
+
+            // 货柜线框
+            const geo = new THREE.BoxGeometry(l, h, w);
+            const edges = new THREE.EdgesGeometry(geo);
+            const mat = new THREE.LineBasicMaterial({ color: 0x4d8aff, linewidth: 1 });
+            containerWireframe = new THREE.LineSegments(edges, mat);
+            containerWireframe.position.set(l / 2, h / 2, w / 2);
+            scene.add(containerWireframe);
+
+            // 角落标记 (原点)
+            const originSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(60, 8, 8),
+                new THREE.MeshBasicMaterial({ color: 0xff4444 })
+            );
+            originSphere.position.set(0, 0, 0);
+            scene.add(originSphere);
+
+            // 轴指示
+            axesHelper = new THREE.AxesHelper(800);
+            axesHelper.position.set(0, 0, 0);
+            scene.add(axesHelper);
+
+            infoContainer.textContent = state.container.name;
+            infoSize.textContent = `${l} × ${w} × ${h} mm`;
+        }
+
+        // ============================================================
+        //  货物渲染
+        // ============================================================
+        let cargoGroup = new THREE.Group();
+        scene.add(cargoGroup);
+
+        let dragObjects = [];
+
+        // ============================================================
+        //  自定义拖动 (替代 DragControls，支持 Shift 垂直拖动)
+        // ============================================================
+        const dragState = {
+            active: false,
+            mesh: null,
+            cargoIdx: -1,
+            startMeshPos: new THREE.Vector3(),
+            startMouse: new THREE.Vector2(),
+            plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+            offset: new THREE.Vector3(),
+            useVertical: false,
+        };
+        const dragRaycaster = new THREE.Raycaster();
+        const dragMouseNDC = new THREE.Vector2();
+        let isShiftDown = false;
+
+        function rebuildCargoMeshes() {
+            while (cargoGroup.children.length) {
+                const child = cargoGroup.children[0];
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+                cargoGroup.remove(child);
+            }
+            dragObjects = [];
+
+            const { l, w, h } = state.container;
+
+            state.cargos.forEach((cargo, idx) => {
+                const { sx, sy, sz, px, py, pz, color, name } = cargo;
+
+                const geo = new THREE.BoxGeometry(sx, sy, sz);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0.75,
+                    roughness: 0.4,
+                    metalness: 0.1,
+                    emissive: color,
+                    emissiveIntensity: 0.08,
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+
+                mesh.position.set(px + sx / 2, py + sy / 2, pz + sz / 2);
+
+                const edges = new THREE.EdgesGeometry(geo);
+                const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+                const wireframe = new THREE.LineSegments(edges, edgeMat);
+                mesh.add(wireframe);
+
+                mesh.userData = { cargoIndex: idx, cargoId: cargo.id };
+                cargoGroup.add(mesh);
+                dragObjects.push(mesh);
+
+                // 文字标签
+                const label = createLabel(name, color);
+                label.position.set(0, sy / 2 + 60, 0);
+                mesh.add(label);
+
+                // ---- 出界高亮检测 ----
+                const outX = px < 0 || px + sx > l;
+                const outY = py < 0 || py + sy > h;
+                const outZ = pz < 0 || pz + sz > w;
+                if (outX || outY || outZ) {
+                    // 在出界货物外围叠加一个显眼的红色警告框
+                    const overGeo = new THREE.BoxGeometry(sx + 6, sy + 6, sz + 6);
+                    const overMat = new THREE.MeshBasicMaterial({
+                        color: 0xff2200,
+                        transparent: true,
+                        opacity: 0.25,
+                        wireframe: false,
+                    });
+                    const overMesh = new THREE.Mesh(overGeo, overMat);
+                    overMesh.position.copy(mesh.position);
+                    cargoGroup.add(overMesh);
+
+                    // 红色粗线框
+                    const overEdges = new THREE.EdgesGeometry(overGeo);
+                    const overEdgeMat = new THREE.LineBasicMaterial({
+                        color: 0xff0000,
+                        transparent: true,
+                        opacity: 0.9,
+                        linewidth: 2,
+                    });
+                    const overWire = new THREE.LineSegments(overEdges, overEdgeMat);
+                    overWire.position.copy(mesh.position);
+                    cargoGroup.add(overWire);
+                }
+            });
+
+            // 自定义拖动：dragObjects 在 mousedown 时直接 raycaster 拾取
+            renderCargoList();
+            updateStats();
+        }
+
+        // ---- 文字标签 ----
+        function createLabel(text, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.roundRect(8, 8, 240, 80, 12);
+            ctx.fill();
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.roundRect(8, 8, 240, 80, 12);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 34px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 48);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false,
+                sizeAttenuation: true,
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(300, 120, 1);
+            return sprite;
+        }
+
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (r > w / 2) r = w / 2;
+                if (r > h / 2) r = h / 2;
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                return this;
+            };
+        }
+
+        // ============================================================
+        //  自定义拖拽 (替代 DragControls，支持 Shift 垂直拖动)
+        // ============================================================
+
+        // 屏幕坐标 -> NDC
+        function screenToNDC(clientX, clientY) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            dragMouseNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            dragMouseNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        }
+
+        // 更新所有货物高亮：选中的变亮，未选中的恢复
+        function updateSelectionHighlight() {
+            dragObjects.forEach((obj, i) => {
+                if (obj.material) {
+                    obj.material.emissiveIntensity =
+                        (i === state.selectedCargo) ? 0.5 : 0.08;
+                }
+            });
+        }
+
+        // 滚动货物列表至选中项
+        function scrollListToSelected() {
+            if (state.selectedCargo === null || state.selectedCargo === undefined) return;
+            const items = cargoListEl.querySelectorAll('.cargo-item');
+            if (items[state.selectedCargo]) {
+                items[state.selectedCargo].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
+        // 取消选中当前货物，恢复 OrbitControls
+        function deselectCargo() {
+            if (dragState.active) {
+                dragState.active = false;
+                dragState.mesh = null;
+                dragState.cargoIdx = -1;
+            }
+            state.selectedCargo = null;
+            controls.enabled = true;
+            vpDeselectBtn.style.display = 'none';
+            vpRotateBtn.style.display = 'none';
+            vpDropBtn.style.display = 'none';
+            updateSelectionHighlight();
+            renderCargoList();
+        }
+
+        // 根据 useVertical 切换 plane
+        function updateDragPlane() {
+            if (dragState.useVertical) {
+                // 垂直面：法线水平且垂直于相机水平视线 → 屏幕 Y 移动转化为 3D Y 移动
+                const camDir = new THREE.Vector3();
+                camera.getWorldDirection(camDir);
+                camDir.y = 0;
+                if (camDir.lengthSq() < 0.001) camDir.set(0, 0, -1);
+                camDir.normalize();
+                // 平面法线 = Y × camDir （在水平面上与视线垂直）
+                const normal = new THREE.Vector3().crossVectors(
+                    new THREE.Vector3(0, 1, 0), camDir
+                );
+                if (normal.lengthSq() < 0.001) normal.set(1, 0, 0);
+                normal.normalize();
+                dragState.plane.setFromNormalAndCoplanarPoint(normal, dragState.startMeshPos);
+            } else {
+                // 水平面：经过物体当前位置，确保射线交点与物体在同一 Y 高度
+                const meshPos = dragState.mesh ? dragState.mesh.position : new THREE.Vector3(0, 0, 0);
+                dragState.plane.setFromNormalAndCoplanarPoint(
+                    new THREE.Vector3(0, 1, 0),
+                    meshPos
+                );
+            }
+        }
+
+        function onCanvasMouseDown(event) {
+            if (event.button !== 0) return;
+            if (editModal.classList.contains('active')) return;
+            if (event.target !== renderer.domElement) return;
+
+            screenToNDC(event.clientX, event.clientY);
+            dragRaycaster.setFromCamera(dragMouseNDC, camera);
+            const intersects = dragRaycaster.intersectObjects(dragObjects);
+            const hitMesh = intersects.length > 0 ? intersects[0].object : null;
+            const hitIdx = hitMesh ? hitMesh.userData.cargoIndex : -1;
+
+            if (state.interactionMode === 'direct') {
+                // ── 模式：即点即拖 ──
+                if (hitIdx >= 0) {
+                    event.stopImmediatePropagation();
+                    const mesh = dragObjects[hitIdx];
+                    if (!mesh) return;
+                    const cargo = state.cargos[hitIdx];
+                    if (!cargo) return;
+
+                    dragState.active = true;
+                    dragState.mesh = mesh;
+                    dragState.cargoIdx = hitIdx;
+                    dragState.startMeshPos.copy(mesh.position);
+                    dragState.useVertical = isShiftDown;
+                    dragState.offset.copy(intersects[0].point).sub(mesh.position);
+
+                    updateDragPlane();
+                    // 垂直拖动：用平面交点重算 offset，消除表面击中点的 Y 偏置
+                    if (dragState.useVertical) {
+                        const _pt = new THREE.Vector3();
+                        dragRaycaster.ray.intersectPlane(dragState.plane, _pt);
+                        dragState.offset.copy(_pt).sub(dragState.mesh.position);
+                    }
+                    controls.enabled = false;
+                    mesh.material.emissiveIntensity = 0.6;
+                    state.selectedCargo = hitIdx;
+                    updateSelectionHighlight();
+                    renderCargoList();
+                    scrollListToSelected();
+                } else {
+                    // 点击空白 → 清除活动高亮，恢复 OrbitControls
+                    if (state.selectedCargo !== null) {
+                        state.selectedCargo = null;
+                        updateSelectionHighlight();
+                        renderCargoList();
+                    }
+                }
+                return;
+            }
+
+            // ── 模式：点击选中 ──
+            if (state.selectedCargo === null || state.selectedCargo === undefined) {
+                if (hitIdx >= 0) {
+                    event.stopImmediatePropagation();
+                    state.selectedCargo = hitIdx;
+                    controls.enabled = false;
+                    updateSelectionHighlight();
+                    renderCargoList();
+                    scrollListToSelected();
+                    vpDeselectBtn.style.display = '';
+                }
+                return;
+            }
+
+            if (hitIdx >= 0 && hitIdx !== state.selectedCargo) {
+                event.stopImmediatePropagation();
+                state.selectedCargo = hitIdx;
+                controls.enabled = false;
+                updateSelectionHighlight();
+                renderCargoList();
+                scrollListToSelected();
+                return;
+            }
+
+            // 开始拖动选中的货物
+            event.stopImmediatePropagation();
+            const cargo = state.cargos[state.selectedCargo];
+            if (!cargo) return;
+            const mesh = dragObjects[state.selectedCargo];
+            if (!mesh) return;
+
+            dragState.active = true;
+            dragState.mesh = mesh;
+            dragState.cargoIdx = state.selectedCargo;
+            dragState.startMeshPos.copy(mesh.position);
+            dragState.startMouse.set(event.clientX, event.clientY);
+            dragState.useVertical = isShiftDown;
+
+            if (hitMesh) {
+                dragState.offset.copy(intersects[0].point).sub(mesh.position);
+            } else {
+                const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const pt = new THREE.Vector3();
+                dragRaycaster.ray.intersectPlane(plane, pt);
+                dragState.offset.copy(pt).sub(mesh.position);
+            }
+
+            updateDragPlane();
+            // 垂直拖动：用平面交点重算 offset，消除表面击中点的 Y 偏置
+            if (dragState.useVertical) {
+                const _pt = new THREE.Vector3();
+                dragRaycaster.ray.intersectPlane(dragState.plane, _pt);
+                dragState.offset.copy(_pt).sub(dragState.mesh.position);
+            }
+            mesh.material.emissiveIntensity = 0.6;
+        }
+
+        function onCanvasMouseMove(event) {
+            if (!dragState.active) return;
+
+            const cargo = state.cargos[dragState.cargoIdx];
+            if (!cargo) return;
+
+            screenToNDC(event.clientX, event.clientY);
+            dragRaycaster.setFromCamera(dragMouseNDC, camera);
+            const intersection = new THREE.Vector3();
+            if (!dragRaycaster.ray.intersectPlane(dragState.plane, intersection)) return;
+
+            // mesh 新中心位置 = 击中点 - offset
+            const newCenter = intersection.sub(dragState.offset);
+            const sx = cargo.sx, sy = cargo.sy, sz = cargo.sz;
+
+            let nextPx, nextPy, nextPz;
+
+            if (dragState.useVertical) {
+                // 垂直拖动（Shift）：仅提取 Y 增量，保持 XZ 不变
+                const deltaY = newCenter.y - dragState.startMeshPos.y;
+                nextPx = dragState.startMeshPos.x - sx / 2;
+                nextPy = dragState.startMeshPos.y - sy / 2 + deltaY;
+                nextPz = dragState.startMeshPos.z - sz / 2;
+            } else {
+                // 水平拖动（默认）：锁定 Y 高度，仅移动 XZ
+                const fixedY = cargo.py + sy / 2;
+                nextPx = newCenter.x - sx / 2;
+                nextPy = fixedY - sy / 2;
+                nextPz = newCenter.z - sz / 2;
+            }
+
+            if (!state.allowOverflow) {
+                nextPx = Math.max(0, Math.min(state.container.l - sx, nextPx));
+                nextPy = Math.max(0, Math.min(state.container.h - sy, nextPy));
+                nextPz = Math.max(0, Math.min(state.container.w - sz, nextPz));
+            }
+
+            cargo.px = nextPx;
+            cargo.py = nextPy;
+            cargo.pz = nextPz;
+            dragState.mesh.position.set(nextPx + sx / 2, nextPy + sy / 2, nextPz + sz / 2);
+
+            renderCargoList();
+            updateStats();
+        }
+
+        function onCanvasMouseUp(event) {
+            if (!dragState.active) return;
+
+            dragState.active = false;
+            dragState.mesh = null;
+            dragState.cargoIdx = -1;
+
+            if (state.interactionMode === 'direct') {
+                // 即点即拖模式：拖动结束 → 恢复镜头，保留高亮显示
+                controls.enabled = true;
+                updateSelectionHighlight();
+                renderCargoList();
+            } else {
+                // 点击选中模式：保留选中高亮
+                updateSelectionHighlight();
+            }
+            updateStats();
+            saveState();
+        }
+
+        // 绑定到 canvas (pointerdown capture) 和 window (pointermove/pointerup)
+        // 用 capture 阶段 + stopImmediatePropagation 阻止 OrbitControls 同时响应
+        renderer.domElement.addEventListener('pointerdown', onCanvasMouseDown, true);
+        window.addEventListener('pointermove', onCanvasMouseMove);
+        window.addEventListener('pointerup', onCanvasMouseUp);
+
+        // Shift 状态：拖动中按下/释放 Shift 时实时切换 plane
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Shift') {
+                isShiftDown = true;
+                if (dragState.active && !dragState.useVertical) {
+                    dragState.useVertical = true;
+                    dragState.startMeshPos.copy(dragState.mesh.position);
+                    updateDragPlane();
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') {
+                isShiftDown = false;
+                if (dragState.active && dragState.useVertical) {
+                    dragState.useVertical = false;
+                    dragState.startMeshPos.copy(dragState.mesh.position);
+                    updateDragPlane();
+                }
+            }
+        });
+
+        // ============================================================
+        //  布局算法 (水平排布：所有货物放地面 Y=0，沿 XZ 平面紧密排布)
+        //  state.allowOverflow=true 时不限制越界
+        // ============================================================
+        function autoLayout(cargos) {
+            if (!cargos.length) return;
+
+            const { l, w } = state.container;
+            const GAP = 10; // 货物间距 mm
+            const allow = state.allowOverflow;
+
+            // 按底面积降序排列 (大的先放，更省空间)
+            const sorted = [...cargos].sort((a, b) => (b.sx * b.sz) - (a.sx * a.sz));
+
+            let cursorX = 0;
+            let cursorZ = 0;
+            let rowDepth = 0; // 当前行的最大深度 (sz)
+            const overflow = [];
+
+            for (const cargo of sorted) {
+                // — 水平旋转优化：尝试 sx/sz 是否更适合当前行 —
+                const sx = cargo.sx, sz = cargo.sz;
+                const fitsOrig = cursorX + sx <= l;
+                const fitsRot = cursorX + sz <= l; // 旋转后 sx↔sz
+
+                if (fitsOrig && fitsRot) {
+                    // 两种朝向都能放下：选 X 方向更窄的（给同行其他货物留空间）
+                    if (sz < sx) [cargo.sx, cargo.sz] = [cargo.sz, cargo.sx];
+                } else if (!fitsOrig && fitsRot) {
+                    // 只有旋转后才能放下：旋转
+                    [cargo.sx, cargo.sz] = [cargo.sz, cargo.sx];
+                }
+                // 其它情况 (只有原朝向能放下 / 两者都放不下) → 保持原样
+
+                // — 标准排布逻辑 —
+                // 当前行放不下 -> 沿 Z 方向换行
+                if (cursorX + cargo.sx > l) {
+                    cursorX = 0;
+                    cursorZ += rowDepth + GAP;
+                    rowDepth = 0;
+                }
+                // 换行后仍超出宽度 -> 标记溢出 (允许溢出模式下不触发)
+                if (cursorZ + cargo.sz > w) {
+                    if (allow) {
+                        // 允许溢出：紧贴货柜宽度边界继续放（视觉上可看出越界）
+                        cargo.px = cursorX;
+                        cargo.py = 0;
+                        cargo.pz = cursorZ;
+                        cursorX += cargo.sx + GAP;
+                        rowDepth = Math.max(rowDepth, cargo.sz);
+                        continue;
+                    }
+                    overflow.push(cargo);
+                    continue;
+                }
+
+                cargo.px = cursorX;
+                cargo.py = 0; // 全部放地面
+                cargo.pz = cursorZ;
+
+                cursorX += cargo.sx + GAP;
+                rowDepth = Math.max(rowDepth, cargo.sz);
+            }
+
+            // 溢出的货物叠在 (0,0,0) 后续用户可手动调整
+            for (const cargo of overflow) {
+                cargo.px = 0;
+                cargo.py = 0;
+                cargo.pz = 0;
+            }
+        }
+
+        // ============================================================
+        //  UI 渲染
+        // ============================================================
+        function renderCargoList() {
+            const list = cargoListEl;
+            list.innerHTML = '';
+            state.cargos.forEach((c, idx) => {
+                const div = document.createElement('div');
+                div.className = 'cargo-item';
+                if (state.selectedCargo === idx) {
+                    div.classList.add('selected');
+                }
+                div.innerHTML = `
+                    <div class="cargo-row1">
+                        <span class="color-dot" style="background:${c.color}" data-index="${idx}"></span>
+                        <span class="cargo-index" data-index="${idx}">#${idx + 1}</span>
+                        <span class="cargo-name" data-index="${idx}">${c.name}</span>
+                    </div>
+                    <div class="cargo-row2">
+                        <span class="cargo-size" data-index="${idx}" title="长×宽×高">${c.sx}×${c.sz}×${c.sy}</span>
+                        <span class="cargo-pos">(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})</span>
+                    </div>
+                    <div class="cargo-actions">
+                        <span class="cargo-rotate" data-index="${idx}" title="水平旋转 90°">↻</span>
+                        <span class="cargo-delete" data-index="${idx}">✕</span>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+
+            // 事件绑定：点击编辑
+            list.querySelectorAll('.color-dot, .cargo-name, .cargo-size').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const idx = parseInt(el.dataset.index);
+                    if (!isNaN(idx)) {
+                        openEditModal(idx);
+                    }
+                    e.stopPropagation();
+                });
+            });
+
+            // 删除
+            list.querySelectorAll('.cargo-delete').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const idx = parseInt(el.dataset.index);
+                    if (!isNaN(idx)) {
+                        if (confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) {
+                            state.cargos.splice(idx, 1);
+                            if (state.selectedCargo === idx) state.selectedCargo = null;
+                            else if (state.selectedCargo > idx) state.selectedCargo--;
+                            rebuildCargoMeshes();
+                            updateStats();
+                            saveState();
+                        }
+                    }
+                    e.stopPropagation();
+                });
+            });
+
+            // 水平旋转 90°
+            list.querySelectorAll('.cargo-rotate').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const idx = parseInt(el.dataset.index);
+                    if (!isNaN(idx)) {
+                        rotateCargo(idx);
+                    }
+                    e.stopPropagation();
+                });
+            });
+
+            // 点击货物项选中
+            list.querySelectorAll('.cargo-item').forEach((item, idx) => {
+                item.addEventListener('click', () => {
+                    state.selectedCargo = idx;
+                    controls.enabled = false;
+                    updateSelectionHighlight();
+                    renderCargoList();
+                    scrollListToSelected();
+                });
+            });
+
+            cargoCount.textContent = state.cargos.length;
+            infoCargoCount.textContent = state.cargos.length;
+
+            // 工具栏按钮可见性
+            const isActive = state.selectedCargo !== null && state.selectedCargo !== undefined &&
+                state.selectedCargo >= 0 && state.selectedCargo < state.cargos.length;
+
+            // 旋转按钮：两种模式都可显示
+            vpRotateBtn.style.display = isActive ? '' : 'none';
+
+            // 跌落按钮：有活动货物时显示
+            vpDropBtn.style.display = isActive ? '' : 'none';
+
+            // 取消选中按钮：仅"点击选中"模式 + 有选中时
+            vpDeselectBtn.style.display = (state.interactionMode === 'select' && isActive) ? '' : 'none';
+
+            // 更新选中信息 + 动态提示 + 详情框
+            const inDirect = state.interactionMode === 'direct';
+            const detailEl = $('#viewport-info-detail');
+            if (isActive) {
+                // 更新详情框
+                const c = state.cargos[state.selectedCargo];
+                detailIndex.textContent = `#${state.selectedCargo + 1}`;
+                detailName.textContent = c.name;
+                detailSize.textContent = `${c.sx} × ${c.sz} × ${c.sy} mm`;
+                detailPos.textContent = `(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})`;
+                detailEl.style.display = 'block';
+                hintEl.textContent = inDirect
+                    ? '🖱 拖动移动货物 · Shift+垂直 · 滚轮缩放'
+                    : '🖱 点击空白处拖动当前货物 · Shift+垂直 · Esc/🔽 取消选中';
+            } else {
+                detailEl.style.display = 'none';
+                hintEl.textContent = inDirect
+                    ? '🖱 点击货物即拖 · 滚轮缩放 · 右键平移'
+                    : '🖱 点击货物选中拖动 · 滚轮缩放 · 右键平移';
+            }
+        }
+
+        function updateStats() {
+            const { l, w, h } = state.container;
+            const totalVol = l * w * h;
+            let usedVol = 0;
+            state.cargos.forEach(c => {
+                usedVol += c.sx * c.sy * c.sz;
+            });
+            const rate = totalVol > 0 ? (usedVol / totalVol * 100) : 0;
+            usedVolume.textContent = formatVolume(usedVol);
+            totalVolume.textContent = formatVolume(totalVol);
+            utilRate.textContent = rate.toFixed(1) + '%';
+            statCount.textContent = state.cargos.length;
+        }
+
+        function formatVolume(v) {
+            if (v > 1e9) return (v / 1e9).toFixed(2) + ' m³';
+            if (v > 1e6) return (v / 1e6).toFixed(2) + ' ×10⁶ mm³';
+            return v.toFixed(0) + ' mm³';
+        }
+
+        // ============================================================
+        //  编辑弹窗
+        // ============================================================
+        function openEditModal(index) {
+            if (index < 0 || index >= state.cargos.length) return;
+            state.editIndex = index;
+            const cargo = state.cargos[index];
+            editName.value = cargo.name;
+            // sx=长, sz=宽, sy=高 → 按用户语义 长*宽*高
+            editSize.value = `${cargo.sx}*${cargo.sz}*${cargo.sy}`;
+            editColor.value = cargo.color;
+            editModal.classList.add('active');
+        }
+
+        function closeEditModal() {
+            editModal.classList.remove('active');
+            state.editIndex = -1;
+        }
+
+        function saveEdit() {
+            const idx = state.editIndex;
+            if (idx < 0 || idx >= state.cargos.length) return;
+
+            const name = editName.value.trim() || `货物${idx + 1}`;
+            const sizeStr = editSize.value.trim();
+            const sizes = sizeStr.split('*').map(s => parseFloat(s.trim()));
+            if (sizes.length !== 3 || sizes.some(isNaN) || sizes.some(s => s <= 0)) {
+                alert('请输入正确的尺寸格式：长*宽*高 (例如 1390*840*1550)');
+                return;
+            }
+            // 用户输入: 长 * 宽 * 高 → sx=长, sz=宽, sy=高
+            const sx = sizes[0];
+            const sz = sizes[1];
+            const sy = sizes[2];
+            const color = editColor.value;
+
+            const cargo = state.cargos[idx];
+            const oldSx = cargo.sx,
+                oldSy = cargo.sy,
+                oldSz = cargo.sz;
+
+            cargo.name = name;
+            cargo.sx = sx;
+            cargo.sy = sy;
+            cargo.sz = sz;
+            cargo.color = color;
+
+            // 如果尺寸变化，重新布局
+            if (oldSx !== sx || oldSy !== sy || oldSz !== sz) {
+                // 重新布局所有货物
+                autoLayout(state.cargos);
+            }
+
+            closeEditModal();
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        editSaveBtn.addEventListener('click', saveEdit);
+        editCancelBtn.addEventListener('click', closeEditModal);
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) closeEditModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEditModal();
+            if (e.key === 'Enter' && editModal.classList.contains('active')) {
+                saveEdit();
+            }
+        });
+
+        // ============================================================
+        //  核心操作函数
+        // ============================================================
+        function loadCargosFromText(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            const newCargos = [];
+            const errors = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const lineNo = i + 1;
+                const parts = line.split(/[,，]\s*/);
+                if (parts.length < 2) {
+                    errors.push(`第 ${lineNo} 行格式错误（缺少名称或尺寸）: "${line}"`);
+                    continue;
+                }
+                const name = parts[0].trim();
+                const sizeStr = parts[1].trim();
+                const sizes = sizeStr.split('*').map(s => parseFloat(s.trim()));
+                if (sizes.length !== 3 || sizes.some(isNaN)) {
+                    errors.push(`第 ${lineNo} 行尺寸格式错误（需为 长*宽*高）: "${line}"`);
+                    continue;
+                }
+                // 用户输入: 长 * 宽 * 高
+                // 内部字段: sx=长(X水平), sy=高(Y垂直), sz=宽(Z水平)
+                const sx = sizes[0];
+                const sz = sizes[1];
+                const sy = sizes[2];
+                if (sx <= 0 || sy <= 0 || sz <= 0) {
+                    errors.push(`第 ${lineNo} 行尺寸需为正数: "${line}"`);
+                    continue;
+                }
+                newCargos.push({
+                    id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    name: name || `货物${state.cargos.length + 1}`,
+                    sx,
+                    sy,
+                    sz,
+                    px: 0,
+                    py: 0,
+                    pz: 0,
+                    color: getNextColor(),
+                });
+            }
+
+            if (errors.length) {
+                const preview = errors.slice(0, 8).join('\n');
+                const more = errors.length > 8 ? `\n... 共 ${errors.length} 条错误` : '';
+                alert(`⚠️ 共 ${errors.length} 行解析失败，已跳过：\n\n${preview}${more}\n\n请检查格式：名称, 长*宽*高 (mm)`);
+            }
+
+            if (!newCargos.length) {
+                alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm)');
+                return;
+            }
+
+            state.cargos.push(...newCargos);
+            autoLayout(state.cargos);
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        function clearAllCargos() {
+            if (state.cargos.length && !confirm('确定清空所有货物吗？')) return;
+            state.cargos = [];
+            state.colorIndex = 0;
+            state.selectedCargo = null;
+            controls.enabled = true;
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        function resetLayout() {
+            if (!state.cargos.length) return;
+            state.cargos.forEach(c => {
+                c.px = 0;
+                c.py = 0;
+                c.pz = 0;
+            });
+            autoLayout(state.cargos);
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        // 逐个将超出货柜边界的货物推回柜内（不改变已在柜内的货物位置）
+        function clampCargosToContainer() {
+            const { l, w, h } = state.container;
+            let changed = false;
+            state.cargos.forEach(cargo => {
+                // X 方向（长）
+                if (cargo.px < 0) { cargo.px = 0; changed = true; }
+                else if (cargo.px + cargo.sx > l) { cargo.px = l - cargo.sx; changed = true; }
+                // Y 方向（高）
+                if (cargo.py < 0) { cargo.py = 0; changed = true; }
+                else if (cargo.py + cargo.sy > h) { cargo.py = h - cargo.sy; changed = true; }
+                // Z 方向（宽）
+                if (cargo.pz < 0) { cargo.pz = 0; changed = true; }
+                else if (cargo.pz + cargo.sz > w) { cargo.pz = w - cargo.sz; changed = true; }
+            });
+            return changed;
+        }
+
+        // 水平 90° 旋转：交换 sx 和 sz（保持中心点和 sy 不变）
+        function rotateCargo(index) {
+            const cargo = state.cargos[index];
+            if (!cargo) return;
+
+            const newSx = cargo.sz;
+            const newSz = cargo.sx;
+
+            // 保持 XZ 中心点不变
+            const centerX = cargo.px + cargo.sx / 2;
+            const centerZ = cargo.pz + cargo.sz / 2;
+            let newPx = centerX - newSx / 2;
+            let newPz = centerZ - newSz / 2;
+
+            // 边界 clamp（允许溢出模式下不限制）
+            if (!state.allowOverflow) {
+                if (newPx < 0) newPx = 0;
+                if (newPz < 0) newPz = 0;
+                if (newPx + newSx > state.container.l) newPx = state.container.l - newSx;
+                if (newPz + newSz > state.container.w) newPz = state.container.w - newSz;
+            }
+
+            cargo.sx = newSx;
+            cargo.sz = newSz;
+            cargo.px = newPx;
+            cargo.pz = newPz;
+
+            state.selectedCargo = index;
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        // 跌落：货物沿 Y 轴下落至地面或下方货物的最高点
+        function dropCargo(index) {
+            const cargo = state.cargos[index];
+            if (!cargo) return;
+
+            let newY = 0; // 地面
+
+            for (let i = 0; i < state.cargos.length; i++) {
+                if (i === index) continue;
+                const other = state.cargos[i];
+                // 检查 XZ 投影是否有重叠
+                const xOverlap = cargo.px < other.px + other.sx && cargo.px + cargo.sx > other.px;
+                const zOverlap = cargo.pz < other.pz + other.sz && cargo.pz + cargo.sz > other.pz;
+                if (xOverlap && zOverlap) {
+                    // 此货物在我们下方？
+                    if (other.py + other.sy <= cargo.py + cargo.sy) {
+                        newY = Math.max(newY, other.py + other.sy);
+                    }
+                }
+            }
+
+            // 允许溢出模式下不限制货柜顶部
+            if (!state.allowOverflow) {
+                newY = Math.min(newY, state.container.h - cargo.sy);
+            }
+
+            cargo.py = newY;
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        // ============================================================
+        //  检查出界 & 交叉碰撞
+        // ============================================================
+        function checkCargoStatus() {
+            const { l, w, h } = state.container;
+            const cargos = state.cargos;
+            const issues = [];
+
+            // 1. 出界检查
+            cargos.forEach((c, i) => {
+                const outX = c.px < 0 || c.px + c.sx > l;
+                const outY = c.py < 0 || c.py + c.sy > h;
+                const outZ = c.pz < 0 || c.pz + c.sz > w;
+                if (outX || outY || outZ) {
+                    const dirs = [];
+                    if (outX) dirs.push('X');
+                    if (outY) dirs.push('Y');
+                    if (outZ) dirs.push('Z');
+                    issues.push(`⚠️  货物 ${i + 1}「${c.name}」出界（${dirs.join('、')}方向）`);
+                }
+            });
+
+            // 2. 交叉碰撞检查
+            for (let i = 0; i < cargos.length; i++) {
+                for (let j = i + 1; j < cargos.length; j++) {
+                    const a = cargos[i], b = cargos[j];
+                    const overlapX = a.px < b.px + b.sx && a.px + a.sx > b.px;
+                    const overlapY = a.py < b.py + b.sy && a.py + a.sy > b.py;
+                    const overlapZ = a.pz < b.pz + b.sz && a.pz + a.sz > b.pz;
+                    if (overlapX && overlapY && overlapZ) {
+                        issues.push(`❗  货物 ${i + 1}「${a.name}」与 货物 ${j + 1}「${b.name}」交叉碰撞`);
+                    }
+                }
+            }
+
+            // 3. 汇总
+            let resultHtml = '';
+            if (cargos.length === 0) {
+                resultHtml = '📭 当前没有货物';
+            } else if (issues.length === 0) {
+                resultHtml = '✅ 一切正常，所有货物均无出界或交叉碰撞！';
+            } else {
+                resultHtml = issues.join('\n');
+            }
+
+            const content = $('#checkResultContent');
+            content.textContent = resultHtml;
+            const modal = $('#checkModal');
+            modal.classList.add('active');
+        }
+
+        // 关闭检查结果弹窗
+        $('#checkModalCloseBtn').addEventListener('click', () => {
+            $('#checkModal').classList.remove('active');
+        });
+        $('#checkModal').addEventListener('click', (e) => {
+            if (e.target === $('#checkModal')) $('#checkModal').classList.remove('active');
+        });
+
+        // 检查按钮
+        vpCheckBtn.addEventListener('click', checkCargoStatus);
+
+        // ============================================================
+        //  紧靠原点：将货物往 X=0 / Z=0 方向推挤，不交叉不出界
+        // ============================================================
+        function compactToOrigin() {
+            if (!state.cargos.length) return;
+            if (!confirm('将把货物往原点方向推挤紧靠，不出界不交叉，是否继续？')) return;
+
+            const { l, w, h } = state.container;
+            const cargos = state.cargos;
+            const MAX_ITER = 50;
+
+            // ── Phase 1: X 方向推挤（Z 冻结） ──
+            let moved = true;
+            let iter = 0;
+            while (moved && iter < MAX_ITER) {
+                moved = false;
+                iter++;
+                const order = cargos.map((c, i) => i)
+                    .sort((a, b) => (cargos[b].px) - (cargos[a].px));
+                for (const idx of order) {
+                    const c = cargos[idx];
+                    let maxBlockX = 0;
+                    for (let j = 0; j < cargos.length; j++) {
+                        if (j === idx) continue;
+                        const o = cargos[j];
+                        const yOverlap = c.py < o.py + o.sy && c.py + c.sy > o.py;
+                        const zOverlap = c.pz < o.pz + o.sz && c.pz + c.sz > o.pz;
+                        // 阻挡物右缘 <= 当前货物左缘（在左边），才阻挡 -X 方向
+                        const isLeftBlocker = (o.px + o.sx) <= c.px;
+                        if (yOverlap && zOverlap && isLeftBlocker) {
+                            maxBlockX = Math.max(maxBlockX, o.px + o.sx);
+                        }
+                    }
+                    let newPx = Math.max(maxBlockX, 0);
+                    if (newPx + c.sx > l) newPx = l - c.sx;
+                    if (newPx < c.px) {
+                        c.px = newPx;
+                        moved = true;
+                    }
+                }
+            }
+
+            // ── Phase 2: Z 方向推挤（X 冻结） ──
+            moved = true;
+            iter = 0;
+            while (moved && iter < MAX_ITER) {
+                moved = false;
+                iter++;
+                const order = cargos.map((c, i) => i)
+                    .sort((a, b) => (cargos[b].pz) - (cargos[a].pz));
+                for (const idx of order) {
+                    const c = cargos[idx];
+                    let maxBlockZ = 0;
+                    for (let j = 0; j < cargos.length; j++) {
+                        if (j === idx) continue;
+                        const o = cargos[j];
+                        const yOverlap = c.py < o.py + o.sy && c.py + c.sy > o.py;
+                        const xOverlap = c.px < o.px + o.sx && c.px + c.sx > o.px;
+                        // 阻挡物后缘 <= 当前货物前缘（在前方），才阻挡 -Z 方向
+                        const isFrontBlocker = (o.pz + o.sz) <= c.pz;
+                        if (yOverlap && xOverlap && isFrontBlocker) {
+                            maxBlockZ = Math.max(maxBlockZ, o.pz + o.sz);
+                        }
+                    }
+                    let newPz = Math.max(maxBlockZ, 0);
+                    if (newPz + c.sz > w) newPz = w - c.sz;
+                    if (newPz < c.pz) {
+                        c.pz = newPz;
+                        moved = true;
+                    }
+                }
+            }
+
+            state.selectedCargo = null;
+            controls.enabled = true;
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
+        vpCompactBtn.addEventListener('click', compactToOrigin);
+
+        function setContainer(name, l, w, h) {
+            state.container = { name, l, w, h };
+            if (state.cargos.length) {
+                autoLayout(state.cargos);
+                rebuildCargoMeshes();
+            }
+            buildScene();
+            updateStats();
+            document.querySelectorAll('#containerSelector button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.name === name);
+            });
+            saveState();
+        }
+
+        // ============================================================
+        //  导出布局
+        // ============================================================
+        function exportLayout() {
+            const data = {
+                version: 2,
+                container: { ...state.container },
+                cargos: state.cargos.map(c => ({
+                    name: c.name,
+                    sx: c.sx, sy: c.sy, sz: c.sz,
+                    px: c.px, py: c.py, pz: c.pz,
+                    color: c.color,
+                })),
+                allowOverflow: state.allowOverflow,
+                interactionMode: state.interactionMode,
+                colorIndex: state.colorIndex,
+                exportedAt: new Date().toISOString(),
+            };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `layout_${state.container.name}_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // 导入 JSON：读取文件并恢复完整状态
+        function importLayout() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.target.result);
+                        if (!data.container || !data.cargos) {
+                            alert('无效的布局文件：缺少 container 或 cargos 字段');
+                            return;
+                        }
+                        if (!Array.isArray(data.cargos)) {
+                            alert('无效的布局文件：cargos 必须是数组');
+                            return;
+                        }
+                        // 验证每个货物
+                        for (let i = 0; i < data.cargos.length; i++) {
+                            const c = data.cargos[i];
+                            if (!c.name || !c.sx || !c.sy || !c.sz || c.px === undefined) {
+                                alert(`第 ${i + 1} 个货物数据不完整，请检查文件`);
+                                return;
+                            }
+                        }
+
+                        // 恢复状态
+                        state.container = { ...data.container };
+                        state.cargos = data.cargos.map(c => ({
+                            id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                            name: c.name,
+                            sx: c.sx, sy: c.sy, sz: c.sz,
+                            px: c.px, py: c.py, pz: c.pz,
+                            color: c.color || '#e94560',
+                        }));
+                        state.allowOverflow = !!data.allowOverflow;
+                        state.interactionMode = data.interactionMode || 'direct';
+                        state.colorIndex = data.colorIndex || state.cargos.length;
+                        state.selectedCargo = null;
+
+                        // 同步 UI
+                        customL.value = state.container.l;
+                        customW.value = state.container.w;
+                        customH.value = state.container.h;
+                        allowOverflow.checked = state.allowOverflow;
+                        overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+                        document.querySelectorAll('#containerSelector button').forEach(btn => {
+                            btn.classList.toggle('active', btn.dataset.name === state.container.name);
+                        });
+                        if (state.interactionMode === 'direct') {
+                            modeToggle.textContent = '⛏ 即点即拖';
+                            modeToggle.classList.add('tb-active');
+                        } else {
+                            modeToggle.textContent = '👆 点击选中';
+                            modeToggle.classList.remove('tb-active');
+                        }
+
+                        // 同步 textarea
+                        cargoInput.value = data.cargos.map(c =>
+                            `${c.name}, ${c.sx}*${c.sz}*${c.sy}`
+                        ).join('\n');
+
+                        // 恢复 3D
+                        controls.enabled = true;
+                        buildScene();
+                        rebuildCargoMeshes();
+                        updateStats();
+                        saveState();
+                        alert(`✅ 成功导入 ${state.cargos.length} 个货物`);
+                    } catch (err) {
+                        alert('解析 JSON 失败：' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+                input.value = '';
+            };
+            input.click();
+        }
+
+        // ============================================================
+        //  状态持久化（云端 API）
+        // ============================================================
+        // 当前正在编辑的方案元数据（从云端加载或新建时填充）
+        let currentLayoutMeta = null;  // { id, name, is_owner, author_id, author_name, ... }
+
+        // 用于拖拽/编辑后被频繁调用的 saveState()：仅做静默处理，不再触发任何 IO
+        // 云端保存由用户点击"保存到云端"按钮显式触发
+        function saveState() {
+            // no-op: 数据持久化改为由用户点击"保存到云端"按钮触发
+        }
+
+        function clearSavedState() {
+            currentLayoutMeta = null;
+            if (saveBtn) saveBtn.disabled = true;
+        }
+
+        // 从 state 构造 exportLayout 等价的 data 对象
+        function buildLayoutData() {
+            return {
+                version: 2,
+                container: { ...state.container },
+                cargos: state.cargos.map(c => ({
+                    name: c.name,
+                    sx: c.sx, sy: c.sy, sz: c.sz,
+                    px: c.px, py: c.py, pz: c.pz,
+                    color: c.color,
+                })),
+                allowOverflow: state.allowOverflow,
+                interactionMode: state.interactionMode,
+                colorIndex: state.colorIndex,
+            };
+        }
+
+        // 从云端 data 恢复 state
+        function applyLoadedLayout(data) {
+            if (!data || !data.container || !Array.isArray(data.cargos)) {
+                throw new Error('方案数据格式不合法');
+            }
+            state.container = { ...data.container };
+            state.cargos = data.cargos.map(c => ({
+                id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                name: c.name,
+                sx: c.sx, sy: c.sy, sz: c.sz,
+                px: c.px, py: c.py, pz: c.pz,
+                color: c.color || '#e94560',
+            }));
+            state.allowOverflow = !!data.allowOverflow;
+            state.interactionMode = data.interactionMode || 'direct';
+            state.colorIndex = data.colorIndex || state.cargos.length;
+            state.selectedCargo = null;
+        }
+
+        function getToken() {
+            return localStorage.getItem('oa_token');
+        }
+
+        async function apiGet(path) {
+            const token = getToken();
+            if (!token) throw new Error('未检测到登录凭证，请先在 OA 系统登录');
+            const resp = await fetch(path, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            const json = await resp.json();
+            if (!resp.ok || json.success === false) {
+                throw new Error(json.message || `HTTP ${resp.status}`);
+            }
+            return json;
+        }
+
+        async function apiSend(method, path, body) {
+            const token = getToken();
+            if (!token) throw new Error('未检测到登录凭证，请先在 OA 系统登录');
+            const resp = await fetch(path, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: body !== undefined ? JSON.stringify(body) : undefined,
+            });
+            const json = await resp.json();
+            if (!resp.ok || json.success === false) {
+                throw new Error(json.message || `HTTP ${resp.status}`);
+            }
+            return json;
+        }
+
+        // 保存到云端（覆盖当前方案）
+        async function saveToCloud() {
+            if (!currentLayoutMeta) {
+                alert('当前未加载方案，请先在 OA 系统列表页打开/创建方案');
+                return;
+            }
+            if (!currentLayoutMeta.is_owner) {
+                alert('此方案不归您所有，无法保存。请点击"另存为新方案"创建副本。');
+                return;
+            }
+            try {
+                saveBtn.disabled = true;
+                const origText = saveBtn.textContent;
+                saveBtn.textContent = '⏳ 保存中...';
+                const data = buildLayoutData();
+                const json = await apiSend('PUT', `/api/container-layouts/${currentLayoutMeta.id}`, { data });
+                currentLayoutMeta = json.data;
+                saveBtn.textContent = '✅ 已保存';
+                setTimeout(() => {
+                    saveBtn.textContent = origText;
+                    saveBtn.disabled = !currentLayoutMeta?.is_owner;
+                }, 1500);
+            } catch (e) {
+                console.error('saveToCloud failed:', e);
+                alert('保存失败：' + e.message);
+                saveBtn.textContent = '☁ 保存到云端';
+                saveBtn.disabled = false;
+            }
+        }
+
+        // 另存为新方案
+        async function saveAsNew() {
+            const data = buildLayoutData();
+            let defaultName = '';
+            if (currentLayoutMeta) {
+                defaultName = currentLayoutMeta.name + ' (副本)';
+            } else {
+                defaultName = '新建方案_' + new Date().toISOString().slice(0, 10);
+            }
+            const newName = prompt('请输入新方案名：', defaultName);
+            if (newName === null) return;  // 取消
+            const trimmed = newName.trim();
+            if (!trimmed) {
+                alert('方案名不能为空');
+                return;
+            }
+            try {
+                const json = await apiSend('POST', '/api/container-layouts', { name: trimmed, data });
+                currentLayoutMeta = json.data;
+                saveBtn.disabled = !currentLayoutMeta.is_owner;
+                alert('已创建方案「' + trimmed + '」，请在 OA 列表页刷新查看。');
+                // 更新 URL 使后续刷新仍能定位到该方案
+                const u = new URL(window.location.href);
+                u.searchParams.set('id', currentLayoutMeta.id);
+                window.history.replaceState({}, '', u.toString());
+            } catch (e) {
+                console.error('saveAsNew failed:', e);
+                alert('另存为失败：' + e.message);
+            }
+        }
+
+        // ============================================================
+        //  事件绑定
+        // ============================================================
+        containerSelector.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const name = btn.dataset.name;
+            const l = parseFloat(btn.dataset.l);
+            const w = parseFloat(btn.dataset.w);
+            const h = parseFloat(btn.dataset.h);
+            if (l && w && h) {
+                setContainer(name, l, w, h);
+                customL.value = l;
+                customW.value = w;
+                customH.value = h;
+            }
+        });
+
+        applyCustom.addEventListener('click', () => {
+            const l = parseFloat(customL.value);
+            const w = parseFloat(customW.value);
+            const h = parseFloat(customH.value);
+            if (l > 0 && w > 0 && h > 0) {
+                setContainer('自定义', l, w, h);
+                document.querySelectorAll('#containerSelector button').forEach(btn => btn.classList.remove('active'));
+            } else {
+                alert('请输入有效的正数尺寸 (mm)');
+            }
+        });
+
+        // 允许溢出开关
+        allowOverflow.addEventListener('change', () => {
+            state.allowOverflow = allowOverflow.checked;
+            overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+            if (state.cargos.length) {
+                if (!state.allowOverflow) {
+                    clampCargosToContainer();
+                }
+                rebuildCargoMeshes();
+                updateStats();
+            }
+            saveState();
+        });
+
+        loadCargoBtn.addEventListener('click', () => {
+            const text = cargoInput.value;
+            loadCargosFromText(text);
+        });
+
+        clearCargoBtn.addEventListener('click', clearAllCargos);
+        resetLayoutBtn.addEventListener('click', resetLayout);
+        exportBtn.addEventListener('click', exportLayout);
+        importBtn.addEventListener('click', importLayout);
+        saveBtn.addEventListener('click', saveToCloud);
+        saveAsBtn.addEventListener('click', saveAsNew);
+        vpDeselectBtn.addEventListener('click', deselectCargo);
+        vpRotateBtn.addEventListener('click', () => {
+            if (state.selectedCargo !== null && state.selectedCargo >= 0 &&
+                state.selectedCargo < state.cargos.length) {
+                rotateCargo(state.selectedCargo);
+                renderCargoList();
+            }
+        });
+        vpDropBtn.addEventListener('click', () => {
+            if (state.selectedCargo !== null && state.selectedCargo >= 0 &&
+                state.selectedCargo < state.cargos.length) {
+                dropCargo(state.selectedCargo);
+                renderCargoList();
+            }
+        });
+
+        // 模式切换
+        function switchMode(mode) {
+            state.interactionMode = mode;
+            if (mode === 'direct') {
+                modeToggle.textContent = '⛏ 即点即拖';
+                modeToggle.classList.add('tb-active');
+                vpDeselectBtn.style.display = 'none';
+                vpRotateBtn.style.display = 'none';
+                if (state.selectedCargo !== null) {
+                    deselectCargo();
+                }
+            } else {
+                modeToggle.textContent = '👆 点击选中';
+                modeToggle.classList.remove('tb-active');
+            }
+            saveState();
+            renderCargoList();
+        }
+
+        modeToggle.addEventListener('click', () => {
+            const newMode = state.interactionMode === 'direct' ? 'select' : 'direct';
+            switchMode(newMode);
+        });
+
+        window.addEventListener('resize', () => {
+            const w = viewport.clientWidth;
+            const h = viewport.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        // ============================================================
+        //  初始化
+        // ============================================================
+        // 同步加载 UI（与原 loadState 流程等价）
+        function syncUIFromState() {
+            customL.value = state.container.l;
+            customW.value = state.container.w;
+            customH.value = state.container.h;
+            allowOverflow.checked = state.allowOverflow;
+            overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+            document.querySelectorAll('#containerSelector button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.name === state.container.name);
+            });
+            if (state.interactionMode === 'direct') {
+                modeToggle.textContent = '⛏ 即点即拖';
+                modeToggle.classList.add('tb-active');
+            } else {
+                modeToggle.textContent = '👆 点击选中';
+                modeToggle.classList.remove('tb-active');
+            }
+        }
+
+        // 启动默认数据（无 id 或加载失败时使用）
+        function loadDefault() {
+            const defaultBtn = document.querySelector('#containerSelector button.active');
+            if (defaultBtn) {
+                const name = defaultBtn.dataset.name;
+                const l = parseFloat(defaultBtn.dataset.l);
+                const w = parseFloat(defaultBtn.dataset.w);
+                const h = parseFloat(defaultBtn.dataset.h);
+                state.container = { name, l, w, h };
+                customL.value = l;
+                customW.value = w;
+                customH.value = h;
+            }
+            buildScene();
+            const defaultText = cargoInput.value;
+            loadCargosFromText(defaultText);
+        }
+
+        async function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const layoutId = urlParams.get('id');
+
+            if (layoutId) {
+                // 通过云端 API 加载指定方案
+                try {
+                    document.body.style.cursor = 'wait';
+                    const json = await apiGet(`/api/container-layouts/${layoutId}`);
+                    const meta = json.data;
+                    const data = meta.data;
+                    if (!data) throw new Error('方案数据为空');
+
+                    // 填充 state
+                    applyLoadedLayout(data);
+
+                    // 同步 UI
+                    syncUIFromState();
+                    buildScene();
+
+                    // 同步 textarea
+                    cargoInput.value = data.cargos.map(c =>
+                        `${c.name}, ${c.sx}*${c.sz}*${c.sy}`
+                    ).join('\n');
+
+                    rebuildCargoMeshes();
+                    updateStats();
+
+                    // 跟踪当前方案元数据
+                    currentLayoutMeta = meta;
+                    saveBtn.disabled = !meta.is_owner;
+                    // 更新页面标题
+                    document.title = `货柜排布 - ${meta.name}`;
+
+                    console.log('[editor] 已加载方案', meta);
+                } catch (e) {
+                    console.error('[editor] 加载方案失败:', e);
+                    alert('加载方案失败：' + e.message + '\n\n将使用默认演示数据。');
+                    loadDefault();
+                } finally {
+                    document.body.style.cursor = '';
+                }
+            } else {
+                // 无 id：使用默认演示数据
+                loadDefault();
+            }
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+
+            // 更新轴指示器：与主相机同方向
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            axesCam.position.copy(dir).multiplyScalar(-axesDist);
+            axesCam.lookAt(0, 0, 0);
+            axesRenderer.render(axesScene, axesCam);
+        }
+
+        init();
+
+        // ============================================================
+        //  Delete键删除选中货物 / R 键水平旋转选中货物
+        // ============================================================
+        document.addEventListener('keydown', (e) => {
+            if (editModal.classList.contains('active')) return;
+
+            // Escape：取消选中
+            if (e.key === 'Escape') {
+                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                    deselectCargo();
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                    const idx = state.selectedCargo;
+                    if (idx >= 0 && idx < state.cargos.length) {
+                        if (confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) {
+                            state.cargos.splice(idx, 1);
+                            state.selectedCargo = null;
+                            controls.enabled = true;
+                            rebuildCargoMeshes();
+                            updateStats();
+                            saveState();
+                            e.preventDefault();
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Ctrl+S：保存到云端
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                saveToCloud();
+                return;
+            }
+
+            // R 键：水平旋转 90°
+            if (e.key === 'r' || e.key === 'R') {
+                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                    const idx = state.selectedCargo;
+                    if (idx >= 0 && idx < state.cargos.length) {
+                        rotateCargo(idx);
+                        e.preventDefault();
+                    }
+                }
+            }
+        });
+
+        console.log('📦 货柜装货可视化工具已加载');
+        console.log('💡 右上角 ⛏即点即拖 / 👆点击选中 切换操作模式');
+        console.log('💡 Delete删除 · R旋转 · Ctrl+S保存 · 列表/颜色点可编辑');
+    </script>
+</body>
+
+</html>
