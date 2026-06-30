@@ -1614,19 +1614,17 @@
             const hitMesh = intersects.length > 0 ? intersects[0].object : null;
             const hitIdx = hitMesh ? hitMesh.userData.cargoIndex : -1;
 
-            // ── 右键：select 命中货物弹菜单 / 两模式空白有选中均取消选中 ──
+            // ── 右键：两模式命中货物均弹菜单 / 空白 + 有选中均取消选中 ──
             if (event.button === 2) {
                 if (hitIdx >= 0) {
-                    // 命中货物：仅 select 模式弹菜单；direct 模式交给 OrbitControls pan
-                    if (state.interactionMode === 'select') {
-                        event.stopImmediatePropagation();
-                        event.preventDefault();
-                        state.selectedCargo = hitIdx;
-                        updateSelectionHighlight();
-                        renderCargoList();
-                        scrollListToSelected();
-                        showCargoContextMenu(event.clientX, event.clientY, hitIdx);
-                    }
+                    // 命中货物：两模式都弹菜单（旋转/跌落）
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                    state.selectedCargo = hitIdx;
+                    updateSelectionHighlight();
+                    renderCargoList();
+                    scrollListToSelected();
+                    showCargoContextMenu(event.clientX, event.clientY, hitIdx);
                 } else if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
                     // 空白 + 有选中：两模式均取消选中
                     event.stopImmediatePropagation();
@@ -1634,7 +1632,6 @@
                     deselectCargo();
                     hideCargoContextMenu();
                 }
-                // 其他情况：direct 模式命中货物 / 两模式空白无选中 → 不干预
                 return;
             }
 
