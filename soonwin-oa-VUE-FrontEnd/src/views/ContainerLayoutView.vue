@@ -47,9 +47,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="container_name" label="货柜类型" min-width="120" />
-        <el-table-column prop="container_size" label="尺寸 (长×宽×高 mm)" min-width="220" />
         <el-table-column prop="cargo_count" label="货物数" width="90" />
         <el-table-column prop="author_name" label="作者" min-width="100" />
+        <el-table-column prop="created_at" label="创建时间" min-width="160" />
         <el-table-column prop="updated_at" label="更新时间" min-width="160" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
@@ -57,7 +57,7 @@
               编辑
             </el-button>
             <el-button size="small" :icon="DocumentCopy" @click="openSaveAsDialog(row)">
-              另存为
+              复制一份
             </el-button>
             <el-button
               v-if="row.is_owner || isAdmin"

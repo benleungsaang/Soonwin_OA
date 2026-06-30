@@ -457,23 +457,18 @@
             margin-top: 4px;
         }
 
-        /* 三行布局：保存一行 / 另存一行 / 导出+导入 一行 */
+        /* 两行布局：第 1 行  保存 + 另存为；第 2 行  导出 + 导入 */
         .panel-actions-rows {
             flex-direction: column;
             gap: 8px;
         }
 
-        .panel-actions-rows .btn-block {
-            width: 100%;
-            justify-content: center;
-        }
-
-        .panel-actions-pair {
+        .panel-actions-row {
             display: flex;
             gap: 8px;
         }
 
-        .panel-actions-pair .btn {
+        .panel-actions-row .btn {
             flex: 1 1 0;
             justify-content: center;
         }
@@ -838,11 +833,13 @@
             </div>
 
             <div class="panel-actions panel-actions-rows">
-                <button class="btn btn-block" id="saveBtn" disabled title="加载方案后可用">☁ 保存到云端</button>
-                <button class="btn btn-block" id="saveAsBtn">📋 另存为新方案</button>
-                <div class="panel-actions-pair">
-                    <button class="btn" id="exportBtn">📤 导出 JSON</button>
-                    <button class="btn" id="importBtn">📥 导入 JSON</button>
+                <div class="panel-actions-row">
+                    <button class="btn" id="saveBtn" title="保存当前方案到云端">保存</button>
+                    <button class="btn" id="saveAsBtn" title="复制为新方案">另存为</button>
+                </div>
+                <div class="panel-actions-row">
+                    <button class="btn" id="exportBtn" title="下载到本地">📤 导出本地文件</button>
+                    <button class="btn" id="importBtn" title="从本地文件加载">📥 导入本地文件</button>
                 </div>
             </div>
         </div>
@@ -2439,12 +2436,12 @@
                 saveBtn.textContent = '✅ 已保存';
                 setTimeout(() => {
                     saveBtn.textContent = origText;
-                    saveBtn.disabled = !currentLayoutMeta?.is_owner;
+                    saveBtn.disabled = false;
                 }, 1500);
             } catch (e) {
                 console.error('saveToCloud failed:', e);
                 alert('保存失败：' + e.message);
-                saveBtn.textContent = '☁ 保存到云端';
+                saveBtn.textContent = '保存';
                 saveBtn.disabled = false;
             }
         }
@@ -2468,7 +2465,8 @@
             try {
                 // apiSend 已解包 → 返回 ContainerLayoutDetail
                 currentLayoutMeta = await apiSend('POST', '/api/container-layouts', { name: trimmed, data });
-                saveBtn.disabled = !currentLayoutMeta.is_owner;
+                // 复制创建后归属当前用户，保存按钮保持可用
+                saveBtn.disabled = false;
                 alert('已创建方案「' + trimmed + '」，请在 OA 列表页刷新查看。');
                 // 更新 URL 使后续刷新仍能定位到该方案
                 const u = new URL(window.location.href);
@@ -2653,7 +2651,8 @@
 
                     // 跟踪当前方案元数据
                     currentLayoutMeta = meta;
-                    saveBtn.disabled = !meta.is_owner;
+                    // 保存按钮始终可用：非作者点击后会弹 confirm 询问是否另存为
+                    saveBtn.disabled = false;
                     // 更新页面标题
                     document.title = `货柜排布 - ${meta.name}`;
 
