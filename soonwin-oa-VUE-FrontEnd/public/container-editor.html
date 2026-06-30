@@ -801,6 +801,12 @@
             border-color: #6bcb77;
         }
 
+        #view-toolbar .tb-btn.tb-disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         /* 选中货物详情框（独立于货柜信息） */
         #viewport-info-detail {
             position: absolute;
@@ -1023,6 +1029,9 @@
                             </div>
                         </div>
                     </div>
+                    <span class="tb-btn tb-info tb-disabled" id="undoBtn" title="撤销 (Ctrl+Z)">↩ 撤销</span>
+                    <span class="tb-btn tb-info tb-disabled" id="redoBtn" title="重做 (Ctrl+Shift+Z)">↪ 重做</span>
+                    <span class="tb-divider"></span>
                     <span class="tb-btn tb-info" id="vpCheckBtn" title="检查出界和交叉碰撞">🔍 检查出界情况</span>
                     <span class="tb-btn tb-warn" id="vpCompactBtn" title="将所有货物紧靠原点重新排布">⬇ 紧靠原点</span>
                     <!-- 视觉分隔线：把通用功能与货物操作区分开 -->
@@ -1101,6 +1110,11 @@
             allowOverflow: false, // 临时允许货物超出货柜边界
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
+
+        // ========== 撤销/重做 ==========
+        const MAX_UNDO = 100;
+        let undoStack = [];   // 快照栈，index 0 为最旧
+        let redoStack = [];   // 撤销时弹出到此，新操作清空
 
         // 选中集合的辅助方法
         function clearSelection() {
@@ -2578,6 +2592,9 @@
 
         vpCompactBtn.addEventListener('click', compactToOrigin);
 
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('redoBtn').addEventListener('click', redo);
+
         function setContainer(name, l, w, h) {
             state.container = { name, l, w, h };
             if (state.cargos.length) {
@@ -2708,10 +2725,81 @@
         // 当前正在编辑的方案元数据（从云端加载或新建时填充）
         let currentLayoutMeta = null;  // { id, name, is_owner, author_id, author_name, ... }
 
-        // 用于拖拽/编辑后被频繁调用的 saveState()：仅做静默处理，不再触发任何 IO
-        // 云端保存由用户点击"保存到云端"按钮显式触发
+        // 用于拖拽/编辑后被频繁调用的 saveState()：每步操作记录撤销快照
+        // 云端保存由用户点击"保存到云端"按钮显式触发（不影响撤销）
         function saveState() {
-            // no-op: 数据持久化改为由用户点击"保存到云端"按钮触发
+            const snap = buildSnapshot();
+            undoStack.push(snap);
+            redoStack = [];   // 新操作使 redo 失效
+            if (undoStack.length > MAX_UNDO + 1) {
+                undoStack.shift();  // 超出上限丢弃最旧
+            }
+            updateUndoButtons();
+        }
+
+        function buildSnapshot() {
+            return {
+                container: { ...state.container },
+                cargos: state.cargos.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    sx: c.sx, sy: c.sy, sz: c.sz,
+                    px: c.px, py: c.py, pz: c.pz,
+                    color: c.color,
+                })),
+                allowOverflow: state.allowOverflow,
+                interactionMode: state.interactionMode,
+                colorIndex: state.colorIndex,
+            };
+        }
+
+        function applySnapshot(snap) {
+            state.container = { ...snap.container };
+            state.cargos = snap.cargos.map(c => ({ ...c }));
+            state.allowOverflow = snap.allowOverflow;
+            state.interactionMode = snap.interactionMode;
+            state.colorIndex = snap.colorIndex;
+            state.editIndex = -1;
+
+            clearSelection();
+            controls.enabled = true;
+            allowOverflow.checked = state.allowOverflow;
+
+            // 直接同步模式 UI（不调 switchMode，避免 saveState 递归）
+            if (snap.interactionMode === 'direct') {
+                modeToggle.textContent = '⛏ 即点即拖';
+                modeToggle.classList.add('tb-active');
+                vpDeselectBtn.style.display = 'none';
+                vpRotateBtn.style.display = 'none';
+            } else {
+                modeToggle.textContent = '👆 点击选中';
+                modeToggle.classList.remove('tb-active');
+            }
+            updateModeDropdownActive();
+
+            rebuildCargoMeshes();   // 内部调 renderCargoList + updateStats
+            updateUndoButtons();
+        }
+
+        function undo() {
+            if (undoStack.length <= 1) return;   // 基线快照不可撤销
+            const cur = undoStack.pop();
+            redoStack.push(cur);
+            applySnapshot(undoStack[undoStack.length - 1]);
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            const next = redoStack.pop();
+            undoStack.push(next);
+            applySnapshot(next);
+        }
+
+        function updateUndoButtons() {
+            const undoBtn = document.getElementById('undoBtn');
+            const redoBtn = document.getElementById('redoBtn');
+            if (undoBtn) undoBtn.classList.toggle('tb-disabled', undoStack.length <= 1);
+            if (redoBtn) redoBtn.classList.toggle('tb-disabled', redoStack.length === 0);
         }
 
         function clearSavedState() {
@@ -3129,6 +3217,9 @@
                 loadDefault();
             }
 
+            // 捕获初始状态作为撤销基线
+            saveState();
+
             animate();
         }
 
@@ -3239,6 +3330,19 @@
             if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
                 e.preventDefault();
                 saveToCloud();
+                return;
+            }
+
+            // Ctrl+Z：撤销
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+                return;
+            }
+            // Ctrl+Shift+Z 或 Ctrl+Y：重做
+            if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y' || e.key === 'Y')) {
+                e.preventDefault();
+                redo();
                 return;
             }
 

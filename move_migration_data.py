@@ -188,16 +188,16 @@ def _resolve_yarn_cmd(front_src_path: Path) -> str | None:
 def build_frontend_static():
     """询问用户是否执行前端 `yarn build:prod` 生成最新静态文件。
 
-    输入 y / Y / 1 才会执行；直接回车或其它字符都不生成，使用现有 dist。
+    直接回车 / y / Y / 1 都会执行 build；其它字符跳过，使用现有 dist。
     """
     print_separator()
     print("          前端静态文件生成（yarn build:prod）")
     print_separator()
     confirm = input(
         "\n是否执行前端 yarn build:prod 生成最新静态文件？\n"
-        "（输入 y / Y / 1 执行；直接回车或其它字符跳过，使用现有 dist）: "
+        "（直接回车 / y / Y / 1 执行；其它字符跳过，使用现有 dist）: "
     ).strip()
-    if confirm not in ("y", "Y", "1"):
+    if confirm not in ("y", "Y", "1", ""):
         print("[跳过] 不生成前端静态文件，将使用现有的 dist 目录。")
         return False
 
@@ -362,7 +362,7 @@ def full_deploy_sync():
     generate_requirements_txt()
 
     # 1.5 询问是否执行前端 yarn build:prod 生成最新静态文件
-    #     输入 y / Y / 1 才会执行；直接回车或其它字符不生成
+    #     直接回车 / y / Y / 1 都会执行；其它字符跳过
     build_frontend_static()
 
     # 2. 前置检查
