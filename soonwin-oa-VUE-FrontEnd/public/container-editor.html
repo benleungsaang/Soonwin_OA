@@ -1674,10 +1674,13 @@
                     const mesh = dragObjects[hitIdx];
                     if (!mesh) return;
 
-                    // 选中状态：Ctrl 切换 / 普通 清空后只选这一个
+                    // 选中状态：Ctrl 切换多选 / 普通点击处理
                     if (isMulti) {
                         toggleSelection(hitIdx);
+                    } else if (state.selectedCargos.has(hitIdx)) {
+                        // 无 Ctrl 点中已多选的货物 → 保留多选锁定，拖动全体
                     } else {
+                        // 无 Ctrl 点中未选中货物 → 清空集合，单选此货物
                         setOnlySelection(hitIdx);
                     }
 
