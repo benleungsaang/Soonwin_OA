@@ -2873,22 +2873,19 @@
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
         // 复制全部货物到剪贴板（以导入格式：名称, 长*宽*高）
+        // navigator.clipboard 在 http:// 下不可用，统一用 textarea 方案
         copyAllBtn.addEventListener('click', () => {
             if (!state.cargos.length) { alert('当前没有货物'); return; }
             const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
             const text = lines.join('\n');
-            navigator.clipboard.writeText(text).then(() => {
-                const orig = copyAllBtn.textContent;
-                copyAllBtn.textContent = '✅ 已复制';
-                setTimeout(() => { copyAllBtn.textContent = orig; }, 2000);
-            }).catch(() => {
-                const oldVal = cargoInput.value;
-                cargoInput.value = text;
-                cargoInput.select();
-                document.execCommand('copy');
-                cargoInput.value = oldVal;
-                alert('已复制到剪贴板');
-            });
+            const oldVal = cargoInput.value;
+            cargoInput.value = text;
+            cargoInput.select();
+            document.execCommand('copy');
+            cargoInput.value = oldVal;
+            const orig = copyAllBtn.textContent;
+            copyAllBtn.textContent = '✅ 已复制';
+            setTimeout(() => { copyAllBtn.textContent = orig; }, 2000);
         });
         vpDeselectBtn.addEventListener('click', deselectCargo);
         vpRotateBtn.addEventListener('click', () => {
