@@ -88,6 +88,29 @@
             gap: 6px;
         }
 
+        .section-title .section-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+        }
+
+        .btn-sm {
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 14px;
+            background: #0f3460;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-sm:hover {
+            background: #1a4a7a;
+            color: #fff;
+        }
+
         /* 货柜选择 */
         .container-selector {
             display: flex;
@@ -922,7 +945,7 @@
                     货物5, 1000*600*1200
                 货物6, 800*500*1000</textarea>
                 <div class="import-actions">
-                    <button class="btn btn-primary" id="loadCargoBtn">📥 加载货物</button>
+                    <button class="btn btn-primary" id="loadCargoBtn">📥 添加货物</button>
                     <button class="btn btn-danger" id="clearCargoBtn">🗑 清空</button>
                     <button class="btn btn-success" id="resetLayoutBtn">🔄 重置布局</button>
                 </div>
@@ -930,7 +953,7 @@
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>)</div>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><button class="btn btn-sm" id="copyAllBtn" title="以导入格式复制全部货物到剪贴板">📋 复制当前货物</button></span></div>
                 <div class="cargo-list-container" id="cargoList"></div>
             </div>
 
@@ -1143,6 +1166,7 @@
         const resetLayoutBtn = $('#resetLayoutBtn');
         const cargoListEl = $('#cargoList');
         const cargoCount = $('#cargoCount');
+        const copyAllBtn = $('#copyAllBtn');
         const usedVolume = $('#usedVolume');
         const totalVolume = $('#totalVolume');
         const utilRate = $('#utilRate');
@@ -1899,12 +1923,12 @@
         //  布局算法 (水平排布：所有货物放地面 Y=0，沿 XZ 平面紧密排布)
         //  state.allowOverflow=true 时不限制越界
         // ============================================================
-        function autoLayout(cargos) {
+        function autoLayout(cargos, forceOverflow) {
             if (!cargos.length) return;
 
             const { l, w } = state.container;
             const GAP = 10; // 货物间距 mm
-            const allow = state.allowOverflow;
+            const allow = forceOverflow === true ? true : state.allowOverflow;
 
             // 按底面积降序排列 (大的先放，更省空间)
             const sorted = [...cargos].sort((a, b) => (b.sx * b.sz) - (a.sx * a.sz));
@@ -2278,7 +2302,8 @@
                 c.py = 0;
                 c.pz = 0;
             });
-            autoLayout(state.cargos);
+            // 重置布局允许超出货柜边界（但保持货物之间不交叉）
+            autoLayout(state.cargos, true);
             rebuildCargoMeshes();
             updateStats();
             saveState();
@@ -2837,6 +2862,8 @@
         loadCargoBtn.addEventListener('click', () => {
             const text = cargoInput.value;
             loadCargosFromText(text);
+            // 添加成功后清空输入框
+            cargoInput.value = '';
         });
 
         clearCargoBtn.addEventListener('click', clearAllCargos);
@@ -2845,6 +2872,24 @@
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
+        // 复制全部货物到剪贴板（以导入格式：名称, 长*宽*高）
+        copyAllBtn.addEventListener('click', () => {
+            if (!state.cargos.length) { alert('当前没有货物'); return; }
+            const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
+            const text = lines.join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = copyAllBtn.textContent;
+                copyAllBtn.textContent = '✅ 已复制';
+                setTimeout(() => { copyAllBtn.textContent = orig; }, 2000);
+            }).catch(() => {
+                const oldVal = cargoInput.value;
+                cargoInput.value = text;
+                cargoInput.select();
+                document.execCommand('copy');
+                cargoInput.value = oldVal;
+                alert('已复制到剪贴板');
+            });
+        });
         vpDeselectBtn.addEventListener('click', deselectCargo);
         vpRotateBtn.addEventListener('click', () => {
             // 多选：依次对每个选中货物执行
