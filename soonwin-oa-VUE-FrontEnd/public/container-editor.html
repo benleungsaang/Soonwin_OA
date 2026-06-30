@@ -457,6 +457,27 @@
             margin-top: 4px;
         }
 
+        /* 三行布局：保存一行 / 另存一行 / 导出+导入 一行 */
+        .panel-actions-rows {
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel-actions-rows .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .panel-actions-pair {
+            display: flex;
+            gap: 8px;
+        }
+
+        .panel-actions-pair .btn {
+            flex: 1 1 0;
+            justify-content: center;
+        }
+
         /* 编辑弹窗 */
         .modal-overlay {
             display: none;
@@ -816,11 +837,13 @@
                 </div>
             </div>
 
-            <div class="panel-actions">
-                <button class="btn" id="saveBtn" disabled title="加载方案后可用">☁ 保存到云端</button>
-                <button class="btn" id="saveAsBtn">📋 另存为新方案</button>
-                <button class="btn" id="exportBtn">📤 导出 JSON</button>
-                <button class="btn" id="importBtn">📥 导入 JSON</button>
+            <div class="panel-actions panel-actions-rows">
+                <button class="btn btn-block" id="saveBtn" disabled title="加载方案后可用">☁ 保存到云端</button>
+                <button class="btn btn-block" id="saveAsBtn">📋 另存为新方案</button>
+                <div class="panel-actions-pair">
+                    <button class="btn" id="exportBtn">📤 导出 JSON</button>
+                    <button class="btn" id="importBtn">📥 导入 JSON</button>
+                </div>
             </div>
         </div>
 
@@ -2399,7 +2422,11 @@
                 return;
             }
             if (!currentLayoutMeta.is_owner) {
-                alert('此方案不归您所有，无法保存。请点击"另存为新方案"创建副本。');
+                // 非作者：弹窗询问是否另存为。确认→调用 saveAsNew；取消→无操作
+                const ok = confirm('仅原作者可直接保存原方案\n当前是否需要另存为？');
+                if (ok) {
+                    await saveAsNew();
+                }
                 return;
             }
             try {
