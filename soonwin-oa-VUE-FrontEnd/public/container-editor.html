@@ -592,14 +592,14 @@
             font-weight: 500;
         }
 
-        /* 顶部工具栏：左 通用功能 / 右 货物操作 */
+        /* 顶部工具栏：所有按钮居左，通用 + 货物操作分两组 */
         #view-toolbar {
             position: absolute;
             top: 16px;
             left: 20px;
             right: 20px;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: flex-start;
             gap: 12px;
             z-index: 10;
@@ -610,12 +610,26 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+
+        /* 通用与货物操作之间的视觉分隔线 */
+        .tb-divider {
+            display: inline-block;
+            width: 1px;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.18);
+            margin: 0 8px;
+            pointer-events: none;
         }
 
         /* 模式选择下拉 */
         .tb-dropdown {
             position: relative;
             display: inline-block;
+            /* 关键：#view-toolbar 设了 pointer-events: none，这里要恢复
+               否则下拉菜单内所有子元素均无法点击 */
+            pointer-events: auto;
         }
 
         .tb-dropdown-toggle::after {
@@ -637,6 +651,8 @@
             padding: 6px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
             z-index: 20;
+            /* 关键：覆盖 #view-toolbar 的 pointer-events: none */
+            pointer-events: auto;
         }
 
         .tb-dropdown-item {
@@ -934,7 +950,7 @@
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
             <div id="hint">🖱 左键拖拽旋转 · 滚轮缩放 · 右键平移 · 点击货物选中拖动 · Shift+调高度</div>
-            <!-- 顶部工具栏：左=通用功能 / 右=货物操作 -->
+            <!-- 顶部工具栏：所有按钮集中居左显示 -->
             <div id="view-toolbar">
                 <div class="tb-group tb-left">
                     <!-- 模式选择：点击后弹出下拉菜单 -->
@@ -955,11 +971,12 @@
                     </div>
                     <span class="tb-btn tb-info" id="vpCheckBtn" title="检查出界和交叉碰撞">🔍 检查出界情况</span>
                     <span class="tb-btn tb-warn" id="vpCompactBtn" title="将所有货物紧靠原点重新排布">⬇ 紧靠原点</span>
-                </div>
-                <div class="tb-group tb-right">
-                    <span class="tb-btn tb-warn" id="vpDeselectBtn" style="display:none;">✕ 取消选中</span>
-                    <span class="tb-btn tb-info" id="vpRotateBtn" style="display:none;">↻ 水平旋转货物</span>
+                    <!-- 视觉分隔线：把通用功能与货物操作区分开 -->
+                    <span class="tb-divider"></span>
+                    <!-- 货物操作（顺序：跌落 / 旋转 / 取消选中） -->
                     <span class="tb-btn tb-drop" id="vpDropBtn" style="display:none;">↓ 货物跌落</span>
+                    <span class="tb-btn tb-info" id="vpRotateBtn" style="display:none;">↻ 水平旋转货物</span>
+                    <span class="tb-btn tb-warn" id="vpDeselectBtn" style="display:none;">✕ 取消选中</span>
                 </div>
             </div>
         </div>
