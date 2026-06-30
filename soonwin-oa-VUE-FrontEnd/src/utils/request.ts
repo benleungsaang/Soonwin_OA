@@ -134,13 +134,31 @@ service.interceptors.request.use(
 );
 
 // 响应拦截器：统一处理结果和错误
+// ========================================================================
+// ⚠️ 重要：此拦截器会自动从后端响应中解包 `data` 字段
+// ========================================================================
+// 后端 API 统一返回 { success: bool, data: any, message?: string } 结构。
+// 本拦截器在成功时返回 `res.data`，所以调用方拿到的就是 data 字段内容。
+//
+// 调用方正确写法（不要再 .data）：
+//   const resp = await getXxx()
+//   console.log(resp.id)         // 直接读字段
+//   console.log(resp.items)      // 即使后端返回 data.items
+//
+// 错误示例（之前 container 列表页犯的错）：
+//   if (resp?.success) {          // 错：resp.success 永远是 undefined
+//     list.value = resp.data.items // 错：resp.data 是 undefined
+//   }
+//
+// 错误处理：拦截器已统一 ElMessage 提示并 reject，组件只需 try/catch。
+// ========================================================================
 service.interceptors.response.use(
   (response: AxiosResponse<any>) => {
     const res = response.data;
     // 检查是否为success/data格式的响应（后端API）
     if (typeof res === 'object' && 'success' in res) {
       if (res.success) {
-        // 成功响应，返回data部分
+        // 成功响应，返回data部分（解包）
         return res.data || {};
       } else {
         // 业务错误
