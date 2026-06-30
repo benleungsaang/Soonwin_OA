@@ -1695,9 +1695,6 @@
                     dragState.useVertical = isShiftDown;
 
                     updateDragPlane();
-                    // 关键：offset 用"按下时鼠标在拖动平面上的交点 - mesh 中心"
-                    // 不能用 intersects[0].point（那是 mesh 表面点，跟平面交点不一致，
-                    // 会导致首次 move 时货物瞬间漂移到表面点的水平投影）
                     const _startPt = new THREE.Vector3();
                     dragRaycaster.ray.intersectPlane(dragState.plane, _startPt);
                     dragState.offset.copy(_startPt).sub(dragState.mesh.position);
@@ -1707,14 +1704,9 @@
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
-                } else {
-                    // 点击空白 → 清除所有选中，恢复 OrbitControls
-                    if (state.selectedCargos.size > 0) {
-                        clearSelection();
-                        updateSelectionHighlight();
-                        renderCargoList();
-                    }
                 }
+                // else: 点击空白 → 不干涉，OrbitControls 旋转/平移
+                //       右键空白取消选中由右键分支处理
                 return;
             }
 
@@ -1734,9 +1726,33 @@
                 return;
             }
 
-            // 空白区域点击：清空选中
+            // 空白区域点击（select 模式）：有选中则开始拖动全体
             if (state.selectedCargos.size > 0) {
-                deselectCargo();
+                event.stopImmediatePropagation();
+                // 取集合中任一货物作为代表开始拖动
+                const repIdx = state.selectedCargo !== null ? state.selectedCargo
+                    : Array.from(state.selectedCargos)[0];
+                if (repIdx >= 0 && repIdx < state.cargos.length) {
+                    const mesh = dragObjects[repIdx];
+                    const cargo = state.cargos[repIdx];
+                    if (mesh && cargo) {
+                        dragState.active = true;
+                        dragState.mesh = mesh;
+                        dragState.cargoIdx = repIdx;
+                        dragState.startMeshPos.copy(mesh.position);
+                        dragState.useVertical = isShiftDown;
+                        updateDragPlane();
+                        const _startPt = new THREE.Vector3();
+                        if (dragRaycaster.ray.intersectPlane(dragState.plane, _startPt)) {
+                            dragState.offset.copy(_startPt).sub(dragState.mesh.position);
+                        } else {
+                            dragState.offset.set(0, 0, 0);
+                        }
+                        controls.enabled = false;
+                        mesh.material.emissiveIntensity = 0.6;
+                    }
+                }
+                // 无选中 → 不干涉
             }
         }
 
