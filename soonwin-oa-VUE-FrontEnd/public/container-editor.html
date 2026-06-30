@@ -693,6 +693,34 @@
             color: #888;
         }
 
+        /* 右键上下文菜单（货物旋转/跌落） */
+        #cargoContextMenu {
+            position: fixed;
+            z-index: 1000;
+            min-width: 160px;
+            background: rgba(20, 20, 40, 0.96);
+            backdrop-filter: blur(8px);
+            border: 1px solid #2a2a5e;
+            border-radius: 8px;
+            padding: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+        }
+
+        .ctx-item {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .ctx-item:hover {
+            background: rgba(233, 69, 96, 0.25);
+            color: #fff;
+        }
+
         #view-toolbar .tb-btn {
             pointer-events: auto;
             background: rgba(0, 0, 0, 0.65);
@@ -950,6 +978,11 @@
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
             <div id="hint">🖱 左键拖拽旋转 · 滚轮缩放 · 右键平移 · 点击货物选中拖动 · Shift+调高度</div>
+            <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
+            <div id="cargoContextMenu" style="display:none;">
+                <div class="ctx-item" data-action="rotate" title="水平旋转 90°">↻ 水平旋转货物</div>
+                <div class="ctx-item" data-action="drop" title="沿 Y 轴下落至地面或下方货物">↓ 货物跌落</div>
+            </div>
             <!-- 顶部工具栏：所有按钮集中居左显示 -->
             <div id="view-toolbar">
                 <div class="tb-group tb-left">
@@ -1103,6 +1136,67 @@
         const vpCompactBtn = $('#vpCompactBtn');
         const modeToggle = $('#modeToggle');
         const viewport = $('#viewport');
+
+        // ============================================================
+        //  右键上下文菜单（select 模式下命中货物时弹出）
+        // ============================================================
+        const cargoContextMenu = $('#cargoContextMenu');
+        let cargoContextTargetIdx = -1;  // 菜单对应的货物索引
+
+        function showCargoContextMenu(clientX, clientY, cargoIdx) {
+            cargoContextTargetIdx = cargoIdx;
+            cargoContextMenu.style.display = 'block';
+            // 先显示以获取实际尺寸，再调整位置避免溢出窗口
+            const rect = cargoContextMenu.getBoundingClientRect();
+            let x = clientX;
+            let y = clientY;
+            if (x + rect.width > window.innerWidth) {
+                x = window.innerWidth - rect.width - 4;
+            }
+            if (y + rect.height > window.innerHeight) {
+                y = window.innerHeight - rect.height - 4;
+            }
+            cargoContextMenu.style.left = x + 'px';
+            cargoContextMenu.style.top = y + 'px';
+        }
+
+        function hideCargoContextMenu() {
+            cargoContextMenu.style.display = 'none';
+            cargoContextTargetIdx = -1;
+        }
+
+        // 菜单项点击
+        cargoContextMenu.querySelectorAll('.ctx-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = item.dataset.action;
+                const idx = cargoContextTargetIdx;
+                hideCargoContextMenu();
+                if (idx < 0 || idx >= state.cargos.length) return;
+                if (action === 'rotate') {
+                    rotateCargo(idx);
+                    renderCargoList();
+                } else if (action === 'drop') {
+                    dropCargo(idx);
+                    renderCargoList();
+                }
+            });
+        });
+
+        // 点击页面其他位置关闭菜单
+        document.addEventListener('click', (e) => {
+            if (cargoContextMenu.style.display !== 'none' &&
+                !cargoContextMenu.contains(e.target)) {
+                hideCargoContextMenu();
+            }
+        });
+
+        // Esc 关闭菜单
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && cargoContextMenu.style.display !== 'none') {
+                hideCargoContextMenu();
+            }
+        });
 
         // 编辑弹窗
         const editModal = $('#editModal');
@@ -1514,24 +1608,34 @@
             if (editModal.classList.contains('active')) return;
             if (event.target !== renderer.domElement) return;
 
-            // 右键：仅在"点击选中"模式下作为"取消选中"快捷键
-            if (event.button === 2) {
-                if (state.interactionMode === 'select' &&
-                    state.selectedCargo !== null && state.selectedCargo !== undefined) {
-                    event.stopImmediatePropagation();
-                    event.preventDefault();
-                    deselectCargo();
-                }
-                return;
-            }
-
-            if (event.button !== 0) return;
-
             screenToNDC(event.clientX, event.clientY);
             dragRaycaster.setFromCamera(dragMouseNDC, camera);
             const intersects = dragRaycaster.intersectObjects(dragObjects);
             const hitMesh = intersects.length > 0 ? intersects[0].object : null;
             const hitIdx = hitMesh ? hitMesh.userData.cargoIndex : -1;
+
+            // ── 右键：select 模式下命中货物弹菜单 / 空白处取消选中 ──
+            if (event.button === 2) {
+                if (state.interactionMode === 'select') {
+                    event.stopImmediatePropagation();
+                    event.preventDefault();
+                    if (hitIdx >= 0) {
+                        // 命中货物：先选中该货物，再弹菜单
+                        state.selectedCargo = hitIdx;
+                        updateSelectionHighlight();
+                        renderCargoList();
+                        scrollListToSelected();
+                        showCargoContextMenu(event.clientX, event.clientY, hitIdx);
+                    } else if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                        // 空白但有选中：取消选中
+                        deselectCargo();
+                        hideCargoContextMenu();
+                    }
+                }
+                return;
+            }
+
+            if (event.button !== 0) return;
 
             if (state.interactionMode === 'direct') {
                 // ── 模式：即点即拖 ──
