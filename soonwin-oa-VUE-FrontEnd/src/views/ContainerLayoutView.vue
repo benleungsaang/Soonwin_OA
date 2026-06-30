@@ -217,8 +217,10 @@ async function handleCreate() {
 }
 
 // ========== 编辑（打开新标签页） ==========
+// 注意：必须带 .html 后缀，否则 Vite SPA fallback 会把请求转到 index.html，
+// 进而触发 vue-router 警告 + 页面空白（vue-router 无对应路由）。
 function openEditorById(id: number) {
-  const url = `/container-editor/?id=${id}`
+  const url = `/container-editor.html?id=${id}`
   window.open(url, '_blank', 'noopener')
 }
 
