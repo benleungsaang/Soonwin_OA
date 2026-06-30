@@ -2268,12 +2268,16 @@
                 const preview = errors.slice(0, 8).join('\n');
                 const more = errors.length > 8 ? `\n... 共 ${errors.length} 条错误` : '';
                 alert(`⚠️ 共 ${errors.length} 行解析失败，已跳过：\n\n${preview}${more}\n\n请检查格式：名称, 长*宽*高 (mm)`);
+                // 有错误条目 → 保留输入框内容供用户修改，后面返回 false 不清空
+                // 已成功解析的货物仍会添加（部分成功）
             }
 
             if (!newCargos.length) {
                 alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm)');
                 return false;
             }
+
+            const hasErrors = errors.length > 0;
 
             const existingCount = state.cargos.length;
             state.cargos.push(...newCargos);
@@ -2300,7 +2304,7 @@
             rebuildCargoMeshes();
             updateStats();
             saveState();
-            return true;
+            return !hasErrors;
         }
 
         function clearAllCargos() {
