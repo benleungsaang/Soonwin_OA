@@ -67,11 +67,13 @@ __pycache__/
 *.mov
 *.jpg
 *.png
+*.psd
 
 # 数据库文件 (项目里有 soonwin_oa.db，必忽略，防止提交本地数据库)
 *.db
 *.sqlite
 *.sqlite3
+*.backup_*
 data/
 
 # 迁移文件缓存
@@ -105,9 +107,8 @@ nginx-1.28.1/
 nginx_pid/
 其它文件/
 # 取反保留：Python后端项目的assets/TemplateImg目录（及内部所有内容）
-!TemplateImg/
-!TemplateImg/**/*
-assets/
+!assets/TemplateImg/
+!assets/TemplateImg/**/*
 
 # ===================== 补充：忽略历史记录目录 =====================
 # Vue前端项目历史记录
