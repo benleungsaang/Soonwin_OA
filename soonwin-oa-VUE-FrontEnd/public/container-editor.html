@@ -1771,47 +1771,68 @@
             const intersection = new THREE.Vector3();
             if (!dragRaycaster.ray.intersectPlane(dragState.plane, intersection)) return;
 
-            // 1) 先按"参考货物"算它的新中心（与 offset 无关的 delta 算法）
+            // 1) 先按"参考货物"算它的原始位置增量（不单独 clamp）
+            //    然后按"所有选中都不出界"来统一约束 delta
             const newCenter = intersection.sub(dragState.offset);
-            let refNextPx, refNextPy, refNextPz;
+            let rawPx, rawPy, rawPz;
             const sx = refCargo.sx, sy = refCargo.sy, sz = refCargo.sz;
             if (dragState.useVertical) {
                 const deltaY = newCenter.y - dragState.startMeshPos.y;
-                refNextPx = dragState.startMeshPos.x - sx / 2;
-                refNextPy = dragState.startMeshPos.y - sy / 2 + deltaY;
-                refNextPz = dragState.startMeshPos.z - sz / 2;
+                rawPx = dragState.startMeshPos.x - sx / 2;
+                rawPy = dragState.startMeshPos.y - sy / 2 + deltaY;
+                rawPz = dragState.startMeshPos.z - sz / 2;
             } else {
                 const fixedY = refCargo.py + sy / 2;
-                refNextPx = newCenter.x - sx / 2;
-                refNextPy = fixedY - sy / 2;
-                refNextPz = newCenter.z - sz / 2;
-            }
-            if (!state.allowOverflow) {
-                refNextPx = Math.max(0, Math.min(state.container.l - sx, refNextPx));
-                refNextPy = Math.max(0, Math.min(state.container.h - sy, refNextPy));
-                refNextPz = Math.max(0, Math.min(state.container.w - sz, refNextPz));
+                rawPx = newCenter.x - sx / 2;
+                rawPy = fixedY - sy / 2;
+                rawPz = newCenter.z - sz / 2;
             }
 
-            // 2) 计算参考货物的位移 delta，再应用到所有选中货物
-            const dx = refNextPx - refCargo.px;
-            const dy = refNextPy - refCargo.py;
-            const dz = refNextPz - refCargo.pz;
+            // 参考货物的原始 delta（未 clamp）
+            let dx = rawPx - refCargo.px;
+            let dy = rawPy - refCargo.py;
+            let dz = rawPz - refCargo.pz;
 
-            // 应用到所有选中的货物（保持相对位置）
+            // 2) 如果允许溢出，直接跳过边界约束；否则全体统一 clamp
             const movingIdxs = state.selectedCargos.has(refIdx)
                 ? Array.from(state.selectedCargos)
                 : [refIdx];
+            if (!state.allowOverflow) {
+                const { l, w, h } = state.container;
+                // 每个方向取最受限的 delta：任一货物撞墙时全体停止此方向推进
+                for (const idx of movingIdxs) {
+                    const c = state.cargos[idx];
+                    if (dx > 0) {
+                        const limit = l - c.sx - c.px;
+                        dx = Math.min(dx, Math.max(0, limit));
+                    } else if (dx < 0) {
+                        const limit = -c.px;
+                        dx = Math.max(dx, Math.min(0, limit));
+                    }
+                    if (dy > 0) {
+                        const limit = h - c.sy - c.py;
+                        dy = Math.min(dy, Math.max(0, limit));
+                    } else if (dy < 0) {
+                        const limit = -c.py;
+                        dy = Math.max(dy, Math.min(0, limit));
+                    }
+                    if (dz > 0) {
+                        const limit = w - c.sz - c.pz;
+                        dz = Math.min(dz, Math.max(0, limit));
+                    } else if (dz < 0) {
+                        const limit = -c.pz;
+                        dz = Math.max(dz, Math.min(0, limit));
+                    }
+                }
+            }
+
+            // 3) 应用统一的 delta 到所有选中货物（movingIdxs 已在上方定义）
             for (const idx of movingIdxs) {
                 const c = state.cargos[idx];
                 if (!c) continue;
-                let px = c.px + dx;
-                let py = c.py + dy;
-                let pz = c.pz + dz;
-                if (!state.allowOverflow) {
-                    px = Math.max(0, Math.min(state.container.l - c.sx, px));
-                    py = Math.max(0, Math.min(state.container.h - c.sy, py));
-                    pz = Math.max(0, Math.min(state.container.w - c.sz, pz));
-                }
+                const px = c.px + dx;
+                const py = c.py + dy;
+                const pz = c.pz + dz;
                 c.px = px; c.py = py; c.pz = pz;
                 const m = dragObjects[idx];
                 if (m) m.position.set(px + c.sx / 2, py + c.sy / 2, pz + c.sz / 2);
