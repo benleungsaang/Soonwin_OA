@@ -2226,6 +2226,7 @@
             const lines = text.split('\n').filter(line => line.trim());
             const newCargos = [];
             const errors = [];
+            const failedLines = []; // 记录失败行的原始文本，用于回写输入框
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -2233,6 +2234,7 @@
                 const parts = line.split(/[,，]\s*/);
                 if (parts.length < 2) {
                     errors.push(`第 ${lineNo} 行格式错误（缺少名称或尺寸）: "${line}"`);
+                    failedLines.push(line);
                     continue;
                 }
                 const name = parts[0].trim();
@@ -2240,6 +2242,7 @@
                 const sizes = sizeStr.split('*').map(s => parseFloat(s.trim()));
                 if (sizes.length !== 3 || sizes.some(isNaN)) {
                     errors.push(`第 ${lineNo} 行尺寸格式错误（需为 长*宽*高）: "${line}"`);
+                    failedLines.push(line);
                     continue;
                 }
                 // 用户输入: 长 * 宽 * 高
@@ -2249,6 +2252,7 @@
                 const sy = sizes[2];
                 if (sx <= 0 || sy <= 0 || sz <= 0) {
                     errors.push(`第 ${lineNo} 行尺寸需为正数: "${line}"`);
+                    failedLines.push(line);
                     continue;
                 }
                 newCargos.push({
@@ -2268,16 +2272,14 @@
                 const preview = errors.slice(0, 8).join('\n');
                 const more = errors.length > 8 ? `\n... 共 ${errors.length} 条错误` : '';
                 alert(`⚠️ 共 ${errors.length} 行解析失败，已跳过：\n\n${preview}${more}\n\n请检查格式：名称, 长*宽*高 (mm)`);
-                // 有错误条目 → 保留输入框内容供用户修改，后面返回 false 不清空
-                // 已成功解析的货物仍会添加（部分成功）
+                // 输入框只保留失败的行，成功的行已加入列表，从输入框移除
+                cargoInput.value = failedLines.join('\n');
             }
 
             if (!newCargos.length) {
                 alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm)');
                 return false;
             }
-
-            const hasErrors = errors.length > 0;
 
             const existingCount = state.cargos.length;
             state.cargos.push(...newCargos);
@@ -2304,7 +2306,11 @@
             rebuildCargoMeshes();
             updateStats();
             saveState();
-            return !hasErrors;
+            // 全部成功 → 清空输入框以便下次输入；部分成功已在 errors 分支设置 failedLines
+            if (!errors.length) {
+                cargoInput.value = '';
+            }
+            return true;
         }
 
         function clearAllCargos() {
@@ -2884,11 +2890,9 @@
 
         loadCargoBtn.addEventListener('click', () => {
             const text = cargoInput.value;
-            if (loadCargosFromText(text)) {
-                // 至少成功添加了一部分 → 清空输入框供下次输入
-                cargoInput.value = '';
-            }
-            // 全部失败 → 保留输入框内容供用户修改
+            loadCargosFromText(text);
+            // loadCargosFromText 内部已管理输入框内容：
+            // 全部成功 → 清空；部分失败 → 只保留失败行；全部失败 → 保留全部
         });
 
         exportBtn.addEventListener('click', exportLayout);
