@@ -66,7 +66,7 @@ def list_layouts():
                 )
             )
 
-        q = q.order_by(ContainerLayout.updated_at.desc())
+        q = q.order_by(ContainerLayout.created_at.desc())
         pagination = q.paginate(page=page, per_page=per_page, error_out=False)
 
         return jsonify({
