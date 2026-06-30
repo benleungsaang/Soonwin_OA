@@ -149,11 +149,21 @@ def generate_requirements_txt():
 
 
 def _resolve_yarn_cmd(front_src_path: Path) -> str | None:
-    """查找可用的 yarn 可执行文件路径。"""
-    if shutil.which("yarn"):
+    """查找可用的 yarn 可执行文件路径。
+
+    Windows 关键点：shutil.which('yarn') 会返回 'yarn'，但
+    subprocess.run(['yarn', ...]) 在 Windows 下不会自动补 .cmd 后缀，
+    会报 [WinError 2] 系统找不到指定的文件。所以必须确保返回的路径
+    在 Windows 上带 .cmd 后缀（且该文件实际存在）。
+    """
+    is_windows = sys.platform == "win32"
+
+    # 1) 优先 PATH 中的 yarn（Linux/macOS 直接可用）
+    if not is_windows and shutil.which("yarn"):
         return "yarn"
-    # Windows 下常见路径：项目本地 node_modules/.bin/yarn.cmd
-    candidates = [
+
+    # 2) Windows 下：依次尝试 yarn.cmd / yarn / yarn.ps1
+    candidates: list[Path | str] = [
         front_src_path / "node_modules" / ".bin" / "yarn.cmd",
         front_src_path / "node_modules" / ".bin" / "yarn",
         front_src_path / "node_modules" / ".bin" / "yarn.ps1",
@@ -161,6 +171,17 @@ def _resolve_yarn_cmd(front_src_path: Path) -> str | None:
     for c in candidates:
         if c.exists():
             return str(c)
+
+    # 3) Windows PATH 里的 yarn.cmd
+    if is_windows:
+        for name in ("yarn.cmd", "yarn.bat", "yarn.exe"):
+            found = shutil.which(name)
+            if found:
+                return found
+    else:
+        if shutil.which("yarn"):
+            return "yarn"
+
     return None
 
 
