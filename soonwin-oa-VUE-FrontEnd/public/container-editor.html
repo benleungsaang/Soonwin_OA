@@ -1073,12 +1073,42 @@
             container: { name: '40尺普柜', l: 12030, w: 2350, h: 2390 },
             cargos: [], // { id, name, sx, sy, sz, px, py, pz, color }
             cargoMeshes: [], // 与 cargos 同步
-            selectedCargo: null,
+            selectedCargo: null,             // 主选中（最近点击的，用于详情框/列表滚动）
+            selectedCargos: new Set(),      // 多选集合（Ctrl+点击增删，集体移动）
             colorIndex: 0,
             editIndex: -1,
             allowOverflow: false, // 临时允许货物超出货柜边界
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
+
+        // 选中集合的辅助方法
+        function clearSelection() {
+            state.selectedCargos.clear();
+            state.selectedCargo = null;
+        }
+        function isSelected(idx) {
+            return state.selectedCargos.has(idx);
+        }
+        function setOnlySelection(idx) {
+            state.selectedCargos.clear();
+            state.selectedCargos.add(idx);
+            state.selectedCargo = idx;
+        }
+        function toggleSelection(idx) {
+            if (state.selectedCargos.has(idx)) {
+                state.selectedCargos.delete(idx);
+                // 退回到另一个仍选中的作为主选中；若全清空则主选中也清空
+                if (state.selectedCargos.size === 0) {
+                    state.selectedCargo = null;
+                } else {
+                    // 取最后一个
+                    state.selectedCargo = Array.from(state.selectedCargos).pop();
+                }
+            } else {
+                state.selectedCargos.add(idx);
+                state.selectedCargo = idx;
+            }
+        }
 
         // 预设颜色板 (明亮)
         const COLOR_PALETTE = [
@@ -1546,7 +1576,7 @@
             dragObjects.forEach((obj, i) => {
                 if (obj.material) {
                     obj.material.emissiveIntensity =
-                        (i === state.selectedCargo) ? 0.5 : 0.08;
+                        isSelected(i) ? 0.5 : 0.08;
                 }
             });
         }
@@ -1567,7 +1597,7 @@
                 dragState.mesh = null;
                 dragState.cargoIdx = -1;
             }
-            state.selectedCargo = null;
+            clearSelection();
             controls.enabled = true;
             vpDeselectBtn.style.display = 'none';
             vpRotateBtn.style.display = 'none';
@@ -1618,12 +1648,12 @@
                     // 命中货物：两模式都弹菜单（旋转/跌落）
                     event.stopImmediatePropagation();
                     event.preventDefault();
-                    state.selectedCargo = hitIdx;
+                    setOnlySelection(hitIdx);
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
                     showCargoContextMenu(event.clientX, event.clientY, hitIdx);
-                } else if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                } else if (state.selectedCargos.size > 0) {
                     // 空白 + 有选中：两模式均取消选中
                     event.stopImmediatePropagation();
                     event.preventDefault();
@@ -1635,14 +1665,28 @@
 
             if (event.button !== 0) return;
 
+            const isMulti = event.ctrlKey || event.metaKey;
+
             if (state.interactionMode === 'direct') {
                 // ── 模式：即点即拖 ──
                 if (hitIdx >= 0) {
                     event.stopImmediatePropagation();
                     const mesh = dragObjects[hitIdx];
                     if (!mesh) return;
-                    const cargo = state.cargos[hitIdx];
-                    if (!cargo) return;
+
+                    // 选中状态：Ctrl 切换 / 普通 清空后只选这一个
+                    if (isMulti) {
+                        toggleSelection(hitIdx);
+                    } else {
+                        setOnlySelection(hitIdx);
+                    }
+
+                    // Ctrl+点中已选中的货物时，从集合中移除，可能剩 0 个
+                    if (state.selectedCargos.size === 0) {
+                        updateSelectionHighlight();
+                        renderCargoList();
+                        return;
+                    }
 
                     dragState.active = true;
                     dragState.mesh = mesh;
@@ -1660,14 +1704,13 @@
 
                     controls.enabled = false;
                     mesh.material.emissiveIntensity = 0.6;
-                    state.selectedCargo = hitIdx;
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
                 } else {
-                    // 点击空白 → 清除活动高亮，恢复 OrbitControls
-                    if (state.selectedCargo !== null) {
-                        state.selectedCargo = null;
+                    // 点击空白 → 清除所有选中，恢复 OrbitControls
+                    if (state.selectedCargos.size > 0) {
+                        clearSelection();
                         updateSelectionHighlight();
                         renderCargoList();
                     }
@@ -1676,96 +1719,84 @@
             }
 
             // ── 模式：点击选中 ──
-            if (state.selectedCargo === null || state.selectedCargo === undefined) {
-                if (hitIdx >= 0) {
-                    event.stopImmediatePropagation();
-                    state.selectedCargo = hitIdx;
-                    controls.enabled = false;
-                    updateSelectionHighlight();
-                    renderCargoList();
-                    scrollListToSelected();
-                    vpDeselectBtn.style.display = '';
-                }
-                return;
-            }
-
-            if (hitIdx >= 0 && hitIdx !== state.selectedCargo) {
+            if (hitIdx >= 0) {
                 event.stopImmediatePropagation();
-                state.selectedCargo = hitIdx;
+                if (isMulti) {
+                    toggleSelection(hitIdx);
+                } else {
+                    setOnlySelection(hitIdx);
+                }
                 controls.enabled = false;
                 updateSelectionHighlight();
                 renderCargoList();
                 scrollListToSelected();
+                vpDeselectBtn.style.display = '';
                 return;
             }
 
-            // 开始拖动选中的货物
-            event.stopImmediatePropagation();
-            const cargo = state.cargos[state.selectedCargo];
-            if (!cargo) return;
-            const mesh = dragObjects[state.selectedCargo];
-            if (!mesh) return;
-
-            dragState.active = true;
-            dragState.mesh = mesh;
-            dragState.cargoIdx = state.selectedCargo;
-            dragState.startMeshPos.copy(mesh.position);
-            dragState.startMouse.set(event.clientX, event.clientY);
-            dragState.useVertical = isShiftDown;
-
-            // 关键：offset 一律用"按下时鼠标在拖动平面上的交点 - mesh 中心"。
-            // 避免 intersects[0].point（表面点）造成的初始位置漂移。
-            updateDragPlane();
-            const _startPt = new THREE.Vector3();
-            if (dragRaycaster.ray.intersectPlane(dragState.plane, _startPt)) {
-                dragState.offset.copy(_startPt).sub(dragState.mesh.position);
-            } else {
-                dragState.offset.set(0, 0, 0);
+            // 空白区域点击：清空选中
+            if (state.selectedCargos.size > 0) {
+                deselectCargo();
             }
-            mesh.material.emissiveIntensity = 0.6;
         }
 
         function onCanvasMouseMove(event) {
             if (!dragState.active) return;
 
-            const cargo = state.cargos[dragState.cargoIdx];
-            if (!cargo) return;
+            const refIdx = dragState.cargoIdx;
+            const refCargo = state.cargos[refIdx];
+            if (!refCargo) return;
 
             screenToNDC(event.clientX, event.clientY);
             dragRaycaster.setFromCamera(dragMouseNDC, camera);
             const intersection = new THREE.Vector3();
             if (!dragRaycaster.ray.intersectPlane(dragState.plane, intersection)) return;
 
-            // mesh 新中心位置 = 击中点 - offset
+            // 1) 先按"参考货物"算它的新中心（与 offset 无关的 delta 算法）
             const newCenter = intersection.sub(dragState.offset);
-            const sx = cargo.sx, sy = cargo.sy, sz = cargo.sz;
-
-            let nextPx, nextPy, nextPz;
-
+            let refNextPx, refNextPy, refNextPz;
+            const sx = refCargo.sx, sy = refCargo.sy, sz = refCargo.sz;
             if (dragState.useVertical) {
-                // 垂直拖动（Shift）：仅提取 Y 增量，保持 XZ 不变
                 const deltaY = newCenter.y - dragState.startMeshPos.y;
-                nextPx = dragState.startMeshPos.x - sx / 2;
-                nextPy = dragState.startMeshPos.y - sy / 2 + deltaY;
-                nextPz = dragState.startMeshPos.z - sz / 2;
+                refNextPx = dragState.startMeshPos.x - sx / 2;
+                refNextPy = dragState.startMeshPos.y - sy / 2 + deltaY;
+                refNextPz = dragState.startMeshPos.z - sz / 2;
             } else {
-                // 水平拖动（默认）：锁定 Y 高度，仅移动 XZ
-                const fixedY = cargo.py + sy / 2;
-                nextPx = newCenter.x - sx / 2;
-                nextPy = fixedY - sy / 2;
-                nextPz = newCenter.z - sz / 2;
+                const fixedY = refCargo.py + sy / 2;
+                refNextPx = newCenter.x - sx / 2;
+                refNextPy = fixedY - sy / 2;
+                refNextPz = newCenter.z - sz / 2;
             }
-
             if (!state.allowOverflow) {
-                nextPx = Math.max(0, Math.min(state.container.l - sx, nextPx));
-                nextPy = Math.max(0, Math.min(state.container.h - sy, nextPy));
-                nextPz = Math.max(0, Math.min(state.container.w - sz, nextPz));
+                refNextPx = Math.max(0, Math.min(state.container.l - sx, refNextPx));
+                refNextPy = Math.max(0, Math.min(state.container.h - sy, refNextPy));
+                refNextPz = Math.max(0, Math.min(state.container.w - sz, refNextPz));
             }
 
-            cargo.px = nextPx;
-            cargo.py = nextPy;
-            cargo.pz = nextPz;
-            dragState.mesh.position.set(nextPx + sx / 2, nextPy + sy / 2, nextPz + sz / 2);
+            // 2) 计算参考货物的位移 delta，再应用到所有选中货物
+            const dx = refNextPx - refCargo.px;
+            const dy = refNextPy - refCargo.py;
+            const dz = refNextPz - refCargo.pz;
+
+            // 应用到所有选中的货物（保持相对位置）
+            const movingIdxs = state.selectedCargos.has(refIdx)
+                ? Array.from(state.selectedCargos)
+                : [refIdx];
+            for (const idx of movingIdxs) {
+                const c = state.cargos[idx];
+                if (!c) continue;
+                let px = c.px + dx;
+                let py = c.py + dy;
+                let pz = c.pz + dz;
+                if (!state.allowOverflow) {
+                    px = Math.max(0, Math.min(state.container.l - c.sx, px));
+                    py = Math.max(0, Math.min(state.container.h - c.sy, py));
+                    pz = Math.max(0, Math.min(state.container.w - c.sz, pz));
+                }
+                c.px = px; c.py = py; c.pz = pz;
+                const m = dragObjects[idx];
+                if (m) m.position.set(px + c.sx / 2, py + c.sy / 2, pz + c.sz / 2);
+            }
 
             renderCargoList();
             updateStats();
@@ -1905,7 +1936,7 @@
             state.cargos.forEach((c, idx) => {
                 const div = document.createElement('div');
                 div.className = 'cargo-item';
-                if (state.selectedCargo === idx) {
+                if (isSelected(idx)) {
                     div.classList.add('selected');
                 }
                 div.innerHTML = `
@@ -1944,8 +1975,18 @@
                     if (!isNaN(idx)) {
                         if (confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) {
                             state.cargos.splice(idx, 1);
-                            if (state.selectedCargo === idx) state.selectedCargo = null;
-                            else if (state.selectedCargo > idx) state.selectedCargo--;
+                            // 同步清理多选集合
+                            if (state.selectedCargos.has(idx)) state.selectedCargos.delete(idx);
+                            // 把 > idx 的索引下移
+                            const shifted = new Set();
+                            state.selectedCargos.forEach(v => shifted.add(v > idx ? v - 1 : v));
+                            state.selectedCargos = shifted;
+                            if (state.selectedCargo === idx) {
+                                state.selectedCargo = state.selectedCargos.size > 0
+                                    ? Array.from(state.selectedCargos).pop() : null;
+                            } else if (state.selectedCargo !== null && state.selectedCargo > idx) {
+                                state.selectedCargo -= 1;
+                            }
                             rebuildCargoMeshes();
                             updateStats();
                             saveState();
@@ -1966,10 +2007,14 @@
                 });
             });
 
-            // 点击货物项选中
+            // 点击货物项选中（Ctrl 多选）
             list.querySelectorAll('.cargo-item').forEach((item, idx) => {
-                item.addEventListener('click', () => {
-                    state.selectedCargo = idx;
+                item.addEventListener('click', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        toggleSelection(idx);
+                    } else {
+                        setOnlySelection(idx);
+                    }
                     controls.enabled = false;
                     updateSelectionHighlight();
                     renderCargoList();
@@ -1980,29 +2025,35 @@
             cargoCount.textContent = state.cargos.length;
             infoCargoCount.textContent = state.cargos.length;
 
-            // 工具栏按钮可见性
-            const isActive = state.selectedCargo !== null && state.selectedCargo !== undefined &&
-                state.selectedCargo >= 0 && state.selectedCargo < state.cargos.length;
+            // 工具栏按钮可见性（多选时也显示）
+            const hasSelected = state.selectedCargos.size > 0;
 
-            // 旋转按钮：两种模式都可显示
-            vpRotateBtn.style.display = isActive ? '' : 'none';
+            // 旋转按钮：有选中时显示
+            vpRotateBtn.style.display = hasSelected ? '' : 'none';
 
-            // 跌落按钮：有活动货物时显示
-            vpDropBtn.style.display = isActive ? '' : 'none';
+            // 跌落按钮：有选中时显示
+            vpDropBtn.style.display = hasSelected ? '' : 'none';
 
             // 取消选中按钮：仅"点击选中"模式 + 有选中时
-            vpDeselectBtn.style.display = (state.interactionMode === 'select' && isActive) ? '' : 'none';
+            vpDeselectBtn.style.display = (state.interactionMode === 'select' && hasSelected) ? '' : 'none';
 
             // 更新选中信息 + 动态提示 + 详情框
             const inDirect = state.interactionMode === 'direct';
             const detailEl = $('#viewport-info-detail');
-            if (isActive) {
-                // 更新详情框
+            if (hasSelected) {
+                // 更新详情框（显示主选中货物信息 + 选中计数）
+                const selCount = state.selectedCargos.size;
                 const c = state.cargos[state.selectedCargo];
-                detailIndex.textContent = `#${state.selectedCargo + 1}`;
-                detailName.textContent = c.name;
-                detailSize.textContent = `${c.sx} × ${c.sz} × ${c.sy} mm`;
-                detailPos.textContent = `(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})`;
+                if (c) {
+                    detailIndex.textContent = `#${state.selectedCargo + 1}`;
+                    detailName.textContent = c.name;
+                    detailSize.textContent = `${c.sx} × ${c.sz} × ${c.sy} mm`;
+                    detailPos.textContent = `(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})`;
+                }
+                // 多选时在名称后加计数标记
+                if (selCount > 1) {
+                    detailName.textContent = c ? `${c.name} +${selCount - 1}` : `${selCount}个选中`;
+                }
                 detailEl.style.display = 'block';
                 hintEl.textContent = inDirect
                     ? '🖱 拖动移动货物 · Shift+垂直 · 滚轮缩放'
@@ -2173,7 +2224,7 @@
             if (state.cargos.length && !confirm('确定清空所有货物吗？')) return;
             state.cargos = [];
             state.colorIndex = 0;
-            state.selectedCargo = null;
+            clearSelection();
             controls.enabled = true;
             rebuildCargoMeshes();
             updateStats();
@@ -2411,7 +2462,7 @@
                 }
             }
 
-            state.selectedCargo = null;
+            clearSelection();
             controls.enabled = true;
             rebuildCargoMeshes();
             updateStats();
@@ -2503,7 +2554,7 @@
                         state.allowOverflow = !!data.allowOverflow;
                         state.interactionMode = data.interactionMode || 'direct';
                         state.colorIndex = data.colorIndex || state.cargos.length;
-                        state.selectedCargo = null;
+                        clearSelection();
 
                         // 同步 UI
                         customL.value = state.container.l;
@@ -2594,7 +2645,7 @@
             state.allowOverflow = !!data.allowOverflow;
             state.interactionMode = data.interactionMode || 'direct';
             state.colorIndex = data.colorIndex || state.cargos.length;
-            state.selectedCargo = null;
+            clearSelection();
         }
 
         function getToken() {
@@ -2756,16 +2807,19 @@
         saveAsBtn.addEventListener('click', saveAsNew);
         vpDeselectBtn.addEventListener('click', deselectCargo);
         vpRotateBtn.addEventListener('click', () => {
-            if (state.selectedCargo !== null && state.selectedCargo >= 0 &&
-                state.selectedCargo < state.cargos.length) {
-                rotateCargo(state.selectedCargo);
+            // 多选：依次对每个选中货物执行
+            if (state.selectedCargos.size > 0) {
+                state.selectedCargos.forEach(idx => {
+                    if (idx >= 0 && idx < state.cargos.length) rotateCargo(idx);
+                });
                 renderCargoList();
             }
         });
         vpDropBtn.addEventListener('click', () => {
-            if (state.selectedCargo !== null && state.selectedCargo >= 0 &&
-                state.selectedCargo < state.cargos.length) {
-                dropCargo(state.selectedCargo);
+            if (state.selectedCargos.size > 0) {
+                state.selectedCargos.forEach(idx => {
+                    if (idx >= 0 && idx < state.cargos.length) dropCargo(idx);
+                });
                 renderCargoList();
             }
         });
@@ -3007,7 +3061,7 @@
 
             // Escape：取消选中
             if (e.key === 'Escape') {
-                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
+                if (state.selectedCargos.size > 0) {
                     deselectCargo();
                     e.preventDefault();
                 }
@@ -3015,18 +3069,20 @@
             }
 
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
-                    const idx = state.selectedCargo;
-                    if (idx >= 0 && idx < state.cargos.length) {
-                        if (confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) {
+                if (state.selectedCargos.size > 0) {
+                    const count = state.selectedCargos.size;
+                    if (confirm(`确定删除选中的 ${count} 个货物吗？`)) {
+                        // 从大到小排序，从后往前删（避免索引漂移）
+                        const sorted = Array.from(state.selectedCargos).sort((a, b) => b - a);
+                        for (const idx of sorted) {
                             state.cargos.splice(idx, 1);
-                            state.selectedCargo = null;
-                            controls.enabled = true;
-                            rebuildCargoMeshes();
-                            updateStats();
-                            saveState();
-                            e.preventDefault();
                         }
+                        clearSelection();
+                        controls.enabled = true;
+                        rebuildCargoMeshes();
+                        updateStats();
+                        saveState();
+                        e.preventDefault();
                     }
                 }
                 return;
@@ -3041,12 +3097,13 @@
 
             // R 键：水平旋转 90°
             if (e.key === 'r' || e.key === 'R') {
-                if (state.selectedCargo !== null && state.selectedCargo !== undefined) {
-                    const idx = state.selectedCargo;
-                    if (idx >= 0 && idx < state.cargos.length) {
-                        rotateCargo(idx);
-                        e.preventDefault();
-                    }
+                if (state.selectedCargos.size > 0) {
+                    state.selectedCargos.forEach(idx => {
+                        if (idx >= 0 && idx < state.cargos.length) rotateCargo(idx);
+                    });
+                    rebuildCargoMeshes();
+                    updateStats();
+                    e.preventDefault();
                 }
             }
         });
