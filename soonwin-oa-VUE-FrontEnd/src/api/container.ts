@@ -3,6 +3,10 @@ import request from '@/utils/request'
 /**
  * 货柜排布方案相关 API
  * 路径前缀：/api/container-layouts
+ *
+ * 重要：request.ts 拦截器会自动解包后端响应的 `data` 字段，
+ * 所以前端拿到的就是后端的 data 内容，不再有 success/data 包装。
+ * 错误（非 2xx 响应）由拦截器统一处理（ElMessage 提示并 reject）。
  */
 
 /** 单个货柜的尺寸数据 */
@@ -44,9 +48,9 @@ export interface ContainerLayoutDetail extends ContainerLayout {
   data: ContainerData
 }
 
-/** 列表分页响应 */
-export interface ListResponse<T> {
-  items: T[]
+/** 列表分页响应（后端 data 字段，request 已解包） */
+export interface ListResponse {
+  items: ContainerLayout[]
   total: number
   page: number
   per_page: number
@@ -61,58 +65,45 @@ export interface ListLayoutsParams {
   scope?: 'mine' | 'all'
 }
 
-/** 通用响应 */
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  message?: string
-}
-
 /**
  * 获取货柜排布方案列表
+ * 返回：ListResponse（后端 data 已解包）
  */
 export function listContainerLayouts(params: ListLayoutsParams) {
-  return request.get<ApiResponse<ListResponse<ContainerLayout>>>(
-    '/api/container-layouts',
-    { params }
-  )
+  return request.get<ListResponse>('/api/container-layouts', { params })
 }
 
 /**
  * 获取单个方案详情（含完整布局数据）
+ * 返回：ContainerLayoutDetail（后端 data 已解包）
  */
 export function getContainerLayout(id: number) {
-  return request.get<ApiResponse<ContainerLayoutDetail>>(
-    `/api/container-layouts/${id}`
-  )
+  return request.get<ContainerLayoutDetail>(`/api/container-layouts/${id}`)
 }
 
 /**
  * 创建方案（仅创建元数据，data 字段可选）
+ * 返回：ContainerLayoutDetail（后端 data 已解包）
  */
 export function createContainerLayout(body: { name: string; data?: ContainerData }) {
-  return request.post<ApiResponse<ContainerLayoutDetail>>(
-    '/api/container-layouts',
-    body
-  )
+  return request.post<ContainerLayoutDetail>('/api/container-layouts', body)
 }
 
 /**
  * 更新方案（仅作者或管理员）
+ * 返回：ContainerLayoutDetail（后端 data 已解包）
  */
 export function updateContainerLayout(
   id: number,
   body: { data?: ContainerData; name?: string }
 ) {
-  return request.put<ApiResponse<ContainerLayoutDetail>>(
-    `/api/container-layouts/${id}`,
-    body
-  )
+  return request.put<ContainerLayoutDetail>(`/api/container-layouts/${id}`, body)
 }
 
 /**
  * 删除方案（仅作者或管理员，软删除）
+ * 返回：null（后端 data 通常为 None）
  */
 export function deleteContainerLayout(id: number) {
-  return request.delete<ApiResponse<null>>(`/api/container-layouts/${id}`)
+  return request.delete<null>(`/api/container-layouts/${id}`)
 }

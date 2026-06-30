@@ -2370,7 +2370,8 @@
             if (!resp.ok || json.success === false) {
                 throw new Error(json.message || `HTTP ${resp.status}`);
             }
-            return json;
+            // 统一行为：解包后端 data 字段，与前端 request.ts 一致
+            return json.data;
         }
 
         async function apiSend(method, path, body) {
@@ -2388,7 +2389,7 @@
             if (!resp.ok || json.success === false) {
                 throw new Error(json.message || `HTTP ${resp.status}`);
             }
-            return json;
+            return json.data;
         }
 
         // 保存到云端（覆盖当前方案）
@@ -2406,8 +2407,8 @@
                 const origText = saveBtn.textContent;
                 saveBtn.textContent = '⏳ 保存中...';
                 const data = buildLayoutData();
-                const json = await apiSend('PUT', `/api/container-layouts/${currentLayoutMeta.id}`, { data });
-                currentLayoutMeta = json.data;
+                // apiSend 已解包 → 返回 ContainerLayoutDetail
+                currentLayoutMeta = await apiSend('PUT', `/api/container-layouts/${currentLayoutMeta.id}`, { data });
                 saveBtn.textContent = '✅ 已保存';
                 setTimeout(() => {
                     saveBtn.textContent = origText;
@@ -2438,8 +2439,8 @@
                 return;
             }
             try {
-                const json = await apiSend('POST', '/api/container-layouts', { name: trimmed, data });
-                currentLayoutMeta = json.data;
+                // apiSend 已解包 → 返回 ContainerLayoutDetail
+                currentLayoutMeta = await apiSend('POST', '/api/container-layouts', { name: trimmed, data });
                 saveBtn.disabled = !currentLayoutMeta.is_owner;
                 alert('已创建方案「' + trimmed + '」，请在 OA 列表页刷新查看。');
                 // 更新 URL 使后续刷新仍能定位到该方案
@@ -2603,8 +2604,8 @@
                 // 通过云端 API 加载指定方案
                 try {
                     document.body.style.cursor = 'wait';
-                    const json = await apiGet(`/api/container-layouts/${layoutId}`);
-                    const meta = json.data;
+                    // apiGet 已解包后端 data 字段 → 返回 ContainerLayoutDetail
+                    const meta = await apiGet(`/api/container-layouts/${layoutId}`);
                     const data = meta.data;
                     if (!data) throw new Error('方案数据为空');
 

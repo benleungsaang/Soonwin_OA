@@ -166,21 +166,19 @@ const isAdmin = computed(() => userInfo?.user_role === 'admin')
 async function fetchList() {
   loading.value = true
   try {
+    // request 拦截器已自动解包后端 data 字段
+    // resp 直接是 {items, total, page, per_page, total_pages}
     const resp = await listContainerLayouts({
       page: page.value,
       per_page: perPage.value,
       search: search.value || undefined,
       scope: scope.value,
     })
-    if (resp?.success) {
-      list.value = resp.data?.items || []
-      total.value = resp.data?.total || 0
-    } else {
-      ElMessage.error(resp?.message || '加载失败')
-    }
+    list.value = resp?.items || []
+    total.value = resp?.total || 0
   } catch (e: any) {
     console.error('fetchContainerLayouts error:', e)
-    ElMessage.error(e?.message || '网络错误')
+    // request 拦截器已通过 ElMessage 提示错误，这里不重复
   } finally {
     loading.value = false
   }
@@ -204,19 +202,15 @@ async function handleCreate() {
   }
   creating.value = true
   try {
+    // resp 是解包后的 ContainerLayoutDetail
     const resp = await createContainerLayout({ name })
-    if (resp?.success && resp.data) {
-      ElMessage.success('已创建，正在打开编辑器...')
-      createDialogVisible.value = false
-      const newId = resp.data.id
-      // 异步打开编辑器，不阻塞 UI
-      setTimeout(() => openEditorById(newId), 100)
-      fetchList()
-    } else {
-      ElMessage.error(resp?.message || '创建失败')
-    }
+    ElMessage.success('已创建，正在打开编辑器...')
+    createDialogVisible.value = false
+    const newId = resp.id
+    setTimeout(() => openEditorById(newId), 100)
+    fetchList()
   } catch (e: any) {
-    ElMessage.error(e?.message || '网络错误')
+    console.error('createContainerLayout error:', e)
   } finally {
     creating.value = false
   }
@@ -260,28 +254,20 @@ async function handleSaveAs() {
   }
   savingAs.value = true
   try {
-    // 1) 拉取原方案数据
+    // 1) 拉取原方案数据（resp 是 ContainerLayoutDetail）
     const srcResp = await getContainerLayout(saveAsForm.value.sourceId)
-    if (!srcResp?.success || !srcResp.data) {
-      ElMessage.error(srcResp?.message || '原方案加载失败')
-      return
-    }
     // 2) 用新名 + 同一份 data 创建
     const createResp = await createContainerLayout({
       name: newName,
-      data: srcResp.data.data,
+      data: srcResp.data,
     })
-    if (createResp?.success && createResp.data) {
-      ElMessage.success('已另存为新方案，正在打开编辑器...')
-      saveAsDialogVisible.value = false
-      const newId = createResp.data.id
-      setTimeout(() => openEditorById(newId), 100)
-      fetchList()
-    } else {
-      ElMessage.error(createResp?.message || '另存为失败')
-    }
+    ElMessage.success('已另存为新方案，正在打开编辑器...')
+    saveAsDialogVisible.value = false
+    const newId = createResp.id
+    setTimeout(() => openEditorById(newId), 100)
+    fetchList()
   } catch (e: any) {
-    ElMessage.error(e?.message || '网络错误')
+    console.error('saveAs error:', e)
   } finally {
     savingAs.value = false
   }
@@ -299,19 +285,15 @@ async function handleDelete(row: ContainerLayout) {
     return // 取消
   }
   try {
-    const resp = await deleteContainerLayout(row.id)
-    if (resp?.success) {
-      ElMessage.success('已删除')
-      // 列表分页位置调整：删完最后一页最后一条时回退一页
-      if (list.value.length === 1 && page.value > 1) {
-        page.value -= 1
-      }
-      fetchList()
-    } else {
-      ElMessage.error(resp?.message || '删除失败')
+    await deleteContainerLayout(row.id)
+    ElMessage.success('已删除')
+    // 列表分页位置调整：删完最后一页最后一条时回退一页
+    if (list.value.length === 1 && page.value > 1) {
+      page.value -= 1
     }
+    fetchList()
   } catch (e: any) {
-    ElMessage.error(e?.message || '网络错误')
+    console.error('deleteContainerLayout error:', e)
   }
 }
 
