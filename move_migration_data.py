@@ -147,6 +147,75 @@ def generate_requirements_txt():
     except Exception as e:
         print(f"[错误] 生成requirements.txt失败: {e}")
 
+
+def _resolve_yarn_cmd(front_src_path: Path) -> str | None:
+    """查找可用的 yarn 可执行文件路径。"""
+    if shutil.which("yarn"):
+        return "yarn"
+    # Windows 下常见路径：项目本地 node_modules/.bin/yarn.cmd
+    candidates = [
+        front_src_path / "node_modules" / ".bin" / "yarn.cmd",
+        front_src_path / "node_modules" / ".bin" / "yarn",
+        front_src_path / "node_modules" / ".bin" / "yarn.ps1",
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return None
+
+
+def build_frontend_static():
+    """询问用户是否执行前端 `yarn build:prod` 生成最新静态文件。
+
+    输入 y / Y / 1 才会执行；直接回车或其它字符都不生成，使用现有 dist。
+    """
+    print_separator()
+    print("          前端静态文件生成（yarn build:prod）")
+    print_separator()
+    confirm = input(
+        "\n是否执行前端 yarn build:prod 生成最新静态文件？\n"
+        "（输入 y / Y / 1 执行；直接回车或其它字符跳过，使用现有 dist）: "
+    ).strip()
+    if confirm not in ("y", "Y", "1"):
+        print("[跳过] 不生成前端静态文件，将使用现有的 dist 目录。")
+        return False
+
+    front_src_path = Path(FRONT_SRC)
+    if not front_src_path.exists():
+        print(f"[错误] 前端源目录不存在: {front_src_path}")
+        return False
+
+    yarn_cmd = _resolve_yarn_cmd(front_src_path)
+    if yarn_cmd is None:
+        print("[错误] 未找到 yarn 命令，请先安装（npm install -g yarn）或在项目 node_modules 中放置。")
+        return False
+
+    print(f"\n[执行] 工作目录: {front_src_path}")
+    print(f"[执行] 命令: {yarn_cmd} build:prod")
+    try:
+        # 不加 check=True 让我们能拿到 returncode 自行判断
+        result = subprocess.run(
+            [yarn_cmd, "build:prod"],
+            cwd=str(front_src_path),
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"[错误] yarn build:prod 执行失败，退出码: {result.returncode}")
+            return False
+
+        dist_path = front_src_path / "dist"
+        if not dist_path.exists():
+            print(f"[错误] 预期生成 dist 目录但未找到: {dist_path}")
+            return False
+        print(f"[成功] 前端静态文件已生成: {dist_path}")
+        return True
+    except FileNotFoundError as e:
+        print(f"[错误] 启动 yarn 失败: {e}")
+        return False
+    except Exception as e:
+        print(f"[错误] 执行 yarn build:prod 失败: {e}")
+        return False
+
 def copy_file(src: Path, dest: Path):
     """复制单个文件，带错误处理"""
     try:
@@ -270,6 +339,10 @@ def full_deploy_sync():
     """完整的迁移包同步功能（原脚本核心逻辑）"""
     # 1. 生成最新requirements.txt（可选）
     generate_requirements_txt()
+
+    # 1.5 询问是否执行前端 yarn build:prod 生成最新静态文件
+    #     输入 y / Y / 1 才会执行；直接回车或其它字符不生成
+    build_frontend_static()
 
     # 2. 前置检查
     print_separator()
