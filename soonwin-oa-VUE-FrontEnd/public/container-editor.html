@@ -951,7 +951,7 @@
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span><span class="tb-dropdown-hint">移除所有货物</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span><span class="tb-dropdown-hint">货物靠原点重新排布</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span><span class="tb-dropdown-hint">以导入格式复制到剪贴板</span></div></div></div></span></div>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div></div></div></span></div>
                 <div class="cargo-list-container" id="cargoList"></div>
             </div>
 
@@ -2558,7 +2558,7 @@
         function setContainer(name, l, w, h) {
             state.container = { name, l, w, h };
             if (state.cargos.length) {
-                autoLayout(state.cargos);
+                // 切换货柜时保持货物已有位置不变，仅重绘场景
                 rebuildCargoMeshes();
             }
             buildScene();
@@ -2921,11 +2921,7 @@
                     cargoInput.select();
                     document.execCommand('copy');
                     cargoInput.value = oldVal;
-                    const orig = item.querySelector('.tb-dropdown-label').textContent;
-                    item.querySelector('.tb-dropdown-label').textContent = '✅ 已复制';
-                    setTimeout(() => {
-                        item.querySelector('.tb-dropdown-label').textContent = orig;
-                    }, 2000);
+                    alert('✅ 已复制到剪贴板');
                 }
             });
         });
