@@ -1448,35 +1448,33 @@
                 label.position.set(0, sy / 2 + 60, 0);
                 mesh.add(label);
 
-                // ---- 出界高亮检测 ----
-                const outX = px < 0 || px + sx > l;
-                const outY = py < 0 || py + sy > h;
-                const outZ = pz < 0 || pz + sz > w;
-                if (outX || outY || outZ) {
-                    // 在出界货物外围叠加一个显眼的红色警告框
-                    const overGeo = new THREE.BoxGeometry(sx + 6, sy + 6, sz + 6);
-                    const overMat = new THREE.MeshBasicMaterial({
-                        color: 0xff2200,
-                        transparent: true,
-                        opacity: 0.25,
-                        wireframe: false,
-                    });
-                    const overMesh = new THREE.Mesh(overGeo, overMat);
-                    overMesh.position.copy(mesh.position);
-                    cargoGroup.add(overMesh);
+                // ---- 异常高亮子节点（持续检测用） ----
+                // 半透明红色覆盖体 + 红色粗线框，初始不可见。
+                // 由 animate() 中的 checkOverlapsAndOutOfBounds() 每帧
+                // 根据出界/交叉状态切换 visible。
+                const overGeo = new THREE.BoxGeometry(sx, sy, sz);
+                const overMat = new THREE.MeshBasicMaterial({
+                    color: 0xff2200,
+                    transparent: true,
+                    opacity: 0.30,
+                    depthWrite: false,
+                });
+                const outOverlay = new THREE.Mesh(overGeo, overMat);
+                outOverlay.visible = false;
+                mesh.add(outOverlay);  // 跟随 mesh 移动/旋转
 
-                    // 红色粗线框
-                    const overEdges = new THREE.EdgesGeometry(overGeo);
-                    const overEdgeMat = new THREE.LineBasicMaterial({
-                        color: 0xff0000,
-                        transparent: true,
-                        opacity: 0.9,
-                        linewidth: 2,
-                    });
-                    const overWire = new THREE.LineSegments(overEdges, overEdgeMat);
-                    overWire.position.copy(mesh.position);
-                    cargoGroup.add(overWire);
-                }
+                const overEdges = new THREE.EdgesGeometry(overGeo);
+                const overEdgeMat = new THREE.LineBasicMaterial({
+                    color: 0xff0000,
+                    transparent: true,
+                    opacity: 0.9,
+                });
+                const outOverlayEdges = new THREE.LineSegments(overEdges, overEdgeMat);
+                outOverlayEdges.visible = false;
+                mesh.add(outOverlayEdges);
+
+                mesh.userData.outOverlay = outOverlay;
+                mesh.userData.outOverlayEdges = outOverlayEdges;
             });
 
             // 自定义拖动：dragObjects 在 mousedown 时直接 raycaster 拾取
@@ -2936,6 +2934,7 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            checkOverlapsAndOutOfBounds();
             renderer.render(scene, camera);
 
             // 更新轴指示器：与主相机同方向
@@ -2944,6 +2943,58 @@
             axesCam.position.copy(dir).multiplyScalar(-axesDist);
             axesCam.lookAt(0, 0, 0);
             axesRenderer.render(axesScene, axesCam);
+        }
+
+        // ============================================================
+        //  持续检测：出界 / 与其他货物交叉
+        //  - 静止、移动、旋转时均实时反映
+        //  - 通过 outOverlay/outOverlayEdges 子节点的 visible 切换
+        // ============================================================
+        function checkOverlapsAndOutOfBounds() {
+            const cargos = state.cargos;
+            const n = cargos.length;
+            if (n === 0) return;
+
+            const { l, w, h } = state.container;
+
+            // 先计算每个货物的"异常"状态（出界或交叉）
+            const bad = new Array(n).fill(false);
+
+            for (let i = 0; i < n; i++) {
+                const c = cargos[i];
+                // 出界：任一方向上伸出货柜
+                if (c.px < 0 || c.px + c.sx > l ||
+                    c.py < 0 || c.py + c.sy > h ||
+                    c.pz < 0 || c.pz + c.sz > w) {
+                    bad[i] = true;
+                }
+            }
+
+            // 交叉：AABB 三轴都重叠视为交叉（A 交 B 时 A、B 都标红）
+            for (let i = 0; i < n; i++) {
+                const a = cargos[i];
+                for (let j = i + 1; j < n; j++) {
+                    const b = cargos[j];
+                    const overlapX = a.px < b.px + b.sx && a.px + a.sx > b.px;
+                    const overlapY = a.py < b.py + b.sy && a.py + a.sy > b.py;
+                    const overlapZ = a.pz < b.pz + b.sz && a.pz + a.sz > b.pz;
+                    if (overlapX && overlapY && overlapZ) {
+                        bad[i] = true;
+                        bad[j] = true;
+                    }
+                }
+            }
+
+            // 应用到 mesh 的 outOverlay 子节点
+            for (let i = 0; i < n; i++) {
+                const m = dragObjects[i];
+                if (!m || !m.userData) continue;
+                const o = m.userData.outOverlay;
+                const e = m.userData.outOverlayEdges;
+                const show = bad[i];
+                if (o) o.visible = show;
+                if (e) e.visible = show;
+            }
         }
 
         init();
