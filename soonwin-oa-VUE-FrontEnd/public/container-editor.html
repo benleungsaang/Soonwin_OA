@@ -1946,8 +1946,8 @@
                 if (m) m.position.set(px + c.sx / 2, py + c.sy / 2, pz + c.sz / 2);
             }
 
-            renderCargoList();
-            updateStats();
+            // 高频 mousemove 期间用 rAF 合帧，避免每帧都 innerHTML + 容积求和
+            scheduleStatsUpdate();
         }
 
         function onCanvasMouseUp(event) {
@@ -2213,6 +2213,19 @@
                     ? '🖱 点击货物即拖 · 按着 CTRL 多选货物 · 右键平移'
                     : '🖱 点击货物选中拖动 · 按着 CTRL 多选货物 · 右键平移';
             }
+        }
+
+        // rAF 节流的 UI 更新：高频 mousemove 期间合并多次调用，每帧最多执行一次，
+        // 避免反复触发 layout / reflow，消除"快速交叉时短暂卡顿"。
+        let _statsRafPending = false;
+        function scheduleStatsUpdate() {
+            if (_statsRafPending) return;
+            _statsRafPending = true;
+            requestAnimationFrame(() => {
+                _statsRafPending = false;
+                renderCargoList();
+                updateStats();
+            });
         }
 
         function updateStats() {
