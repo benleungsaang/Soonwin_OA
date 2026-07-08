@@ -297,6 +297,106 @@
             min-height: 0;
         }
 
+        /* 智能排布结果浮窗（右侧常驻） */
+        .pack-panel {
+            position: fixed;
+            top: 80px;
+            right: 12px;
+            width: 320px;
+            max-height: calc(100vh - 100px);
+            background: #16213e;
+            border: 1px solid rgba(255,170,68,0.3);
+            border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            color: #e0e0e0;
+        }
+        .pack-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,170,68,0.15);
+            background: rgba(255,170,68,0.06);
+            border-radius: 8px 8px 0 0;
+        }
+        .pack-panel-title { font-weight: bold; }
+        .pack-panel-close {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 4px;
+        }
+        .pack-panel-close:hover { color: #ffaa44; }
+        .pack-panel-meta {
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #888;
+            line-height: 1.6;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .pack-panel-actions {
+            display: flex;
+            gap: 6px;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .pack-panel-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px;
+        }
+        .pack-panel-item {
+            padding: 8px 10px;
+            margin: 4px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .pack-panel-item:hover {
+            background: rgba(255,170,68,0.1);
+            border-color: rgba(255,170,68,0.3);
+        }
+        .pack-panel-item.previewing {
+            background: rgba(255,170,68,0.18);
+            border-color: #ffaa44;
+        }
+        .pack-panel-item .row1 {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .pack-panel-item .row1 .num {
+            color: #ffaa44;
+            font-weight: bold;
+        }
+        .pack-panel-item .row2 {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.5;
+        }
+        .pack-panel-item .row3 {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .pack-panel-footer {
+            padding: 8px 12px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 12px;
+            color: #888;
+            min-height: 32px;
+            border-radius: 0 0 8px 8px;
+        }
+
         .cargo-list-container {
             flex: 1;
             min-height: 0;
@@ -1103,29 +1203,20 @@
         </div>
     </div>
 
-    <!-- 智能排布候选方案 modal -->
-    <div class="modal-overlay" id="packResultModal">
-        <div class="modal" style="min-width:560px;max-width:760px;">
-            <h2>🎲 智能排布候选方案</h2>
-            <div id="packResultSummary" style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;"></div>
-            <div style="max-height:420px;overflow-y:auto;">
-                <table id="packResultTable" style="width:100%;font-size:13px;border-collapse:collapse;">
-                    <thead>
-                        <tr style="border-bottom:1px solid #333;color:#aaa;text-align:left;">
-                            <th style="padding:6px 4px;">#</th>
-                            <th style="padding:6px 4px;">体积利用率</th>
-                            <th style="padding:6px 4px;">出界数</th>
-                            <th style="padding:6px 4px;">完全出界</th>
-                            <th style="padding:6px 4px;">耗时</th>
-                            <th style="padding:6px 4px;text-align:right;">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="packResultBody"></tbody>
-                </table>
-            </div>
-            <div class="modal-actions">
-                <button class="btn" id="packResultCloseBtn">关闭</button>
-            </div>
+    <!-- 智能排布结果浮窗（右侧常驻） -->
+    <div id="packPanel" class="pack-panel" style="display:none;">
+        <div class="pack-panel-header">
+            <span class="pack-panel-title">🎲 智能排布结果</span>
+            <button class="pack-panel-close" id="packPanelCloseX" title="关闭">✕</button>
+        </div>
+        <div class="pack-panel-meta" id="packPanelMeta"></div>
+        <div class="pack-panel-actions">
+            <button class="btn-sm" id="packPanelRerun">🔄 重新计算</button>
+            <button class="btn-sm" id="packPanelClose">关闭</button>
+        </div>
+        <div class="pack-panel-list" id="packPanelList"></div>
+        <div class="pack-panel-footer">
+            <span id="packPanelPreviewState"></span>
         </div>
     </div>
 
@@ -2128,12 +2219,80 @@
         //  - 不修改传入的 cargos，返回新对象数组
         // ============================================================
         const PackingAlgos = {
-            list() { return ['extreme-point', 'random-greedy']; },
+            list() { return Object.keys(STRATEGIES); },
+            /**
+             * 单次运行：随机选一种策略 + 随机选一种排序 key + 70/30 候选选择
+             * @param {Array} cargos 货物副本
+             * @param {Object} opts { container, allowIntersection }
+             * @returns {{ placed, eval, timeMs, strategy, sortKey }}
+             */
+            runSingle(cargos, opts) {
+                const strategyKeys = Object.keys(STRATEGIES);
+                const strategyKey = strategyKeys[Math.floor(Math.random() * strategyKeys.length)];
+                const runner = STRATEGIES[strategyKey].runner;
+                const sortedCargos = makeSortedCargos(cargos);
+                const t0 = performance.now();
+                const placed = runner(sortedCargos, opts.container, opts.allowIntersection);
+                const t1 = performance.now();
+                const evalResult = evaluateLayout(placed, opts.container);
+                return {
+                    placed,
+                    eval: evalResult,
+                    timeMs: t1 - t0,
+                    strategy: strategyKey,
+                    sortKey: sortedCargos.__sortKey || 'volume',
+                };
+            },
+            /**
+             * run(iter) 调用 runSingle × iter 次
+             * @param {string} name 兼容旧 API：被忽略（每次随机选策略）
+             * @param {Array} cargos
+             * @param {Object} opts { iter, container, allowIntersection }
+             */
             run(name, cargos, opts) {
-                if (name === 'extreme-point') return extremePointLayout(cargos, opts);
-                if (name === 'random-greedy') return randomGreedyLayout(cargos, opts);
-                // 兜底：退化为极值点
-                return extremePointLayout(cargos, opts);
+                const { iter, container, allowIntersection } = opts;
+                const results = [];
+                for (let t = 0; t < iter; t++) {
+                    results.push(this.runSingle(cargos, { container, allowIntersection }));
+                }
+                return results;
+            },
+        };
+
+        // —— 策略集合（8 种）——
+
+        const STRATEGIES = {
+            'ep-py': {
+                label: '极值点·底层优先',
+                runner: makeEpRunner('py'),
+            },
+            'ep-pz': {
+                label: '极值点·前排优先',
+                runner: makeEpRunner('pz'),
+            },
+            'ep-px': {
+                label: '极值点·左侧优先',
+                runner: makeEpRunner('px'),
+            },
+            'corner-lfd': {
+                label: '角落·左前下',
+                runner: makeCornerRunner('lfd'),
+            },
+            'corner-rfd': {
+                label: '角落·右前下',
+                runner: makeCornerRunner('rfd'),
+            },
+            'corner-lbd': {
+                label: '角落·左后下',
+                runner: makeCornerRunner('lbd'),
+            },
+            'corner-rbd': {
+                label: '角落·右后下',
+                runner: makeCornerRunner('rbd'),
+            },
+            'random-greedy': {
+                label: '随机贪心',
+                runner: makeRandomGreedyRunner(),
             },
         };
 
@@ -2149,24 +2308,29 @@
             return a;
         }
 
-        // 按体积降序排列（jitter=true 时小幅随机抖动）
-        function sortByVolumeDesc(cargos, jitter) {
-            const arr = [...cargos];
-            arr.sort((a, b) => {
-                const va = a.sx * a.sy * a.sz;
-                const vb = b.sx * b.sy * b.sz;
-                if (jitter) {
-                    // ±15% 随机扰动
-                    const ja = va * (0.85 + Math.random() * 0.3);
-                    const jb = vb * (0.85 + Math.random() * 0.3);
-                    return jb - ja;
+        // 多排序 key 随机：从 {体积, 底面积, 高, 最长边, 最短边} 中随机选一个
+        // 50% 概率升序、50% 概率降序。结果记 __sortKey 便于追溯
+        function makeSortedCargos(cargos) {
+            const SORT_KEYS = ['volume', 'baseArea', 'height', 'longest', 'shortest'];
+            const key = SORT_KEYS[Math.floor(Math.random() * SORT_KEYS.length)];
+            const asc = Math.random() < 0.5;
+            const sorted = [...cargos].sort((a, b) => {
+                let va, vb;
+                switch (key) {
+                    case 'volume':   va = a.sx * a.sy * a.sz; vb = b.sx * b.sy * b.sz; break;
+                    case 'baseArea': va = a.sx * a.sz;       vb = b.sx * b.sz;       break;
+                    case 'height':   va = a.sy;             vb = b.sy;             break;
+                    case 'longest':  va = Math.max(a.sx, a.sy, a.sz); vb = Math.max(b.sx, b.sy, b.sz); break;
+                    case 'shortest': va = Math.min(a.sx, a.sy, a.sz); vb = Math.min(b.sx, b.sy, b.sz); break;
                 }
-                return vb - va;
+                return asc ? va - vb : vb - va;
             });
-            return arr;
+            sorted.__sortKey = key;
+            sorted.__sortAsc = asc;
+            return sorted;
         }
 
-        // 生成货物的 6 种朝向（sx/sy/sz 的全排列）
+        // 生成货物的 6 种朝向（sx/sy/sz 的全排列，去重）
         function generateOrientations(cargo) {
             const dims = [cargo.sx, cargo.sy, cargo.sz];
             const perms = [
@@ -2238,13 +2402,13 @@
 
         // 评分：越高越好
         function scoreLayoutResult(r) {
-            return r.utilRate * 1000
-                 - r.fullyOutsideCount * 100
-                 - r.overflowCount * 10;
+            return r.eval.utilRate * 1000
+                 - r.eval.fullyOutsideCount * 100
+                 - r.eval.overflowCount * 10;
         }
 
         // 把货物放到一个极值点上；若与已放置集合重叠则返回 null
-        function tryPlaceAt(orient, ep, placed, allowIntersection, container) {
+        function tryPlaceAt(orient, ep, placed, allowIntersection) {
             const candidate = {
                 ...orient,
                 px: ep.x,
@@ -2257,20 +2421,13 @@
             return candidate;
         }
 
-        // 极值点放置评分：越低越好（py 优先 → pz → px）
-        function epScore(ep) {
-            return ep.y * 1e12 + ep.z * 1e6 + ep.x;
-        }
-
-        // 由一件已放置货物生成新极值点：右上、右后、上方三个角
-        function generateNewEPs(cargo, container) {
-            const { l, w } = container;
+        // 由一件已放置货物生成新极值点：右面、后面、上面三个角
+        function generateNewEPs(cargo) {
             const eps = [
                 { x: cargo.px + cargo.sx, y: cargo.py, z: cargo.pz }, // 右面
                 { x: cargo.px, y: cargo.py, z: cargo.pz + cargo.sz }, // 后面
                 { x: cargo.px, y: cargo.py + cargo.sy, z: cargo.pz }, // 上面
             ];
-            // 去重（同一极值点可能重复）
             const seen = new Set();
             return eps.filter(ep => {
                 const key = `${ep.x}_${ep.y}_${ep.z}`;
@@ -2281,9 +2438,7 @@
         }
 
         // 把无法在极值点处放下的货物溢出放置（沿 X 方向外部堆叠）
-        function placeOverflowCargo(cargo, placed, container) {
-            const { l } = container;
-            // 找当前 X 方向最右位置
+        function placeOverflowCargo(cargo, placed) {
             let maxRight = 0;
             for (const o of placed) {
                 maxRight = Math.max(maxRight, o.px + o.sx);
@@ -2296,141 +2451,190 @@
             };
         }
 
-        // —— 算法实现 ——
+        // 70/30 候选选择：70% 选最低分、30% 在 Top-3 中随机选
+        function pickCandidate(candidates) {
+            if (candidates.length === 0) return null;
+            if (candidates.length === 1) return candidates[0];
+            if (Math.random() < 0.7) return candidates[0];
+            const top3 = candidates.slice(0, Math.min(3, candidates.length));
+            return top3[Math.floor(Math.random() * top3.length)];
+        }
 
-        // 极值点算法（Extreme Point Insertion）
-        // 单次运行：按顺序放置，返回 { placed, eval, timeMs }
-        function extremePointSingleRun(cargos, container, allowIntersection) {
-            const t0 = performance.now();
-            const placed = [];
-            let epSet = [{ x: 0, y: 0, z: 0 }]; // 初始极值点：原点
+        // 极值点排序键：按指定主轴 + 次轴 + 第三轴升序
+        function epCompareKey(ep, primary) {
+            if (primary === 'py') return ep.y * 1e12 + ep.z * 1e6 + ep.x;
+            if (primary === 'pz') return ep.z * 1e6 + ep.x * 1e3 + ep.y;
+            if (primary === 'px') return ep.x * 1e9 + ep.z * 1e6 + ep.y;
+            return ep.y * 1e12 + ep.z * 1e6 + ep.x;
+        }
 
-            for (const cargo of cargos) {
-                const orientations = generateOrientations(cargo);
-                let best = null;
-                let bestScore = Infinity;
+        // —— 策略工厂 ——
 
-                // 对每种朝向 × 每个极值点，尝试放置，选"最低"得分
-                for (const orient of orientations) {
-                    for (const ep of epSet) {
-                        const candidate = tryPlaceAt(orient, ep, placed, allowIntersection, container);
-                        if (candidate) {
-                            const s = epScore(ep);
-                            if (s < bestScore) {
-                                bestScore = s;
-                                best = candidate;
-                            }
+        // 极值点 runner：按 primary 轴（py/pz/px）排序候选，70/30 选择
+        function makeEpRunner(primary) {
+            return function run(sortedCargos, container, allowIntersection) {
+                const placed = [];
+                let epSet = [{ x: 0, y: 0, z: 0 }];
+
+                for (const cargo of sortedCargos) {
+                    const orientations = generateOrientations(cargo);
+                    const candidates = [];
+                    for (const orient of orientations) {
+                        for (const ep of epSet) {
+                            const c = tryPlaceAt(orient, ep, placed, allowIntersection);
+                            if (c) candidates.push({ cargo: c, ep });
                         }
                     }
-                }
-
-                if (best) {
+                    if (candidates.length === 0) {
+                        placed.push(placeOverflowCargo(cargo, placed));
+                        continue;
+                    }
+                    candidates.sort((a, b) => epCompareKey(a.ep, primary) - epCompareKey(b.ep, primary));
+                    const pick = pickCandidate(candidates);
+                    const best = pick.cargo;
                     placed.push(best);
-                    // 加入新极值点
-                    epSet.push(...generateNewEPs(best, container));
-                    // 简单去重
+                    epSet.push(...generateNewEPs(best));
+                    // 极值点去重
                     const seen = new Set();
                     epSet = epSet.filter(ep => {
-                        const key = `${ep.x}_${ep.y}_${ep.z}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
+                        const k = `${ep.x}_${ep.y}_${ep.z}`;
+                        if (seen.has(k)) return false;
+                        seen.add(k);
                         return true;
                     });
-                } else {
-                    // 放不下：溢出放置
-                    placed.push(placeOverflowCargo(cargo, placed, container));
                 }
-            }
-
-            const evalResult = evaluateLayout(placed, container);
-            return {
-                placed,
-                eval: evalResult,
-                timeMs: performance.now() - t0,
+                return placed;
             };
         }
 
-        function extremePointLayout(cargos, opts) {
-            const { iter, container, allowIntersection } = opts;
-            const results = [];
-            for (let t = 0; t < iter; t++) {
-                const order = sortByVolumeDesc(cargos, true); // 每次随机抖动
-                results.push(extremePointSingleRun(order, container, allowIntersection));
-            }
-            return results;
+        // 角落 runner：从指定角落附近开始放置，倾向选离角落近的极值点
+        function makeCornerRunner(corner) {
+            return function run(sortedCargos, container, allowIntersection) {
+                const { l, w } = container;
+                const placed = [];
+                // 角落起点（保留柜内一定空间，避开边缘）
+                let startX, startZ;
+                const inset = 10;
+                if (corner === 'lfd') { startX = inset;        startZ = inset;        }
+                if (corner === 'rfd') { startX = l * 0.7;      startZ = inset;        }
+                if (corner === 'lbd') { startX = inset;        startZ = w * 0.7;      }
+                if (corner === 'rbd') { startX = l * 0.7;      startZ = w * 0.7;      }
+                // 加随机抖动（避免 corner 策略与 ep 策略雷同）
+                startX += (Math.random() - 0.5) * 300;
+                startZ += (Math.random() - 0.5) * 200;
+                startX = Math.max(0, startX);
+                startZ = Math.max(0, startZ);
+
+                const cornerTarget = { x: corner.startsWith('l') ? 0 : l, z: corner.endsWith('d') ? 0 : w };
+                let epSet = [{ x: startX, y: 0, z: startZ }];
+
+                for (const cargo of sortedCargos) {
+                    const orientations = generateOrientations(cargo);
+                    const candidates = [];
+                    for (const orient of orientations) {
+                        for (const ep of epSet) {
+                            const c = tryPlaceAt(orient, ep, placed, allowIntersection);
+                            if (c) candidates.push({ cargo: c, ep });
+                        }
+                    }
+                    if (candidates.length === 0) {
+                        placed.push(placeOverflowCargo(cargo, placed));
+                        continue;
+                    }
+                    // 按"距角落距离"升序
+                    candidates.sort((a, b) => {
+                        const da = Math.abs(a.ep.x - cornerTarget.x) + Math.abs(a.ep.z - cornerTarget.z);
+                        const db = Math.abs(b.ep.x - cornerTarget.x) + Math.abs(b.ep.z - cornerTarget.z);
+                        return da - db;
+                    });
+                    const pick = pickCandidate(candidates);
+                    const best = pick.cargo;
+                    placed.push(best);
+                    epSet.push(...generateNewEPs(best));
+                    const seen = new Set();
+                    epSet = epSet.filter(ep => {
+                        const k = `${ep.x}_${ep.y}_${ep.z}`;
+                        if (seen.has(k)) return false;
+                        seen.add(k);
+                        return true;
+                    });
+                }
+                return placed;
+            };
         }
 
-        // 随机贪心：从 (0,0,0) 起贪心按扫描线顺序摆放，每次随机化排序+起点
-        function randomGreedySingleRun(cargos, container, allowIntersection) {
-            const t0 = performance.now();
-            const placed = [];
-            // 起点随机偏移（保证不同 iter 起点不同）
-            const startX = Math.random() * 200;
-            const startZ = Math.random() * 100;
-            const order = sortByVolumeDesc(cargos, true); // 重 jitter
+        // 随机贪心 runner：起点偏移加大到 ±500mm
+        function makeRandomGreedyRunner() {
+            return function run(sortedCargos, container, allowIntersection) {
+                const placed = [];
+                const startX = Math.random() * 500;
+                const startZ = Math.random() * 300;
+                let cursorX = startX, cursorZ = startZ;
+                let rowDepth = 0;
+                const GAP = 10;
 
-            let cursorX = startX;
-            let cursorZ = startZ;
-            let rowDepth = 0;
-            const GAP = 10;
-
-            for (const cargo of order) {
-                const orientations = generateOrientations(cargo);
-                let best = null;
-                let bestScore = Infinity;
-
-                for (const orient of orientations) {
-                    // 尝试在当前 cursor 处放置；若不行则换行
-                    let cx = cursorX, cz = cursorZ;
-                    let attempt = 0;
-                    while (attempt < 100) {
-                        const candidate = {
-                            ...orient,
-                            px: cx,
-                            py: 0,
-                            pz: cz,
-                        };
-                        if (!allowIntersection && aabbOverlap(candidate, placed)) {
-                            // 沿 Z 换行
-                            cz += rowDepth + GAP;
-                            rowDepth = 0;
-                            cx = startX;
-                            attempt++;
-                            continue;
+                for (const cargo of sortedCargos) {
+                    const orientations = generateOrientations(cargo);
+                    const candidates = [];
+                    for (const orient of orientations) {
+                        let cx = cursorX, cz = cursorZ;
+                        let attempt = 0;
+                        while (attempt < 200) {
+                            const c = { ...orient, px: cx, py: 0, pz: cz };
+                            if (!allowIntersection && aabbOverlap(c, placed)) {
+                                cz += rowDepth + GAP;
+                                rowDepth = 0;
+                                cx = startX;
+                                attempt++;
+                                continue;
+                            }
+                            candidates.push({ cargo: c });
+                            break;
                         }
-                        const s = cz * 1e6 + cx;
-                        if (s < bestScore) {
-                            bestScore = s;
-                            best = candidate;
+                    }
+                    if (candidates.length === 0) {
+                        placed.push(placeOverflowCargo(cargo, placed));
+                        continue;
+                    }
+                    candidates.sort((a, b) => a.cargo.pz - b.cargo.pz || a.cargo.px - b.cargo.px);
+                    const pick = pickCandidate(candidates);
+                    const best = pick.cargo;
+                    placed.push(best);
+                    cursorX = best.px + best.sx + GAP;
+                    rowDepth = Math.max(rowDepth, best.sz);
+                }
+                return placed;
+            };
+        }
+
+        // 互异过滤：按 50mm 阈值去重 + 保留质量更高者
+        function deduplicateResults(results, thresholdMM = 50) {
+            const unique = [];
+            for (const r of results) {
+                let isDup = false;
+                for (let i = 0; i < unique.length; i++) {
+                    const u = unique[i];
+                    let totalDist = 0;
+                    const n = Math.min(r.placed.length, u.placed.length);
+                    if (n === 0) continue;
+                    for (let j = 0; j < n; j++) {
+                        const dx = r.placed[j].px - u.placed[j].px;
+                        const dy = r.placed[j].py - u.placed[j].py;
+                        const dz = r.placed[j].pz - u.placed[j].pz;
+                        totalDist += Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    }
+                    const avgDist = totalDist / n;
+                    if (avgDist < thresholdMM) {
+                        isDup = true;
+                        if (scoreLayoutResult(r) > scoreLayoutResult(u)) {
+                            unique[i] = r; // 替换为更高分
                         }
                         break;
                     }
                 }
-
-                if (best) {
-                    placed.push(best);
-                    cursorX = best.px + best.sx + GAP;
-                    rowDepth = Math.max(rowDepth, best.sz);
-                } else {
-                    placed.push(placeOverflowCargo(cargo, placed, container));
-                }
+                if (!isDup) unique.push(r);
             }
-
-            const evalResult = evaluateLayout(placed, container);
-            return {
-                placed,
-                eval: evalResult,
-                timeMs: performance.now() - t0,
-            };
-        }
-
-        function randomGreedyLayout(cargos, opts) {
-            const { iter, container, allowIntersection } = opts;
-            const results = [];
-            for (let t = 0; t < iter; t++) {
-                results.push(randomGreedySingleRun(cargos, container, allowIntersection));
-            }
-            return results;
+            return unique;
         }
 
         // ============================================================
@@ -3092,139 +3296,197 @@
             updateStats();
         }
 
-        // 当前 modal 中"已预览"的方案索引（用于切换预览按钮状态）
+        // 当前浮窗中"已预览"的方案索引
         let _currentPreviewIdx = -1;
-        let _currentResults = []; // modal 中展示的结果数组
+        let _currentResults = []; // 浮窗中展示的结果数组
 
-        // 渲染 modal 表格（top N）
-        function renderPackResultModal(results, totalMs, algoName) {
-            _currentResults = results.slice(0, 10); // Top-10
+        // 最近一次计算结果缓存（用于"重新计算"按钮之外复用）
+        let _lastPackResults = null;     // 原始结果数组
+        let _lastPackTotalMs = 0;
+        let _lastPackIter = 0;
+        // 缓存依赖签名：货物列表的 (id|size) hash；变化时清空
+        let _lastPackSignature = '';
+
+        function _currentCargosSignature() {
+            return state.cargos.map(c => `${c.id}|${c.sx}x${c.sy}x${c.sz}`).join(';');
+        }
+
+        // 渲染浮窗列表（互异过滤 + Top-10）
+        function renderPackPanel(results, totalMs, iter) {
+            // 缓存原始结果
+            _lastPackResults = results.slice();
+            _lastPackTotalMs = totalMs;
+            _lastPackIter = iter;
+            _lastPackSignature = _currentCargosSignature();
+
+            // 互异过滤
+            const deduped = deduplicateResults(results, 50);
+            const top = deduped.sort((a, b) => scoreLayoutResult(b) - scoreLayoutResult(a)).slice(0, 10);
+            _currentResults = top;
             _currentPreviewIdx = -1;
 
-            const summary = document.getElementById('packResultSummary');
-            summary.innerHTML = `共计算 <b>${results.length}</b> 次，总耗时 <b>${totalMs.toFixed(0)}</b> ms，算法：<b>${algoName === 'extreme-point' ? '极值点' : '随机贪心'}</b>。<br>点击【预览】临时加载到视图查看实际效果；满意后【应用】保存。`;
+            // 统计策略分布
+            const strategyCount = {};
+            for (const r of top) {
+                strategyCount[r.strategy] = (strategyCount[r.strategy] || 0) + 1;
+            }
+            const strategySummary = Object.entries(strategyCount)
+                .map(([k, v]) => `${STRATEGIES[k]?.label || k}×${v}`)
+                .join('、');
 
-            const tbody = document.getElementById('packResultBody');
-            tbody.innerHTML = '';
-            _currentResults.forEach((r, idx) => {
-                const tr = document.createElement('tr');
-                tr.dataset.resultIdx = idx;
-                tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                tr.innerHTML = `
-                    <td style="padding:6px 4px;">${idx + 1}</td>
-                    <td style="padding:6px 4px;">${(r.eval.utilRate * 100).toFixed(2)}%</td>
-                    <td style="padding:6px 4px;">${r.eval.overflowCount}</td>
-                    <td style="padding:6px 4px;">${r.eval.fullyOutsideCount}</td>
-                    <td style="padding:6px 4px;">${r.timeMs.toFixed(2)} ms</td>
-                    <td style="padding:6px 4px;text-align:right;white-space:nowrap;">
+            packPanelMeta.innerHTML = `
+                计算 <b>${iter}</b> 次 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms<br>
+                互异方案 <b>${deduped.length}</b> 个，Top-10 策略分布：${strategySummary}<br>
+                <span style="color:#aaa;">点击列表项预览；满意后点【应用】保存。再次打开浮窗会复用上次结果（货物变化时自动重算）。</span>
+            `;
+            packPanelList.innerHTML = '';
+            top.forEach((r, idx) => {
+                const item = document.createElement('div');
+                item.className = 'pack-panel-item';
+                item.dataset.idx = idx;
+                item.innerHTML = `
+                    <div class="row1">
+                        <span class="num">#${idx + 1}</span>
+                        <span style="color:#ffaa44;font-weight:bold;">${(r.eval.utilRate * 100).toFixed(2)}%</span>
+                    </div>
+                    <div class="row2">
+                        策略: ${STRATEGIES[r.strategy]?.label || r.strategy} ·
+                        排序: ${r.sortKey} ·
+                        出界 ${r.eval.overflowCount} ·
+                        完全出界 ${r.eval.fullyOutsideCount} ·
+                        ${r.timeMs.toFixed(1)}ms
+                    </div>
+                    <div class="row3">
                         <button class="btn-sm pack-preview-btn" data-idx="${idx}">预览</button>
                         <button class="btn-sm btn-primary pack-apply-btn" data-idx="${idx}">应用</button>
-                    </td>
+                    </div>
                 `;
-                tbody.appendChild(tr);
+                // 点击整行也可预览
+                item.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'BUTTON') return;
+                    handlePreviewBtn(idx);
+                });
+                packPanelList.appendChild(item);
             });
-
-            // 绑定每行的预览/应用按钮
-            tbody.querySelectorAll('.pack-preview-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
+            // 绑定按钮
+            packPanelList.querySelectorAll('.pack-preview-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const idx = parseInt(btn.dataset.idx, 10);
-                    handlePreviewBtn(idx, btn);
+                    handlePreviewBtn(idx);
                 });
             });
-            tbody.querySelectorAll('.pack-apply-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
+            packPanelList.querySelectorAll('.pack-apply-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const idx = parseInt(btn.dataset.idx, 10);
                     handleApplyBtn(idx);
                 });
             });
 
-            document.getElementById('packResultModal').classList.add('active');
+            packPanelPreviewState.textContent = '';
+            showPackPanel();
         }
 
-        function handlePreviewBtn(idx, btn) {
-            // 若当前已有预览，先恢复
+        function _setPreviewingItem(idx) {
+            packPanelList.querySelectorAll('.pack-panel-item').forEach((el, i) => {
+                el.classList.toggle('previewing', i === idx);
+            });
+        }
+
+        function handlePreviewBtn(idx) {
             if (_currentPreviewIdx === idx) {
-                // 当前正在预览同一方案 → 取消预览
+                // 同一项再次点击 → 取消预览
                 revertPreview();
                 _currentPreviewIdx = -1;
-                btn.textContent = '预览';
-                btn.style.background = '';
+                _setPreviewingItem(-1);
+                packPanelPreviewState.textContent = '';
                 return;
             }
-            // 切换到新方案：先恢复旧的预览（如果有）
             if (_currentPreviewIdx !== -1) {
                 revertPreview();
-                // 恢复旧按钮文字
-                const oldBtn = document.querySelector(`.pack-preview-btn[data-idx="${_currentPreviewIdx}"]`);
-                if (oldBtn) {
-                    oldBtn.textContent = '预览';
-                    oldBtn.style.background = '';
-                }
             }
-            // 预览新方案
             applyPreview(_currentResults[idx]);
             _currentPreviewIdx = idx;
-            btn.textContent = '✓ 预览中';
-            btn.style.background = 'rgba(255,170,68,0.5)';
+            _setPreviewingItem(idx);
+            const r = _currentResults[idx];
+            packPanelPreviewState.textContent = `✓ 预览中：#${idx + 1}（${(r.eval.utilRate * 100).toFixed(2)}% / 出界 ${r.eval.overflowCount} / 完全出界 ${r.eval.fullyOutsideCount}）`;
         }
 
         function handleApplyBtn(idx) {
-            // 应用方案 + 撤销栈
             applyPlacementToState(_currentResults[idx]);
-            _previewSnapshot = null; // 不再 revert
+            _previewSnapshot = null;
             _currentPreviewIdx = -1;
             rebuildCargoMeshes();
             updateStats();
             saveState();
-            // 关闭 modal
-            document.getElementById('packResultModal').classList.remove('active');
-            // 提示
+            hidePackPanel();
             const r = _currentResults[idx];
-            alert(`✅ 已应用方案 #${idx + 1}\n体积利用率：${(r.eval.utilRate * 100).toFixed(2)}%\n出界数：${r.eval.overflowCount}\n完全出界：${r.eval.fullyOutsideCount}`);
+            packHint.textContent = `✅ 已应用 #${idx + 1} 方案。Ctrl+Z 可撤销。`;
         }
 
-        function closePackResultModal() {
-            // 关闭前如果还在预览，先恢复
+        function showPackPanel() {
+            packPanel.style.display = 'flex';
+        }
+
+        function hidePackPanel() {
+            // 关闭前若还在预览，先恢复
             if (_currentPreviewIdx !== -1) {
                 revertPreview();
             }
-            _currentResults = [];
             _currentPreviewIdx = -1;
-            document.getElementById('packResultModal').classList.remove('active');
+            _setPreviewingItem(-1);
+            packPanelPreviewState.textContent = '';
+            packPanel.style.display = 'none';
+            // 保留 _currentResults / _lastPackResults 供下次复用
         }
 
         const packAlgoSelect = $('#packAlgoSelect');
         const packIterInput = $('#packIterInput');
         const packRunBtn = $('#packRunBtn');
         const packHint = $('#packHint');
-        const packResultModal = $('#packResultModal');
-        const packResultCloseBtn = $('#packResultCloseBtn');
+        const packPanel = $('#packPanel');
+        const packPanelMeta = $('#packPanelMeta');
+        const packPanelList = $('#packPanelList');
+        const packPanelRerun = $('#packPanelRerun');
+        const packPanelClose = $('#packPanelClose');
+        const packPanelCloseX = $('#packPanelCloseX');
+        const packPanelPreviewState = $('#packPanelPreviewState');
 
         packRunBtn.addEventListener('click', async () => {
             if (!state.cargos.length) {
                 alert('请先加载货物');
                 return;
             }
-            const algoName = packAlgoSelect.value;
+            // 缓存命中：货物签名一致 + 已有结果 → 直接显示浮窗，不重算
+            const sig = _currentCargosSignature();
+            if (_lastPackResults && _lastPackSignature === sig) {
+                packHint.textContent = `复用上次结果（${_lastPackIter} 次 / ${_lastPackTotalMs.toFixed(0)}ms）。点浮窗内【🔄 重新计算】强制重跑。`;
+                renderPackPanel(_lastPackResults, _lastPackTotalMs, _lastPackIter);
+                return;
+            }
+            // 签名不匹配（货物有变动）→ 清缓存
+            _lastPackResults = null;
+            _lastPackSignature = '';
+
             let iter = parseInt(packIterInput.value, 10);
             if (!Number.isFinite(iter) || iter < 10) iter = 10;
             if (iter > 10000) iter = 10000;
 
-            // 使用 cargo 副本（仅 sx/sy/sz），保留 id/name/color
+            // 每次随机选一种策略（无视 select 的"算法"，它兼容旧版）
             const cargosSnapshot = state.cargos.map(c => ({
                 id: c.id, name: c.name,
                 sx: c.sx, sy: c.sy, sz: c.sz,
                 color: c.color,
             }));
 
-            packHint.textContent = `开始计算（${algoName} × ${iter} 次）…`;
+            packHint.textContent = `开始计算（8 策略 × 多排序 key × ${iter} 次）…`;
 
             try {
-                const { results, totalMs } = await runPackingWithProgress(algoName, cargosSnapshot, iter, state.allowIntersection);
-                // 按评分排序取 Top-10
-                results.sort((a, b) => scoreLayoutResult(b.eval) - scoreLayoutResult(a.eval));
-                packHint.textContent = `已完成 ${iter} 次计算，耗时 ${totalMs.toFixed(0)} ms。最优方案利用率：${(results[0].eval.utilRate * 100).toFixed(2)}%`;
-                renderPackResultModal(results, totalMs, algoName);
+                const { results, totalMs } = await runPackingWithProgress('multi-strategy', cargosSnapshot, iter, state.allowIntersection);
+                const bestUtil = results.length ? Math.max(...results.map(r => r.eval.utilRate)) : 0;
+                packHint.textContent = `已完成 ${iter} 次计算，耗时 ${totalMs.toFixed(0)} ms。最优方案利用率：${(bestUtil * 100).toFixed(2)}%`;
+                renderPackPanel(results, totalMs, iter);
             } catch (e) {
                 console.error('[packing] 计算失败:', e);
                 packHint.textContent = '计算失败：' + e.message;
@@ -3233,10 +3495,14 @@
             }
         });
 
-        packResultCloseBtn.addEventListener('click', closePackResultModal);
-        packResultModal.addEventListener('click', (e) => {
-            if (e.target === packResultModal) closePackResultModal();
+        packPanelRerun.addEventListener('click', () => {
+            // 强制重算：清缓存
+            _lastPackResults = null;
+            _lastPackSignature = '';
+            packRunBtn.click();
         });
+        packPanelClose.addEventListener('click', hidePackPanel);
+        packPanelCloseX.addEventListener('click', hidePackPanel);
 
         document.getElementById('undoBtn').addEventListener('click', undo);
         document.getElementById('redoBtn').addEventListener('click', redo);
