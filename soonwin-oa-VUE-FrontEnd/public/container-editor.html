@@ -2532,106 +2532,115 @@
 
         // 重力下落：从柜顶之上"掉"到 XZ=(x,z) 时的最终 Y
         //   - X 方向 0 ≤ px ≤ l-sx；Z 方向 0 ≤ pz ≤ w-sz：硬性约束
-        //   - Y 方向：**入口（顶部）可超出** —— 当下方堆叠很高（maxTopY > h-sy）时，
-        //     货物底面会落在 maxTopY，顶部凸出柜外。这是"俄罗斯方块式堆叠"期望行为
-        //   - 模拟起点 = 柜顶以上（隐含）：货物从 h+10 一路自由下落直到碰到底部支撑
-        //   - 返回 null 表示水平超出货柜
-        function findDropY(sx, sy, sz, x, z, placed, container) {
-            const { l, w } = container;
-            if (x < 0 || x + sx > l) return null;
+        // 【桶模型 / v4】重力推进：货物从 X=l 入口塞入，向 X=0 方向推进
+        //   - Y 方向 0 ≤ py ≤ h-sy；Z 方向 0 ≤ pz ≤ w-sz：硬性约束
+        //   - X 方向：**入口可超出** —— 当已堆货物很"深"（maxFrontX > l-sx）时，
+        //     货物会停在已堆货物的最右沿+1，px 凸出柜外。这是"桶式塞入"期望行为
+        //   - 模拟起点 = X=l+10（入口外），向 -X 自由推进直到碰到底面 X=0 或已堆货物
+        //   - 返回 null 表示水平（Y/Z）超出货柜
+        function findDropX(sx, sy, sz, y, z, placed, container) {
+            const { w, h } = container;
+            if (y < 0 || y + sy > h) return null;
             if (z < 0 || z + sz > w) return null;
-            let maxTopY = 0; // 地面
+            let maxFrontX = 0; // 桶底 X=0
             for (const o of placed) {
-                if (x < o.px + o.sx && x + sx > o.px &&
+                // Y/Z 投影重叠？
+                if (y < o.py + o.sy && y + sy > o.py &&
                     z < o.pz + o.sz && z + sz > o.pz) {
-                    maxTopY = Math.max(maxTopY, o.py + o.sy);
+                    maxFrontX = Math.max(maxFrontX, o.px + o.sx);
                 }
             }
-            // 不做 Math.min(maxTopY, h - sy) clamp：堆叠很高时允许顶部凸出柜外
-            return maxTopY;
+            // 不做 Math.min(maxFrontX, l - sx) clamp：堆叠很深时允许凸出"入口"
+            return maxFrontX;
         }
 
-        // 评分：凹槽契合度 + 底部支撑率
-        //   - sideContactArea：与已放置货物/货柜边界的侧面共面面积
-        //   - bottomContactArea：底部接触面积
-        //   - bottomSupportRate > 0.8 奖励 1000（鼓励"扎实"放置）
+        // 评分：桶式接触面
+        //   - bottomContact：与 X=0 桶底接触（最稳定）+ 与已堆货物远端接触（"前面"）
+        //   - sideContact：与 Y-Z 平面桶壁接触（地面/顶/前后）+ 与已堆货物侧面接触
+        //   - supportRate：货物 X 方向支撑面 / 货物 X 长度 > 0.5 奖励（鼓励扎实支撑）
         function tetrisScore(c, placed, container) {
-            let sideContact = 0, bottomContact = 0;
+            let frontContact = 0;  // 桶底 + 远端接触
+            let sideContact = 0;   // 桶壁 + 侧面接触
             for (const o of placed) {
                 const xOverlap = Math.max(0, Math.min(c.px + c.sx, o.px + o.sx) - Math.max(c.px, o.px));
                 const yOverlap = Math.max(0, Math.min(c.py + c.sy, o.py + o.sy) - Math.max(c.py, o.py));
                 const zOverlap = Math.max(0, Math.min(c.pz + c.sz, o.pz + o.sz) - Math.max(c.pz, o.pz));
-                // 侧面共面
-                if (c.px + c.sx === o.px || o.px + o.sx === c.px) sideContact += yOverlap * zOverlap;
+                // 远端接触：c 在 o 的"后面"（c.px == o.px + o.sx）
+                if (c.px === o.px + o.sx) frontContact += yOverlap * zOverlap;
+                // 底端接触：c 在 o 的"前面"（c.px + c.sx == o.px）—— 通常是 c 推到 o 后面停下
+                if (c.px + c.sx === o.px) frontContact += yOverlap * zOverlap;
+                // 侧面接触（Y/Z 方向）
+                if (c.py + c.sy === o.py || o.py + o.sy === c.py) sideContact += xOverlap * zOverlap;
                 if (c.pz + c.sz === o.pz || o.pz + o.sz === c.pz) sideContact += xOverlap * yOverlap;
-                // 底面接触（c 在 o 上面）
-                if (c.py === o.py + o.sy) bottomContact += xOverlap * zOverlap;
             }
-            // 货柜边界也算接触
-            if (c.px === 0) sideContact += c.sy * c.sz;
-            if (c.px + c.sx === container.l) sideContact += c.sy * c.sz;
-            if (c.pz === 0) sideContact += c.sx * c.sy;
-            if (c.pz + c.sz === container.w) sideContact += c.sx * c.sy;
-            if (c.py === 0) bottomContact += c.sx * c.sz;
-            const bottomSupportRate = bottomContact / (c.sx * c.sz);
-            return sideContact * 10
-                 + bottomContact * 5
-                 + (bottomSupportRate > 0.8 ? 1000 : 0);
+            // 货柜边界
+            if (c.px === 0) frontContact += c.sy * c.sz;  // 桶底
+            if (c.py === 0) sideContact += c.sx * c.sz;   // 地面
+            if (c.py + c.sy === container.h) sideContact += c.sx * c.sz;  // 顶
+            if (c.pz === 0) sideContact += c.sx * c.sy;   // 前壁
+            if (c.pz + c.sz === container.w) sideContact += c.sx * c.sy;  // 后壁
+            // 支撑率：X 方向投影支撑 / 货物 X 长度
+            const supportArea = frontContact; // 简化：把"底端+远端"接触都算支撑
+            const supportRate = supportArea / (c.sx * c.sy * c.sz + 1) * (c.sy * c.sz); // 归一化
+            return frontContact * 10
+                 + sideContact * 5
+                 + (supportRate > 0.5 ? 1000 : 0);
         }
 
-        // 生成 XZ 候选落点：4 角 + 中心 + 已放置货物角点 + 随机
+        // 生成 YZ 候选位置：4 角 + 中心 + 已放置货物角点 + 随机
         function generateDropCandidates(placed, container) {
-            const { l, w } = container;
+            const { w, h } = container;
             const cands = [
-                { x: 0, z: 0 },
-                { x: l - 100, z: 0 },
-                { x: 0, z: w - 100 },
-                { x: l - 100, z: w - 100 },
-                { x: l / 2, z: w / 2 },
+                { y: 0, z: 0 },
+                { y: 0, z: w - 100 },
+                { y: h - 100, z: 0 },
+                { y: h - 100, z: w - 100 },
+                { y: h / 2, z: w / 2 },
             ];
             for (const o of placed) {
-                cands.push({ x: o.px + o.sx, z: o.pz });
-                cands.push({ x: o.px, z: o.pz + o.sz });
-                cands.push({ x: o.px + o.sx, z: o.pz + o.sz });
+                cands.push({ y: o.py, z: o.pz });
+                cands.push({ y: o.py + o.sy, z: o.pz });
+                cands.push({ y: o.py, z: o.pz + o.sz });
+                cands.push({ y: o.py + o.sy, z: o.pz + o.sz });
             }
             for (let i = 0; i < 5; i++) {
                 cands.push({
-                    x: Math.random() * Math.max(1, l - 100),
+                    y: Math.random() * Math.max(1, h - 100),
                     z: Math.random() * Math.max(1, w - 100),
                 });
             }
             // 去重
             const seen = new Set();
             return cands.filter(c => {
-                const k = `${Math.round(c.x)}_${Math.round(c.z)}`;
+                const k = `${Math.round(c.y)}_${Math.round(c.z)}`;
                 if (seen.has(k)) return false;
                 seen.add(k);
                 return true;
             });
         }
 
-        // 侧滑微调：在 (cx, cz) 周围 ±SLIP mm 蛇形搜索
+        // 侧滑微调：在 (cy, cz) 周围 ±SLIP mm 蛇形搜索（沿 Y/Z 方向）
         //   - SLIP 越大搜索越广但越慢（默认 50mm = 5cm）
-        //   - 80% 概率强制执行，20% 跳过以节省时间
-        function tetrisSideSlip(sx, sy, sz, cx, cz, placed, container, allowIntersection) {
+        //   - 货物最终位置由 findDropX 自动算 X（无需手算）
+        function tetrisSideSlip(sx, sy, sz, cy, cz, placed, container, allowIntersection) {
             const SLIP = 50;
             let best = null;
             let bestScore = -Infinity;
-            const bestAt = (px, pz) => {
-                const py = findDropY(sx, sy, sz, px, pz, placed, container);
-                if (py == null) return null;
+            const bestAt = (py, pz) => {
+                const px = findDropX(sx, sy, sz, py, pz, placed, container);
+                if (px == null) return null;
                 const c = { sx, sy, sz, px, py, pz };
                 if (!allowIntersection && aabbOverlap(c, placed)) return null;
                 return c;
             };
             // 原点位置
-            const orig = bestAt(cx, cz);
+            const orig = bestAt(cy, cz);
             if (orig) { bestScore = tetrisScore(orig, placed, container); best = orig; }
             // 8 方向搜索
-            for (let dx = -SLIP; dx <= SLIP; dx += SLIP) {
+            for (let dy = -SLIP; dy <= SLIP; dy += SLIP) {
                 for (let dz = -SLIP; dz <= SLIP; dz += SLIP) {
-                    if (dx === 0 && dz === 0) continue;
-                    const c = bestAt(cx + dx, cz + dz);
+                    if (dy === 0 && dz === 0) continue;
+                    const c = bestAt(cy + dy, cz + dz);
                     if (!c) continue;
                     const s = tetrisScore(c, placed, container);
                     if (s > bestScore) { bestScore = s; best = c; }
@@ -2640,24 +2649,24 @@
             return best;
         }
 
-        // 实在放不下：扫线找空位（不交叉）
-        //   - 修复原 placeOverflowCargo 的 bug：扫描整个柜子找不重叠位置
+        // 实在放不下：在 Y/Z 平面上扫线找空位（不交叉）
+        //   - 桶式：X 方向由 findDropX 自动算
         function findOverflowPlacement(cargo, placed, container, allowIntersection) {
-            const { l, w } = container;
-            for (let x = 0; x <= l - cargo.sx; x += 50) {
+            const { w, h } = container;
+            for (let y = 0; y <= h - cargo.sy; y += 50) {
                 for (let z = 0; z <= w - cargo.sz; z += 50) {
-                    const py = findDropY(cargo.sx, cargo.sy, cargo.sz, x, z, placed, container);
-                    if (py == null) continue;
-                    const c = { ...cargo, px: x, py, pz: z };
+                    const px = findDropX(cargo.sx, cargo.sy, cargo.sz, y, z, placed, container);
+                    if (px == null) continue;
+                    const c = { ...cargo, px, py: y, pz: z };
                     if (!allowIntersection && aabbOverlap(c, placed)) continue;
                     return c;
                 }
             }
-            // 最后兜底：放到柜外（仍不交叉）
+            // 最后兜底：放到"入口"外（X > l），仍不交叉
             return placeOverflowCargo(cargo, placed);
         }
 
-        // Tetris 单次运行：按 sortedCargos 顺序放置
+        // Tetris 单次运行：按 sortedCargos 顺序放置（桶式：X 尽头是入口，水平塞入）
         //   - annealProb：每件货物有该概率**不取最高分**候选，改取 Top-3 中随机一个
         function tetrisSingleRun(sortedCargos, container, allowIntersection, annealProb) {
             const placed = [];
@@ -2669,18 +2678,19 @@
 
                 for (const orient of orientations) {
                     for (const cand of candidates) {
-                        // 1. 水平范围预校验
-                        if (cand.x + orient.sx > container.l || cand.x < 0) continue;
+                        // 1. 水平（Y/Z）范围预校验
+                        if (cand.y + orient.sy > container.h || cand.y < 0) continue;
                         if (cand.z + orient.sz > container.w || cand.z < 0) continue;
-                        // 2. 重力下落
-                        const py = findDropY(orient.sx, orient.sy, orient.sz, cand.x, cand.z, placed, container);
-                        if (py == null) continue;
-                        const candidate = { ...orient, px: cand.x, py, pz: cand.z };
+                        // 2. 桶式塞入：X 方向由 findDropX 自动算（入口可超出）
+                        const px = findDropX(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container);
+                        if (px == null) continue;
+                        const candidate = { ...orient, px, py: cand.y, pz: cand.z };
+                        // 3. 算法模拟时不允许交叉 —— 严格 AABB 校验
                         if (!allowIntersection && aabbOverlap(candidate, placed)) continue;
                         const s = tetrisScore(candidate, placed, container);
                         if (s > bestScore) { bestScore = s; bestPlacement = candidate; }
-                        // 3. 侧滑微调
-                        const slipped = tetrisSideSlip(orient.sx, orient.sy, orient.sz, cand.x, cand.z, placed, container, allowIntersection);
+                        // 4. 侧滑微调：沿 Y/Z 蛇形搜索
+                        const slipped = tetrisSideSlip(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container, allowIntersection);
                         if (slipped) {
                             const s2 = tetrisScore(slipped, placed, container);
                             if (s2 > bestScore) { bestScore = s2; bestPlacement = slipped; }
@@ -2688,17 +2698,16 @@
                     }
                 }
 
-                // 4. 退火：annealProb 概率在已评估的 Top-3 中随机选
+                // 5. 退火：annealProb 概率在已评估的 Top-3 中随机选
                 if (bestPlacement && Math.random() < annealProb) {
-                    // 简单近似：重新选一次完全不同的候选
                     const altCands = [];
                     for (const orient of orientations) {
                         for (const cand of candidates) {
-                            if (cand.x + orient.sx > container.l || cand.x < 0) continue;
+                            if (cand.y + orient.sy > container.h || cand.y < 0) continue;
                             if (cand.z + orient.sz > container.w || cand.z < 0) continue;
-                            const py = findDropY(orient.sx, orient.sy, orient.sz, cand.x, cand.z, placed, container);
-                            if (py == null) continue;
-                            const c = { ...orient, px: cand.x, py, pz: cand.z };
+                            const px = findDropX(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container);
+                            if (px == null) continue;
+                            const c = { ...orient, px, py: cand.y, pz: cand.z };
                             if (!allowIntersection && aabbOverlap(c, placed)) continue;
                             altCands.push(c);
                         }
