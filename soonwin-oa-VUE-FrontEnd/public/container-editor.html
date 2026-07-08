@@ -2530,22 +2530,25 @@
             });
         }
 
-        // 重力下落：找从顶部 (py = h) 落到 XZ=(x,z) 时的最低 Y
+        // 重力下落：从柜顶之上"掉"到 XZ=(x,z) 时的最终 Y
+        //   - X 方向 0 ≤ px ≤ l-sx；Z 方向 0 ≤ pz ≤ w-sz：硬性约束
+        //   - Y 方向：**入口（顶部）可超出** —— 当下方堆叠很高（maxTopY > h-sy）时，
+        //     货物底面会落在 maxTopY，顶部凸出柜外。这是"俄罗斯方块式堆叠"期望行为
+        //   - 模拟起点 = 柜顶以上（隐含）：货物从 h+10 一路自由下落直到碰到底部支撑
         //   - 返回 null 表示水平超出货柜
-        //   - 找所有 XZ 重叠的已放置货物，取其顶部最大值
-        //   - 不能超过柜顶
         function findDropY(sx, sy, sz, x, z, placed, container) {
-            const { l, w, h } = container;
+            const { l, w } = container;
             if (x < 0 || x + sx > l) return null;
             if (z < 0 || z + sz > w) return null;
-            let maxTopY = 0;
+            let maxTopY = 0; // 地面
             for (const o of placed) {
                 if (x < o.px + o.sx && x + sx > o.px &&
                     z < o.pz + o.sz && z + sz > o.pz) {
                     maxTopY = Math.max(maxTopY, o.py + o.sy);
                 }
             }
-            return Math.min(maxTopY, h - sy);
+            // 不做 Math.min(maxTopY, h - sy) clamp：堆叠很高时允许顶部凸出柜外
+            return maxTopY;
         }
 
         // 评分：凹槽契合度 + 底部支撑率
