@@ -2933,11 +2933,14 @@
         //   - minUtilRate：质量门槛（默认 0.3）
         //     调大：过滤更严，Top-N 可能不足；调小：可能入选质量差方案
         //   - topN：返回数量
+        //   - 返回 { selected, dedupedCount, viableCount } 便于面板显示统计
         function selectTopDiverse(results, topN = 10, minUtilRate = 0.3) {
             // 1. 质量门槛过滤
             const viable = results.filter(r => r.eval.utilRate >= minUtilRate);
+            const viableCount = viable.length;
             // 2. 互异过滤
             const deduped = deduplicateResults(viable, 50);
+            const dedupedCount = deduped.length;
             // 3. 按策略分组
             const byStrategy = {};
             for (const r of deduped) {
@@ -2962,7 +2965,7 @@
                     }
                 }
             }
-            return selected;
+            return { selected, dedupedCount, viableCount };
         }
 
         // ============================================================
@@ -3663,7 +3666,9 @@
 
             // 互异过滤 + 多样性优先排序（轮询取 Top-10）
             const minUtil = parseFloat(document.getElementById('packMinUtilRate')?.value) || 0.3;
-            const top = selectTopDiverse(results, 10, minUtil);
+            const diverseResult = selectTopDiverse(results, 10, minUtil);
+            const top = diverseResult.selected;
+            const dedupedCount = diverseResult.dedupedCount;
             _currentResults = top;
             _currentPreviewIdx = -1;
 
