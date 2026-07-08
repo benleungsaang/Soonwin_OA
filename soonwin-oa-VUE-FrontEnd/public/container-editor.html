@@ -1898,31 +1898,34 @@
                         // 已三轴重叠 → 允许任意方向移动（自然可拖出）
                         if (xOverlapNow && yOverlapNow && zOverlapNow) continue;
                         // X 方向：需要 Y/Z 当前有接触面才会因 X 移动而进入三轴重叠
+                        //   仅当 o 在 c 的目标方向外侧时限制：X+ 限制要求 c 当前在 o 左边；X- 要求 c 当前在 o 右边
                         if (yOverlapNow && zOverlapNow) {
-                            if (dx > 0) {
+                            if (dx > 0 && c.px + c.sx <= o.px) {
+                                // c 当前在 o 的 X 左边，向 X+ 移动会撞到 o 左面
                                 const limit = o.px - (c.px + c.sx);
                                 dx = Math.min(dx, Math.max(0, limit));
-                            } else if (dx < 0) {
+                            } else if (dx < 0 && c.px >= o.px + o.sx) {
+                                // c 当前在 o 的 X 右边，向 X- 移动会撞到 o 右面
                                 const limit = (o.px + o.sx) - c.px;
                                 dx = Math.max(dx, Math.min(0, limit));
                             }
                         }
                         // Y 方向：需要 X/Z 当前有接触面
                         if (xOverlapNow && zOverlapNow) {
-                            if (dy > 0) {
+                            if (dy > 0 && c.py + c.sy <= o.py) {
                                 const limit = o.py - (c.py + c.sy);
                                 dy = Math.min(dy, Math.max(0, limit));
-                            } else if (dy < 0) {
+                            } else if (dy < 0 && c.py >= o.py + o.sy) {
                                 const limit = (o.py + o.sy) - c.py;
                                 dy = Math.max(dy, Math.min(0, limit));
                             }
                         }
                         // Z 方向：需要 X/Y 当前有接触面
                         if (xOverlapNow && yOverlapNow) {
-                            if (dz > 0) {
+                            if (dz > 0 && c.pz + c.sz <= o.pz) {
                                 const limit = o.pz - (c.pz + c.sz);
                                 dz = Math.min(dz, Math.max(0, limit));
-                            } else if (dz < 0) {
+                            } else if (dz < 0 && c.pz >= o.pz + o.sz) {
                                 const limit = (o.pz + o.sz) - c.pz;
                                 dz = Math.max(dz, Math.min(0, limit));
                             }
