@@ -939,7 +939,7 @@
                     <span>⚠️ 允许货物超出货柜边界</span>
                 </label>
                 <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红提醒）；取消勾选则禁止相互穿插，撞到其他货物即停止">
-                    <input type="checkbox" id="allowIntersection" checked />
+                    <input type="checkbox" id="allowIntersection" />
                     <span>🔀 允许货物交叉</span>
                 </label>
             </div>
@@ -1112,7 +1112,7 @@
             colorIndex: 0,
             editIndex: -1,
             allowOverflow: false, // 临时允许货物超出货柜边界
-            allowIntersection: true, // 默认允许货物相互交叉（关闭时拖动会受其他货物阻挡）
+            allowIntersection: false, // 默认不允许货物相互交叉（拖动会受其他货物阻挡，并参与摆放算法）
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
 
@@ -2751,7 +2751,7 @@
                             color: c.color || '#e94560',
                         }));
                         state.allowOverflow = !!data.allowOverflow;
-                        state.allowIntersection = data.allowIntersection !== false; // 兼容旧文件：未保存时默认 true
+                        state.allowIntersection = data.allowIntersection === true; // 兼容旧文件：未保存时默认 false（不允许交叉）
                         state.interactionMode = data.interactionMode || 'direct';
                         state.colorIndex = data.colorIndex || state.cargos.length;
                         clearSelection();
@@ -2836,7 +2836,7 @@
             state.container = { ...snap.container };
             state.cargos = snap.cargos.map(c => ({ ...c }));
             state.allowOverflow = snap.allowOverflow;
-            state.allowIntersection = snap.allowIntersection !== false; // 兼容旧快照：未保存时默认 true
+            state.allowIntersection = snap.allowIntersection === true; // 兼容旧快照：未保存时默认 false（不允许交叉）
             state.interactionMode = snap.interactionMode;
             state.colorIndex = snap.colorIndex;
             state.editIndex = -1;
@@ -2922,7 +2922,7 @@
                 color: c.color || '#e94560',
             }));
             state.allowOverflow = !!data.allowOverflow;
-            state.allowIntersection = data.allowIntersection !== false; // 兼容旧方案：未保存时默认 true
+            state.allowIntersection = data.allowIntersection === true; // 兼容旧方案：未保存时默认 false（不允许交叉）
             state.interactionMode = data.interactionMode || 'direct';
             state.colorIndex = data.colorIndex || state.cargos.length;
             clearSelection();
