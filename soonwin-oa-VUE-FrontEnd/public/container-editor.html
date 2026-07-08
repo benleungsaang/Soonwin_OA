@@ -2378,25 +2378,9 @@
         }
 
         // 生成货物的 6 种朝向（sx/sy/sz 的全排列，去重）
+        // 【已废弃】保留仅为避免破坏性引用；统一改用 tetrisOrientations（sy 不变）
         function generateOrientations(cargo) {
-            const dims = [cargo.sx, cargo.sy, cargo.sz];
-            const perms = [
-                [0, 1, 2], [0, 2, 1], [1, 0, 2],
-                [1, 2, 0], [2, 0, 1], [2, 1, 0],
-            ];
-            const seen = new Set();
-            const result = [];
-            for (const p of perms) {
-                const key = `${dims[p[0]]}_${dims[p[1]]}_${dims[p[2]]}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                result.push({
-                    sx: dims[p[0]],
-                    sy: dims[p[1]],
-                    sz: dims[p[2]],
-                });
-            }
-            return result;
+            return tetrisOrientations(cargo);
         }
 
         // 货物与已放置货物集合是否 AABB 重叠（Y 也参与判定）
