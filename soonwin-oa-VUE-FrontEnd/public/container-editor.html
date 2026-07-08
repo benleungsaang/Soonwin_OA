@@ -938,6 +938,10 @@
                     <input type="checkbox" id="allowOverflow" />
                     <span>⚠️ 允许货物超出货柜边界</span>
                 </label>
+                <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红提醒）；取消勾选则禁止相互穿插，撞到其他货物即停止">
+                    <input type="checkbox" id="allowIntersection" checked />
+                    <span>🔀 允许货物交叉</span>
+                </label>
             </div>
 
             <!-- 货物导入 -->
@@ -1108,6 +1112,7 @@
             colorIndex: 0,
             editIndex: -1,
             allowOverflow: false, // 临时允许货物超出货柜边界
+            allowIntersection: true, // 默认允许货物相互交叉（关闭时拖动会受其他货物阻挡）
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
 
@@ -1172,6 +1177,8 @@
         const applyCustom = $('#applyCustom');
         const allowOverflow = $('#allowOverflow');
         const overflowToggleLabel = $('#overflowToggleLabel');
+        const allowIntersection = $('#allowIntersection');
+        const intersectionToggleLabel = $('#intersectionToggleLabel');
         const cargoInput = $('#cargoInput');
         const loadCargoBtn = $('#loadCargoBtn');
         // clearCargoBtn 和 resetLayoutBtn 已移至 ⚙️ 操作下拉菜单，不再需要独立元素
@@ -1869,6 +1876,57 @@
                     } else if (dz < 0) {
                         const limit = -c.pz;
                         dz = Math.max(dz, Math.min(0, limit));
+                    }
+                }
+            }
+
+            // 2b) 禁止货物交叉：撞到其他货物时停止该方向推进
+            //   - 已与某货物三轴重叠时此方向不阻止（自然允许穿出 / 微调 / 深入）
+            //   - 未重叠时，若新位置会进入对方则停在对方表面（与撞墙同语义）
+            if (!state.allowIntersection) {
+                const movingSet = new Set(movingIdxs);
+                for (const idx of movingIdxs) {
+                    const c = state.cargos[idx];
+                    if (!c) continue;
+                    for (let j = 0; j < state.cargos.length; j++) {
+                        if (movingSet.has(j)) continue;
+                        const o = state.cargos[j];
+                        if (!o) continue;
+                        const xOverlapNow = c.px < o.px + o.sx && c.px + c.sx > o.px;
+                        const yOverlapNow = c.py < o.py + o.sy && c.py + c.sy > o.py;
+                        const zOverlapNow = c.pz < o.pz + o.sz && c.pz + c.sz > o.pz;
+                        // 已三轴重叠 → 允许任意方向移动（自然可拖出）
+                        if (xOverlapNow && yOverlapNow && zOverlapNow) continue;
+                        // X 方向：需要 Y/Z 当前有接触面才会因 X 移动而进入三轴重叠
+                        if (yOverlapNow && zOverlapNow) {
+                            if (dx > 0) {
+                                const limit = o.px - (c.px + c.sx);
+                                dx = Math.min(dx, Math.max(0, limit));
+                            } else if (dx < 0) {
+                                const limit = (o.px + o.sx) - c.px;
+                                dx = Math.max(dx, Math.min(0, limit));
+                            }
+                        }
+                        // Y 方向：需要 X/Z 当前有接触面
+                        if (xOverlapNow && zOverlapNow) {
+                            if (dy > 0) {
+                                const limit = o.py - (c.py + c.sy);
+                                dy = Math.min(dy, Math.max(0, limit));
+                            } else if (dy < 0) {
+                                const limit = (o.py + o.sy) - c.py;
+                                dy = Math.max(dy, Math.min(0, limit));
+                            }
+                        }
+                        // Z 方向：需要 X/Y 当前有接触面
+                        if (xOverlapNow && yOverlapNow) {
+                            if (dz > 0) {
+                                const limit = o.pz - (c.pz + c.sz);
+                                dz = Math.min(dz, Math.max(0, limit));
+                            } else if (dz < 0) {
+                                const limit = (o.pz + o.sz) - c.pz;
+                                dz = Math.max(dz, Math.min(0, limit));
+                            }
+                        }
                     }
                 }
             }
@@ -2623,6 +2681,7 @@
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
+                allowIntersection: state.allowIntersection,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
                 exportedAt: new Date().toISOString(),
@@ -2676,6 +2735,7 @@
                             color: c.color || '#e94560',
                         }));
                         state.allowOverflow = !!data.allowOverflow;
+                        state.allowIntersection = data.allowIntersection !== false; // 兼容旧文件：未保存时默认 true
                         state.interactionMode = data.interactionMode || 'direct';
                         state.colorIndex = data.colorIndex || state.cargos.length;
                         clearSelection();
@@ -2686,6 +2746,8 @@
                         customH.value = state.container.h;
                         allowOverflow.checked = state.allowOverflow;
                         overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+                        allowIntersection.checked = state.allowIntersection;
+                        intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
                         document.querySelectorAll('#containerSelector button').forEach(btn => {
                             btn.classList.toggle('active', btn.dataset.name === state.container.name);
                         });
@@ -2748,6 +2810,7 @@
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
+                allowIntersection: state.allowIntersection,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
             };
@@ -2757,6 +2820,7 @@
             state.container = { ...snap.container };
             state.cargos = snap.cargos.map(c => ({ ...c }));
             state.allowOverflow = snap.allowOverflow;
+            state.allowIntersection = snap.allowIntersection !== false; // 兼容旧快照：未保存时默认 true
             state.interactionMode = snap.interactionMode;
             state.colorIndex = snap.colorIndex;
             state.editIndex = -1;
@@ -2764,6 +2828,9 @@
             clearSelection();
             controls.enabled = true;
             allowOverflow.checked = state.allowOverflow;
+            allowIntersection.checked = state.allowIntersection;
+            overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+            intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
 
             // 直接同步模式 UI（不调 switchMode，避免 saveState 递归）
             if (snap.interactionMode === 'direct') {
@@ -2819,6 +2886,7 @@
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
+                allowIntersection: state.allowIntersection,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
             };
@@ -2838,6 +2906,7 @@
                 color: c.color || '#e94560',
             }));
             state.allowOverflow = !!data.allowOverflow;
+            state.allowIntersection = data.allowIntersection !== false; // 兼容旧方案：未保存时默认 true
             state.interactionMode = data.interactionMode || 'direct';
             state.colorIndex = data.colorIndex || state.cargos.length;
             clearSelection();
@@ -2986,6 +3055,13 @@
                 rebuildCargoMeshes();
                 updateStats();
             }
+            saveState();
+        });
+
+        // 允许货物交叉开关（关闭后拖动会撞其他货物停止；已交叉的货物可自然拖出）
+        allowIntersection.addEventListener('change', () => {
+            state.allowIntersection = allowIntersection.checked;
+            intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
             saveState();
         });
 
@@ -3139,6 +3215,8 @@
             customH.value = state.container.h;
             allowOverflow.checked = state.allowOverflow;
             overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
+            allowIntersection.checked = state.allowIntersection;
+            intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
             document.querySelectorAll('#containerSelector button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.name === state.container.name);
             });
