@@ -3683,7 +3683,7 @@
 
             packPanelMeta.innerHTML = `
                 计算 <b>${iter}</b> 次 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms<br>
-                互异方案 <b>${deduped.length}</b> 个，Top-10 策略分布：${strategySummary}<br>
+                互异方案 <b>${dedupedCount}</b> 个，Top-10 策略分布：${strategySummary}<br>
                 <span style="color:#aaa;">点击列表项预览；满意后点【应用】保存。再次打开浮窗会复用上次结果（货物变化时自动重算）。</span>
             `;
             packPanelList.innerHTML = '';
