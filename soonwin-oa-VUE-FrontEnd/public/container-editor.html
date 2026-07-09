@@ -2483,7 +2483,9 @@
                     const px = findDropX(orient.sx, orient.sy, orient.sz, start.py, start.pz, placed, container);
                     if (px === null) continue;
 
+                    // 候选对象附带 id/name（让 placed 数组能保留 cargo 信息）
                     const candidate = {
+                        id: cargo.id, name: cargo.name,
                         sx: orient.sx, sy: orient.sy, sz: orient.sz,
                         px, py: start.py, pz: start.pz,
                     };
@@ -2508,11 +2510,16 @@
             return candidates[0];
         }
 
-        // 兜底：放到 X=l+10 入口外
-        function placeOverflowAtEntrance(cargo, container) {
+        // 兜底：放到 X=l+10 入口外（累计 px 避免多件货物重叠）
+        function placeOverflowAtEntrance(cargo, container, placed) {
+            let maxRight = container.l;  // 默认从 X=l 开始
+            for (const o of placed) {
+                maxRight = Math.max(maxRight, o.px + o.sx);
+            }
             return {
-                ...cargo,
-                px: container.l + 10,
+                id: cargo.id, name: cargo.name,
+                sx: cargo.sx, sy: cargo.sy, sz: cargo.sz,
+                px: maxRight + 10,
                 py: 0,
                 pz: 0,
             };
@@ -2524,7 +2531,7 @@
             for (const cargo of sortedCargos) {
                 const result = placeOneCargo(cargo, placed, container, allowStacking, maxOverhangMM);
                 if (result === null) {
-                    placed.push(placeOverflowAtEntrance(cargo, container));
+                    placed.push(placeOverflowAtEntrance(cargo, container, placed));
                 } else {
                     placed.push(result);
                 }
@@ -3594,16 +3601,20 @@
 
             // 2. 货物清单
             lines.push('## 2. 货物清单（按 sortByShapeRatio 排序后）');
-            lines.push('| 序 | id | name | L(mm) | W(mm) | H(mm) | V(m³) | shapeRatio | 类别 |');
+            lines.push('| 排序序 | 导入序 | name | L(mm) | W(mm) | H(mm) | V(m³) | shapeRatio | 类别 |');
             lines.push('|---|---|---|---|---|---|---|---|---|');
+            // 排序前先建立 id → 原始索引的映射（用户页面看到的 #1-#12）
+            const idToOriginalIdx = new Map();
+            state.cargos.forEach((c, idx) => idToOriginalIdx.set(c.id, idx + 1));
             sorted.forEach((c, i) => {
                 const v = (c.sx * c.sy * c.sz / 1e9).toFixed(3);
                 const sr = shapeRatioOf(c).toFixed(2);
                 const cls = sr <= 2.0 ? '立方' : '细长';
-                lines.push(`| ${i+1} | ${c.id || '-'} | ${c.name || '(无名)'} | ${c.sx} | ${c.sy} | ${c.sz} | ${v} | ${sr} | ${cls} |`);
+                const origIdx = idToOriginalIdx.get(c.id) || '?';
+                lines.push(`| ${i+1} | ${origIdx} | ${c.name || '(无名)'} | ${c.sx} | ${c.sy} | ${c.sz} | ${v} | ${sr} | ${cls} |`);
             });
             const totalCargoVol = sorted.reduce((s, c) => s + c.sx * c.sy * c.sz, 0);
-            lines.push(`| | | | | | **合计** | **${(totalCargoVol / 1e9).toFixed(3)}** | | |`);
+            lines.push(`| | | **合计** | | | **${(totalCargoVol / 1e9).toFixed(3)}** | | |`);
             lines.push('');
 
             // 3. 方案总览
@@ -3637,14 +3648,15 @@
                 lines.push(`- 耗时: ${(r.timeMs || 0).toFixed(0)} ms`);
                 lines.push('');
                 lines.push('### 货物位置（按 sortByShapeRatio 顺序）');
-                lines.push('| 序 | 货物 | px | py | pz | sx×sy×sz | 入柜 | 高度层 | 边界备注 |');
-                lines.push('|---|---|---|---|---|---|---|---|---|');
+                lines.push('| placed 序 | 导入序 | 货物 | px | py | pz | sx×sy×sz | 入柜 | 高度层 | 边界备注 |');
+                lines.push('|---|---|---|---|---|---|---|---|---|---|');
                 r.placed.forEach((c, j) => {
                     const inBox = c.px + c.sx <= container.l && c.px >= 0 &&
                                   c.py >= 0 && c.py + c.sy <= container.h &&
                                   c.pz >= 0 && c.pz + c.sz <= container.w;
                     const layer = c.py === 0 ? 'L0(地面)' : `L${c.py}`;
-                    const notes = [];
+                    const origIdx = idToOriginalIdx.get(c.id) || '?';
+                    const cargoName = c.name || c.id || '?';
                     if (c.px === 0) notes.push('贴 X=0 尾部');
                     if (c.px + c.sx > container.l) notes.push(`凸出 X=l 入口 ${c.px + c.sx - container.l}mm`);
                     if (c.pz === 0) notes.push('贴 Z=0 背面');
@@ -3652,7 +3664,7 @@
                     if (c.py === 0) notes.push('贴 Y=0 底面');
                     if (c.py + c.sy === container.h) notes.push('贴 Y=h 顶面');
                     if (!inBox) notes.push('⚠️ 出界');
-                    lines.push(`| ${j+1} | ${c.name || c.id || '?'} | ${c.px} | ${c.py} | ${c.pz} | ${c.sx}×${c.sy}×${c.sz} | ${inBox ? '✓' : '❌'} | ${layer} | ${notes.join('; ') || '-'} |`);
+                    lines.push(`| ${j+1} | ${origIdx} | ${cargoName} | ${c.px} | ${c.py} | ${c.pz} | ${c.sx}×${c.sy}×${c.sz} | ${inBox ? '✓' : '❌'} | ${layer} | ${notes.join('; ') || '-'} |`);
                 });
                 lines.push('');
             });
