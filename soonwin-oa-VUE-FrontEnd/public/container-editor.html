@@ -3673,6 +3673,7 @@
             lines.push(`- 接受悬空突出: **${state.maxOverhangMM} mm**`);
             lines.push(`- 接受相互交叉: **${state.allowIntersection ? '✓' : '❌'}**`);
             lines.push(`- 排序规则: 纯体积降序（由大到小）`);
+            lines.push(`- ⚠️ 下方货物位置数据来自 **当前 3D 视图**，非算法原始计算结果`);
             lines.push('');
 
             // 2. 货物清单
@@ -3724,6 +3725,12 @@
 
             // 4..N. 每个方案详细
             const mainCountDetail = results.filter(r => r.strategy === 'tetris-v1').length;
+
+            // 建立 cargo id → 当前 3D 视图位置（state.cargos）的映射
+            // 使用户导出的位置与其在浏览器上看到的一致
+            const statePosMap = new Map();
+            state.cargos.forEach(c => statePosMap.set(c.id, { px: c.px, py: c.py, pz: c.pz }));
+
             results.forEach((r, localIdx) => {
                 const globalIdx = baseIdx + localIdx;  // 全局方案编号（用于标题）
                 let tag;
@@ -3737,25 +3744,30 @@
                 lines.push(`- 凸出: ${r.eval.overflowCount} 件, 完全出界: ${r.eval.fullyOutsideCount} 件`);
                 lines.push(`- 耗时: ${(r.timeMs || 0).toFixed(0)} ms`);
                 lines.push('');
-                lines.push('### 货物位置（按 sortByShapeRatio 顺序）');
+                lines.push('### 货物位置（按 sortByShapeRatio 顺序 — 当前 3D 视图坐标）');
                 lines.push('| placed 序 | 导入序 | 货物 | px | py | pz | sx×sy×sz | 入柜 | 高度层 | 边界备注 |');
                 lines.push('|---|---|---|---|---|---|---|---|---|---|');
                 r.placed.forEach((c, j) => {
-                    const inBox = c.px + c.sx <= container.l && c.px >= 0 &&
-                                  c.py >= 0 && c.py + c.sy <= container.h &&
-                                  c.pz >= 0 && c.pz + c.sz <= container.w;
-                    const layer = c.py === 0 ? 'L0(地面)' : `L${c.py}`;
+                    // 优先使用当前 3D 视图的位置（state.cargos），fallback 到算法缓存
+                    const cur = statePosMap.get(c.id);
+                    const px = cur ? cur.px : c.px;
+                    const py = cur ? cur.py : c.py;
+                    const pz = cur ? cur.pz : c.pz;
+                    const inBox = px + c.sx <= container.l && px >= 0 &&
+                                  py >= 0 && py + c.sy <= container.h &&
+                                  pz >= 0 && pz + c.sz <= container.w;
+                    const layer = py === 0 ? 'L0(地面)' : `L${py}`;
                     const origIdx = idToOriginalIdx.get(c.id) || '?';
                     const cargoName = c.name || c.id || '?';
                     const notes = [];
-                    if (c.px === 0) notes.push('贴 X=0 尾部');
-                    if (c.px + c.sx > container.l) notes.push(`凸出 X=l 入口 ${c.px + c.sx - container.l}mm`);
-                    if (c.pz === 0) notes.push('贴 Z=0 背面');
-                    if (c.pz + c.sz === container.w) notes.push('贴 Z=w 正面');
-                    if (c.py === 0) notes.push('贴 Y=0 底面');
-                    if (c.py + c.sy === container.h) notes.push('贴 Y=h 顶面');
+                    if (px === 0) notes.push('贴 X=0 尾部');
+                    if (px + c.sx > container.l) notes.push(`凸出 X=l 入口 ${px + c.sx - container.l}mm`);
+                    if (pz === 0) notes.push('贴 Z=0 背面');
+                    if (pz + c.sz === container.w) notes.push('贴 Z=w 正面');
+                    if (py === 0) notes.push('贴 Y=0 底面');
+                    if (py + c.sy === container.h) notes.push('贴 Y=h 顶面');
                     if (!inBox) notes.push('⚠️ 出界');
-                    lines.push(`| ${j+1} | ${origIdx} | ${cargoName} | ${c.px} | ${c.py} | ${c.pz} | ${c.sx}×${c.sy}×${c.sz} | ${inBox ? '✓' : '❌'} | ${layer} | ${notes.join('; ') || '-'} |`);
+                    lines.push(`| ${j+1} | ${origIdx} | ${cargoName} | ${px} | ${py} | ${pz} | ${c.sx}×${c.sy}×${c.sz} | ${inBox ? '✓' : '❌'} | ${layer} | ${notes.join('; ') || '-'} |`);
                 });
                 lines.push('');
             });
@@ -3781,7 +3793,15 @@
                     sortKey: r.sortKey,
                     timeMs: r.timeMs,
                     eval: r.eval,
-                    placed: r.placed.map(c => ({ ...c })),
+                    placed: r.placed.map(c => {
+                        const cur = statePosMap.get(c.id);
+                        return {
+                            ...c,
+                            px: cur ? cur.px : c.px,
+                            py: cur ? cur.py : c.py,
+                            pz: cur ? cur.pz : c.pz,
+                        };
+                    }),
                 })),
                 exportedAt: new Date().toISOString(),
             };
