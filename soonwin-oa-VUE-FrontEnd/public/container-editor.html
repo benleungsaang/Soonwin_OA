@@ -2236,7 +2236,7 @@
         const PackingAlgos = {
             list() { return Object.keys(STRATEGIES); },
             /**
-             * v1 主入口：返回 4 个 result（1 主线 + 3 多样性，方案 α 扰动）
+             * v1 主入口：返回 5~6 个 result（2 主线 + 3~4 多样性，方案 α 扰动）
              * @param {string} name 兼容旧 API：被忽略
              * @param {Array} cargos
              * @param {Object} opts { container, allowIntersection, allowStacking, maxOverhangMM }
@@ -2330,14 +2330,29 @@
 
         // ============================================================
         //  Tetris v1 算法
-        //  坐标系：X=0 尾部（封闭端），X=l 入口（开门端）
-        //         Y=0 底，Y=h 顶
-        //         Z=0 背面（远），Z=w 正面（近）
-        //  推进方向：从入口 X=l 沿 -X 向尾部 X=0 推进
-        //  排序：方案 P（T=2.0）—— 立方体组按体积降序，细长组按 shapeRatio 升序
-        //  进入：4 入口角（右下/左下/右上/左上） × 2 朝向 = 最多 8 试，优选 min(px)
+        //  ======== 坐标系共识（2026-07-09 修订）=========
+        //  X=0  = 尾部（屏幕左端，封闭端/门铰链端）
+        //  X=l  = 入口（屏幕右端，开门端/柜门）
+        //  Y=0  = 底部（地面/货柜底板）
+        //  Y=h  = 顶面（货柜顶部）
+        //  Z=0  = 背面 / 远端（观察者视角的"右墙"）
+        //  Z=w  = 正面 / 近端（观察者视角的"左墙"）
+        //  原点 (0,0,0) = 尾部 ∩ 底部 ∩ 背面的三面交点
+        //  货物推进方向 = 沿 −X（从入口 X=l 推向尾部 X=0）
+        //  货物尺寸语义：sx=长(X方向), sy=高(Y方向), sz=宽(Z方向)
+        //  柜门（入口）在 X=l — 卸载时货物从 X=l 端出门
+        //
+        //  ======== 4 个入口角（精确定义）=========
+        //  入口角是货物在 X=l（入口端）的起始位置，由 (Y, Z) 坐标确定：
+        //    右下 (right-bottom):  y=0,  z=0    (底部 ∩ 背面)
+        //    左下 (left-bottom):   y=0,  z=w-sz (底部 ∩ 正面)
+        //    右上 (right-top):     y=h-sy, z=0    (顶部 ∩ 背面)
+        //    左上 (left-top):      y=h-sy, z=w-sz (顶部 ∩ 正面)
+        //  每个入口角有 2 种朝向（sx↔sz 互换）= 最多 8 候选
+        //  排序：纯体积降序（由大到小），不再分组
+        //  进入：4 × 2 = 最多 8 试，优选 min(px)（最深入尾部）
         //  跌落：仅接受堆叠 + 顶角进入；底面投影允许 ≤ maxOverhangMM 凸出
-        //  多样性：方案 α（只换第 1 件）—— 1 主线 + 3 多样性
+        //  多样性：方案 α（只换第 1 件）—— 2 主线(默认/旋转首件) + 3 多样性
         // ============================================================
 
         // 形状偏离度 = max(sx,sy,sz) / min(sx,sy,sz)
@@ -2347,18 +2362,11 @@
             return minD === 0 ? Infinity : maxD / minD;
         }
 
-        // 排序：方案 P（T=2.0）—— 立方体组（≤2.0）按体积降序；细长组（>2.0）按 shapeRatio 升序
+        // 排序：纯体积降序（由大到小），不再拆分立方体/细长组
+        //   用户预期"按大小排队入库" = 体积最大者最先入柜、放最深
+        //   2026-07-09: 移除旧方案 P 的 T=2.0 分组建模，改为统一体积降序
         function sortByShapeRatio(cargos) {
-            const T = 2.0;
-            const cubic = [];
-            const slender = [];
-            for (const c of cargos) {
-                if (shapeRatioOf(c) <= T) cubic.push(c);
-                else slender.push(c);
-            }
-            cubic.sort((a, b) => (b.sx * b.sy * b.sz) - (a.sx * a.sy * a.sz));
-            slender.sort((a, b) => shapeRatioOf(a) - shapeRatioOf(b));
-            return [...cubic, ...slender];
+            return [...cargos].sort((a, b) => (b.sx * b.sy * b.sz) - (a.sx * a.sy * a.sz));
         }
 
         // 朝向：仅 sx↔sz 互换，sy 永远朝上（不能垂直翻转）
@@ -2510,9 +2518,59 @@
             return candidates[0];
         }
 
-        // 兜底：放到 X=l+10 入口外（累计 px 避免多件货物重叠）
+        // 兜底：在入口处寻找可放置位置
+        //   尝试 2 朝向 × 多组 Z 候选，优先选 px 最小者
+        //   已被 placeOneCargo 判为不可放下的货物，不再严格推回尾部
+        //   只保证：不与其他货物 AABB 交叉、不超出底面(Y=0)或正面(Z=w)、不超过顶面(Y=h)
         function placeOverflowAtEntrance(cargo, container, placed) {
-            let maxRight = container.l;  // 默认从 X=l 开始
+            const { l, w, h } = container;
+            const orientations = tetrisOrientations(cargo);
+            const candidates = [];
+
+            // 收集已有货物的 Z 边界作为候选 pz 位置
+            const zEdges = new Set([0]);
+            for (const o of placed) {
+                if (o.pz + o.sz <= w) zEdges.add(o.pz + o.sz);
+            }
+
+            for (const orient of orientations) {
+                // 预过滤：超柜子的方向直接跳过
+                if (orient.sy > h) continue;
+                if (orient.sz > w) continue;
+
+                for (const pz of zEdges) {
+                    if (pz + orient.sz > w) continue;  // Z 越界
+                    const py = 0;  // 兜底总是放地面
+
+                    // 用 findDropX 确定 px（沿 X 往回推，撞到第一个 YZ 重叠的已放货物就停）
+                    const px = findDropX(orient.sx, orient.sy, orient.sz, py, pz, placed, container);
+                    if (px === null) continue;
+
+                    const candidate = {
+                        id: cargo.id, name: cargo.name,
+                        sx: orient.sx, sy: orient.sy, sz: orient.sz,
+                        px, py, pz,
+                    };
+
+                    // 边界校验（允许 X=l 入口凸出，但 Y/Z 必须在柜内）
+                    if (candidate.py < 0 || candidate.py + candidate.sy > h) continue;
+                    if (candidate.pz < 0 || candidate.pz + candidate.sz > w) continue;
+
+                    // AABB 交叉校验
+                    if (aabbOverlap(candidate, placed)) continue;
+
+                    candidates.push(candidate);
+                }
+            }
+
+            if (candidates.length > 0) {
+                // 优选 min(px) — 最深入尾部（尽可能利用柜内空间）
+                candidates.sort((a, b) => a.px - b.px);
+                return candidates[0];
+            }
+
+            // 终极兜底：放至入口外（px=l 之后），累计偏移避免多件重叠
+            let maxRight = l;
             for (const o of placed) {
                 maxRight = Math.max(maxRight, o.px + o.sx);
             }
@@ -2564,14 +2622,14 @@
             ];
         }
 
-        // 4 解入口（1 主线 + 3 多样性，方案 α 扰动）
+        // 4 解入口（2 主线 + 3 多样性，方案 α 扰动）
         function tetrisLayoutV1(cargos, opts) {
             const { container, allowStacking = false, maxOverhangMM = 0 } = opts;
             const results = [];
             const sortedMain = sortByShapeRatio(cargos);
-            sortedMain.__sortKey = `P(T=2.0)`;
+            sortedMain.__sortKey = `vol-desc`;
 
-            // 主线解（确定性）
+            // --- 主线 A：首件默认朝向 ---
             {
                 const t0 = performance.now();
                 const placed = singleRun(sortedMain, container, allowStacking, maxOverhangMM);
@@ -2581,7 +2639,25 @@
                     eval: evaluateLayout(placed, container),
                     timeMs: t1 - t0,
                     strategy: 'tetris-v1',
-                    sortKey: sortedMain.__sortKey,
+                    sortKey: sortedMain.__sortKey + ' (default)',
+                });
+            }
+
+            // --- 主线 B：首件水平旋转 sx↔sz ---
+            //   利用首件另一朝向产生不同的起始占位，进而影响后续排列
+            if (sortedMain.length > 0 && sortedMain[0].sx !== sortedMain[0].sz) {
+                const sortedRotated = sortedMain.map(c => ({ ...c }));
+                const first = sortedRotated[0];
+                sortedRotated[0] = { ...first, sx: first.sz, sz: first.sx };
+                const t0 = performance.now();
+                const placed = singleRun(sortedRotated, container, allowStacking, maxOverhangMM);
+                const t1 = performance.now();
+                results.push({
+                    placed,
+                    eval: evaluateLayout(placed, container),
+                    timeMs: t1 - t0,
+                    strategy: 'tetris-v1',
+                    sortKey: sortedMain.__sortKey + ' (rotated-first)',
                 });
             }
 
@@ -3272,7 +3348,7 @@
 
         // 分片调度：每帧最多执行 CHUNK 次迭代，让出主线程避免 UI 卡顿
         async function runPackingWithProgress(algoName, cargos, _iter, allowIntersection, allowStacking, maxOverhangMM) {
-            // v1 算法：固定返回 4 解（1 主线 + 3 多样性），不分片
+            // v1 算法：固定返回 5 解（2 主线 + 3 多样性），不分片
             const container = state.container;
             packRunBtn.disabled = true;
             packRunBtn.textContent = '🎲 计算中…';
@@ -3346,7 +3422,7 @@
             _lastPackSignature = _currentCargosSignature();
 
             // 互异过滤 + 多样性优先排序（轮询取 Top-10）
-            // v1 固定 4 解：minUtil 固定 0（4 解全部展示，无需过滤）
+            // v1 固定 5 解（2 主线 + 3 多样性）：minUtil 固定 0（全部展示，无需过滤）
             const diverseResult = selectTopDiverse(results, 10, 0);
             const top = diverseResult.selected;
             const dedupedCount = diverseResult.dedupedCount;
@@ -3506,7 +3582,7 @@
             _lastPackSignature = '';
 
             const algoName = packAlgoSelect.value;
-            const totalRuns = 4; // v1 固定：1 主线 + 3 多样性
+            const totalRuns = 5; // v1 固定：2 主线(默认/旋转首件) + 3 多样性
             packHint.textContent = `开始计算（${algoName} × ${totalRuns} 个解）…`;
 
             const cargosSnapshot = state.cargos.map(c => ({
@@ -3585,7 +3661,7 @@
             lines.push('');
             lines.push('> 用于 AI 分析优化的结构化导出');
             lines.push(`> 导出时间: ${new Date().toISOString()}`);
-            lines.push('> 算法: Tetris v1（方案 P 排序 T=2.0 + 4 入口角 + Y 方向跌落 + 1 主线 + 3 多样性）');
+            lines.push('> 算法: Tetris v1（体积降序 + 4 入口角 + Y 方向跌落 + 2 主线 + 3 多样性）');
             lines.push('');
 
             // 1. 元数据
@@ -3596,7 +3672,7 @@
             lines.push(`- 接受堆叠: **${state.allowStacking ? '✓' : '❌'}**`);
             lines.push(`- 接受悬空突出: **${state.maxOverhangMM} mm**`);
             lines.push(`- 接受相互交叉: **${state.allowIntersection ? '✓' : '❌'}**`);
-            lines.push(`- 排序规则: 方案 P (T=2.0) — 立方体组（shapeRatio≤2.0）按体积降序；细长组（>2.0）按 shapeRatio 升序`);
+            lines.push(`- 排序规则: 纯体积降序（由大到小）`);
             lines.push('');
 
             // 2. 货物清单
@@ -3625,8 +3701,16 @@
             lines.push('## 3. 方案总览');
             lines.push('| # | 策略 | utilRate | 凸出 | 出界 | 耗时 | 首件 | 差异 |');
             lines.push('|---|---|---|---|---|---|---|---|');
+            // 统计主线方案数（tetris-v1 = 非扰动方案，有 1~2 个）
+            const mainCount = results.filter(r => r.strategy === 'tetris-v1').length;
             results.forEach((r, i) => {
-                const isMain = i === 0;
+                let tag;
+                if (i === 0) tag = '**(主线 A·默认朝向)**';
+                else if (i === 1 && mainCount > 1) tag = '**(主线 B·首件旋转)**';
+                else {
+                    const perturbIdx = i - (mainCount - 1);
+                    tag = `扰动 #${perturbIdx}`;
+                }
                 const strategy = r.strategy || '-';
                 const util = (r.eval.utilRate * 100).toFixed(2) + '%';
                 const overflow = r.eval.overflowCount;
@@ -3634,16 +3718,18 @@
                 const time = (r.timeMs || 0).toFixed(0) + 'ms';
                 const first = r.placed[0];
                 const firstName = first ? (first.name || first.id || '?') : '-';
-                const tag = isMain ? '**(主线)**' : `扰动 #${i}`;
-                lines.push(`| **${i+1}**${isMain ? ' (主线)' : ''} | ${strategy} | ${util} | ${overflow} | ${outside} | ${time} | ${firstName} | ${tag} |`);
+                lines.push(`| **${i+1}** | ${strategy} | ${util} | ${overflow} | ${outside} | ${time} | ${firstName} | ${tag} |`);
             });
             lines.push('');
 
             // 4..N. 每个方案详细
+            const mainCountDetail = results.filter(r => r.strategy === 'tetris-v1').length;
             results.forEach((r, localIdx) => {
                 const globalIdx = baseIdx + localIdx;  // 全局方案编号（用于标题）
-                const isMain = globalIdx === 0;
-                const tag = isMain ? '主线' : `多样性`;
+                let tag;
+                if (localIdx === 0) tag = '主线 A（默认朝向）';
+                else if (localIdx === 1 && mainCountDetail > 1) tag = '主线 B（首件旋转）';
+                else tag = `多样性`;
                 lines.push(`## ${4 + localIdx}. ${tag}方案 #${globalIdx + 1}`);
                 lines.push(`- 策略: \`${r.strategy}\``);
                 lines.push(`- 排序键: \`${r.sortKey || '-'}\``);
