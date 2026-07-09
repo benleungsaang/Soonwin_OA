@@ -3600,21 +3600,25 @@
             lines.push('');
 
             // 2. 货物清单
-            lines.push('## 2. 货物清单（按 sortByShapeRatio 排序后）');
-            lines.push('| 排序序 | 导入序 | name | L(mm) | W(mm) | H(mm) | V(m³) | shapeRatio | 类别 |');
-            lines.push('|---|---|---|---|---|---|---|---|---|');
+            lines.push('## 2. 货物清单（按导入序排序）');
+            lines.push('| # | name | L(mm) | W(mm) | H(mm) | V(m³) | shapeRatio | 类别 |');
+            lines.push('|---|---|---|---|---|---|---|---|');
             // 排序前先建立 id → 原始索引的映射（用户页面看到的 #1-#12）
             const idToOriginalIdx = new Map();
             state.cargos.forEach((c, idx) => idToOriginalIdx.set(c.id, idx + 1));
-            sorted.forEach((c, i) => {
+            // 按导入序（原始序号）升序排列
+            const sortedByIdx = [...sorted].sort((a, b) => {
+                return (idToOriginalIdx.get(a.id) || 999) - (idToOriginalIdx.get(b.id) || 999);
+            });
+            sortedByIdx.forEach((c) => {
                 const v = (c.sx * c.sy * c.sz / 1e9).toFixed(3);
                 const sr = shapeRatioOf(c).toFixed(2);
                 const cls = sr <= 2.0 ? '立方' : '细长';
                 const origIdx = idToOriginalIdx.get(c.id) || '?';
-                lines.push(`| ${i+1} | ${origIdx} | ${c.name || '(无名)'} | ${c.sx} | ${c.sy} | ${c.sz} | ${v} | ${sr} | ${cls} |`);
+                lines.push(`| ${origIdx} | ${c.name || '(无名)'} | ${c.sx} | ${c.sy} | ${c.sz} | ${v} | ${sr} | ${cls} |`);
             });
-            const totalCargoVol = sorted.reduce((s, c) => s + c.sx * c.sy * c.sz, 0);
-            lines.push(`| | | **合计** | | | **${(totalCargoVol / 1e9).toFixed(3)}** | | |`);
+            const totalCargoVol = sortedByIdx.reduce((s, c) => s + c.sx * c.sy * c.sz, 0);
+            lines.push(`| | **合计** | | | **${(totalCargoVol / 1e9).toFixed(3)}** | | |`);
             lines.push('');
 
             // 3. 方案总览
