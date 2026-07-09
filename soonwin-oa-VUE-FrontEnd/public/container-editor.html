@@ -1118,9 +1118,6 @@
                     <button class="btn" id="exportBtn" title="下载到本地">📤 导出本地文件</button>
                     <button class="btn" id="importBtn" title="从本地文件加载">📥 导入本地文件</button>
                 </div>
-                <div class="panel-actions-row">
-                    <button class="btn" id="reportBtn" title="导出 Markdown 方案报告（含表格+JSON，用于 AI 分析）">📋 导出方案报告</button>
-                </div>
             </div>
         </div>
 
@@ -1225,6 +1222,7 @@
         <div class="pack-panel-actions">
             <button class="btn-sm" id="packPanelRerun">🔄 重新计算</button>
             <button class="btn-sm" id="packPanelClose">关闭</button>
+            <button class="btn-sm" id="packPanelExportAll" style="margin-left:auto;" title="导出所有方案的 Markdown 报告（用于 AI 分析）">📋 导出报告</button>
         </div>
         <div class="pack-panel-list" id="packPanelList"></div>
         <div class="pack-panel-footer">
@@ -1355,7 +1353,6 @@
         const importBtn = $('#importBtn');
         const saveBtn = $('#saveBtn');
         const saveAsBtn = $('#saveAsBtn');
-        const reportBtn = $('#reportBtn');
         const vpDeselectBtn = $('#vpDeselectBtn');
         const vpRotateBtn = $('#vpRotateBtn');
         const vpDropBtn = $('#vpDropBtn');
@@ -3383,6 +3380,7 @@
                     <div class="row3">
                         <button class="btn-sm pack-preview-btn" data-idx="${idx}">预览</button>
                         <button class="btn-sm btn-primary pack-apply-btn" data-idx="${idx}">应用</button>
+                        <button class="btn-sm pack-export-btn" data-idx="${idx}" style="margin-left:auto;" title="单独导出此方案的 Markdown 报告">📋 导出此方案</button>
                     </div>
                 `;
                 // 点击整行也可预览
@@ -3405,6 +3403,13 @@
                     e.stopPropagation();
                     const idx = parseInt(btn.dataset.idx, 10);
                     handleApplyBtn(idx);
+                });
+            });
+            packPanelList.querySelectorAll('.pack-export-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(btn.dataset.idx, 10);
+                    exportLayoutReport(idx);
                 });
             });
 
@@ -3474,6 +3479,7 @@
         const packPanelRerun = $('#packPanelRerun');
         const packPanelClose = $('#packPanelClose');
         const packPanelCloseX = $('#packPanelCloseX');
+        const packPanelExportAll = $('#packPanelExportAll');
         const packPanelPreviewState = $('#packPanelPreviewState');
 
         packRunBtn.addEventListener('click', async () => {
@@ -3548,12 +3554,19 @@
         //  导出布局
         // ============================================================
         // 导出方案报告：生成 Markdown 格式（表格 + JSON 数据块），用于 AI 分析讨论
-        function exportLayoutReport() {
+        //   idx=null  → 导出全部 4 个解
+        //   idx=数字  → 导出第 idx+1 个解
+        function exportLayoutReport(idx = null) {
             if (!_lastPackResults || _lastPackResults.length === 0) {
                 alert('请先点击"🎲 开始计算"生成方案');
                 return;
             }
-            const results = _lastPackResults;
+            const allResults = _lastPackResults;
+            const results = (idx !== null && idx >= 0 && idx < allResults.length)
+                ? [allResults[idx]]
+                : allResults;
+            const isSingle = results.length === 1;
+            const baseIdx = (idx !== null && idx >= 0) ? idx : 0;
             const container = state.container;
             const containerVol = container.l * container.w * container.h;
 
@@ -3612,10 +3625,11 @@
             lines.push('');
 
             // 4..N. 每个方案详细
-            results.forEach((r, idx) => {
-                const isMain = idx === 0;
+            results.forEach((r, localIdx) => {
+                const globalIdx = baseIdx + localIdx;  // 全局方案编号（用于标题）
+                const isMain = globalIdx === 0;
                 const tag = isMain ? '主线' : `多样性`;
-                lines.push(`## ${4 + idx}. ${tag}方案 #${idx + 1}`);
+                lines.push(`## ${4 + localIdx}. ${tag}方案 #${globalIdx + 1}`);
                 lines.push(`- 策略: \`${r.strategy}\``);
                 lines.push(`- 排序键: \`${r.sortKey || '-'}\``);
                 lines.push(`- **utilRate: ${(r.eval.utilRate * 100).toFixed(2)}%**`);
@@ -3678,7 +3692,8 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `layout_report_${container.name}_${Date.now()}.md`;
+            const tag = isSingle ? `solution${baseIdx + 1}` : 'all';
+            a.download = `layout_${tag}_${container.name}_${Date.now()}.md`;
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -4118,7 +4133,7 @@
         });
 
         exportBtn.addEventListener('click', exportLayout);
-        reportBtn.addEventListener('click', exportLayoutReport);
+        packPanelExportAll.addEventListener('click', () => exportLayoutReport(null));
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
