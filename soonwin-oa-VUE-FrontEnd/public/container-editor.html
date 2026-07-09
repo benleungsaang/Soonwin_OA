@@ -436,8 +436,10 @@
         }
 
         .cargo-item.selected {
-            background: #2a2a5e;
-            border-left-color: #ffd93d;
+            background: #1e2a4a;
+            border-left: 4px solid #ffd93d;
+            box-shadow: 0 0 8px rgba(255,215,61,0.25);
+            outline: 1px solid rgba(255,215,61,0.3);
         }
 
         .cargo-item .cargo-row1 {
@@ -544,6 +546,22 @@
             opacity: 0.5;
             transition: 0.2s;
             user-select: none;
+        }
+
+        .cargo-item .cargo-edit {
+            color: #ffaa44;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 4px;
+            opacity: 0.6;
+            transition: 0.2s;
+            user-select: none;
+        }
+
+        .cargo-item .cargo-edit:hover {
+            opacity: 1;
+            transform: scale(1.15);
         }
 
         .cargo-item .cargo-rotate:hover {
@@ -1022,107 +1040,98 @@
             <!-- 货柜选择 -->
             <div class="section">
                 <div class="section-title">🚛 货柜选择</div>
-                <div class="container-selector" id="containerSelector">
-                    <button data-name="20尺普柜" data-l="5890" data-w="2350" data-h="2390">20尺普柜</button>
-                    <button data-name="40尺普柜" data-l="12030" data-w="2350" data-h="2390" class="active">40尺普柜</button>
-                    <button data-name="40尺高柜" data-l="12030" data-w="2350" data-h="2690">40尺高柜</button>
-                    <button data-name="45尺高柜" data-l="13580" data-w="2350" data-h="2690">45尺高柜</button>
+                <select id="containerTypeSelect" style="width:100%;padding:6px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:6px;font-size:13px;">
+                    <option value="20尺普柜" data-l="5890" data-w="2350" data-h="2390">20尺普柜 (5890×2350×2390)</option>
+                    <option value="40尺普柜" data-l="12030" data-w="2350" data-h="2390">40尺普柜 (12030×2350×2390)</option>
+                    <option value="40尺高柜" data-l="12030" data-w="2350" data-h="2690" selected>40尺高柜 (12030×2350×2690)</option>
+                    <option value="45尺高柜" data-l="13580" data-w="2350" data-h="2690">45尺高柜 (13580×2350×2690)</option>
+                    <option value="custom">自定义…</option>
+                </select>
+                <div class="custom-container" id="customContainer" style="display:none;margin-top:6px;">
+                    <input type="number" id="customL" value="12030" placeholder="长" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
+                    <input type="number" id="customW" value="2350" placeholder="宽" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
+                    <input type="number" id="customH" value="2690" placeholder="高" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
+                    <button id="applyCustom" style="padding:4px 10px;margin-top:4px;background:#ffaa44;color:#000;border:none;border-radius:4px;cursor:pointer;font-size:12px;">应用</button>
                 </div>
-                <div class="custom-container">
-                    <label>自定义 (mm)</label>
-                    <input type="number" id="customL" value="12030" placeholder="长" />
-                    <input type="number" id="customW" value="2350" placeholder="宽" />
-                    <input type="number" id="customH" value="2390" placeholder="高" />
-                    <button id="applyCustom">应用</button>
-                </div>
-                <label class="overflow-toggle" id="overflowToggleLabel" title="勾选后允许货物尺寸/拖动/旋转超出货柜边界（临时选项）">
+                <label class="overflow-toggle" id="overflowToggleLabel" style="margin-top:6px;" title="勾选后允许货物超出货柜边界">
                     <input type="checkbox" id="allowOverflow" />
-                    <span>⚠️ 允许货物超出货柜边界</span>
+                    <span>⚠️ 允许超出边界</span>
                 </label>
-                <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红提醒）；取消勾选则禁止相互穿插，撞到其他货物即停止">
+                <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红）">
                     <input type="checkbox" id="allowIntersection" />
-                    <span>🔀 允许货物交叉</span>
+                    <span>🔀 允许交叉</span>
                 </label>
             </div>
 
-            <!-- 货物导入 -->
-            <div class="section import-area">
-                <div class="section-title">📋 导入货物</div>
-                <textarea id="cargoInput"
-                    placeholder="每行一个：名称, 长*宽*高 (mm)&#10;例如：&#10;货物1, 1390*840*1550&#10;货物2, 1390*840*1550">货物1, 1390*840*1550
-                    货物2, 1390*840*1550
-                    货物3, 1390*840*1550
-                    货物4, 1200*800*1400
-                    货物5, 1000*600*1200
-                货物6, 800*500*1000</textarea>
-                <div class="import-actions">
-                    <button class="btn btn-primary" id="loadCargoBtn">📥 添加货物</button>
+            <!-- 空间利用率 -->
+            <div class="section">
+                <div class="section-title">📊 空间利用率</div>
+                <div class="stats">
+                    <span>已用体积</span><span class="value" id="usedVolume">0 mm³</span>
+                    <span>总体积</span><span class="value" id="totalVolume">0 mm³</span>
+                    <span>利用率</span><span class="value highlight" id="utilRate">0%</span>
+                    <span>货物数量</span><span class="value" id="statCount">0</span>
+                    <span>包络盒紧密度 <em style="color:#4fc3f7;font-style:normal;font-size:10px;">高更优</em></span>
+                    <span class="value" id="tightnessStat" style="color:#4fc3f7;">-</span>
+                    <span>空隙率 <em style="color:#ef5350;font-style:normal;font-size:10px;">低更优</em></span>
+                    <span class="value" id="voidRateStat" style="color:#ef5350;">-</span>
+                    <span>最深前沿</span>
+                    <span class="value" id="maxFrontStat">-</span>
+                    <span>质心Y</span>
+                    <span class="value" id="comYStat">-</span>
                 </div>
             </div>
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div></div></div></span></div>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="importCargo"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">导入货物</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div></div></div></span></div>
                 <div class="cargo-list-container" id="cargoList"></div>
             </div>
 
-            <!-- 统计 -->
-            <div class="section">
-                <div class="section-title">📊 空间利用率</div>
-                <div class="stats">
-                    <span>已用体积</span>
-                    <span class="value" id="usedVolume">0 mm³</span>
-                    <span>总体积</span>
-                    <span class="value" id="totalVolume">0 mm³</span>
-                    <span>利用率</span>
-                    <span class="value highlight" id="utilRate">0%</span>
-                    <span>货物数量</span>
-                    <span class="value" id="statCount">0</span>
+            <!-- 导入货物弹窗（内嵌在货物列表区域下方） -->
+            <div id="importCargoPanel" style="display:none;padding:8px;background:#0d1b33;border-radius:6px;margin-top:4px;">
+                <textarea id="cargoInput"
+                    style="width:100%;height:120px;max-height:120px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:6px;color:#e0e0e0;padding:8px;font-size:12px;resize:none;font-family:Consolas,monospace;line-height:1.6;"
+                    placeholder="每行一个：名称, 长*宽*高 (mm)"></textarea>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                    <button class="btn btn-primary" id="loadCargoBtn" style="font-size:12px;padding:4px 12px;">📥 添加货物</button>
+                    <button class="btn" id="closeImportBtn" style="font-size:12px;padding:4px 12px;">关闭</button>
                 </div>
             </div>
 
+            <!-- 智能排布 -->
             <div class="section">
                 <div class="section-title">🎲 智能排布</div>
                 <div style="display:flex;flex-direction:column;gap:8px;">
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <label style="flex:1;font-size:13px;color:#aaa;">算法</label>
-                        <select id="packAlgoSelect" style="flex:2;padding:5px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:6px;font-size:13px;">
-                            <option value="tetris">🎯 Tetris 重力沉降（推荐）</option>
-                            <option value="multi">9 策略混跑（含 Tetris）</option>
-                            <option value="extreme-point">极值点算法</option>
-                            <option value="random-greedy">随机贪心</option>
-                        </select>
-                    </div>
-                    <label class="overflow-toggle" id="stackingToggleLabel"
-                           title="勾选：允许货物堆叠（启用顶角入口+重力下落）；取消：仅底角入口，货物落地放">
-                        <input type="checkbox" id="allowStacking" />
-                        <span>📚 接受堆叠（允许货物叠放）</span>
-                    </label>
-                    <label class="overflow-toggle checked" id="flatStackingToggleLabel"
-                           title="勾选：仅对扁型低高度长条货物允许堆叠（顶角入口+重力下落）；非扁型货物仍走底角入口">
-                        <input type="checkbox" id="allowFlatStacking" checked />
-                        <span>📏 接受扁型货物堆叠（仅 #2/#4/#6 这类）</span>
-                    </label>
-                    <div style="display:flex;gap:6px;align-items:center;"
-                         title="跌落后底部允许凸出支撑面的最大距离，0=0容忍（默认），可调 0~100 mm">
-                        <label style="flex:1;font-size:13px;color:#aaa;">接受悬空突出</label>
-                        <input type="number" id="maxOverhangMM" min="0" max="100" step="1" value="0"
-                               style="flex:2;padding:5px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:6px;font-size:13px;" />
-                        <span style="font-size:12px;color:#888;">mm</span>
-                    </div>
                     <button id="packRunBtn" class="btn btn-primary">🎲 开始计算</button>
-                    <div id="packHint" style="font-size:12px;color:#888;line-height:1.5;min-height:16px;">（所有算法选项当前均使用 Tetris v1）</div>
+                    <div id="packHint" style="font-size:12px;color:#888;line-height:1.5;min-height:16px;"></div>
+                    <div id="packParamsToggle" style="font-size:12px;color:#ffaa44;cursor:pointer;user-select:none;margin-top:2px;" onclick="var p=document.getElementById('packParamsBody');var t=this;if(p.style.display==='none'){p.style.display='flex';t.textContent='🔽 调整计算参数'}else{p.style.display='none';t.textContent='▶️ 调整计算参数'}">▶️ 调整计算参数</div>
+                    <div id="packParamsBody" style="display:none;flex-direction:column;gap:6px;">
+                        <label class="overflow-toggle" id="stackingToggleLabel" title="允许货物堆叠（启用顶角入口+重力下落）">
+                            <input type="checkbox" id="allowStacking" />
+                            <span>📚 接受堆叠</span>
+                        </label>
+                        <label class="overflow-toggle checked" id="flatStackingToggleLabel" title="仅对扁型低高度长条货物允许堆叠">
+                            <input type="checkbox" id="allowFlatStacking" checked />
+                            <span>📏 接受扁型货物堆叠</span>
+                        </label>
+                        <div style="display:flex;gap:6px;align-items:center;" title="跌落后底部允许凸出支撑面的最大距离">
+                            <label style="flex:1;font-size:12px;color:#aaa;">悬空突出</label>
+                            <input type="number" id="maxOverhangMM" min="0" max="100" step="1" value="0" style="flex:1;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
+                            <span style="font-size:11px;color:#888;">mm</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="panel-actions panel-actions-rows">
                 <div class="panel-actions-row">
-                    <button class="btn" id="saveBtn" title="保存当前方案到云端">💾 保存</button>
-                    <button class="btn" id="saveAsBtn" title="复制为新方案">📋 另存为</button>
+                    <button class="btn" id="saveBtn" title="保存到云端" style="background:#1a5c2a;border-color:#2a8a3e;color:#c0ffc0;">💾 保存</button>
+                    <button class="btn" id="saveAsBtn" title="复制为新方案" style="background:#1a3a5c;border-color:#2a5a8a;color:#c0e0ff;">📋 另存为</button>
                 </div>
                 <div class="panel-actions-row">
-                    <button class="btn" id="exportBtn" title="下载到本地">📤 导出本地文件</button>
-                    <button class="btn" id="importBtn" title="从本地文件加载">📥 导入本地文件</button>
+                    <button class="btn" id="exportBtn" title="下载到本地" style="background:#5a4a1a;border-color:#8a7a2a;color:#ffe0c0;">📤 导出</button>
+                    <button class="btn" id="importBtn" title="从本地文件加载" style="background:#4a1a5a;border-color:#7a2a8a;color:#e0c0ff;">📥 导入</button>
                 </div>
             </div>
         </div>
@@ -1326,7 +1335,8 @@
         const $ = (sel) => document.querySelector(sel);
         const $$ = (sel) => document.querySelectorAll(sel);
 
-        const containerSelector = $('#containerSelector');
+        const containerTypeSelect = $('#containerTypeSelect');
+        const customContainer = $('#customContainer');
         const customL = $('#customL');
         const customW = $('#customW');
         const customH = $('#customH');
@@ -1350,6 +1360,10 @@
         const totalVolume = $('#totalVolume');
         const utilRate = $('#utilRate');
         const statCount = $('#statCount');
+        const tightnessStat = $('#tightnessStat');
+        const maxFrontStat = $('#maxFrontStat');
+        const voidRateStat = $('#voidRateStat');
+        const comYStat = $('#comYStat');
         const infoContainer = $('#infoContainer');
         const infoSize = $('#infoSize');
         const infoCargoCount = $('#infoCargoCount');
@@ -2315,11 +2329,41 @@
             };
         }
 
-        // 评分：越高越好
+        // 评分：越高越好（综合体积利用率 + 紧密度）
         function scoreLayoutResult(r) {
-            return r.eval.utilRate * 1000
-                 - r.eval.fullyOutsideCount * 100
-                 - r.eval.overflowCount * 10;
+            const e = r.eval;
+            return e.utilRate * 1000
+                 - e.fullyOutsideCount * 100
+                 - e.overflowCount * 10
+                 + (e.tightness || 0) * 500
+                 - (e.voidRate || 0) * 300
+                 - (e.maxFrontX || 0) / 12030 * 100;
+        }
+
+        // 扩展布局评价（在 evaluateLayout 基础上追加紧密度等指标）
+        function evaluateLayoutExtended(placed, container) {
+            const base = evaluateLayout(placed, container);
+            let minX = Infinity, minY = Infinity, minZ = Infinity;
+            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+            for (const c of placed) {
+                minX = Math.min(minX, c.px);
+                minY = Math.min(minY, c.py);
+                minZ = Math.min(minZ, c.pz);
+                maxX = Math.max(maxX, c.px + c.sx);
+                maxY = Math.max(maxY, c.py + c.sy);
+                maxZ = Math.max(maxZ, c.pz + c.sz);
+            }
+            const bbV = (maxX - minX) * (maxY - minY) * (maxZ - minZ);
+            const tightness = bbV > 0 ? base.totalCargoVol / bbV : 0;
+            const maxFrontX = maxX;
+            const voidRate = bbV > 0 ? (bbV - base.inBoxVol) / bbV : 0;
+            let comY = 0;
+            for (const c of placed) {
+                const v = c.sx * c.sy * c.sz;
+                comY += (c.py + c.sy / 2) * v;
+            }
+            comY = base.totalCargoVol > 0 ? comY / base.totalCargoVol : 0;
+            return { ...base, tightness, maxFrontX, voidRate, comY };
         }
 
         // 把无法在极值点处放下的货物溢出放置（旧 v2 实现，有 bug）。
@@ -2381,7 +2425,7 @@
         //     归到 normalBig 会先占住 #5 后面空间，导致 #9 升奥注芯机错失侧向插入机会）。
         //   - 扁型按投影面积 sx*sz 降序：大投影面货物先占外侧，小投影面后放可以叠在大件上方，
         //     形成"大→小"的塔式堆叠结构（用户补充要求）。
-        function sortByClassifyQueue(cargos, container) {
+        function sortByClassifyQueue(cargos, container, route = 0) {
             const buckets = { normal: [], sideFill: [], flatStack: [] };
             for (const c of cargos) {
                 buckets[classifyCargoForPacking(c, container)].push(c);
@@ -2395,7 +2439,13 @@
                 : 0;
             const normalBig = normals.filter(c => (c.sx * c.sy * c.sz) > medianVol);
             const normalSmall = normals.filter(c => (c.sx * c.sy * c.sz) <= medianVol);
-            return [...normalBig, ...buckets.sideFill, ...normalSmall, ...buckets.flatStack];
+            // route 0 (默认): ①→②→③→④  /  route 1: ②→①→③→④  /  route 2: ②→③→①→④
+            const routes = {
+                0: [...normalBig, ...buckets.sideFill, ...normalSmall, ...buckets.flatStack],
+                1: [...buckets.sideFill, ...normalBig, ...normalSmall, ...buckets.flatStack],
+                2: [...buckets.sideFill, ...normalSmall, ...normalBig, ...buckets.flatStack],
+            };
+            return routes[route] || routes[0];
         }
 
         // 兼容旧调用：保持 sortByShapeRatio 名，仍按比例排序（与分类队列并存时不再被调用）
@@ -2672,38 +2722,30 @@
         }
 
         // 4 解入口（1 主线 + 3 多样性，方案 α 扰动）
+        // 3 条确定路线：不同分类队列顺序，覆盖侧向填充先入的不同骨架结构
+        //   路线 0（主线）：①主体大 → ②侧向 → ③主体小 → ④扁型
+        //   路线 1：       ②侧向 → ①主体大 → ③主体小 → ④扁型
+        //   路线 2：       ②侧向 → ③主体小 → ①主体大 → ④扁型
+        const SORT_ROUTES = [
+            { route: 0, label: '主线(①→②→③→④)' },
+            { route: 1, label: '路线2(②→①→③→④)' },
+            { route: 2, label: '路线3(②→③→①→④)' },
+        ];
+
         function tetrisLayoutV1(cargos, opts) {
             const { container, allowStacking = false, allowFlatStacking = false, maxOverhangMM = 0 } = opts;
             const results = [];
-            const sortedMain = sortByClassifyQueue(cargos, container);
-            const sortKey = `分类队列(主体→侧向→普通小→扁型)`;
 
-            // 主线解（确定性）
-            {
+            for (const sr of SORT_ROUTES) {
+                const sorted = sortByClassifyQueue(cargos, container, sr.route);
                 const t0 = performance.now();
-                const placed = singleRun(sortedMain, container, allowStacking, allowFlatStacking, maxOverhangMM);
+                const placed = singleRun(sorted, container, allowStacking, allowFlatStacking, maxOverhangMM);
                 const t1 = performance.now();
                 results.push({
                     placed,
-                    eval: evaluateLayout(placed, container),
+                    eval: evaluateLayoutExtended(placed, container),
                     timeMs: t1 - t0,
-                    strategy: 'tetris-v1',
-                    sortKey,
-                });
-            }
-
-            // 多样性解 1~3（扰动第 1 件）
-            for (let i = 0; i < 3; i++) {
-                const t0 = performance.now();
-                const perturbed = perturbFirst(sortedMain);
-                const placed = singleRun(perturbed, container, allowStacking, allowFlatStacking, maxOverhangMM);
-                const t1 = performance.now();
-                results.push({
-                    placed,
-                    eval: evaluateLayout(placed, container),
-                    timeMs: t1 - t0,
-                    strategy: 'tetris-v1-perturbed',
-                    sortKey: sortKey + ` (first#${perturbed[0].id || '?'})`,
+                    sortKey: sr.label,
                 });
             }
 
@@ -2793,23 +2835,34 @@
                 }
                 div.innerHTML = `
                     <div class="cargo-row1">
-                        <span class="color-dot" style="background:${c.color}" data-index="${idx}"></span>
-                        <span class="cargo-index" data-index="${idx}">#${idx + 1}</span>
-                        <span class="cargo-name" data-index="${idx}">${c.name}</span>
+                        <span class="color-dot" style="background:${c.color}"></span>
+                        <span class="cargo-index">#${idx + 1}</span>
+                        <span class="cargo-name">${c.name}</span>
                     </div>
                     <div class="cargo-row2">
-                        <span class="cargo-size" data-index="${idx}" title="长×宽×高">${c.sx}×${c.sz}×${c.sy}</span>
+                        <span class="cargo-size" title="长×宽×高">${c.sx}×${c.sz}×${c.sy}</span>
                         <span class="cargo-pos">(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})</span>
                     </div>
                     <div class="cargo-actions">
-                        <span class="cargo-rotate" data-index="${idx}" title="水平旋转 90°">↻</span>
+                        <span class="cargo-edit" data-index="${idx}" title="编辑货物">✏️</span>
                         <span class="cargo-delete" data-index="${idx}">✕</span>
                     </div>
                 `;
                 list.appendChild(div);
             });
 
-            // 事件绑定：点击编辑
+            // 事件绑定：铅笔编辑
+            list.querySelectorAll('.cargo-edit').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const idx = parseInt(el.dataset.index);
+                    if (!isNaN(idx)) {
+                        openEditModal(idx);
+                    }
+                    e.stopPropagation();
+                });
+            });
+
+            // 事件绑定：旧编辑入口（保留兼容）
             list.querySelectorAll('.color-dot, .cargo-name, .cargo-size').forEach(el => {
                 el.addEventListener('click', (e) => {
                     const idx = parseInt(el.dataset.index);
@@ -2867,7 +2920,6 @@
                     } else {
                         setOnlySelection(idx);
                     }
-                    controls.enabled = false;
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
@@ -2943,6 +2995,33 @@
             totalVolume.textContent = formatVolume(totalVol);
             utilRate.textContent = rate.toFixed(1) + '%';
             statCount.textContent = state.cargos.length;
+
+            // 扩展指标（当前 3D 视图的实际状态）
+            if (state.cargos.length > 0) {
+                let minX = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+                let comY = 0;
+                for (const c of state.cargos) {
+                    minX = Math.min(minX, c.px);
+                    maxX = Math.max(maxX, c.px + c.sx);
+                    maxY = Math.max(maxY, c.py + c.sy);
+                    maxZ = Math.max(maxZ, c.pz + c.sz);
+                    const cv = c.sx * c.sy * c.sz;
+                    comY += (c.py + c.sy / 2) * cv;
+                }
+                const bbV = (maxX - minX) * maxY * maxZ;
+                const tightness = bbV > 0 ? usedVol / bbV : 0;
+                const voidRate = bbV > 0 ? (bbV - usedVol) / bbV : 0;
+                comY = usedVol > 0 ? comY / usedVol : 0;
+                tightnessStat.textContent = (tightness * 100).toFixed(1) + '%';
+                maxFrontStat.textContent = maxX.toFixed(0) + ' mm';
+                voidRateStat.textContent = (voidRate * 100).toFixed(1) + '%';
+                comYStat.textContent = comY.toFixed(0) + ' mm';
+            } else {
+                tightnessStat.textContent = '-';
+                maxFrontStat.textContent = '-';
+                voidRateStat.textContent = '-';
+                comYStat.textContent = '-';
+            }
         }
 
         function formatVolume(v) {
@@ -3379,7 +3458,7 @@
 
         // 分片调度：每帧最多执行 CHUNK 次迭代，让出主线程避免 UI 卡顿
         async function runPackingWithProgress(algoName, cargos, _iter, allowIntersection, allowStacking, allowFlatStacking, maxOverhangMM) {
-            // v1 算法：固定返回 4 解（1 主线 + 3 多样性），不分片
+            // v1 算法：固定返回 3 解（3 条确定路线），不分片
             const container = state.container;
             packRunBtn.disabled = true;
             packRunBtn.textContent = '🎲 计算中…';
@@ -3454,6 +3533,7 @@
             const results = tetrisLayoutV1(state.cargos, {
                 container: state.container,
                 allowStacking: state.allowStacking,
+                allowFlatStacking: state.allowFlatStacking,
                 maxOverhangMM: state.maxOverhangMM,
             });
             const legacyMatch = results.find(r => {
@@ -3466,10 +3546,10 @@
             return true;
         }
 
-        // 临时预览（保存原位置以便恢复）
+        // 临时预览（保存原位和原尺寸以便恢复）
         let _previewSnapshot = null;
         function applyPreview(result) {
-            _previewSnapshot = state.cargos.map(c => ({ px: c.px, py: c.py, pz: c.pz }));
+            _previewSnapshot = state.cargos.map(c => ({ px: c.px, py: c.py, pz: c.pz, sx: c.sx, sy: c.sy, sz: c.sz }));
             applyPlacementToState(result);
             rebuildCargoMeshes();
             updateStats();
@@ -3480,6 +3560,9 @@
                 state.cargos[i].px = _previewSnapshot[i].px;
                 state.cargos[i].py = _previewSnapshot[i].py;
                 state.cargos[i].pz = _previewSnapshot[i].pz;
+                state.cargos[i].sx = _previewSnapshot[i].sx;
+                state.cargos[i].sy = _previewSnapshot[i].sy;
+                state.cargos[i].sz = _previewSnapshot[i].sz;
             }
             _previewSnapshot = null;
             rebuildCargoMeshes();
@@ -3503,52 +3586,41 @@
             return `${cargos}|s${state.allowStacking ? 1 : 0}|f${state.allowFlatStacking ? 1 : 0}|o${state.maxOverhangMM}`;
         }
 
-        // 渲染浮窗列表（互异过滤 + Top-10）
+        // 渲染浮窗列表（3 条确定路线）
         function renderPackPanel(results, totalMs, iter) {
-            // 缓存原始结果
             _lastPackResults = results.slice();
             _lastPackTotalMs = totalMs;
             _lastPackIter = iter;
             _lastPackSignature = _currentCargosSignature();
 
-            // 互异过滤 + 多样性优先排序（轮询取 Top-10）
-            // v1 固定 4 解：minUtil 固定 0（4 解全部展示，无需过滤）
-            const diverseResult = selectTopDiverse(results, 10, 0);
-            const top = diverseResult.selected;
-            const dedupedCount = diverseResult.dedupedCount;
+            // 3 条路线全部展示，按评分排序
+            const top = results.slice().sort((a, b) => scoreLayoutResult(b) - scoreLayoutResult(a));
             _currentResults = top;
             _currentPreviewIdx = -1;
 
-            // 统计策略分布
-            const strategyCount = {};
-            for (const r of top) {
-                strategyCount[r.strategy] = (strategyCount[r.strategy] || 0) + 1;
-            }
-            const strategySummary = Object.entries(strategyCount)
-                .map(([k, v]) => `${STRATEGIES[k]?.label || k}×${v}`)
-                .join('、');
-
             packPanelMeta.innerHTML = `
-                计算 <b>${iter}</b> 次 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms<br>
-                互异方案 <b>${dedupedCount}</b> 个，Top-10 策略分布：${strategySummary}<br>
+                计算 <b>${iter}</b> 次 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms ·
                 <span style="color:#aaa;">点击列表项预览；满意后点【应用】保存。再次打开浮窗会复用上次结果（货物变化时自动重算）。</span>
             `;
             packPanelList.innerHTML = '';
             top.forEach((r, idx) => {
+                const e = r.eval;
                 const item = document.createElement('div');
                 item.className = 'pack-panel-item';
                 item.dataset.idx = idx;
                 item.innerHTML = `
                     <div class="row1">
                         <span class="num">#${idx + 1}</span>
-                        <span style="color:#ffaa44;font-weight:bold;">${(r.eval.utilRate * 100).toFixed(2)}%</span>
+                        <span style="color:#ffaa44;font-weight:bold;">利用率 ${(e.utilRate * 100).toFixed(2)}%</span>
+                        <span style="margin-left:8px;font-size:12px;color:#aaa;">${r.sortKey}</span>
                     </div>
-                    <div class="row2">
-                        策略: ${STRATEGIES[r.strategy]?.label || r.strategy} ·
-                        排序: ${r.sortKey} ·
-                        出界 ${r.eval.overflowCount} ·
-                        完全出界 ${r.eval.fullyOutsideCount} ·
-                        ${r.timeMs.toFixed(1)}ms
+                    <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
+                        <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
+                        <span style="color:#ffb74d;">📏最深前沿 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
+                        <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
+                        <span style="color:#81c784;">⬆️质心Y <b>${e.comY.toFixed(0)} mm</b></span>
+                        ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
+                        ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
                     </div>
                     <div class="row3">
                         <button class="btn-sm pack-preview-btn" data-idx="${idx}">预览</button>
@@ -3556,7 +3628,6 @@
                         <button class="btn-sm pack-export-btn" data-idx="${idx}" style="margin-left:auto;" title="单独导出此方案的 Markdown 报告">📋 导出此方案</button>
                     </div>
                 `;
-                // 点击整行也可预览
                 item.addEventListener('click', (e) => {
                     if (e.target.tagName === 'BUTTON') return;
                     handlePreviewBtn(idx);
@@ -3643,7 +3714,7 @@
             // 保留 _currentResults / _lastPackResults 供下次复用
         }
 
-        const packAlgoSelect = $('#packAlgoSelect');
+        // 算法固定为 Tetris v1（旧版 packAlgoSelect 已移除）
         const packRunBtn = $('#packRunBtn');
         const packHint = $('#packHint');
         const packPanel = $('#packPanel');
@@ -3671,9 +3742,9 @@
             _lastPackResults = null;
             _lastPackSignature = '';
 
-            const algoName = packAlgoSelect.value;
-            const totalRuns = 4; // v1 固定：1 主线 + 3 多样性
-            packHint.textContent = `开始计算（${algoName} × ${totalRuns} 个解）…`;
+            const algoName = 'tetris';
+            const totalRuns = 3; // v1 固定：3 条确定路线
+            packHint.textContent = `开始计算（3 条路线）…`;
 
             const cargosSnapshot = state.cargos.map(c => ({
                 id: c.id, name: c.name,
@@ -3709,6 +3780,25 @@
         document.getElementById('undoBtn').addEventListener('click', undo);
         document.getElementById('redoBtn').addEventListener('click', redo);
 
+        function syncContainerSelectUI(name, l, w, h) {
+            let found = false;
+            for (const opt of containerTypeSelect.options) {
+                if (opt.value === name) {
+                    containerTypeSelect.value = name;
+                    customContainer.style.display = 'none';
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                containerTypeSelect.value = 'custom';
+                customContainer.style.display = 'block';
+            }
+            customL.value = l;
+            customW.value = w;
+            customH.value = h;
+        }
+
         function setContainer(name, l, w, h) {
             state.container = { name, l, w, h };
             if (state.cargos.length) {
@@ -3717,9 +3807,7 @@
             }
             buildScene();
             updateStats();
-            document.querySelectorAll('#containerSelector button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.name === name);
-            });
+            syncContainerSelectUI(name, l, w, h);
             saveState();
         }
 
@@ -3751,7 +3839,7 @@
             lines.push('');
             lines.push('> 用于 AI 分析优化的结构化导出');
             lines.push(`> 导出时间: ${new Date().toISOString()}`);
-            lines.push('> 算法: Tetris v1（分类队列（主体→侧向→普通小→扁型）+ 4 入口角 + Y 方向跌落 + 1 主线 + 3 多样性）');
+            lines.push('> 算法: Tetris v1（分类队列 × 3 路线 + 4 入口角 + Y 方向跌落）');
             lines.push('');
 
             // 1. 元数据
@@ -3790,31 +3878,29 @@
 
             // 3. 方案总览
             lines.push('## 3. 方案总览');
-            lines.push('| # | 策略 | utilRate | 凸出 | 出界 | 耗时 | 首件 | 差异 |');
-            lines.push('|---|---|---|---|---|---|---|---|');
+            lines.push('| # | 路线 | utilRate | 紧密度 | 最深前沿 | 空隙率 | 质心Y | 凸出 | 出界 | 耗时 |');
+            lines.push('|---|---|---|---|---|---|---|---|---|---|');
             results.forEach((r, i) => {
-                const isMain = i === 0;
-                const strategy = r.strategy || '-';
-                const util = (r.eval.utilRate * 100).toFixed(2) + '%';
-                const overflow = r.eval.overflowCount;
-                const outside = r.eval.fullyOutsideCount;
-                const time = (r.timeMs || 0).toFixed(0) + 'ms';
-                const first = r.placed[0];
-                const firstName = first ? (first.name || first.id || '?') : '-';
-                const tag = isMain ? '**(主线)**' : `扰动 #${i}`;
-                lines.push(`| **${i+1}**${isMain ? ' (主线)' : ''} | ${strategy} | ${util} | ${overflow} | ${outside} | ${time} | ${firstName} | ${tag} |`);
+                const e = r.eval;
+                const util = (e.utilRate * 100).toFixed(2) + '%';
+                const tightness = ((e.tightness || 0) * 100).toFixed(1) + '%';
+                const maxFront = (e.maxFrontX || 0).toFixed(0) + ' mm';
+                const voidRate = ((e.voidRate || 0) * 100).toFixed(1) + '%';
+                const comY = (e.comY || 0).toFixed(0) + ' mm';
+                const tag = i === 0 ? '**(主线)**' : `路线 #${i+1}`;
+                lines.push(`| **${i+1}**${i === 0 ? ' (主线)' : ''} | ${r.sortKey || '-'} | ${util} | ${tightness} | ${maxFront} | ${voidRate} | ${comY} | ${e.overflowCount} | ${e.fullyOutsideCount} | ${(r.timeMs || 0).toFixed(0)}ms | ${tag} |`);
             });
             lines.push('');
 
             // 4..N. 每个方案详细
             results.forEach((r, localIdx) => {
-                const globalIdx = baseIdx + localIdx;  // 全局方案编号（用于标题）
+                const globalIdx = baseIdx + localIdx;
                 const isMain = globalIdx === 0;
-                const tag = isMain ? '主线' : `多样性`;
+                const tag = isMain ? '主线' : `路线`;
                 lines.push(`## ${4 + localIdx}. ${tag}方案 #${globalIdx + 1}`);
-                lines.push(`- 策略: \`${r.strategy}\``);
-                lines.push(`- 排序键: \`${r.sortKey || '-'}\``);
+                lines.push(`- 路线: \`${r.sortKey || '-'}\``);
                 lines.push(`- **utilRate: ${(r.eval.utilRate * 100).toFixed(2)}%**`);
+                lines.push(`- 包络盒紧密度: ${((r.eval.tightness || 0) * 100).toFixed(1)}% · 最深前沿: ${(r.eval.maxFrontX || 0).toFixed(0)} mm · 空隙率: ${((r.eval.voidRate || 0) * 100).toFixed(1)}% · 质心Y: ${(r.eval.comY || 0).toFixed(0)} mm`);
                 lines.push(`- 凸出: ${r.eval.overflowCount} 件, 完全出界: ${r.eval.fullyOutsideCount} 件`);
                 lines.push(`- 耗时: ${(r.timeMs || 0).toFixed(0)} ms`);
                 lines.push('');
@@ -3859,7 +3945,6 @@
                     shapeRatio: +shapeRatioOf(c).toFixed(3),
                 })),
                 results: results.map(r => ({
-                    strategy: r.strategy,
                     sortKey: r.sortKey,
                     timeMs: r.timeMs,
                     eval: r.eval,
@@ -4260,19 +4345,30 @@
         // ============================================================
         //  事件绑定
         // ============================================================
-        containerSelector.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            const name = btn.dataset.name;
-            const l = parseFloat(btn.dataset.l);
-            const w = parseFloat(btn.dataset.w);
-            const h = parseFloat(btn.dataset.h);
+        containerTypeSelect.addEventListener('change', () => {
+            const sel = containerTypeSelect.options[containerTypeSelect.selectedIndex];
+            if (sel.value === 'custom') {
+                customContainer.style.display = 'block';
+                return;
+            }
+            customContainer.style.display = 'none';
+            const l = parseFloat(sel.dataset.l);
+            const w = parseFloat(sel.dataset.w);
+            const h = parseFloat(sel.dataset.h);
             if (l && w && h) {
-                setContainer(name, l, w, h);
+                setContainer(sel.value, l, w, h);
                 customL.value = l;
                 customW.value = w;
                 customH.value = h;
             }
+        });
+
+        // 手动修改自定义尺寸时自动切换到"自定义"
+        [customL, customW, customH].forEach(el => {
+            el.addEventListener('input', () => {
+                containerTypeSelect.value = 'custom';
+                customContainer.style.display = 'block';
+            });
         });
 
         applyCustom.addEventListener('click', () => {
@@ -4281,7 +4377,6 @@
             const h = parseFloat(customH.value);
             if (l > 0 && w > 0 && h > 0) {
                 setContainer('自定义', l, w, h);
-                document.querySelectorAll('#containerSelector button').forEach(btn => btn.classList.remove('active'));
             } else {
                 alert('请输入有效的正数尺寸 (mm)');
             }
@@ -4332,8 +4427,10 @@
         loadCargoBtn.addEventListener('click', () => {
             const text = cargoInput.value;
             loadCargosFromText(text);
-            // loadCargosFromText 内部已管理输入框内容：
-            // 全部成功 → 清空；部分失败 → 只保留失败行；全部失败 → 保留全部
+        });
+
+        $('#closeImportBtn').addEventListener('click', () => {
+            $('#importCargoPanel').style.display = 'none';
         });
 
         exportBtn.addEventListener('click', exportLayout);
@@ -4360,6 +4457,10 @@
                 cargoActionMenu.style.display = 'none';
                 if (action === 'clearAll') {
                     clearAllCargos();
+                } else if (action === 'importCargo') {
+                    const panel = $('#importCargoPanel');
+                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                    if (panel.style.display === 'block') cargoInput.focus();
                 } else if (action === 'resetLayout') {
                     resetLayout();
                 } else if (action === 'copyAll') {
