@@ -3657,6 +3657,7 @@
                     const layer = c.py === 0 ? 'L0(地面)' : `L${c.py}`;
                     const origIdx = idToOriginalIdx.get(c.id) || '?';
                     const cargoName = c.name || c.id || '?';
+                    const notes = [];
                     if (c.px === 0) notes.push('贴 X=0 尾部');
                     if (c.px + c.sx > container.l) notes.push(`凸出 X=l 入口 ${c.px + c.sx - container.l}mm`);
                     if (c.pz === 0) notes.push('贴 Z=0 背面');
