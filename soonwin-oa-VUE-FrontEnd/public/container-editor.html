@@ -1092,39 +1092,20 @@
                             <option value="random-greedy">随机贪心</option>
                         </select>
                     </div>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <label style="flex:1;font-size:13px;color:#aaa;">计算次数</label>
-                        <input type="number" id="packIterInput" min="10" max="10000" step="10" value="500"
+                    <label class="overflow-toggle" id="stackingToggleLabel"
+                           title="勾选：允许货物堆叠（启用顶角入口+重力下落）；取消：仅底角入口，货物落地放">
+                        <input type="checkbox" id="allowStacking" />
+                        <span>📚 接受堆叠（允许货物叠放）</span>
+                    </label>
+                    <div style="display:flex;gap:6px;align-items:center;"
+                         title="跌落后底部允许凸出支撑面的最大距离，0=0容忍（默认），可调 0~100 mm">
+                        <label style="flex:1;font-size:13px;color:#aaa;">接受悬空突出</label>
+                        <input type="number" id="maxOverhangMM" min="0" max="100" step="1" value="0"
                                style="flex:2;padding:5px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:6px;font-size:13px;" />
+                        <span style="font-size:12px;color:#888;">mm</span>
                     </div>
                     <button id="packRunBtn" class="btn btn-primary">🎲 开始计算</button>
-                    <div id="packHint" style="font-size:12px;color:#888;line-height:1.5;min-height:16px;"></div>
-
-                    <details style="margin-top:4px;">
-                        <summary style="font-size:12px;color:#ffaa44;cursor:pointer;">⚙️ 调优参数（开发阶段临时暴露，调优完成后将隐藏）</summary>
-                        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:6px;background:rgba(255,170,68,0.05);border-radius:4px;">
-                            <div style="display:flex;gap:6px;align-items:center;" title="Top-10 过滤门槛。调大：入选更精但可能不足 10；调小：可能入选质量差方案">
-                                <label style="flex:2;font-size:12px;color:#aaa;">质量门槛</label>
-                                <input type="number" id="packMinUtilRate" min="0" max="1" step="0.05" value="0.3" style="flex:1;padding:3px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            </div>
-                            <div style="display:flex;gap:6px;align-items:center;" title="退火轮数。调大：多样性更好但耗时变长；调小：更快但多样性差">
-                                <label style="flex:2;font-size:12px;color:#aaa;">退火轮数</label>
-                                <input type="number" id="packTetrisRounds" min="1" max="20" step="1" value="5" style="flex:1;padding:3px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            </div>
-                            <div style="display:flex;gap:6px;align-items:center;" title="退火起始概率。调大：跳出局部最优能力更强但质量波动">
-                                <label style="flex:2;font-size:12px;color:#aaa;">退火起始</label>
-                                <input type="number" id="packAnnealStart" min="0" max="1" step="0.05" value="0.3" style="flex:1;padding:3px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            </div>
-                            <div style="display:flex;gap:6px;align-items:center;" title="退火结束概率。调小：贪心更强但易卡死">
-                                <label style="flex:2;font-size:12px;color:#aaa;">退火结束</label>
-                                <input type="number" id="packAnnealEnd" min="0" max="1" step="0.05" value="0.1" style="flex:1;padding:3px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            </div>
-                            <div style="display:flex;gap:6px;align-items:center;" title="FOI 排序：sx*sz + λ*体积。调大：底面积主导（扁平的大优先）；调小：体积主导（高瘦的大优先）">
-                                <label style="flex:2;font-size:12px;color:#aaa;">FOI λ</label>
-                                <input type="number" id="packFoiLambda" min="0" max="2" step="0.05" value="0.1" style="flex:1;padding:3px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            </div>
-                        </div>
-                    </details>
+                    <div id="packHint" style="font-size:12px;color:#888;line-height:1.5;min-height:16px;">（所有算法选项当前均使用 Tetris v1）</div>
                 </div>
             </div>
 
@@ -1278,6 +1259,8 @@
             editIndex: -1,
             allowOverflow: false, // 临时允许货物超出货柜边界
             allowIntersection: false, // 默认不允许货物相互交叉（拖动会受其他货物阻挡，并参与摆放算法）
+            allowStacking: false, // 是否接受堆叠（默认不接受，启用顶角入口+重力下落）
+            maxOverhangMM: 0, // 跌落后底部允许凸出支撑面的最大距离（0=0 容忍）
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
 
@@ -1344,6 +1327,9 @@
         const overflowToggleLabel = $('#overflowToggleLabel');
         const allowIntersection = $('#allowIntersection');
         const intersectionToggleLabel = $('#intersectionToggleLabel');
+        const allowStackingEl = $('#allowStacking');
+        const stackingToggleLabel = $('#stackingToggleLabel');
+        const maxOverhangMM = $('#maxOverhangMM');
         const cargoInput = $('#cargoInput');
         const loadCargoBtn = $('#loadCargoBtn');
         // clearCargoBtn 和 resetLayoutBtn 已移至 ⚙️ 操作下拉菜单，不再需要独立元素
@@ -2249,139 +2235,27 @@
         const PackingAlgos = {
             list() { return Object.keys(STRATEGIES); },
             /**
-             * 单次运行：随机选一种策略 + 随机选一种排序 key + 70/30 候选选择
-             * @param {Array} cargos 货物副本
-             * @param {Object} opts { container, allowIntersection }
-             * @returns {{ placed, eval, timeMs, strategy, sortKey }}
-             */
-            runSingle(cargos, opts) {
-                const strategyKeys = Object.keys(STRATEGIES);
-                const strategyKey = strategyKeys[Math.floor(Math.random() * strategyKeys.length)];
-                const t0 = performance.now();
-                let placed, sortKey;
-                if (strategyKey === 'tetris') {
-                    // Tetris 自己排序（FOI），不接受外部排序
-                    const sortedCargos = sortByFOI(cargos, opts.foiLambda ?? 0.1);
-                    sortKey = sortedCargos.__sortKey;
-                    // 单次退火概率：线性插值
-                    const annealStart = opts.annealStart ?? 0.3;
-                    const annealEnd = opts.annealEnd ?? 0.1;
-                    const annealProb = (annealStart + annealEnd) / 2;
-                    placed = tetrisSingleRun(sortedCargos, opts.container, opts.allowIntersection, annealProb);
-                } else {
-                    const runner = STRATEGIES[strategyKey].runner;
-                    const sortedCargos = makeSortedCargos(cargos);
-                    sortKey = sortedCargos.__sortKey;
-                    placed = runner(sortedCargos, opts.container, opts.allowIntersection);
-                }
-                const t1 = performance.now();
-                const evalResult = evaluateLayout(placed, opts.container);
-                return {
-                    placed,
-                    eval: evalResult,
-                    timeMs: t1 - t0,
-                    strategy: strategyKey,
-                    sortKey: sortKey || 'unknown',
-                };
-            },
-            /**
-             * run(iter) 调用 runSingle × iter 次
-             * @param {string} name 兼容旧 API：被忽略（每次随机选策略）
+             * v1 主入口：返回 4 个 result（1 主线 + 3 多样性，方案 α 扰动）
+             * @param {string} name 兼容旧 API：被忽略
              * @param {Array} cargos
-             * @param {Object} opts { iter, container, allowIntersection }
+             * @param {Object} opts { container, allowIntersection, allowStacking, maxOverhangMM }
              */
             run(name, cargos, opts) {
-                const { iter, container, allowIntersection, annealStart, annealEnd, foiLambda } = opts;
-                const results = [];
-                for (let t = 0; t < iter; t++) {
-                    results.push(this.runSingle(cargos, {
-                        container,
-                        allowIntersection,
-                        annealStart,
-                        annealEnd,
-                        foiLambda,
-                    }));
-                }
-                return results;
+                return tetrisLayoutV1(cargos, opts);
+            },
+            /** 兼容旧 API：被忽略 */
+            runSingle(cargos, opts) {
+                return tetrisLayoutV1(cargos, opts);
             },
         };
 
-        // —— 策略集合（8 种）——
+        // —— 策略集合（v1 仅 1 个）——
 
         const STRATEGIES = {
-            'ep-py': {
-                label: '极值点·底层优先',
-                runner: makeEpRunner('py'),
-            },
-            'ep-pz': {
-                label: '极值点·前排优先',
-                runner: makeEpRunner('pz'),
-            },
-            'ep-px': {
-                label: '极值点·左侧优先',
-                runner: makeEpRunner('px'),
-            },
-            'corner-lfd': {
-                label: '角落·左前下',
-                runner: makeCornerRunner('lfd'),
-            },
-            'corner-rfd': {
-                label: '角落·右前下',
-                runner: makeCornerRunner('rfd'),
-            },
-            'corner-lbd': {
-                label: '角落·左后下',
-                runner: makeCornerRunner('lbd'),
-            },
-            'corner-rbd': {
-                label: '角落·右后下',
-                runner: makeCornerRunner('rbd'),
-            },
-            'random-greedy': {
-                label: '随机贪心',
-                runner: makeRandomGreedyRunner(),
-            },
+            'tetris-v1': { label: '🎯 Tetris v1（入口-推进·P排序）' },
         };
 
         // —— 工具函数 ——
-
-        // Fisher-Yates 洗牌
-        function shuffleArr(arr) {
-            const a = [...arr];
-            for (let i = a.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [a[i], a[j]] = [a[j], a[i]];
-            }
-            return a;
-        }
-
-        // 多排序 key 随机：从 {体积, 底面积, 高, 最长边, 最短边} 中随机选一个
-        // 50% 概率升序、50% 概率降序。结果记 __sortKey 便于追溯
-        function makeSortedCargos(cargos) {
-            const SORT_KEYS = ['volume', 'baseArea', 'height', 'longest', 'shortest'];
-            const key = SORT_KEYS[Math.floor(Math.random() * SORT_KEYS.length)];
-            const asc = Math.random() < 0.5;
-            const sorted = [...cargos].sort((a, b) => {
-                let va, vb;
-                switch (key) {
-                    case 'volume':   va = a.sx * a.sy * a.sz; vb = b.sx * b.sy * b.sz; break;
-                    case 'baseArea': va = a.sx * a.sz;       vb = b.sx * b.sz;       break;
-                    case 'height':   va = a.sy;             vb = b.sy;             break;
-                    case 'longest':  va = Math.max(a.sx, a.sy, a.sz); vb = Math.max(b.sx, b.sy, b.sz); break;
-                    case 'shortest': va = Math.min(a.sx, a.sy, a.sz); vb = Math.min(b.sx, b.sy, b.sz); break;
-                }
-                return asc ? va - vb : vb - va;
-            });
-            sorted.__sortKey = key;
-            sorted.__sortAsc = asc;
-            return sorted;
-        }
-
-        // 生成货物的 6 种朝向（sx/sy/sz 的全排列，去重）
-        // 【已废弃】保留仅为避免破坏性引用；统一改用 tetrisOrientations（sy 不变）
-        function generateOrientations(cargo) {
-            return tetrisOrientations(cargo);
-        }
 
         // 货物与已放置货物集合是否 AABB 重叠（Y 也参与判定）
         function aabbOverlap(c, placed) {
@@ -2438,39 +2312,8 @@
                  - r.eval.overflowCount * 10;
         }
 
-        // 把货物放到一个极值点上；若与已放置集合重叠则返回 null
-        function tryPlaceAt(orient, ep, placed, allowIntersection) {
-            const candidate = {
-                ...orient,
-                px: ep.x,
-                py: ep.y,
-                pz: ep.z,
-            };
-            if (!allowIntersection && aabbOverlap(candidate, placed)) {
-                return null;
-            }
-            return candidate;
-        }
-
-        // 由一件已放置货物生成新极值点：右面、后面、上面三个角
-        function generateNewEPs(cargo) {
-            const eps = [
-                { x: cargo.px + cargo.sx, y: cargo.py, z: cargo.pz }, // 右面
-                { x: cargo.px, y: cargo.py, z: cargo.pz + cargo.sz }, // 后面
-                { x: cargo.px, y: cargo.py + cargo.sy, z: cargo.pz }, // 上面
-            ];
-            const seen = new Set();
-            return eps.filter(ep => {
-                const key = `${ep.x}_${ep.y}_${ep.z}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            });
-        }
-
-        // 把无法在极值点处放下的货物溢出放置（v2 的旧实现，**有 bug**：
-// 不检查碰撞 + 永远 pz=0 → 多个溢出货物会在原点垂直面重叠。
-// Tetris 算法改用 findOverflowPlacement，保留此函数仅作为旧 8 策略的兜底）
+        // 把无法在极值点处放下的货物溢出放置（旧 v2 实现，有 bug）。
+        // v1 算法改用 placeOverflowAtEntrance 兜底，此函数保留仅为兼容旧引用。
         function placeOverflowCargo(cargo, placed) {
             let maxRight = 0;
             for (const o of placed) {
@@ -2485,14 +2328,39 @@
         }
 
         // ============================================================
-        //  Tetris-style 物理沉降算法（v3 主推）
-        //  - 重力下落：货物从柜顶掉到最高接触点
-        //  - 凹槽契合：评分 = 侧面共面 + 底面支撑 + 顶部嵌入
-        //  - 侧滑微调：触底后在 ±5cm 范围蛇形搜索
-        //  - 退火：5 轮（30%→10% 接受次优）
+        //  Tetris v1 算法
+        //  坐标系：X=0 尾部（封闭端），X=l 入口（开门端）
+        //         Y=0 底，Y=h 顶
+        //         Z=0 背面（远），Z=w 正面（近）
+        //  推进方向：从入口 X=l 沿 -X 向尾部 X=0 推进
+        //  排序：方案 P（T=2.0）—— 立方体组按体积降序，细长组按 shapeRatio 升序
+        //  进入：4 入口角（右下/左下/右上/左上） × 2 朝向 = 最多 8 试，优选 min(px)
+        //  跌落：仅接受堆叠 + 顶角进入；底面投影允许 ≤ maxOverhangMM 凸出
+        //  多样性：方案 α（只换第 1 件）—— 1 主线 + 3 多样性
         // ============================================================
 
-        // 仅 sx↔sz 互换，sy 始终朝上（不能垂直翻转）
+        // 形状偏离度 = max(sx,sy,sz) / min(sx,sy,sz)
+        function shapeRatioOf(cargo) {
+            const maxD = Math.max(cargo.sx, cargo.sy, cargo.sz);
+            const minD = Math.min(cargo.sx, cargo.sy, cargo.sz);
+            return minD === 0 ? Infinity : maxD / minD;
+        }
+
+        // 排序：方案 P（T=2.0）—— 立方体组（≤2.0）按体积降序；细长组（>2.0）按 shapeRatio 升序
+        function sortByShapeRatio(cargos) {
+            const T = 2.0;
+            const cubic = [];
+            const slender = [];
+            for (const c of cargos) {
+                if (shapeRatioOf(c) <= T) cubic.push(c);
+                else slender.push(c);
+            }
+            cubic.sort((a, b) => (b.sx * b.sy * b.sz) - (a.sx * a.sy * a.sz));
+            slender.sort((a, b) => shapeRatioOf(a) - shapeRatioOf(b));
+            return [...cubic, ...slender];
+        }
+
+        // 朝向：仅 sx↔sz 互换，sy 永远朝上（不能垂直翻转）
         function tetrisOrientations(cargo) {
             if (cargo.sx === cargo.sz) {
                 return [{ sx: cargo.sx, sy: cargo.sy, sz: cargo.sz }];
@@ -2503,396 +2371,228 @@
             ];
         }
 
-        // FOI 排序：体态系数 = sx*sz + λ*体积
-        //   - 调大 λ：底面积主导 → "扁平的大"优先（适合做地基）
-        //   - 调小 λ：体积主导 → "高瘦的大"优先
-        function sortByFOI(cargos, lambda = 0.1) {
-            return [...cargos].sort((a, b) => {
-                const foiA = a.sx * a.sz + lambda * a.sx * a.sy * a.sz;
-                const foiB = b.sx * b.sz + lambda * b.sx * b.sy * b.sz;
-                return foiB - foiA;
-            });
+        // 入口角定义（按"入口 X=l 端、Y/Z 维度"区分）
+        // 顺序：右下、左下、右上、左上
+        const ENTRY_CORNERS = [
+            { id: 'right-bottom', y: 0,     z: 0     },  // 右下：Y=0, Z=0（底+背/远）
+            { id: 'left-bottom',  y: 0,     z: 'max' },  // 左下：Y=0, Z=w（底+正/近）
+            { id: 'right-top',    y: 'max', z: 0     },  // 右上：Y=h, Z=0（顶+背/远）
+            { id: 'left-top',     y: 'max', z: 'max' },  // 左上：Y=h, Z=w（顶+正/近）
+        ];
+
+        // 取入口角起点 (px, py, pz)
+        function entryCornerStart(corner, orient, container) {
+            const { l, w, h } = container;
+            return {
+                px: l - orient.sx,
+                py: corner.y === 'max' ? h - orient.sy : 0,
+                pz: corner.z === 'max' ? w - orient.sz : 0,
+            };
         }
 
-        // 重力下落：从柜顶之上"掉"到 XZ=(x,z) 时的最终 Y
-        //   - X 方向 0 ≤ px ≤ l-sx；Z 方向 0 ≤ pz ≤ w-sz：硬性约束
-        // 【桶模型 / v4】重力推进：货物从 X=l 入口塞入，向 X=0 方向推进
-        //   - Y 方向 0 ≤ py ≤ h-sy；Z 方向 0 ≤ pz ≤ w-sz：硬性约束
-        //   - X 方向：**入口可超出** —— 当已堆货物很"深"（maxFrontX > l-sx）时，
-        //     货物会停在已堆货物的最右沿+1，px 凸出柜外。这是"桶式塞入"期望行为
-        //   - 模拟起点 = X=l+10（入口外），向 -X 自由推进直到碰到底面 X=0 或已堆货物
-        //   - 返回 null 表示水平（Y/Z）超出货柜
+        // 沿 -X 推进：求新货物的 px
+        //   物理语义：从入口 X=l 沿 -X 自由推进，碰到第一个 Y/Z 投影重叠的已堆货物时停下
+        //   公式：maxFrontX = max(o.px + o.sx) for o in placed with Y/Z 重叠
+        //   不 clamp 到 l-sx：堆叠很深时允许 px 凸出 X=l 入口外
+        //   返回 null 表示 Y/Z 超出货柜
         function findDropX(sx, sy, sz, y, z, placed, container) {
             const { w, h } = container;
             if (y < 0 || y + sy > h) return null;
             if (z < 0 || z + sz > w) return null;
-            let maxFrontX = 0; // 桶底 X=0
+            let maxFrontX = 0;
             for (const o of placed) {
-                // Y/Z 投影重叠？
                 if (y < o.py + o.sy && y + sy > o.py &&
                     z < o.pz + o.sz && z + sz > o.pz) {
                     maxFrontX = Math.max(maxFrontX, o.px + o.sx);
                 }
             }
-            // 不做 Math.min(maxFrontX, l - sx) clamp：堆叠很深时允许凸出"入口"
             return maxFrontX;
         }
 
-        // 评分：桶式接触面
-        //   - bottomContact：与 X=0 桶底接触（最稳定）+ 与已堆货物远端接触（"前面"）
-        //   - sideContact：与 Y-Z 平面桶壁接触（地面/顶/前后）+ 与已堆货物侧面接触
-        //   - supportRate：货物 X 方向支撑面 / 货物 X 长度 > 0.5 奖励（鼓励扎实支撑）
-        function tetrisScore(c, placed, container) {
-            let frontContact = 0;  // 桶底 + 远端接触
-            let sideContact = 0;   // 桶壁 + 侧面接触
-            for (const o of placed) {
-                const xOverlap = Math.max(0, Math.min(c.px + c.sx, o.px + o.sx) - Math.max(c.px, o.px));
-                const yOverlap = Math.max(0, Math.min(c.py + c.sy, o.py + o.sy) - Math.max(c.py, o.py));
-                const zOverlap = Math.max(0, Math.min(c.pz + c.sz, o.pz + o.sz) - Math.max(c.pz, o.pz));
-                // 远端接触：c 在 o 的"后面"（c.px == o.px + o.sx）
-                if (c.px === o.px + o.sx) frontContact += yOverlap * zOverlap;
-                // 底端接触：c 在 o 的"前面"（c.px + c.sx == o.px）—— 通常是 c 推到 o 后面停下
-                if (c.px + c.sx === o.px) frontContact += yOverlap * zOverlap;
-                // 侧面接触（Y/Z 方向）
-                if (c.py + c.sy === o.py || o.py + o.sy === c.py) sideContact += xOverlap * zOverlap;
-                if (c.pz + c.sz === o.pz || o.pz + o.sz === c.pz) sideContact += xOverlap * yOverlap;
-            }
-            // 货柜边界
-            if (c.px === 0) frontContact += c.sy * c.sz;  // 桶底
-            if (c.py === 0) sideContact += c.sx * c.sz;   // 地面
-            if (c.py + c.sy === container.h) sideContact += c.sx * c.sz;  // 顶
-            if (c.pz === 0) sideContact += c.sx * c.sy;   // 前壁
-            if (c.pz + c.sz === container.w) sideContact += c.sx * c.sy;  // 后壁
-            // 支撑率：X 方向投影支撑 / 货物 X 长度
-            const supportArea = frontContact; // 简化：把"底端+远端"接触都算支撑
-            const supportRate = supportArea / (c.sx * c.sy * c.sz + 1) * (c.sy * c.sz); // 归一化
-            return frontContact * 10
-                 + sideContact * 5
-                 + (supportRate > 0.5 ? 1000 : 0);
+        // 边界校验：5 边（X=0 尾部、Y=0 底、Y=h 顶、Z=0 背、Z=w 正），不校验 X=l 入口
+        function checkBoundaries(c, container) {
+            if (c.px + c.sx < 0) return false;  // 凸出尾部不允许
+            if (c.py < 0) return false;
+            if (c.py + c.sy > container.h) return false;
+            if (c.pz < 0) return false;
+            if (c.pz + c.sz > container.w) return false;
+            return true;
         }
 
-        // 生成 YZ 候选位置：4 角 + 中心 + 已放置货物角点 + 随机
-        function generateDropCandidates(placed, container) {
-            const { w, h } = container;
-            const cands = [
-                { y: 0, z: 0 },
-                { y: 0, z: w - 100 },
-                { y: h - 100, z: 0 },
-                { y: h - 100, z: w - 100 },
-                { y: h / 2, z: w / 2 },
-            ];
+        // Y 方向重力跌落（仅顶角 + 接受堆叠）
+        //   0~maxOverhangMM mm 凸出容忍：底面投影（XZ）允许 ≤ maxOverhangMM 凸出
+        function gravityDrop(sx, sy, sz, yEntry, z, px, placed, container, maxOverhangMM) {
+            // 沿 -Y 落到第一个接触点（地面或已有货物顶部）
+            let py = 0;
             for (const o of placed) {
-                cands.push({ y: o.py, z: o.pz });
-                cands.push({ y: o.py + o.sy, z: o.pz });
-                cands.push({ y: o.py, z: o.pz + o.sz });
-                cands.push({ y: o.py + o.sy, z: o.pz + o.sz });
+                if (px < o.px + o.sx && px + sx > o.px &&
+                    z < o.pz + o.sz && z + sz > o.pz) {
+                    py = Math.max(py, o.py + o.sy);
+                }
             }
-            for (let i = 0; i < 5; i++) {
-                cands.push({
-                    y: Math.random() * Math.max(1, h - 100),
-                    z: Math.random() * Math.max(1, w - 100),
-                });
+            if (py + sy > container.h) {
+                return { py: yEntry, valid: false, reason: 'exceed-height' };
             }
-            // 去重
-            const seen = new Set();
-            return cands.filter(c => {
-                const k = `${Math.round(c.y)}_${Math.round(c.z)}`;
-                if (seen.has(k)) return false;
-                seen.add(k);
-                return true;
-            });
+            // 校验底面不悬空（0~maxOverhangMM 容忍）
+            if (!isBottomSupported(px, sx, z, sz, py, placed, maxOverhangMM)) {
+                return { py, valid: false, reason: 'uneven-support' };
+            }
+            return { py, valid: true };
         }
 
-        // 侧滑微调：在 (cy, cz) 周围 ±SLIP mm 蛇形搜索（沿 Y/Z 方向）
-        //   - SLIP 越大搜索越广但越慢（默认 50mm = 5cm）
-        //   - 货物最终位置由 findDropX 自动算 X（无需手算）
-        function tetrisSideSlip(sx, sy, sz, cy, cz, placed, container, allowIntersection) {
-            const SLIP = 50;
-            let best = null;
-            let bestScore = -Infinity;
-            const bestAt = (py, pz) => {
-                const px = findDropX(sx, sy, sz, py, pz, placed, container);
-                if (px == null) return null;
-                const c = { sx, sy, sz, px, py, pz };
-                if (!allowIntersection && aabbOverlap(c, placed)) return null;
-                return c;
+        // 底面支撑校验：底面投影（XZ）允许 ≤ maxOverhangMM mm 凸出
+        //   简化：用"未支撑面积 / (sx+sz)" 估算最大单边凸出深度
+        //   严格 0 容忍时 missing 必须为 0；放宽时允许 missing ≤ maxOverhangMM * (sx+sz)
+        function isBottomSupported(px, sx, pz, sz, py, placed, maxOverhangMM) {
+            if (py === 0) return true;  // 地面 = 完美支撑
+            const cargoArea = sx * sz;
+            let supportArea = 0;
+            for (const o of placed) {
+                if (o.py + o.sy !== py) continue;  // 只考虑顶面 = py 的支撑
+                const ox1 = Math.max(px, o.px);
+                const ox2 = Math.min(px + sx, o.px + o.sx);
+                const oz1 = Math.max(pz, o.pz);
+                const oz2 = Math.min(pz + sz, o.pz + o.sz);
+                if (ox2 > ox1 && oz2 > oz1) {
+                    supportArea += (ox2 - ox1) * (oz2 - oz1);
+                }
+            }
+            const missing = cargoArea - supportArea;
+            return missing <= maxOverhangMM * (sx + sz);
+        }
+
+        // 单件货物的进入（核心）
+        //   枚举 4/8 候选 → 选 min(px)
+        //   返回 null = 完全放不下
+        function placeOneCargo(cargo, placed, container, allowStacking, maxOverhangMM) {
+            const orientations = tetrisOrientations(cargo);
+            const corners = allowStacking
+                ? ENTRY_CORNERS
+                : ENTRY_CORNERS.filter(c => c.y === 0);  // 不接受堆叠：只用 2 个底角
+
+            const candidates = [];
+            for (const orient of orientations) {
+                // 预过滤：超柜子维度的方向剔除
+                if (orient.sy > container.h) continue;
+                if (orient.sz > container.w) continue;
+                if (orient.sx > container.l && orient.sz > container.l) continue;
+
+                for (const corner of corners) {
+                    const start = entryCornerStart(corner, orient, container);
+                    const px = findDropX(orient.sx, orient.sy, orient.sz, start.py, start.pz, placed, container);
+                    if (px === null) continue;
+
+                    const candidate = {
+                        sx: orient.sx, sy: orient.sy, sz: orient.sz,
+                        px, py: start.py, pz: start.pz,
+                    };
+
+                    if (!checkBoundaries(candidate, container)) continue;
+                    if (aabbOverlap(candidate, placed)) continue;
+
+                    // 跌落动作（仅顶角 + 接受堆叠）
+                    if (allowStacking && corner.y === 'max') {
+                        const drop = gravityDrop(orient.sx, orient.sy, orient.sz, start.py, start.pz, px, placed, container, maxOverhangMM);
+                        if (!drop.valid) continue;
+                        candidate.py = drop.py;
+                    }
+
+                    candidates.push(candidate);
+                }
+            }
+
+            if (candidates.length === 0) return null;
+            // 优选：min(px) 最小者（最深入尾部）
+            candidates.sort((a, b) => a.px - b.px);
+            return candidates[0];
+        }
+
+        // 兜底：放到 X=l+10 入口外
+        function placeOverflowAtEntrance(cargo, container) {
+            return {
+                ...cargo,
+                px: container.l + 10,
+                py: 0,
+                pz: 0,
             };
-            // 原点位置
-            const orig = bestAt(cy, cz);
-            if (orig) { bestScore = tetrisScore(orig, placed, container); best = orig; }
-            // 8 方向搜索
-            for (let dy = -SLIP; dy <= SLIP; dy += SLIP) {
-                for (let dz = -SLIP; dz <= SLIP; dz += SLIP) {
-                    if (dy === 0 && dz === 0) continue;
-                    const c = bestAt(cy + dy, cz + dz);
-                    if (!c) continue;
-                    const s = tetrisScore(c, placed, container);
-                    if (s > bestScore) { bestScore = s; best = c; }
-                }
-            }
-            return best;
         }
 
-        // 实在放不下：在 Y/Z 平面上扫线找空位（不交叉）
-        //   - 桶式：X 方向由 findDropX 自动算
-        function findOverflowPlacement(cargo, placed, container, allowIntersection) {
-            const { w, h } = container;
-            for (let y = 0; y <= h - cargo.sy; y += 50) {
-                for (let z = 0; z <= w - cargo.sz; z += 50) {
-                    const px = findDropX(cargo.sx, cargo.sy, cargo.sz, y, z, placed, container);
-                    if (px == null) continue;
-                    const c = { ...cargo, px, py: y, pz: z };
-                    if (!allowIntersection && aabbOverlap(c, placed)) continue;
-                    return c;
-                }
-            }
-            // 最后兜底：放到"入口"外（X > l），仍不交叉
-            return placeOverflowCargo(cargo, placed);
-        }
-
-        // Tetris 单次运行：按 sortedCargos 顺序放置（桶式：X 尽头是入口，水平塞入）
-        //   - annealProb：每件货物有该概率**不取最高分**候选，改取 Top-3 中随机一个
-        function tetrisSingleRun(sortedCargos, container, allowIntersection, annealProb) {
+        // 单次运行（确定性，按 sortedCargos 顺序放置）
+        function singleRun(sortedCargos, container, allowStacking, maxOverhangMM) {
             const placed = [];
             for (const cargo of sortedCargos) {
-                const orientations = tetrisOrientations(cargo);
-                const candidates = generateDropCandidates(placed, container);
-                let bestPlacement = null;
-                let bestScore = -Infinity;
-
-                for (const orient of orientations) {
-                    for (const cand of candidates) {
-                        // 1. 水平（Y/Z）范围预校验
-                        if (cand.y + orient.sy > container.h || cand.y < 0) continue;
-                        if (cand.z + orient.sz > container.w || cand.z < 0) continue;
-                        // 2. 桶式塞入：X 方向由 findDropX 自动算（入口可超出）
-                        const px = findDropX(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container);
-                        if (px == null) continue;
-                        const candidate = { ...orient, px, py: cand.y, pz: cand.z };
-                        // 3. 算法模拟时不允许交叉 —— 严格 AABB 校验
-                        if (!allowIntersection && aabbOverlap(candidate, placed)) continue;
-                        const s = tetrisScore(candidate, placed, container);
-                        if (s > bestScore) { bestScore = s; bestPlacement = candidate; }
-                        // 4. 侧滑微调：沿 Y/Z 蛇形搜索
-                        const slipped = tetrisSideSlip(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container, allowIntersection);
-                        if (slipped) {
-                            const s2 = tetrisScore(slipped, placed, container);
-                            if (s2 > bestScore) { bestScore = s2; bestPlacement = slipped; }
-                        }
-                    }
+                const result = placeOneCargo(cargo, placed, container, allowStacking, maxOverhangMM);
+                if (result === null) {
+                    placed.push(placeOverflowAtEntrance(cargo, container));
+                } else {
+                    placed.push(result);
                 }
-
-                // 5. 退火：annealProb 概率在已评估的 Top-3 中随机选
-                if (bestPlacement && Math.random() < annealProb) {
-                    const altCands = [];
-                    for (const orient of orientations) {
-                        for (const cand of candidates) {
-                            if (cand.y + orient.sy > container.h || cand.y < 0) continue;
-                            if (cand.z + orient.sz > container.w || cand.z < 0) continue;
-                            const px = findDropX(orient.sx, orient.sy, orient.sz, cand.y, cand.z, placed, container);
-                            if (px == null) continue;
-                            const c = { ...orient, px, py: cand.y, pz: cand.z };
-                            if (!allowIntersection && aabbOverlap(c, placed)) continue;
-                            altCands.push(c);
-                        }
-                    }
-                    if (altCands.length > 1) {
-                        const pickIdx = 1 + Math.floor(Math.random() * Math.min(3, altCands.length - 1));
-                        bestPlacement = altCands[pickIdx];
-                    }
-                }
-
-                if (!bestPlacement) {
-                    bestPlacement = findOverflowPlacement(cargo, placed, container, allowIntersection);
-                }
-                placed.push(bestPlacement);
             }
             return placed;
         }
 
-        // Tetris 算法入口：rounds 轮退火（每轮 currentAnneal 线性下降）
-        //   - rounds 越大多样性越好但耗时越长
-        //   - annealStart 越大跳出局部最优能力越强
-        //   - annealEnd 越小越贪心
-        function tetrisLayout(cargos, opts) {
-            const { iter, container, allowIntersection, annealStart = 0.3, annealEnd = 0.1, rounds = 5, foiLambda = 0.1 } = opts;
-            const results = [];
-            const sortedCargos = sortByFOI(cargos, foiLambda);
-            sortedCargos.__sortKey = `foi(λ=${foiLambda})`;
-            const perRound = Math.max(1, Math.floor(iter / rounds));
-            for (let round = 0; round < rounds; round++) {
-                const ratio = rounds === 1 ? 0 : round / (rounds - 1);
-                const currentAnneal = annealStart * (1 - ratio) + annealEnd * ratio;
-                for (let t = 0; t < perRound; t++) {
-                    const t0 = performance.now();
-                    const placed = tetrisSingleRun(sortedCargos, container, allowIntersection, currentAnneal);
-                    const t1 = performance.now();
-                    results.push({
-                        placed,
-                        eval: evaluateLayout(placed, container),
-                        timeMs: t1 - t0,
-                        strategy: 'tetris',
-                        sortKey: sortedCargos.__sortKey,
-                    });
-                }
+        // 多样性扰动（方案 α：只换第 1 件）
+        //   从立方体组中随机选一个作为第 1 件（不放索引 0）
+        //   若立方体组 < 2，退化为从全部货物中随机选
+        function perturbFirst(sortedCargos) {
+            if (sortedCargos.length < 2) return sortedCargos;
+            const T = 2.0;
+            const cubicIndices = [];
+            for (let i = 0; i < sortedCargos.length; i++) {
+                if (shapeRatioOf(sortedCargos[i]) <= T) cubicIndices.push(i);
             }
+            let firstIdx;
+            if (cubicIndices.length >= 2) {
+                const pool = cubicIndices.filter(i => i !== 0);
+                firstIdx = pool[Math.floor(Math.random() * pool.length)];
+            } else {
+                firstIdx = 1 + Math.floor(Math.random() * (sortedCargos.length - 1));
+            }
+            if (firstIdx === 0) return sortedCargos;
+            return [
+                sortedCargos[firstIdx],
+                ...sortedCargos.slice(0, firstIdx),
+                ...sortedCargos.slice(firstIdx + 1),
+            ];
+        }
+
+        // 4 解入口（1 主线 + 3 多样性，方案 α 扰动）
+        function tetrisLayoutV1(cargos, opts) {
+            const { container, allowStacking = false, maxOverhangMM = 0 } = opts;
+            const results = [];
+            const sortedMain = sortByShapeRatio(cargos);
+            sortedMain.__sortKey = `P(T=2.0)`;
+
+            // 主线解（确定性）
+            {
+                const t0 = performance.now();
+                const placed = singleRun(sortedMain, container, allowStacking, maxOverhangMM);
+                const t1 = performance.now();
+                results.push({
+                    placed,
+                    eval: evaluateLayout(placed, container),
+                    timeMs: t1 - t0,
+                    strategy: 'tetris-v1',
+                    sortKey: sortedMain.__sortKey,
+                });
+            }
+
+            // 多样性解 1~3（扰动第 1 件）
+            for (let i = 0; i < 3; i++) {
+                const t0 = performance.now();
+                const perturbed = perturbFirst(sortedMain);
+                const placed = singleRun(perturbed, container, allowStacking, maxOverhangMM);
+                const t1 = performance.now();
+                results.push({
+                    placed,
+                    eval: evaluateLayout(placed, container),
+                    timeMs: t1 - t0,
+                    strategy: 'tetris-v1-perturbed',
+                    sortKey: sortedMain.__sortKey + ` (first#${perturbed[0].id || '?'})`,
+                });
+            }
+
             return results;
-        }
-
-        // 70/30 候选选择：70% 选最低分、30% 在 Top-3 中随机选
-        function pickCandidate(candidates) {
-            if (candidates.length === 0) return null;
-            if (candidates.length === 1) return candidates[0];
-            if (Math.random() < 0.7) return candidates[0];
-            const top3 = candidates.slice(0, Math.min(3, candidates.length));
-            return top3[Math.floor(Math.random() * top3.length)];
-        }
-
-        // 极值点排序键：按指定主轴 + 次轴 + 第三轴升序
-        function epCompareKey(ep, primary) {
-            if (primary === 'py') return ep.y * 1e12 + ep.z * 1e6 + ep.x;
-            if (primary === 'pz') return ep.z * 1e6 + ep.x * 1e3 + ep.y;
-            if (primary === 'px') return ep.x * 1e9 + ep.z * 1e6 + ep.y;
-            return ep.y * 1e12 + ep.z * 1e6 + ep.x;
-        }
-
-        // —— 策略工厂 ——
-
-        // 极值点 runner：按 primary 轴（py/pz/px）排序候选，70/30 选择
-        function makeEpRunner(primary) {
-            return function run(sortedCargos, container, allowIntersection) {
-                const placed = [];
-                let epSet = [{ x: 0, y: 0, z: 0 }];
-
-                for (const cargo of sortedCargos) {
-                    const orientations = generateOrientations(cargo);
-                    const candidates = [];
-                    for (const orient of orientations) {
-                        for (const ep of epSet) {
-                            const c = tryPlaceAt(orient, ep, placed, allowIntersection);
-                            if (c) candidates.push({ cargo: c, ep });
-                        }
-                    }
-                    if (candidates.length === 0) {
-                        placed.push(placeOverflowCargo(cargo, placed));
-                        continue;
-                    }
-                    candidates.sort((a, b) => epCompareKey(a.ep, primary) - epCompareKey(b.ep, primary));
-                    const pick = pickCandidate(candidates);
-                    const best = pick.cargo;
-                    placed.push(best);
-                    epSet.push(...generateNewEPs(best));
-                    // 极值点去重
-                    const seen = new Set();
-                    epSet = epSet.filter(ep => {
-                        const k = `${ep.x}_${ep.y}_${ep.z}`;
-                        if (seen.has(k)) return false;
-                        seen.add(k);
-                        return true;
-                    });
-                }
-                return placed;
-            };
-        }
-
-        // 角落 runner：从指定角落附近开始放置，倾向选离角落近的极值点
-        function makeCornerRunner(corner) {
-            return function run(sortedCargos, container, allowIntersection) {
-                const { l, w } = container;
-                const placed = [];
-                // 角落起点（保留柜内一定空间，避开边缘）
-                let startX, startZ;
-                const inset = 10;
-                if (corner === 'lfd') { startX = inset;        startZ = inset;        }
-                if (corner === 'rfd') { startX = l * 0.7;      startZ = inset;        }
-                if (corner === 'lbd') { startX = inset;        startZ = w * 0.7;      }
-                if (corner === 'rbd') { startX = l * 0.7;      startZ = w * 0.7;      }
-                // 加随机抖动（避免 corner 策略与 ep 策略雷同）
-                startX += (Math.random() - 0.5) * 300;
-                startZ += (Math.random() - 0.5) * 200;
-                startX = Math.max(0, startX);
-                startZ = Math.max(0, startZ);
-
-                const cornerTarget = { x: corner.startsWith('l') ? 0 : l, z: corner.endsWith('d') ? 0 : w };
-                let epSet = [{ x: startX, y: 0, z: startZ }];
-
-                for (const cargo of sortedCargos) {
-                    const orientations = generateOrientations(cargo);
-                    const candidates = [];
-                    for (const orient of orientations) {
-                        for (const ep of epSet) {
-                            const c = tryPlaceAt(orient, ep, placed, allowIntersection);
-                            if (c) candidates.push({ cargo: c, ep });
-                        }
-                    }
-                    if (candidates.length === 0) {
-                        placed.push(placeOverflowCargo(cargo, placed));
-                        continue;
-                    }
-                    // 按"距角落距离"升序
-                    candidates.sort((a, b) => {
-                        const da = Math.abs(a.ep.x - cornerTarget.x) + Math.abs(a.ep.z - cornerTarget.z);
-                        const db = Math.abs(b.ep.x - cornerTarget.x) + Math.abs(b.ep.z - cornerTarget.z);
-                        return da - db;
-                    });
-                    const pick = pickCandidate(candidates);
-                    const best = pick.cargo;
-                    placed.push(best);
-                    epSet.push(...generateNewEPs(best));
-                    const seen = new Set();
-                    epSet = epSet.filter(ep => {
-                        const k = `${ep.x}_${ep.y}_${ep.z}`;
-                        if (seen.has(k)) return false;
-                        seen.add(k);
-                        return true;
-                    });
-                }
-                return placed;
-            };
-        }
-
-        // 随机贪心 runner：起点偏移加大到 ±500mm
-        function makeRandomGreedyRunner() {
-            return function run(sortedCargos, container, allowIntersection) {
-                const placed = [];
-                const startX = Math.random() * 500;
-                const startZ = Math.random() * 300;
-                let cursorX = startX, cursorZ = startZ;
-                let rowDepth = 0;
-                const GAP = 10;
-
-                for (const cargo of sortedCargos) {
-                    const orientations = generateOrientations(cargo);
-                    const candidates = [];
-                    for (const orient of orientations) {
-                        let cx = cursorX, cz = cursorZ;
-                        let attempt = 0;
-                        while (attempt < 200) {
-                            const c = { ...orient, px: cx, py: 0, pz: cz };
-                            if (!allowIntersection && aabbOverlap(c, placed)) {
-                                cz += rowDepth + GAP;
-                                rowDepth = 0;
-                                cx = startX;
-                                attempt++;
-                                continue;
-                            }
-                            candidates.push({ cargo: c });
-                            break;
-                        }
-                    }
-                    if (candidates.length === 0) {
-                        placed.push(placeOverflowCargo(cargo, placed));
-                        continue;
-                    }
-                    candidates.sort((a, b) => a.cargo.pz - b.cargo.pz || a.cargo.px - b.cargo.px);
-                    const pick = pickCandidate(candidates);
-                    const best = pick.cargo;
-                    placed.push(best);
-                    cursorX = best.px + best.sx + GAP;
-                    rowDepth = Math.max(rowDepth, best.sz);
-                }
-                return placed;
-            };
         }
 
         // 互异过滤：按 50mm 阈值去重 + 保留质量更高者
@@ -3563,49 +3263,24 @@
         // ============================================================
 
         // 分片调度：每帧最多执行 CHUNK 次迭代，让出主线程避免 UI 卡顿
-        async function runPackingWithProgress(algoName, cargos, iter, allowIntersection, tetrisOpts) {
-            const CHUNK = 50;
+        async function runPackingWithProgress(algoName, cargos, _iter, allowIntersection, allowStacking, maxOverhangMM) {
+            // v1 算法：固定返回 4 解（1 主线 + 3 多样性），不分片
             const container = state.container;
-            const results = [];
+            packRunBtn.disabled = true;
+            packRunBtn.textContent = '🎲 计算中…';
+            // 让出主线程 1 帧（让 UI 渲染"计算中"状态）
+            await new Promise(res => requestAnimationFrame(res));
             const t0 = performance.now();
-
-            for (let base = 0; base < iter; base += CHUNK) {
-                const end = Math.min(base + CHUNK, iter);
-                for (let i = base; i < end; i++) {
-                    // tetris 模式：把 rounds 拆为单次 run
-                    if (algoName === 'tetris') {
-                        const r = tetrisLayout(cargos, {
-                            iter: 1, // 单次放置
-                            container,
-                            allowIntersection,
-                            rounds: tetrisOpts.rounds,
-                            annealStart: tetrisOpts.annealStart,
-                            annealEnd: tetrisOpts.annealEnd,
-                            foiLambda: tetrisOpts.foiLambda,
-                        });
-                        results.push(...r);
-                    } else {
-                        const r = PackingAlgos.run(algoName, cargos, {
-                            iter: 1,
-                            container,
-                            allowIntersection,
-                        });
-                        results.push(r[0]);
-                    }
-                }
-                // 让出主线程
-                await new Promise(res => requestAnimationFrame(res));
-                const done = Math.min(end, iter);
-                const elapsed = (performance.now() - t0).toFixed(0);
-                packRunBtn.disabled = true;
-                packRunBtn.textContent = `🎲 计算中 ${done}/${iter}（${elapsed}ms）`;
-            }
+            const results = PackingAlgos.run(algoName, cargos, {
+                container,
+                allowIntersection,
+                allowStacking,
+                maxOverhangMM,
+            });
+            const totalMs = performance.now() - t0;
             packRunBtn.disabled = false;
             packRunBtn.textContent = '🎲 开始计算';
-            return {
-                results,
-                totalMs: performance.now() - t0,
-            };
+            return { results, totalMs };
         }
 
         // 把"结果"应用到 state.cargos（修改 px/py/pz，不改 sx/sy/sz/name/color）
@@ -3649,7 +3324,9 @@
         let _lastPackSignature = '';
 
         function _currentCargosSignature() {
-            return state.cargos.map(c => `${c.id}|${c.sx}x${c.sy}x${c.sz}`).join(';');
+            const cargos = state.cargos.map(c => `${c.id}|${c.sx}x${c.sy}x${c.sz}`).join(';');
+            // 缓存依赖：货物列表 + 是否接受堆叠 + 悬空突出容忍（任一变化都需重算）
+            return `${cargos}|s${state.allowStacking ? 1 : 0}|o${state.maxOverhangMM}`;
         }
 
         // 渲染浮窗列表（互异过滤 + Top-10）
@@ -3661,8 +3338,8 @@
             _lastPackSignature = _currentCargosSignature();
 
             // 互异过滤 + 多样性优先排序（轮询取 Top-10）
-            const minUtil = parseFloat(document.getElementById('packMinUtilRate')?.value) || 0.3;
-            const diverseResult = selectTopDiverse(results, 10, minUtil);
+            // v1 固定 4 解：minUtil 固定 0（4 解全部展示，无需过滤）
+            const diverseResult = selectTopDiverse(results, 10, 0);
             const top = diverseResult.selected;
             const dedupedCount = diverseResult.dedupedCount;
             _currentResults = top;
@@ -3785,7 +3462,6 @@
         }
 
         const packAlgoSelect = $('#packAlgoSelect');
-        const packIterInput = $('#packIterInput');
         const packRunBtn = $('#packRunBtn');
         const packHint = $('#packHint');
         const packPanel = $('#packPanel');
@@ -3804,7 +3480,7 @@
             // 缓存命中：货物签名一致 + 已有结果 → 直接显示浮窗，不重算
             const sig = _currentCargosSignature();
             if (_lastPackResults && _lastPackSignature === sig) {
-                packHint.textContent = `复用上次结果（${_lastPackIter} 次 / ${_lastPackTotalMs.toFixed(0)}ms）。点浮窗内【🔄 重新计算】强制重跑。`;
+                packHint.textContent = `复用上次结果（${_lastPackResults.length} 个解 / ${_lastPackTotalMs.toFixed(0)}ms）。点浮窗内【🔄 重新计算】强制重跑。`;
                 renderPackPanel(_lastPackResults, _lastPackTotalMs, _lastPackIter);
                 return;
             }
@@ -3813,17 +3489,8 @@
             _lastPackSignature = '';
 
             const algoName = packAlgoSelect.value;
-            let iter = parseInt(packIterInput.value, 10);
-            if (!Number.isFinite(iter) || iter < 10) iter = 10;
-            if (iter > 10000) iter = 10000;
-
-            // 调优参数（仅在算法调优阶段可见）
-            const tetrisOpts = {
-                rounds: parseInt(document.getElementById('packTetrisRounds')?.value, 10) || 5,
-                annealStart: parseFloat(document.getElementById('packAnnealStart')?.value) || 0.3,
-                annealEnd: parseFloat(document.getElementById('packAnnealEnd')?.value) || 0.1,
-                foiLambda: parseFloat(document.getElementById('packFoiLambda')?.value) || 0.1,
-            };
+            const totalRuns = 4; // v1 固定：1 主线 + 3 多样性
+            packHint.textContent = `开始计算（${algoName} × ${totalRuns} 个解）…`;
 
             const cargosSnapshot = state.cargos.map(c => ({
                 id: c.id, name: c.name,
@@ -3831,15 +3498,13 @@
                 color: c.color,
             }));
 
-            // tetris 模式：iter = 每轮跑几次，rounds 轮总结果
-            const effectiveIter = algoName === 'tetris' ? Math.max(1, Math.floor(iter / tetrisOpts.rounds)) : iter;
-            const totalRuns = algoName === 'tetris' ? tetrisOpts.rounds : iter;
-            packHint.textContent = `开始计算（${algoName} × ${totalRuns} 次）…`;
-
             try {
-                const { results, totalMs } = await runPackingWithProgress(algoName, cargosSnapshot, effectiveIter, state.allowIntersection, tetrisOpts);
+                const { results, totalMs } = await runPackingWithProgress(
+                    algoName, cargosSnapshot, totalRuns,
+                    state.allowIntersection, state.allowStacking, state.maxOverhangMM
+                );
                 const bestUtil = results.length ? Math.max(...results.map(r => r.eval.utilRate)) : 0;
-                packHint.textContent = `已完成 ${totalRuns} 次计算，耗时 ${totalMs.toFixed(0)} ms。最优方案利用率：${(bestUtil * 100).toFixed(2)}%`;
+                packHint.textContent = `已完成 ${totalRuns} 个解计算，耗时 ${totalMs.toFixed(0)} ms。最优方案利用率：${(bestUtil * 100).toFixed(2)}%`;
                 renderPackPanel(results, totalMs, totalRuns);
             } catch (e) {
                 console.error('[packing] 计算失败:', e);
@@ -3890,6 +3555,8 @@
                 })),
                 allowOverflow: state.allowOverflow,
                 allowIntersection: state.allowIntersection,
+                allowStacking: state.allowStacking,
+                maxOverhangMM: state.maxOverhangMM,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
                 exportedAt: new Date().toISOString(),
@@ -3944,6 +3611,8 @@
                         }));
                         state.allowOverflow = !!data.allowOverflow;
                         state.allowIntersection = data.allowIntersection === true; // 兼容旧文件：未保存时默认 false（不允许交叉）
+                        state.allowStacking = data.allowStacking === true;
+                        state.maxOverhangMM = Math.max(0, Math.min(100, parseInt(data.maxOverhangMM, 10) || 0));
                         state.interactionMode = data.interactionMode || 'direct';
                         state.colorIndex = data.colorIndex || state.cargos.length;
                         clearSelection();
@@ -3956,6 +3625,9 @@
                         overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
                         allowIntersection.checked = state.allowIntersection;
                         intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
+                        allowStackingEl.checked = state.allowStacking;
+                        stackingToggleLabel.classList.toggle('checked', state.allowStacking);
+                        maxOverhangMM.value = String(state.maxOverhangMM);
                         document.querySelectorAll('#containerSelector button').forEach(btn => {
                             btn.classList.toggle('active', btn.dataset.name === state.container.name);
                         });
@@ -4019,6 +3691,8 @@
                 })),
                 allowOverflow: state.allowOverflow,
                 allowIntersection: state.allowIntersection,
+                allowStacking: state.allowStacking,
+                maxOverhangMM: state.maxOverhangMM,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
             };
@@ -4029,6 +3703,8 @@
             state.cargos = snap.cargos.map(c => ({ ...c }));
             state.allowOverflow = snap.allowOverflow;
             state.allowIntersection = snap.allowIntersection === true; // 兼容旧快照：未保存时默认 false（不允许交叉）
+            state.allowStacking = snap.allowStacking === true;
+            state.maxOverhangMM = Math.max(0, Math.min(100, parseInt(snap.maxOverhangMM, 10) || 0));
             state.interactionMode = snap.interactionMode;
             state.colorIndex = snap.colorIndex;
             state.editIndex = -1;
@@ -4039,6 +3715,9 @@
             allowIntersection.checked = state.allowIntersection;
             overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
             intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
+            allowStackingEl.checked = state.allowStacking;
+            stackingToggleLabel.classList.toggle('checked', state.allowStacking);
+            maxOverhangMM.value = String(state.maxOverhangMM);
 
             // 直接同步模式 UI（不调 switchMode，避免 saveState 递归）
             if (snap.interactionMode === 'direct') {
@@ -4095,6 +3774,8 @@
                 })),
                 allowOverflow: state.allowOverflow,
                 allowIntersection: state.allowIntersection,
+                allowStacking: state.allowStacking,
+                maxOverhangMM: state.maxOverhangMM,
                 interactionMode: state.interactionMode,
                 colorIndex: state.colorIndex,
             };
@@ -4115,6 +3796,8 @@
             }));
             state.allowOverflow = !!data.allowOverflow;
             state.allowIntersection = data.allowIntersection === true; // 兼容旧方案：未保存时默认 false（不允许交叉）
+            state.allowStacking = data.allowStacking === true;
+            state.maxOverhangMM = Math.max(0, Math.min(100, parseInt(data.maxOverhangMM, 10) || 0));
             state.interactionMode = data.interactionMode || 'direct';
             state.colorIndex = data.colorIndex || state.cargos.length;
             clearSelection();
@@ -4270,6 +3953,20 @@
         allowIntersection.addEventListener('change', () => {
             state.allowIntersection = allowIntersection.checked;
             intersectionToggleLabel.classList.toggle('checked', state.allowIntersection);
+            saveState();
+        });
+
+        // 接受堆叠开关（开启后启用顶角入口+重力下落）
+        allowStackingEl.addEventListener('change', () => {
+            state.allowStacking = allowStackingEl.checked;
+            stackingToggleLabel.classList.toggle('checked', state.allowStacking);
+            saveState();
+        });
+
+        // 接受悬空突出（mm，0~100）
+        maxOverhangMM.addEventListener('input', () => {
+            const v = parseInt(maxOverhangMM.value, 10);
+            state.maxOverhangMM = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
             saveState();
         });
 
