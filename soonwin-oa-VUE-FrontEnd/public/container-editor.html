@@ -1118,6 +1118,9 @@
                     <button class="btn" id="exportBtn" title="下载到本地">📤 导出本地文件</button>
                     <button class="btn" id="importBtn" title="从本地文件加载">📥 导入本地文件</button>
                 </div>
+                <div class="panel-actions-row">
+                    <button class="btn" id="reportBtn" title="导出 Markdown 方案报告（含表格+JSON，用于 AI 分析）">📋 导出方案报告</button>
+                </div>
             </div>
         </div>
 
@@ -1352,6 +1355,7 @@
         const importBtn = $('#importBtn');
         const saveBtn = $('#saveBtn');
         const saveAsBtn = $('#saveAsBtn');
+        const reportBtn = $('#reportBtn');
         const vpDeselectBtn = $('#vpDeselectBtn');
         const vpRotateBtn = $('#vpRotateBtn');
         const vpDropBtn = $('#vpDropBtn');
@@ -3543,6 +3547,142 @@
         // ============================================================
         //  导出布局
         // ============================================================
+        // 导出方案报告：生成 Markdown 格式（表格 + JSON 数据块），用于 AI 分析讨论
+        function exportLayoutReport() {
+            if (!_lastPackResults || _lastPackResults.length === 0) {
+                alert('请先点击"🎲 开始计算"生成方案');
+                return;
+            }
+            const results = _lastPackResults;
+            const container = state.container;
+            const containerVol = container.l * container.w * container.h;
+
+            // 按当前 sortByShapeRatio 排序后的货物清单（与算法内部一致）
+            const sorted = sortByShapeRatio(state.cargos);
+
+            const lines = [];
+            lines.push('# 货柜排布方案报告');
+            lines.push('');
+            lines.push('> 用于 AI 分析优化的结构化导出');
+            lines.push(`> 导出时间: ${new Date().toISOString()}`);
+            lines.push('> 算法: Tetris v1（方案 P 排序 T=2.0 + 4 入口角 + Y 方向跌落 + 1 主线 + 3 多样性）');
+            lines.push('');
+
+            // 1. 元数据
+            lines.push('## 1. 元数据');
+            lines.push(`- 货柜: **${container.name}** (L=${container.l} × W=${container.w} × H=${container.h} mm)`);
+            lines.push(`- 货柜总体积: ${(containerVol / 1e9).toFixed(3)} m³ = ${containerVol.toLocaleString()} mm³`);
+            lines.push(`- 货物数: **${state.cargos.length}**`);
+            lines.push(`- 接受堆叠: **${state.allowStacking ? '✓' : '❌'}**`);
+            lines.push(`- 接受悬空突出: **${state.maxOverhangMM} mm**`);
+            lines.push(`- 接受相互交叉: **${state.allowIntersection ? '✓' : '❌'}**`);
+            lines.push(`- 排序规则: 方案 P (T=2.0) — 立方体组（shapeRatio≤2.0）按体积降序；细长组（>2.0）按 shapeRatio 升序`);
+            lines.push('');
+
+            // 2. 货物清单
+            lines.push('## 2. 货物清单（按 sortByShapeRatio 排序后）');
+            lines.push('| 序 | id | name | L(mm) | W(mm) | H(mm) | V(m³) | shapeRatio | 类别 |');
+            lines.push('|---|---|---|---|---|---|---|---|---|');
+            sorted.forEach((c, i) => {
+                const v = (c.sx * c.sy * c.sz / 1e9).toFixed(3);
+                const sr = shapeRatioOf(c).toFixed(2);
+                const cls = sr <= 2.0 ? '立方' : '细长';
+                lines.push(`| ${i+1} | ${c.id || '-'} | ${c.name || '(无名)'} | ${c.sx} | ${c.sy} | ${c.sz} | ${v} | ${sr} | ${cls} |`);
+            });
+            const totalCargoVol = sorted.reduce((s, c) => s + c.sx * c.sy * c.sz, 0);
+            lines.push(`| | | | | | **合计** | **${(totalCargoVol / 1e9).toFixed(3)}** | | |`);
+            lines.push('');
+
+            // 3. 方案总览
+            lines.push('## 3. 方案总览');
+            lines.push('| # | 策略 | utilRate | 凸出 | 出界 | 耗时 | 首件 | 差异 |');
+            lines.push('|---|---|---|---|---|---|---|---|');
+            results.forEach((r, i) => {
+                const isMain = i === 0;
+                const strategy = r.strategy || '-';
+                const util = (r.eval.utilRate * 100).toFixed(2) + '%';
+                const overflow = r.eval.overflowCount;
+                const outside = r.eval.fullyOutsideCount;
+                const time = (r.timeMs || 0).toFixed(0) + 'ms';
+                const first = r.placed[0];
+                const firstName = first ? (first.name || first.id || '?') : '-';
+                const tag = isMain ? '**(主线)**' : `扰动 #${i}`;
+                lines.push(`| **${i+1}**${isMain ? ' (主线)' : ''} | ${strategy} | ${util} | ${overflow} | ${outside} | ${time} | ${firstName} | ${tag} |`);
+            });
+            lines.push('');
+
+            // 4..N. 每个方案详细
+            results.forEach((r, idx) => {
+                const isMain = idx === 0;
+                const tag = isMain ? '主线' : `多样性`;
+                lines.push(`## ${4 + idx}. ${tag}方案 #${idx + 1}`);
+                lines.push(`- 策略: \`${r.strategy}\``);
+                lines.push(`- 排序键: \`${r.sortKey || '-'}\``);
+                lines.push(`- **utilRate: ${(r.eval.utilRate * 100).toFixed(2)}%**`);
+                lines.push(`- 凸出: ${r.eval.overflowCount} 件, 完全出界: ${r.eval.fullyOutsideCount} 件`);
+                lines.push(`- 耗时: ${(r.timeMs || 0).toFixed(0)} ms`);
+                lines.push('');
+                lines.push('### 货物位置（按 sortByShapeRatio 顺序）');
+                lines.push('| 序 | 货物 | px | py | pz | sx×sy×sz | 入柜 | 高度层 | 边界备注 |');
+                lines.push('|---|---|---|---|---|---|---|---|---|');
+                r.placed.forEach((c, j) => {
+                    const inBox = c.px + c.sx <= container.l && c.px >= 0 &&
+                                  c.py >= 0 && c.py + c.sy <= container.h &&
+                                  c.pz >= 0 && c.pz + c.sz <= container.w;
+                    const layer = c.py === 0 ? 'L0(地面)' : `L${c.py}`;
+                    const notes = [];
+                    if (c.px === 0) notes.push('贴 X=0 尾部');
+                    if (c.px + c.sx > container.l) notes.push(`凸出 X=l 入口 ${c.px + c.sx - container.l}mm`);
+                    if (c.pz === 0) notes.push('贴 Z=0 背面');
+                    if (c.pz + c.sz === container.w) notes.push('贴 Z=w 正面');
+                    if (c.py === 0) notes.push('贴 Y=0 底面');
+                    if (c.py + c.sy === container.h) notes.push('贴 Y=h 顶面');
+                    if (!inBox) notes.push('⚠️ 出界');
+                    lines.push(`| ${j+1} | ${c.name || c.id || '?'} | ${c.px} | ${c.py} | ${c.pz} | ${c.sx}×${c.sy}×${c.sz} | ${inBox ? '✓' : '❌'} | ${layer} | ${notes.join('; ') || '-'} |`);
+                });
+                lines.push('');
+            });
+
+            // N+1. 完整 JSON 数据
+            lines.push(`## ${4 + results.length}. 完整 JSON 数据（用于程序化分析）`);
+            lines.push('');
+            lines.push('```json');
+            const jsonData = {
+                container,
+                state: {
+                    allowStacking: state.allowStacking,
+                    maxOverhangMM: state.maxOverhangMM,
+                    allowIntersection: state.allowIntersection,
+                },
+                sortedCargos: sorted.map(c => ({
+                    id: c.id, name: c.name,
+                    sx: c.sx, sy: c.sy, sz: c.sz,
+                    shapeRatio: +shapeRatioOf(c).toFixed(3),
+                })),
+                results: results.map(r => ({
+                    strategy: r.strategy,
+                    sortKey: r.sortKey,
+                    timeMs: r.timeMs,
+                    eval: r.eval,
+                    placed: r.placed.map(c => ({ ...c })),
+                })),
+                exportedAt: new Date().toISOString(),
+            };
+            lines.push(JSON.stringify(jsonData, null, 2));
+            lines.push('```');
+            lines.push('');
+
+            // 下载
+            const content = lines.join('\n');
+            const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `layout_report_${container.name}_${Date.now()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         function exportLayout() {
             const data = {
                 version: 2,
@@ -3978,6 +4118,7 @@
         });
 
         exportBtn.addEventListener('click', exportLayout);
+        reportBtn.addEventListener('click', exportLayoutReport);
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
