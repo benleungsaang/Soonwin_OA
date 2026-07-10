@@ -51,8 +51,8 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
         gzipSize: true,
         // 开启 brotli 体积分析（可选）
         brotliSize: true,
-        // 是否在打包完成后自动打开报告页面（可选）
-        open: true,
+        // 是否在打包完成后自动打开报告页面：默认关（需 ANALYZE=true yarn build:prod 打开）
+        open: process.env.ANALYZE === 'true',
       })
     ],
     // 开发服务器配置
@@ -97,6 +97,10 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
     build: {
       outDir: 'dist',
       sourcemap: false,
+      // 关闭每个 chunk 的 gzip/brotli 体积计算（控制台不再打印压缩后体积，省时）
+      reportCompressedSize: false,
+      // 目标 ES2020，跳过向旧浏览器降级转换
+      target: 'es2020',
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
