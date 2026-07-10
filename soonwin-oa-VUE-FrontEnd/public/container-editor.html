@@ -569,27 +569,72 @@
             transform: scale(1.2) rotate(90deg);
         }
 
-        /* 统计信息 */
+        /* 统计信息（参考 pack-panel-item 的标签 | 值 行内布局） */
         .stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px 16px;
-            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 13px;
         }
 
-        .stats span {
+        .stats .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 6px;
+            border-radius: 4px;
+            border-bottom: 1px dashed rgba(255,255,255,0.06);
+            transition: background 0.15s;
+        }
+
+        .stats .stat-row:hover {
+            background: rgba(255,170,68,0.06);
+        }
+
+        .stats .stat-row .lbl {
             color: #aaa;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
-        .stats .value {
+        .stats .stat-row .lbl .hint {
+            font-style: normal;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+        }
+        .stats .stat-row .lbl .hint.up   { color: #4fc3f7; background: rgba(79,195,247,0.12); }
+        .stats .stat-row .lbl .hint.down { color: #ef5350; background: rgba(239,83,80,0.12); }
+
+        .stats .stat-row .val {
             color: #fff;
             font-weight: 600;
-            text-align: right;
+            font-family: Consolas, monospace;
         }
 
-        .stats .highlight {
-            color: #e94560;
+        /* 分组分隔线（基础参数 / 智能排布参考） */
+        .stats .stat-divider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 6px 0 2px;
+            font-size: 10px;
+            color: #ffaa44;
+            letter-spacing: 0.5px;
         }
+        .stats .stat-divider::before,
+        .stats .stat-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,170,68,0.3), transparent);
+        }
+
+        /* "高更优"指标用蓝色，"低更优"用红色（与原配色一致） */
+        .stats .stat-row .val.up   { color: #4fc3f7; }
+        .stats .stat-row .val.down { color: #ef5350; }
 
         /* 底部操作 */
         .panel-actions {
@@ -1067,18 +1112,15 @@
             <div class="section">
                 <div class="section-title">📊 空间利用率</div>
                 <div class="stats">
-                    <span>已用体积</span><span class="value" id="usedVolume">0 mm³</span>
-                    <span>总体积</span><span class="value" id="totalVolume">0 mm³</span>
-                    <span>利用率</span><span class="value highlight" id="utilRate">0%</span>
-                    <span>货物数量</span><span class="value" id="statCount">0</span>
-                    <span>包络盒紧密度 <em style="color:#4fc3f7;font-style:normal;font-size:10px;">高更优</em></span>
-                    <span class="value" id="tightnessStat" style="color:#4fc3f7;">-</span>
-                    <span>空隙率 <em style="color:#ef5350;font-style:normal;font-size:10px;">低更优</em></span>
-                    <span class="value" id="voidRateStat" style="color:#ef5350;">-</span>
-                    <span>最深前沿</span>
-                    <span class="value" id="maxFrontStat">-</span>
-                    <span>质心Y</span>
-                    <span class="value" id="comYStat">-</span>
+                    <div class="stat-row"><span class="lbl">📦 已用体积</span><span class="val" id="usedVolume">0 mm³</span></div>
+                    <div class="stat-row"><span class="lbl">🧊 总体积</span><span class="val" id="totalVolume">0 mm³</span></div>
+                    <div class="stat-row"><span class="lbl">📊 利用率</span><span class="val" id="utilRate">0%</span></div>
+                    <div class="stat-row"><span class="lbl">🔢 货物数量</span><span class="val" id="statCount">0</span></div>
+                    <div class="stat-divider"><span>智能排布参考</span></div>
+                    <div class="stat-row"><span class="lbl">🎯 紧密度 <em class="hint up">高更优</em></span><span class="val up" id="tightnessStat">-</span></div>
+                    <div class="stat-row"><span class="lbl">🕳️ 空隙率 <em class="hint down">低更优</em></span><span class="val down" id="voidRateStat">-</span></div>
+                    <div class="stat-row"><span class="lbl">📏 占用深度</span><span class="val" id="maxFrontStat">-</span></div>
+                    <div class="stat-row"><span class="lbl">⚖️ 重心高度</span><span class="val" id="comYStat">-</span></div>
                 </div>
             </div>
 
@@ -3616,9 +3658,9 @@
                     </div>
                     <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
                         <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
-                        <span style="color:#ffb74d;">📏最深前沿 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
+                        <span style="color:#ffb74d;">📏占用深度 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
                         <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
-                        <span style="color:#81c784;">⬆️质心Y <b>${e.comY.toFixed(0)} mm</b></span>
+                        <span style="color:#81c784;">⚖️重心高度 <b>${e.comY.toFixed(0)} mm</b></span>
                         ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
                         ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
                     </div>
@@ -3878,7 +3920,7 @@
 
             // 3. 方案总览
             lines.push('## 3. 方案总览');
-            lines.push('| # | 路线 | utilRate | 紧密度 | 最深前沿 | 空隙率 | 质心Y | 凸出 | 出界 | 耗时 |');
+            lines.push('| # | 路线 | utilRate | 紧密度 | 占用深度 | 空隙率 | 重心高度 | 凸出 | 出界 | 耗时 |');
             lines.push('|---|---|---|---|---|---|---|---|---|---|');
             results.forEach((r, i) => {
                 const e = r.eval;
@@ -3900,7 +3942,7 @@
                 lines.push(`## ${4 + localIdx}. ${tag}方案 #${globalIdx + 1}`);
                 lines.push(`- 路线: \`${r.sortKey || '-'}\``);
                 lines.push(`- **utilRate: ${(r.eval.utilRate * 100).toFixed(2)}%**`);
-                lines.push(`- 包络盒紧密度: ${((r.eval.tightness || 0) * 100).toFixed(1)}% · 最深前沿: ${(r.eval.maxFrontX || 0).toFixed(0)} mm · 空隙率: ${((r.eval.voidRate || 0) * 100).toFixed(1)}% · 质心Y: ${(r.eval.comY || 0).toFixed(0)} mm`);
+                lines.push(`- 包络盒紧密度: ${((r.eval.tightness || 0) * 100).toFixed(1)}% · 占用深度: ${(r.eval.maxFrontX || 0).toFixed(0)} mm · 空隙率: ${((r.eval.voidRate || 0) * 100).toFixed(1)}% · 重心高度: ${(r.eval.comY || 0).toFixed(0)} mm`);
                 lines.push(`- 凸出: ${r.eval.overflowCount} 件, 完全出界: ${r.eval.fullyOutsideCount} 件`);
                 lines.push(`- 耗时: ${(r.timeMs || 0).toFixed(0)} ms`);
                 lines.push('');
