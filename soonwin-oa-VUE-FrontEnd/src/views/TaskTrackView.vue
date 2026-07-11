@@ -25,50 +25,52 @@
                 <button class="publish-preview-remove" @click="removePublishImage">&times;</button>
               </div>
             </div>
-            <!-- 预计完成日期 + 底色选择 -->
-            <div class="flex items-center gap-3 mt-2 flex-wrap">
-              <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-500">预计完成</span>
-                <input type="date" v-model="publishExpectedDate" class="publish-date-input" />
-                <button v-if="publishExpectedDate" class="text-xs text-gray-400 hover:text-gray-600" @click="publishExpectedDate = ''">清除</button>
+            <!-- 底部工具栏一行：附图 + emoji + 预计完成日期 + 底色 + 保存草稿 + 发布 -->
+            <div class="publish-toolbar">
+              <label class="publish-upload-btn" title="附图">
+                <el-icon :size="16"><Picture /></el-icon>
+                <input type="file" accept="image/*" hidden @change="onPublishImageSelect" />
+              </label>
+              <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible" title="emoji">
+                🙂
+              </button>
+              <div ref="publishEmojiWrapperRef" class="emoji-wrapper">
+                <emoji-picker
+                  v-if="publishEmojiVisible"
+                  class="emoji-picker"
+                  @emoji-click="handlePublishEmoji"
+                />
               </div>
-              <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-500">底色</span>
-                <div class="color-palette">
+              <!-- 预计完成日期 -->
+              <el-date-picker
+                v-model="publishExpectedDate"
+                type="date"
+                placeholder="预计完成日期"
+                value-format="YYYY-MM-DD"
+                class="publish-date-picker"
+              />
+              <!-- 底色选择器：默认只显示一个色标，点击展开 10 色浮层 -->
+              <div class="bg-color-wrap" @click.stop>
+                <button
+                  class="bg-color-trigger"
+                  :style="publishBgColor ? { background: publishBgColor, opacity: 0.1 } : { background: '#ffffff' }"
+                  :class="{ 'bg-color-trigger-active': publishBgColor }"
+                  title="底色"
+                  @click="toggleBgColorPanel"
+                ></button>
+                <div v-if="showBgColorPanel" class="bg-color-popover">
                   <button v-for="c in presetColors" :key="c"
                     class="color-dot"
-                    :class="{ 'color-dot-active': publishBgColor === c && !showCustomColor }"
+                    :class="{ 'color-dot-active': publishBgColor === c }"
                     :style="{ background: c }"
                     @click="selectPresetColor(c)"
                     :title="c"></button>
-                  <div class="custom-color-wrap">
-                    <button class="color-dot color-dot-custom"
-                      :class="{ 'color-dot-active': showCustomColor }"
-                      :style="{ background: customColorInput }"
-                      @click="toggleCustomColor">
-                    </button>
-                    <input v-if="showCustomColor" v-model="customColorInput" type="color" class="color-picker-hidden" @change="onCustomColorChange" />
-                  </div>
                 </div>
               </div>
-            </div>
-            <div class="flex items-center justify-between pt-3 border-t border-gray-100 mt-3">
-              <div class="flex gap-2 items-center">
-                <label class="publish-upload-btn">
-                  <el-icon :size="16"><Picture /></el-icon><span class="text-sm ml-1">附图</span>
-                  <input type="file" accept="image/*" hidden @change="onPublishImageSelect" />
-                </label>
-                <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible">
-                  🙂
-                </button>
-                <div ref="publishEmojiWrapperRef" class="emoji-wrapper">
-                  <emoji-picker
-                    v-if="publishEmojiVisible"
-                    class="emoji-picker"
-                    @emoji-click="handlePublishEmoji"
-                  />
-                </div>
-              </div>
+              <div class="publish-toolbar-spacer"></div>
+              <button class="publish-draft-btn" @click="handleSaveDraft" :disabled="publishing">
+                保存草稿
+              </button>
               <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
                 {{ publishing ? '发布中...' : '发布' }}
               </button>
@@ -150,7 +152,13 @@
             <el-input v-model="editingTaskDraft.content" type="textarea" :rows="3" />
           </el-form-item>
           <el-form-item label="预计完成">
-            <input type="date" v-model="editingTaskDraft.expected_date" class="publish-date-input" />
+            <el-date-picker
+              v-model="editingTaskDraft.expected_date"
+              type="date"
+              placeholder="选择预计完成日期"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
           </el-form-item>
           <el-form-item label="底色">
             <div class="color-palette">
@@ -258,22 +266,21 @@ const presetColors = [
   '#92400e', // 棕
 ]
 const publishBgColor = ref('')
-const showCustomColor = ref(false)
-const customColorInput = ref('#3b82f6')
+const showBgColorPanel = ref(false)
 const editCustomColor = ref(false)
 
 function selectPresetColor(c: string) {
   publishBgColor.value = c
-  showCustomColor.value = false
+  showBgColorPanel.value = false
 }
-function toggleCustomColor() {
-  showCustomColor.value = !showCustomColor.value
-  if (showCustomColor.value) {
-    publishBgColor.value = customColorInput.value
-  }
+function toggleBgColorPanel() {
+  showBgColorPanel.value = !showBgColorPanel.value
 }
-function onCustomColorChange() {
-  publishBgColor.value = customColorInput.value
+function onBgColorOutsideClick(e: MouseEvent) {
+  if (!showBgColorPanel.value) return
+  const target = e.target as HTMLElement
+  if (target.closest('.bg-color-wrap')) return
+  showBgColorPanel.value = false
 }
 function selectEditColor(c: string) {
   editingTaskDraft.value.background_color = c
@@ -297,7 +304,9 @@ function onPublishEmojiOutsideClick(e: MouseEvent) {
   publishEmojiVisible.value = false
 }
 onMounted(() => document.addEventListener('mousedown', onPublishEmojiOutsideClick))
+onMounted(() => document.addEventListener('mousedown', onBgColorOutsideClick))
 onUnmounted(() => document.removeEventListener('mousedown', onPublishEmojiOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onBgColorOutsideClick))
 
 function onPublishImageSelect(e: Event) {
   const inp = e.target as HTMLInputElement
@@ -344,6 +353,10 @@ async function handlePublish() {
     ElMessage.warning('请输入任务内容或附图')
     return
   }
+  if (!publishExpectedDate.value) {
+    ElMessage.warning('请选择预计完成日期')
+    return
+  }
   publishing.value = true
   try {
     const content = publishContent.value.trim()
@@ -361,6 +374,7 @@ async function handlePublish() {
     publishContent.value = ''
     publishExpectedDate.value = ''
     publishBgColor.value = ''
+    showBgColorPanel.value = false
     removePublishImage()
     currentPage.value = 1
     await loadTasks()
@@ -369,6 +383,40 @@ async function handlePublish() {
   } finally {
     publishing.value = false
   }
+}
+
+// 保存草稿（仅写入 localStorage 不发起网络请求）
+function handleSaveDraft() {
+  if (!publishContent.value.trim() && !publishImage.value.file) {
+    ElMessage.warning('草稿内容为空')
+    return
+  }
+  try {
+    const draft = {
+      content: publishContent.value,
+      expected_date: publishExpectedDate.value,
+      background_color: publishBgColor.value,
+      saved_at: new Date().toISOString(),
+    }
+    localStorage.setItem('task_publish_draft', JSON.stringify(draft))
+    ElMessage.success('草稿已保存')
+  } catch (e: any) {
+    ElMessage.error('保存草稿失败')
+  }
+}
+
+// 页面加载时尝试恢复草稿
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem('task_publish_draft')
+    if (!raw) return
+    const draft = JSON.parse(raw)
+    if (draft && typeof draft === 'object') {
+      publishContent.value = draft.content || ''
+      publishExpectedDate.value = draft.expected_date || ''
+      publishBgColor.value = draft.background_color || ''
+    }
+  } catch { /* ignore */ }
 }
 
 // 完成/回退对话框
@@ -667,6 +715,7 @@ function getMediaUrl(path: string) {
 
 onMounted(async () => {
   hasToken.value = checkHasToken()
+  loadDraft()
   await loadTasks()
 })
 </script>
@@ -709,8 +758,8 @@ onMounted(async () => {
 .search-icon { position: absolute; left: 12px; z-index: 1; pointer-events: none; }
 .search-input { width: 100%; padding: 10px 16px 10px 36px; border: 1px solid #e5e7eb; border-radius: 12px; font-size: 14px; outline: none; background: #fff; transition: border-color 0.15s; box-sizing: border-box; }
 .search-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-.search-clear-btn { flex-shrink: 0; padding: 4px 10px; margin-left: 6px; background: #f3f4f6; color: #6b7280; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
-.search-clear-btn:hover { background: #e5e7eb; color: #374151; }
+.search-clear-btn { flex-shrink: 0; padding: 4px 10px; margin-left: 6px; background: #fff; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+.search-clear-btn:hover { background: #f9fafb; color: #374151; border-color: #d1d5db; }
 
 /* 标签栏 */
 .task-tabs { display: flex; gap: 4px; margin-bottom: 16px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
