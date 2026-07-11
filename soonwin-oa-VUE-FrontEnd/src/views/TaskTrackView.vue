@@ -25,22 +25,8 @@
                 <button class="publish-preview-remove" @click="removePublishImage">&times;</button>
               </div>
             </div>
-            <!-- 底部工具栏一行：附图 + emoji + 预计完成日期 + 底色 + 保存草稿 + 发布 -->
+            <!-- 底部工具栏一行：日期 + 颜色 + 附图 + emoji + 发布 -->
             <div class="publish-toolbar">
-              <label class="publish-upload-btn" title="附图">
-                <el-icon :size="16"><Picture /></el-icon>
-                <input type="file" accept="image/*" hidden @change="onPublishImageSelect" />
-              </label>
-              <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible" title="emoji">
-                🙂
-              </button>
-              <div ref="publishEmojiWrapperRef" class="emoji-wrapper">
-                <emoji-picker
-                  v-if="publishEmojiVisible"
-                  class="emoji-picker"
-                  @emoji-click="handlePublishEmoji"
-                />
-              </div>
               <!-- 预计完成日期 -->
               <el-date-picker
                 v-model="publishExpectedDate"
@@ -66,6 +52,20 @@
                     @click="selectPresetColor(c)"
                     :title="c"></button>
                 </div>
+              </div>
+              <label class="publish-upload-btn" title="附图">
+                <el-icon :size="16"><Picture /></el-icon>
+                <input type="file" accept="image/*" hidden @change="onPublishImageSelect" />
+              </label>
+              <button class="publish-emoji-btn" @click="publishEmojiVisible = !publishEmojiVisible" title="emoji">
+                🙂
+              </button>
+              <div ref="publishEmojiWrapperRef" class="emoji-wrapper">
+                <emoji-picker
+                  v-if="publishEmojiVisible"
+                  class="emoji-picker"
+                  @emoji-click="handlePublishEmoji"
+                />
               </div>
               <div class="publish-toolbar-spacer"></div>
               <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
@@ -700,7 +700,9 @@ onMounted(async () => {
 
 /* 发布框 */
 .publish-box { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px; transition: background 0.2s; }
-.publish-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.publish-toolbar { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.publish-toolbar > .publish-date-picker { margin-right: 4px; }
+.publish-toolbar > .bg-color-wrap { margin-right: 4px; }
 .publish-toolbar-spacer { flex: 1; }
 .publish-date-picker { width: auto !important; }
 .bg-color-wrap { position: relative; display: inline-flex; }
