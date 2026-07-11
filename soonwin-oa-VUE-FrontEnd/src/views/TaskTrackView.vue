@@ -13,7 +13,7 @@
       </div>
 
       <!-- 发布区（"全部/进行中"标签时显示） -->
-      <div v-if="activeTab === 'pending' || activeTab === 'all'" class="publish-box">
+      <div v-if="activeTab === 'pending' || activeTab === 'all'" class="publish-box" :style="publishBoxStyle">
         <div class="flex gap-3">
           <div class="flex-1">
             <textarea ref="publishTextareaRef" v-model="publishContent" placeholder="记录待办事项..." rows="2"
@@ -68,9 +68,6 @@
                 </div>
               </div>
               <div class="publish-toolbar-spacer"></div>
-              <button class="publish-draft-btn" @click="handleSaveDraft" :disabled="publishing">
-                保存草稿
-              </button>
               <button class="publish-submit-btn" :disabled="publishing" @click="handlePublish">
                 {{ publishing ? '发布中...' : '发布' }}
               </button>
@@ -276,6 +273,17 @@ function selectPresetColor(c: string) {
 function toggleBgColorPanel() {
   showBgColorPanel.value = !showBgColorPanel.value
 }
+// 发布框背景：选中底色后用 0.1 透明度；未选保持白色
+const publishBoxStyle = computed(() => {
+  const c = publishBgColor.value
+  if (!c) return { background: '#ffffff' }
+  const hex = c.replace('#', '')
+  if (hex.length !== 6) return { background: '#ffffff' }
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+  return { background: `rgba(${r}, ${g}, ${b}, 0.1)` }
+})
 function onBgColorOutsideClick(e: MouseEvent) {
   if (!showBgColorPanel.value) return
   const target = e.target as HTMLElement
@@ -383,40 +391,6 @@ async function handlePublish() {
   } finally {
     publishing.value = false
   }
-}
-
-// 保存草稿（仅写入 localStorage 不发起网络请求）
-function handleSaveDraft() {
-  if (!publishContent.value.trim() && !publishImage.value.file) {
-    ElMessage.warning('草稿内容为空')
-    return
-  }
-  try {
-    const draft = {
-      content: publishContent.value,
-      expected_date: publishExpectedDate.value,
-      background_color: publishBgColor.value,
-      saved_at: new Date().toISOString(),
-    }
-    localStorage.setItem('task_publish_draft', JSON.stringify(draft))
-    ElMessage.success('草稿已保存')
-  } catch (e: any) {
-    ElMessage.error('保存草稿失败')
-  }
-}
-
-// 页面加载时尝试恢复草稿
-function loadDraft() {
-  try {
-    const raw = localStorage.getItem('task_publish_draft')
-    if (!raw) return
-    const draft = JSON.parse(raw)
-    if (draft && typeof draft === 'object') {
-      publishContent.value = draft.content || ''
-      publishExpectedDate.value = draft.expected_date || ''
-      publishBgColor.value = draft.background_color || ''
-    }
-  } catch { /* ignore */ }
 }
 
 // 完成/回退对话框
@@ -715,7 +689,6 @@ function getMediaUrl(path: string) {
 
 onMounted(async () => {
   hasToken.value = checkHasToken()
-  loadDraft()
   await loadTasks()
 })
 </script>
@@ -726,7 +699,15 @@ onMounted(async () => {
 @media (max-width: 768px) { .task-container { padding: 12px 8px; } }
 
 /* 发布框 */
-.publish-box { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px; }
+.publish-box { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 16px; transition: background 0.2s; }
+.publish-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.publish-toolbar-spacer { flex: 1; }
+.publish-date-picker { width: auto !important; }
+.bg-color-wrap { position: relative; display: inline-flex; }
+.bg-color-trigger { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1); cursor: pointer; padding: 0; transition: all 0.15s; }
+.bg-color-trigger:hover { transform: scale(1.1); }
+.bg-color-trigger-active { box-shadow: 0 0 0 2px #3b82f6; }
+.bg-color-popover { position: absolute; top: 32px; left: 0; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; gap: 6px; z-index: 100; flex-wrap: nowrap; width: max-content; }
 .publish-textarea { width: 100%; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; resize: none; outline: none; font-size: 15px; color: #1f2937; padding: 10px; background: #fafafa; box-sizing: border-box; font-family: inherit; }
 .publish-textarea:focus { border-color: #3b82f6; background: #fff; }
 .publish-upload-btn { display: inline-flex; align-items: center; gap: 4px; padding: 8px 10px; color: #9ca3af; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
