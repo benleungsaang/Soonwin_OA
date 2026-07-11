@@ -586,7 +586,7 @@ async function loadTasks() {
     const status = activeTab.value === 'pending' ? 'pending' :
                    activeTab.value === 'completed' ? 'completed' : 'all'
     const showDeleted = activeTab.value === 'deleted' ? '1' : '0'
-    const params: any = { page: currentPage.value, per_page: perPage.value, status, show_deleted }
+    const params: any = { page: currentPage.value, per_page: perPage.value, status, show_deleted: showDeleted }
     if (searchKeyword.value) params.search = searchKeyword.value
     const res: any = await getTasks(params)
     if (res) {
