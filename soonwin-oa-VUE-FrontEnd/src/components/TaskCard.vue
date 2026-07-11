@@ -15,11 +15,11 @@
       </div>
       <div class="task-header-actions">
         <!-- 修改历史（仅管理员） -->
-        <button v-if="isAdmin && !readonly" class="task-icon-btn" title="修改历史" @click="$emit('history')">
+        <button v-if="isAdmin && !readonly" class="task-icon-btn" title="修改历史" @click="$emit('history', task)">
           <el-icon :size="15"><Clock /></el-icon>
         </button>
         <!-- 可见性设置（仅管理员） -->
-        <button v-if="isAdmin && !readonly" class="task-icon-btn" title="可见性设置" @click="$emit('visibility')">
+        <button v-if="isAdmin && !readonly" class="task-icon-btn" title="可见性设置" @click="$emit('visibility', task)">
           <el-icon :size="15"><View /></el-icon>
         </button>
         <!-- 底色选择（仅作者或管理员） -->
@@ -27,11 +27,11 @@
           <el-icon :size="15"><Brush /></el-icon>
         </button>
         <!-- 编辑 -->
-        <button v-if="canEdit && !readonly" class="task-icon-btn" title="编辑" @click="$emit('edit')">
+        <button v-if="canEdit && !readonly" class="task-icon-btn" title="编辑" @click="$emit('edit', task)">
           <el-icon :size="15"><Edit /></el-icon>
         </button>
         <!-- 删除 -->
-        <button v-if="canEdit && !readonly" class="task-icon-btn task-icon-btn-danger" title="删除" @click="$emit('delete')">
+        <button v-if="canEdit && !readonly" class="task-icon-btn task-icon-btn-danger" title="删除" @click="$emit('delete', task)">
           <el-icon :size="15"><Delete /></el-icon>
         </button>
       </div>
@@ -42,7 +42,7 @@
       <div class="task-content-row">
         <!-- 复选框 -->
         <button class="task-checkbox" :class="{ 'task-checkbox-checked': task.status === 'completed' }"
-          @click="$emit('toggle-complete')" :title="task.status === 'completed' ? '点击回退到待办' : '点击标记完成'">
+          @click="$emit('toggle-complete', task)" :title="task.status === 'completed' ? '点击回退到待办' : '点击标记完成'">
           <el-icon v-if="task.status === 'completed'" :size="14" color="#fff"><Check /></el-icon>
         </button>
         <p class="task-text" :class="{ 'task-text-done': task.status === 'completed' }">
@@ -86,7 +86,7 @@
         <span>{{ task.comment_count || '留言' }}</span>
       </button>
       <button class="task-action-btn" :class="{ 'task-action-btn-liked': task.is_liked }"
-        @click="$emit('like')" @mouseenter="onLikeEnter" @mouseleave="onLikeLeave">
+        @click="$emit('like', task)" @mouseenter="onLikeEnter" @mouseleave="onLikeLeave">
         <svg class="like-svg" viewBox="0 0 24 24" width="15" height="15"
           stroke="currentColor" stroke-width="2" :fill="task.is_liked ? 'currentColor' : 'none'"
           stroke-linecap="round" stroke-linejoin="round">
