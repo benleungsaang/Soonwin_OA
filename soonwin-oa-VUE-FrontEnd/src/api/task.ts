@@ -137,6 +137,20 @@ export function clearTaskNotifications() {
   return request.post('/api/tasks/notifications/clear')
 }
 
+// ============================================================
+// 可见性辅助数据（管理员）
+// ============================================================
+
+/** 获取所有 SimpleRole 列表（仅管理员） */
+export function getAllRoles() {
+  return request.get<Array<{ id: number; name: string; remark: string }>>('/api/admin/all-roles')
+}
+
+/** 获取所有 Employee 列表（仅管理员，最小化字段） */
+export function getAllEmployees() {
+  return request.get<Array<{ emp_id: string; name: string }>>('/api/admin/all-employees')
+}
+
 /** 获取任务附图 URL（走 nginx，与博客一致） */
 export function getTaskMediaUrl(filePath: string): string {
   if (!filePath) return ''

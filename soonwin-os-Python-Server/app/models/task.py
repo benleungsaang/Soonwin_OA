@@ -52,6 +52,7 @@ class Task(db.Model):
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
             'completed_at': self.completed_at.strftime('%Y-%m-%d %H:%M:%S') if self.completed_at else None,
             'comment_count': self.comments.filter_by(is_deleted=0).count() if include_relations else 0,
+            'history_count': self.histories.count() if include_relations else 0,
         }
         if include_relations:
             data['visibilities'] = [v.to_dict() for v in self.visibilities.all()]

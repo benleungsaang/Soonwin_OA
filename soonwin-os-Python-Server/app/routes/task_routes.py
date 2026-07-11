@@ -195,6 +195,17 @@ def get_tasks():
         query = query.order_by(Task.created_at.desc())
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
+        # 批量计算每条任务的修改历史数（避免 N+1 查询）
+        task_ids = [t.id for t in pagination.items]
+        history_count_map: dict = {}
+        if task_ids:
+            from sqlalchemy import func
+            rows = db.session.query(
+                TaskHistory.task_id, func.count(TaskHistory.id)
+            ).filter(TaskHistory.task_id.in_(task_ids)).group_by(TaskHistory.task_id).all()
+            for tid, cnt in rows:
+                history_count_map[tid] = cnt
+
         tasks = []
         for t in pagination.items:
             d = t.to_dict()
@@ -206,6 +217,8 @@ def get_tasks():
                 d['is_liked'] = False
             # 计算可见留言数（仅未删除的）
             d['comment_count'] = t.comments.filter_by(is_deleted=0).count()
+            # 覆盖 to_dict 的逐条 N+1 结果，使用批量查询值
+            d['history_count'] = history_count_map.get(t.id, 0)
             tasks.append(d)
 
         return jsonify({
@@ -772,3 +785,45 @@ def get_notifications():
 def clear_notifications():
     """清除全部通知（前端语义标记，后端无副作用）"""
     return jsonify({'success': True, 'message': '通知已清除'})
+
+
+# ============================================================
+# 可见性辅助数据（供前端下拉选择）
+# ============================================================
+
+@task_bp.route('/admin/all-roles', methods=['GET'])
+@route_permission(ROUTE_TASK_TRACK_MANAGE)
+def get_all_roles():
+    """获取所有 SimpleRole 列表（仅管理员可见，用于可见性下拉）"""
+    try:
+        user_role = get_user_role_from_token() or ''
+        if not _is_admin(user_role):
+            return jsonify({'success': False, 'message': '仅管理员可访问'}), 403
+        from app.models.simple_permission import SimpleRole
+        roles = SimpleRole.query.order_by(SimpleRole.id.asc()).all()
+        return jsonify({'success': True, 'data': [r.to_dict() for r in roles]})
+    except Exception as e:
+        print(f"获取角色列表失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@task_bp.route('/admin/all-employees', methods=['GET'])
+@route_permission(ROUTE_TASK_TRACK_MANAGE)
+def get_all_employees():
+    """获取所有 Employee 列表（仅管理员可见，用于可见性下拉）
+
+    返回字段：emp_id, name（最小化数据）
+    """
+    try:
+        user_role = get_user_role_from_token() or ''
+        if not _is_admin(user_role):
+            return jsonify({'success': False, 'message': '仅管理员可访问'}), 403
+        from app.models.employee import Employee
+        emps = Employee.query.order_by(Employee.emp_id.asc()).all()
+        return jsonify({
+            'success': True,
+            'data': [{'emp_id': e.emp_id, 'name': e.name} for e in emps]
+        })
+    except Exception as e:
+        print(f"获取员工列表失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

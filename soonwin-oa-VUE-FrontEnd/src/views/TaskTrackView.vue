@@ -142,11 +142,36 @@
     </el-dialog>
 
     <!-- 编辑任务对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑任务" width="480px" align-center>
+    <el-dialog v-model="editDialogVisible" title="编辑任务" width="520px" align-center>
       <div v-if="editingTask">
         <el-form label-width="80px" size="default">
           <el-form-item label="任务内容">
             <el-input v-model="editingTaskDraft.content" type="textarea" :rows="3" />
+            <div class="edit-toolbar">
+              <label class="publish-upload-btn" title="附图">
+                <el-icon :size="16"><Picture /></el-icon>
+                <span class="text-sm ml-1">图片</span>
+                <input type="file" accept="image/*" hidden @change="onEditImageSelect" />
+              </label>
+              <button type="button" class="publish-emoji-btn" @click="editEmojiVisible = !editEmojiVisible" title="emoji">
+                🙂
+              </button>
+              <div ref="editEmojiWrapperRef" class="emoji-wrapper">
+                <emoji-picker
+                  v-if="editEmojiVisible"
+                  class="emoji-picker"
+                  @emoji-click="handleEditEmoji"
+                />
+              </div>
+            </div>
+          </el-form-item>
+          <!-- 待办附图预览 -->
+          <el-form-item v-if="editImagePreview || editImageRemoved" label="当前附图">
+            <div class="edit-image-preview">
+              <img v-if="editImagePreview" :src="editImagePreview" class="edit-image-thumb" @click="openEditImagePreview" />
+              <div v-if="!editImagePreview && editImageRemoved" class="edit-image-empty">已删除（保存后生效）</div>
+              <button type="button" class="publish-preview-remove" @click="clearEditImage">&times;</button>
+            </div>
           </el-form-item>
           <el-form-item label="预计完成">
             <el-date-picker
@@ -176,16 +201,32 @@
     </el-dialog>
 
     <!-- 可见性设置对话框 -->
-    <el-dialog v-model="visibilityDialogVisible" title="设置可见性（仅管理员）" width="520px" align-center>
+    <el-dialog v-model="visibilityDialogVisible" title="设置可见性（仅管理员）" width="560px" align-center>
       <div v-if="visibilityTask">
-        <p class="text-sm text-gray-500 mb-3">默认仅创建人 + 管理员可见。下方列表项为额外可见的人员/角色。</p>
+        <p class="text-sm text-gray-500 mb-3">默认仅创建人 + 管理员可见。下方列表项为额外可见的人员/角色。空行会被自动忽略。</p>
         <div v-for="(v, i) in visibilityDraft" :key="i" class="flex items-center gap-2 mb-2">
-          <el-select v-model="v.visibility_type" style="width:120px">
+          <el-select v-model="v.visibility_type" style="width:110px" @change="v.visibility_value = ''">
             <el-option label="角色" value="role" />
             <el-option label="员工" value="employee" />
           </el-select>
-          <el-input v-model="v.visibility_value" :placeholder="v.visibility_type === 'role' ? '角色名 (如 sales)' : '员工 ID (如 E001)'" />
-          <el-button type="danger" :icon="Delete" circle @click="visibilityDraft.splice(i, 1)" />
+          <el-select
+            v-model="v.visibility_value"
+            :placeholder="v.visibility_type === 'role' ? '选择角色' : '选择员工'"
+            filterable clearable style="flex:1">
+            <el-option
+              v-if="v.visibility_type === 'role'"
+              v-for="r in allRoles"
+              :key="`role-${r.id}`"
+              :label="r.name + (r.remark ? ` (${r.remark})` : '')"
+              :value="r.name" />
+            <el-option
+              v-if="v.visibility_type === 'employee'"
+              v-for="e in allEmployees"
+              :key="`emp-${e.emp_id}`"
+              :label="`${e.name} (${e.emp_id})`"
+              :value="e.emp_id" />
+          </el-select>
+          <el-button type="danger" :icon="Delete" circle @click="removeVisibilityRow(i)" />
         </div>
         <el-button class="mt-2" :icon="Plus" @click="addVisibilityRow">添加</el-button>
       </div>
@@ -231,6 +272,7 @@ import {
   getTasks, createTask, updateTask, deleteTask, createTaskWithImage,
   toggleTaskLike, getTaskComments, createTaskComment,
   updateTaskVisibility, getTaskHistory,
+  getAllRoles, getAllEmployees,
 } from '@/api/task'
 import { getCurrentUserRole, getCurrentUserEmpId, hasToken as checkHasToken } from '@/utils/authUtils'
 
@@ -321,8 +363,10 @@ function onPublishEmojiOutsideClick(e: MouseEvent) {
 }
 onMounted(() => document.addEventListener('mousedown', onPublishEmojiOutsideClick))
 onMounted(() => document.addEventListener('mousedown', onBgColorOutsideClick))
+onMounted(() => document.addEventListener('mousedown', onEditEmojiOutsideClick))
 onUnmounted(() => document.removeEventListener('mousedown', onPublishEmojiOutsideClick))
 onUnmounted(() => document.removeEventListener('mousedown', onBgColorOutsideClick))
+onUnmounted(() => document.removeEventListener('mousedown', onEditEmojiOutsideClick))
 
 function onPublishImageSelect(e: Event) {
   const inp = e.target as HTMLInputElement
@@ -478,6 +522,21 @@ const editingTaskDraft = ref<{ content: string; expected_date: string; backgroun
   content: '', expected_date: '', background_color: ''
 })
 const editSaving = ref(false)
+// 编辑：图片与 emoji
+const editImageFile = ref<File | null>(null)
+const editImagePreview = ref('')
+const editImageRemoved = ref(false)
+const editEmojiVisible = ref(false)
+const editEmojiWrapperRef = ref<HTMLElement | null>(null)
+
+function onEditEmojiOutsideClick(e: MouseEvent) {
+  if (!editEmojiVisible.value) return
+  const target = e.target as HTMLElement
+  if (editEmojiWrapperRef.value?.contains(target)) return
+  if (target.closest('.publish-emoji-btn')) return
+  editEmojiVisible.value = false
+}
+
 function openEditDialog(task: any) {
   editingTask.value = task
   editingTaskDraft.value = {
@@ -485,17 +544,87 @@ function openEditDialog(task: any) {
     expected_date: task.expected_date || '',
     background_color: task.background_color || '',
   }
+  // 重置图片状态
+  if (editImagePreview.value && editImagePreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(editImagePreview.value)
+  }
+  editImageFile.value = null
+  editImageRemoved.value = false
+  editImagePreview.value = task.todo_image_url ? getMediaUrl(task.todo_image_url) : ''
+  editEmojiVisible.value = false
   editDialogVisible.value = true
 }
+
+function onEditImageSelect(e: Event) {
+  const inp = e.target as HTMLInputElement
+  const f = inp.files?.[0]
+  if (!f) return
+  if (editImagePreview.value && editImagePreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(editImagePreview.value)
+  }
+  editImageFile.value = f
+  editImageRemoved.value = false
+  editImagePreview.value = URL.createObjectURL(f)
+  inp.value = ''
+}
+
+function clearEditImage() {
+  if (editImagePreview.value && editImagePreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(editImagePreview.value)
+  }
+  editImageFile.value = null
+  editImageRemoved.value = true
+  editImagePreview.value = ''
+}
+
+function openEditImagePreview() {
+  if (!editImagePreview.value) return
+  window.open(editImagePreview.value, '_blank')
+}
+
+function handleEditEmoji(event: any) {
+  const emoji: string = event.detail.emoji.unicode
+  // 获取 textarea DOM 节点（v-for 内 ref 不可靠，改用查询 dialog body）
+  const ta = document.querySelector('.el-dialog__body textarea') as HTMLTextAreaElement | null
+  const content = editingTaskDraft.value.content
+  if (ta) {
+    const s = ta.selectionStart
+    const e = ta.selectionEnd
+    editingTaskDraft.value.content = content.substring(0, s) + emoji + content.substring(e)
+    nextTick(() => {
+      const p = s + emoji.length
+      ta.setSelectionRange(p, p)
+      ta.focus()
+    })
+  } else {
+    editingTaskDraft.value.content = content + emoji
+  }
+  editEmojiVisible.value = false
+}
+
 async function confirmEdit() {
   if (!editingTask.value) return
   editSaving.value = true
   try {
-    await updateTask(editingTask.value.id, {
-      content: editingTaskDraft.value.content,
-      expected_date: editingTaskDraft.value.expected_date || undefined,
-      background_color: editingTaskDraft.value.background_color || undefined,
-    })
+    const hasNewImage = !!editImageFile.value
+    const wantsRemove = editImageRemoved.value && !hasNewImage
+    if (hasNewImage || wantsRemove) {
+      // 走 multipart 以便上传新图
+      const { multipartRequest } = await import('@/utils/request')
+      const fd = new FormData()
+      fd.append('content', editingTaskDraft.value.content)
+      if (editingTaskDraft.value.expected_date) fd.append('expected_date', editingTaskDraft.value.expected_date)
+      if (editingTaskDraft.value.background_color) fd.append('background_color', editingTaskDraft.value.background_color)
+      if (hasNewImage) fd.append('todo_image', editImageFile.value!)
+      else if (wantsRemove) fd.append('todo_image_url', '')  // 显式清空
+      await multipartRequest.put(`/api/tasks/${editingTask.value.id}`, fd)
+    } else {
+      await updateTask(editingTask.value.id, {
+        content: editingTaskDraft.value.content,
+        expected_date: editingTaskDraft.value.expected_date || undefined,
+        background_color: editingTaskDraft.value.background_color || undefined,
+      })
+    }
     ElMessage.success('已保存')
     editDialogVisible.value = false
     await loadTasks()
@@ -548,23 +677,46 @@ const visibilityDialogVisible = ref(false)
 const visibilityTask = ref<any>(null)
 const visibilityDraft = ref<Array<{ visibility_type: 'role' | 'employee'; visibility_value: string }>>([])
 const visibilitySaving = ref(false)
+const allRoles = ref<Array<{ id: number; name: string; remark: string }>>([])
+const allEmployees = ref<Array<{ emp_id: string; name: string }>>([])
+let visibilityDataLoaded = false
+async function loadVisibilityOptions(force = false) {
+  if (visibilityDataLoaded && !force) return
+  try {
+    const [roles, emps] = await Promise.all([getAllRoles(), getAllEmployees()])
+    if (Array.isArray(roles)) allRoles.value = roles
+    if (Array.isArray(emps)) allEmployees.value = emps
+    visibilityDataLoaded = true
+  } catch (e: any) {
+    console.error('[loadVisibilityOptions] 失败:', e)
+    // 失败时不阻塞弹窗显示（可选列表为空）
+  }
+}
 function openVisibilityDialog(task: any) {
   visibilityTask.value = task
-  visibilityDraft.value = (task.visibilities || []).map((v: any) => ({
-    visibility_type: v.visibility_type,
-    visibility_value: v.visibility_value,
-  }))
+  // 初始 2 条空白记录：role + employee，避免误改已保存设置
+  visibilityDraft.value = [
+    { visibility_type: 'role', visibility_value: '' },
+    { visibility_type: 'employee', visibility_value: '' },
+  ]
   visibilityDialogVisible.value = true
+  loadVisibilityOptions()
 }
 function addVisibilityRow() {
   visibilityDraft.value.push({ visibility_type: 'role', visibility_value: '' })
+}
+function removeVisibilityRow(i: number) {
+  visibilityDraft.value.splice(i, 1)
+  // 始终保留至少 1 行（避免空弹窗）
+  if (visibilityDraft.value.length === 0) addVisibilityRow()
 }
 async function confirmVisibility() {
   if (!visibilityTask.value) return
   visibilitySaving.value = true
   try {
-    await updateTaskVisibility(visibilityTask.value.id, visibilityDraft.value.filter(v => v.visibility_value.trim()))
-    ElMessage.success('已保存')
+    const validRows = visibilityDraft.value.filter(v => v.visibility_value.trim())
+    await updateTaskVisibility(visibilityTask.value.id, validRows)
+    ElMessage.success(validRows.length === 0 ? '已重置为默认可见性' : '已保存')
     visibilityDialogVisible.value = false
     await loadTasks()
   } catch (e: any) {
@@ -743,6 +895,12 @@ onMounted(async () => {
 .color-dot-custom { position: relative; background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1, #feca57); }
 .color-picker-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 .custom-color-wrap { position: relative; display: inline-block; }
+
+/* 编辑对话框：图片与 emoji 工具栏 */
+.edit-toolbar { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.edit-image-preview { position: relative; width: 96px; height: 96px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); background: #fafafa; display: inline-flex; align-items: center; justify-content: center; }
+.edit-image-thumb { width: 100%; height: 100%; object-fit: cover; cursor: pointer; display: block; }
+.edit-image-empty { font-size: 12px; color: #9ca3af; padding: 8px; text-align: center; }
 
 /* 搜索 */
 .search-box { position: relative; margin-bottom: 12px; display: flex; align-items: center; }

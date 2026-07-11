@@ -13,8 +13,8 @@
       <div class="task-header-right">
         <span class="task-header-time">{{ formatTime(task.created_at) }}</span>
         <div class="task-header-actions">
-        <!-- 修改历史（仅管理员） -->
-        <button v-if="isAdmin && !readonly" class="task-icon-btn" title="修改历史" @click="$emit('history', task)">
+        <!-- 修改历史（仅管理员，且有历史记录时才显示） -->
+        <button v-if="isAdmin && !readonly && (task.history_count || 0) > 0" class="task-icon-btn" title="修改历史" @click="$emit('history', task)">
           <el-icon :size="15"><Clock /></el-icon>
         </button>
         <!-- 可见性设置（仅管理员） -->
@@ -233,7 +233,12 @@ function formatTime(s: string) {
   if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
   if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `昨天 ${time}`
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日 ${time}`
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${time}`
 }
 </script>
 
