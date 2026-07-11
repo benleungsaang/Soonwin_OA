@@ -49,6 +49,9 @@ ROUTE_BLOG_MANAGE = "blog_manage"                   # 博客管理
 # 货柜排布（全员共有：销售/跟单/业务员通用）
 ROUTE_CONTAINER_LAYOUT_MANAGE = "container_layout_manage"  # 货柜排布
 
+# 任务跟踪（全员共有）
+ROUTE_TASK_TRACK_MANAGE = "task_track_manage"  # 任务跟踪
+
 # 为了兼容性，添加旧的命名方式
 ROUTE_DISPLAY_FILE = ROUTE_DISPLAY_FILE_MANAGE
 ROUTE_PHOTO = ROUTE_PHOTO_MANAGE
@@ -87,5 +90,6 @@ ALL_ROUTES = [
     ROUTE_ORDER_RECORD_MANAGE,
     ROUTE_CUSTOMER_MANAGE,
     ROUTE_BLOG_MANAGE,
-    ROUTE_CONTAINER_LAYOUT_MANAGE
+    ROUTE_CONTAINER_LAYOUT_MANAGE,
+    ROUTE_TASK_TRACK_MANAGE
 ]

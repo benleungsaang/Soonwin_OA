@@ -72,6 +72,12 @@ def create_app(port=5000):
         from .models.order_record import OrderRecord, OrderRecordIncome, OrderRecordExpense
         from .models.customer import Customer
         from .models.blog import BlogPost, BlogMedia, BlogEditHistory, BlogComment, BlogLike
+        # 任务跟踪模块
+        from .models.task import Task
+        from .models.task_comment import TaskComment
+        from .models.task_visibility import TaskVisibility
+        from .models.task_like import TaskLike
+        from .models.task_history import TaskHistory
         # 模块可见性配置（管理员可在主页隐藏某些模块菜单项）
         from .models.module_visibility import ModuleVisibility
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
@@ -174,6 +180,10 @@ def create_app(port=5000):
         # 注册博客管理相关路由蓝图
         from .routes.blog_routes import blog_bp
         app.register_blueprint(blog_bp, url_prefix='/api')
+
+        # 注册任务跟踪相关路由蓝图
+        from .routes.task_routes import task_bp
+        app.register_blueprint(task_bp, url_prefix='/api')
 
         # 注册管理员模块可见性路由蓝图（主页模块隐藏/显示开关）
         from .routes.admin_module_routes import admin_module_bp

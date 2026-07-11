@@ -557,6 +557,7 @@ def get_all_routes():
             "customer_manage": "客户信息管理",
             "blog_manage": "工作记录",
             "container_layout_manage": "货柜排布",
+            "task_track_manage": "任务跟踪",
         }
 
         # 从常量中获取所有路由
