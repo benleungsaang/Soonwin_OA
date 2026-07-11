@@ -60,6 +60,9 @@ __pycache__/
 *.so
 .Python
 
+# Flask 运行时目录（数据库副本、运行时配置等，不入库）
+instance/
+
 # 常见的多媒体文件
 *.mp4
 *.avi
