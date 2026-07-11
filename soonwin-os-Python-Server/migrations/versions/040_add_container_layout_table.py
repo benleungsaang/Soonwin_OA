@@ -19,7 +19,18 @@ depends_on = None
 
 
 def upgrade():
-    """创建 container_layout 表"""
+    """创建 container_layout 表（自检：若已存在则跳过 CREATE/索引步骤）
+
+    dev/prod 库早期手动建过此表，alembic 升级时需防御性跳过避免重复创建。
+    """
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = inspector.get_table_names()
+
+    # 防御性检查：表已存在则直接返回（避免重复创建报错）
+    if 'container_layout' in existing_tables:
+        return
+
     op.create_table(
         'container_layout',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
