@@ -20,7 +20,7 @@
           </span>
           <button class="notif-clear-btn" @click="clearAll">清除全部</button>
         </div>
-        <div v-if="mergedNotifications.length === 0" class="notif-empty">暂无通知</div>
+        <div v-if="mergedNotifications.length === 0" class="notif-empty">暂无消息</div>
         <div v-else class="notif-list">
           <div v-for="n in mergedNotifications" :key="n.key" class="notif-row" @click="jumpToTask(n.task_id)">
             <img :src="`/api/posts/avatar/${n.user_id}`" class="notif-avatar" />
@@ -195,8 +195,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   padding: 8px;
   border: 1px solid #e5e7eb;
-  /* 锁定宽度，防止被 hover 列表"撑开" */
-  width: 60px;
   flex-shrink: 0;
 }
 

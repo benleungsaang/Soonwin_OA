@@ -251,6 +251,7 @@ const hasToken = ref(false)
 
 // 预设颜色（10 色）
 const presetColors = [
+  '#ffffff', // 白
   '#ef4444', // 红
   '#f97316', // 橙
   '#eab308', // 黄
