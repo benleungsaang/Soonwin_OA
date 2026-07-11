@@ -77,6 +77,9 @@ declare module 'vue' {
     QuotationTempPreview: typeof import('./src/components/QuotationTempPreview.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TaskCard: typeof import('./src/components/TaskCard.vue')['default']
+    TaskCommentSection: typeof import('./src/components/TaskCommentSection.vue')['default']
+    TaskNotificationBar: typeof import('./src/components/TaskNotificationBar.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

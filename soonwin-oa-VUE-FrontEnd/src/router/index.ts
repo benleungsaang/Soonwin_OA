@@ -24,6 +24,7 @@ const MachineManagementNewView = () => import('@/views/MachineManagementNewView.
 const QuotationManagementView = () => import('@/views/QuotationManagementView.vue');
 const BlogManagementView = () => import('@/views/BlogManagementView.vue');
 const ContainerLayoutView = () => import('@/views/ContainerLayoutView.vue');
+const TaskTrackView = () => import('@/views/TaskTrackView.vue');
 
 
 
@@ -193,6 +194,12 @@ const routes: RouteRecordRaw[] = [
     name: 'containerLayout',
     component: ContainerLayoutView,
     meta: { title: '货柜排布', requiresAuth: true }
+  },
+  {
+    path: '/task-track',
+    name: 'taskTrack',
+    component: TaskTrackView,
+    meta: { title: '任务跟踪', requiresAuth: true }
   },
 
 
