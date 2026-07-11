@@ -39,7 +39,7 @@
               <div class="bg-color-wrap" @click.stop>
                 <button
                   class="bg-color-trigger"
-                  :style="publishBgColor ? { background: publishBgColor, opacity: 0.1 } : { background: '#ffffff' }"
+                  :style="bgColorTriggerStyle"
                   :class="{ 'bg-color-trigger-active': publishBgColor }"
                   title="底色"
                   @click="toggleBgColorPanel"
@@ -274,6 +274,13 @@ function selectPresetColor(c: string) {
 function toggleBgColorPanel() {
   showBgColorPanel.value = !showBgColorPanel.value
 }
+// 底色按钮（当前选中色）的样式：白色不透明，其他色 0.1 透明
+const bgColorTriggerStyle = computed(() => {
+  const c = publishBgColor.value
+  if (!c) return { background: '#ffffff' }
+  const isWhite = c.toLowerCase() === '#ffffff'
+  return { background: c, opacity: isWhite ? 1 : 0.1 }
+})
 // 发布框背景：选中底色后用 0.1 透明度；未选保持白色
 const publishBoxStyle = computed(() => {
   const c = publishBgColor.value

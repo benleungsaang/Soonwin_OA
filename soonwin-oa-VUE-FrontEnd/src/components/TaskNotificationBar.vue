@@ -12,7 +12,7 @@
           <el-icon :size="18"><ChatDotRound /></el-icon>
         </el-button>
       </el-badge>
-      <div v-if="showNotifPanel" class="notif-dropdown">
+      <div v-if="showNotifPanel" class="notif-dropdown" :class="{ 'notif-dropdown-empty': mergedNotifications.length === 0 }">
         <div class="notif-dropdown-header">
           <span class="notif-header-title">
             <span>通知</span>
@@ -236,6 +236,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   z-index: 110;
+  animation: notifFadeIn 0.1s ease-out;
+}
+/* 无消息时宽度最小化（自适应内容） */
+.notif-dropdown-empty {
+  width: auto;
+  min-width: 120px;
+}
+@keyframes notifFadeIn {
+  from { opacity: 0; transform: translate(8px, -50%); }
+  to   { opacity: 1; transform: translate(0, -50%); }
 }
 
 .notif-dropdown-header {
