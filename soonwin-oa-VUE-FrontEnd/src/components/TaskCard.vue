@@ -8,12 +8,11 @@
             @error="($event.target as HTMLImageElement).style.display='none'" />
           <el-icon v-else :size="14" color="#6b7280"><UserFilled /></el-icon>
         </div>
-        <div>
-          <p class="task-author-name">{{ task.author_name }}</p>
-          <p class="task-author-time">{{ formatTime(task.created_at) }}</p>
-        </div>
+        <p class="task-author-name">{{ task.author_name }}</p>
       </div>
-      <div class="task-header-actions">
+      <div class="task-header-right">
+        <span class="task-header-time">{{ formatTime(task.created_at) }}</span>
+        <div class="task-header-actions">
         <!-- 修改历史（仅管理员） -->
         <button v-if="isAdmin && !readonly" class="task-icon-btn" title="修改历史" @click="$emit('history', task)">
           <el-icon :size="15"><Clock /></el-icon>
@@ -34,6 +33,7 @@
         <button v-if="canEdit && !readonly" class="task-icon-btn task-icon-btn-danger" title="删除" @click="$emit('delete', task)">
           <el-icon :size="15"><Delete /></el-icon>
         </button>
+      </div>
       </div>
     </div>
 
@@ -244,13 +244,26 @@ function formatTime(s: string) {
 .task-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 10px;
 }
 .task-author { display: flex; align-items: center; gap: 10px; }
 .task-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .task-author-name { font-size: 14px; font-weight: 500; color: #1f2937; margin: 0; }
-.task-author-time { font-size: 11px; color: #9ca3af; margin: 2px 0 0; }
+
+/* 头部右侧：时间 + 操作按钮 */
+.task-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.task-header-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  padding-right: 50px;
+  white-space: nowrap;
+}
 
 .task-header-actions { display: flex; gap: 4px; }
 .task-icon-btn {
