@@ -141,12 +141,18 @@ const emit = defineEmits<{
 
 const showComments = ref(false)
 
-// 卡片底色
+// 卡片底色：白色实色，其他色 0.1 透明度背景（不影响文字/图片）
 const cardStyle = computed(() => {
-  if (props.task.background_color) {
-    return { backgroundColor: props.task.background_color }
-  }
-  return {}
+  const c = props.task.background_color
+  if (!c) return {}
+  const isWhite = c.toLowerCase() === '#ffffff'
+  if (isWhite) return { backgroundColor: '#ffffff' }
+  const hex = c.replace('#', '')
+  if (hex.length !== 6) return {}
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+  return { backgroundColor: `rgba(${r}, ${g}, ${b}, 0.1)` }
 })
 
 // 预计完成日期颜色
