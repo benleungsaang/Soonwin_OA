@@ -434,7 +434,8 @@ async function confirmComplete() {
     completeDialogVisible.value = false
     await loadTasks()
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '操作失败')
+    console.error('[submitComplete] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '操作失败')
   } finally {
     completing.value = false
   }
@@ -469,7 +470,8 @@ async function confirmEdit() {
     editDialogVisible.value = false
     await loadTasks()
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '保存失败')
+    console.error('[submitEdit] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '保存失败')
   } finally {
     editSaving.value = false
   }
@@ -505,7 +507,8 @@ async function handleAddComment({ task, content }: { task: any; content: string 
     await createTaskComment(task.id, content)
     task.comment_count = (task.comment_count || 0) + 1
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '留言失败')
+    console.error('[handleAddComment] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '留言失败')
     throw e
   }
 }
@@ -535,7 +538,8 @@ async function confirmVisibility() {
     visibilityDialogVisible.value = false
     await loadTasks()
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '保存失败')
+    console.error('[saveVisibility] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '保存失败')
   } finally {
     visibilitySaving.value = false
   }
@@ -549,7 +553,8 @@ async function openBackgroundDialog({ task, color }: { task: any; color: string 
     task.background_color = color
     ElMessage.success('底色已更新')
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '更新失败')
+    console.error('[updateBackground] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '更新失败')
   }
 }
 
@@ -567,7 +572,8 @@ async function openHistoryDialog(task: any) {
     const res: any = await getTaskHistory(task.id)
     historyList.value = res?.history || []
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '加载历史失败')
+    console.error('[loadHistory] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '加载历史失败')
   } finally {
     historyLoading.value = false
   }
@@ -588,7 +594,8 @@ async function loadTasks() {
       total.value = res.total || 0
     }
   } catch (e: any) {
-    ElMessage.error('加载失败')
+    console.error('[loadTasks] 失败:', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '加载失败')
   } finally {
     loading.value = false
   }
