@@ -8,6 +8,32 @@
       </div>
     </el-dialog>
 
+    <!-- 模块管理弹窗（admin only）：勾选要隐藏的模块，保存后全员下次刷新生效 -->
+    <el-dialog v-model="showModuleManageDialog" title="模块管理（勾选即隐藏）" width="900px" align-center @opened="onModuleDialogOpened">
+      <div v-if="loadingModuleList" style="text-align: center; padding: 40px;">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span style="margin-left: 10px;">正在加载模块列表...</span>
+      </div>
+      <div v-else class="module-manage-grid">
+        <div class="module-manage-column" v-for="group in moduleGroupColumns" :key="group.key">
+          <h4 class="module-manage-column-title">{{ group.title }}</h4>
+          <el-checkbox-group v-model="hiddenModulesChecked" class="module-manage-list">
+            <el-checkbox
+              v-for="m in group.modules"
+              :key="m.camelKey"
+              :value="m.camelKey"
+              :label="m.camelKey"
+              class="module-manage-item"
+            >{{ m.label }}</el-checkbox>
+          </el-checkbox-group>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showModuleManageDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingModuleSettings" @click="saveModuleVisibility">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-container style="height: 100vh;">
       <!-- 头部区域：标题 + 右上角退出登录 -->
       <el-header class="header">
@@ -21,6 +47,14 @@
             v-if="hasToken && userRole === 'admin'"
           >
             <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
+          </el-button>
+          <el-button
+            class="module-manage-btn"
+            type="primary"
+            @click="openModuleManageDialog"
+            v-if="hasToken && userRole === 'admin'"
+          >
+            <el-icon><Setting /></el-icon><span class="btn-text">模块管理</span>
           </el-button>
           <el-button
             class="qr-btn"
@@ -58,23 +92,23 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.resource">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken && permissions.photoManage">
+                    <el-menu-item index="13" @click="goToPhotoManagement" v-if="hasToken && permissions.photoManage && !hiddenModules.includes('photoManage')">
                       <el-icon><Picture /></el-icon>
                       <span>照片管理</span>
                     </el-menu-item>
-                    <el-menu-item index="14" @click="goToVideoManagement" v-if="hasToken && permissions.videoManage">
+                    <el-menu-item index="14" @click="goToVideoManagement" v-if="hasToken && permissions.videoManage && !hiddenModules.includes('videoManage')">
                       <el-icon><VideoCamera /></el-icon>
                       <span>视频管理</span>
                     </el-menu-item>
-                    <el-menu-item index="15" @click="goToMachineManagementNew" v-if="hasToken && permissions.machineManage">
+                    <el-menu-item index="15" @click="goToMachineManagementNew" v-if="hasToken && permissions.machineManage && !hiddenModules.includes('machineManage')">
                       <el-icon><Tools /></el-icon>
                       <span>设备管理</span>
                     </el-menu-item>
-                    <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && permissions.expenseManage">
+                    <el-menu-item index="5" @click="goToExpenseManagement" v-if="hasToken && permissions.expenseManage && !hiddenModules.includes('expenseManage')">
                       <el-icon><Money /></el-icon>
                       <span>运营费用</span>
                     </el-menu-item>
-                    <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken && permissions.employeeManage">
+                    <el-menu-item index="4" @click="goToEmployeeManagement" v-if="hasToken && permissions.employeeManage && !hiddenModules.includes('employeeManage')">
                       <el-icon><User /></el-icon>
                       <span>员工管理</span>
                     </el-menu-item>
@@ -95,28 +129,28 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.order">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="9" @click="goToInquiries" v-if="hasToken && permissions.inquiriesManage">
+                    <el-menu-item index="9" @click="goToInquiries" v-if="hasToken && permissions.inquiriesManage && !hiddenModules.includes('inquiriesManage')">
                       <el-icon><ChatDotRound /></el-icon>
                       <span>询盘登记表</span>
                     </el-menu-item>
-                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken && permissions.orderManage">
+                    <el-menu-item index="1" @click="goToOrder" v-if="hasToken && permissions.orderManage && !hiddenModules.includes('orderManage')">
                       <el-icon><Document /></el-icon>
                       <span>订单管理</span>
                     </el-menu-item>
 
-                    <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken && permissions.orderStatusManage">
+                    <el-menu-item index="16" @click="goToOrderStatus" v-if="hasToken && permissions.orderStatusManage && !hiddenModules.includes('orderStatusManage')">
                       <el-icon><List /></el-icon>
                       <span>订单状态管理</span>
                     </el-menu-item>
-                    <el-menu-item index="18" @click="goToQuotationManagement" v-if="hasToken && permissions.quotationManage">
+                    <el-menu-item index="18" @click="goToQuotationManagement" v-if="hasToken && permissions.quotationManage && !hiddenModules.includes('quotationManage')">
                       <el-icon><Coin /></el-icon>
                       <span>初步报价</span>
                     </el-menu-item>
-                    <el-menu-item index="19" @click="goToOrderRecordManage" v-if="hasToken && permissions.orderRecordManage">
+                    <el-menu-item index="19" @click="goToOrderRecordManage" v-if="hasToken && permissions.orderRecordManage && !hiddenModules.includes('orderRecordManage')">
                       <el-icon><Wallet /></el-icon>
                       <span>订单快速记录</span>
                     </el-menu-item>
-                    <el-menu-item index="20" @click="goToCustomerManage" v-if="hasToken && permissions.customerManage">
+                    <el-menu-item index="20" @click="goToCustomerManage" v-if="hasToken && permissions.customerManage && !hiddenModules.includes('customerManage')">
                       <el-icon><User /></el-icon>
                       <span>客户信息管理</span>
                     </el-menu-item>
@@ -137,27 +171,27 @@
               <transition name="menu-collapse" :duration="300">
                 <div class="menu-wrapper" v-if="!collapseStatus.other">
                   <el-menu :default-active="activeMenu" class="menu-list">
-                    <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken && permissions.punchManage">
+                    <el-menu-item index="2" @click="goToPunchIn" v-if="hasToken && permissions.punchManage && !hiddenModules.includes('punchManage')">
                       <el-icon><Monitor /></el-icon>
                       <span>打卡</span>
                     </el-menu-item>
-                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && permissions.punchRecordsManage && userRole === 'admin'">
+                    <el-menu-item index="3" @click="goToPunchRecords" v-if="hasToken && permissions.punchRecordsManage && userRole === 'admin' && !hiddenModules.includes('punchRecordsManage')">
                       <el-icon><Timer /></el-icon>
                       <span>打卡记录</span>
                     </el-menu-item>
-                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken && permissions.displayFilesManage">
+                    <el-menu-item index="10" @click="goToDisplayFiles" v-if="hasToken && permissions.displayFilesManage && !hiddenModules.includes('displayFilesManage')">
                       <el-icon><Files /></el-icon>
                       <span>展示文件</span>
                     </el-menu-item>
-                    <el-menu-item index="17" @click="goToAttendanceSystem" v-if="hasToken && permissions.attendanceManage">
+                    <el-menu-item index="17" @click="goToAttendanceSystem" v-if="hasToken && permissions.attendanceManage && !hiddenModules.includes('attendanceManage')">
                       <el-icon><Clock /></el-icon>
                       <span>考勤系统</span>
                     </el-menu-item>
-                    <el-menu-item index="20" @click="goToBlog" v-if="hasToken && permissions.blogManage">
+                    <el-menu-item index="20" @click="goToBlog" v-if="hasToken && permissions.blogManage && !hiddenModules.includes('blogManage')">
                       <el-icon><EditPen /></el-icon>
                       <span>工作记录</span>
                     </el-menu-item>
-                    <el-menu-item index="21" @click="goToContainerLayout" v-if="hasToken && permissions.containerLayoutManage">
+                    <el-menu-item index="21" @click="goToContainerLayout" v-if="hasToken && permissions.containerLayoutManage && !hiddenModules.includes('containerLayoutManage')">
                       <el-icon><Box /></el-icon>
                       <span>货柜排布</span>
                     </el-menu-item>
@@ -192,7 +226,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box, Setting
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -259,6 +293,127 @@ const collapseStatus = ref({
   other: false      // 其它功能：默认折叠
 });
 
+// ========== 模块可见性配置（管理员主页隐藏功能开关） ==========
+/** 当前对全员隐藏的模块 key 列表（camelCase） */
+const hiddenModules = ref<string[]>([]);
+
+/** 弹窗分组映射：把 permissionMap 的 camelCase key 按页面三大列归组 */
+const moduleGroupMap: Record<string, string[]> = {
+  resource: ['photoManage', 'videoManage', 'machineManage', 'expenseManage', 'employeeManage'],
+  order:    ['inquiriesManage', 'orderManage', 'orderStatusManage', 'quotationManage', 'orderRecordManage', 'customerManage'],
+  other:    ['punchManage', 'punchRecordsManage', 'displayFilesManage', 'attendanceManage', 'blogManage', 'containerLayoutManage'],
+};
+
+/** 弹窗分组定义（显示标题 + key 列表） */
+const moduleGroups = ref<Array<{ key: string; title: string; modules: Array<{ camelKey: string; label: string }> }>>([
+  { key: 'resource', title: '资源管理', modules: [] },
+  { key: 'order',    title: '订单跟进', modules: [] },
+  { key: 'other',    title: '其它功能', modules: [] },
+]);
+
+/** 进入主页时从后端拉一次"已被隐藏的模块"列表 */
+async function loadModuleVisibility() {
+  if (!hasToken.value || userRole.value !== 'admin') return;
+  try {
+    const request = (await import('@/utils/request')).default;
+    const data: any = await request.get('/api/admin/module-visibility');
+    if (data && typeof data === 'object') {
+      hiddenModules.value = Object.entries(data)
+        .filter(([_, v]) => v === true)
+        .map(([k]) => k);
+    }
+  } catch (e) {
+    console.warn('[模块可见性] 加载失败（不影响主菜单使用）:', e);
+  }
+}
+
+/** 模块管理弹窗状态 */
+const showModuleManageDialog = ref(false);
+const loadingModuleList = ref(false);
+const savingModuleSettings = ref(false);
+/** 弹窗里勾选的模块（camelCase）—— 等价于"要隐藏的模块" */
+const hiddenModulesChecked = ref<string[]>([]);
+
+/** 把后端返回的所有路由列表填进 moduleGroups（用于弹窗渲染） */
+function buildGroupColumns(routes: Array<{ route_name: string; route_label: string }>) {
+  // 用 permissionMap 的 snake_case -> camelKey 反向索引（permissionMap.value 是反向键）
+  const camelKeySet = new Set<string>(Object.keys(permissionMap));
+
+  // 但用户要求展示所有 routes，不仅是 permissionMap 里的，所以直接用 routes + 默认分组
+  // 这里采用 route_name -> camelCase 的转换函数
+  const toCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+
+  return moduleGroups.value.map(group => ({
+    key: group.key,
+    title: group.title,
+    modules: moduleGroupMap[group.key]
+      .map(camelKey => {
+        // 在 routes 列表里找匹配的 snake_case
+        const snakeKey = camelKey.replace(/[A-Z]/g, m => '_' + m.toLowerCase()); // 还原 camel -> snake
+        const route = routes.find(r => r.route_name === snakeKey);
+        return {
+          camelKey,
+          // 用后端提供的中文 label，回退到 permissionMap.name
+          label: route?.route_label || (permissionMap as any)[camelKey]?.name || camelKey,
+        };
+      })
+      .filter(m => m.label), // 过滤掉没找到的
+  }));
+}
+
+const moduleGroupColumns = ref<Array<{ key: string; title: string; modules: Array<{ camelKey: string; label: string }> }>>([]);
+
+/** 点击"模块管理"按钮（仅 admin）—— 立即打开弹窗，模块列表懒加载 */
+async function openModuleManageDialog() {
+  showModuleManageDialog.value = true;
+  // 弹窗已经打开（loading state），弹窗@opened 内做实际加载
+}
+
+/** 弹窗 open 后异步加载完整模块列表 */
+async function onModuleDialogOpened() {
+  loadingModuleList.value = true;
+  try {
+    const request = (await import('@/utils/request')).default;
+    const data: any = await request.get('/api/user/permission/all-routes');
+    // request.ts 自动解包 data 字段 → data 直接是数组
+    const routes: Array<{ route_name: string; route_label: string }> = Array.isArray(data) ? data : [];
+    moduleGroupColumns.value = buildGroupColumns(routes);
+    // 初始化勾选状态：等于当前 hiddenModules
+    hiddenModulesChecked.value = [...hiddenModules.value];
+  } catch (e) {
+    console.error('[模块管理] 加载模块列表失败:', e);
+    ElMessage.error('加载模块列表失败，请稍后重试');
+  } finally {
+    loadingModuleList.value = false;
+  }
+}
+
+/** 保存模块可见性：把当前勾选 (即 hiddenModulesChecked) 作为"要隐藏"提交给后端 */
+async function saveModuleVisibility() {
+  savingModuleSettings.value = true;
+  try {
+    const request = (await import('@/utils/request')).default;
+    // 把当前所有可能的模块 key 都提交，hidden=true 隐藏，其余 false 显示
+    const payload: Record<string, boolean> = {};
+    for (const group of moduleGroupColumns.value) {
+      for (const m of group.modules) {
+        payload[m.camelKey] = hiddenModulesChecked.value.includes(m.camelKey);
+      }
+    }
+    const res: any = await request.post('/api/admin/module-visibility/batch', payload);
+    // 重新拉一次，确保数据一致
+    await loadModuleVisibility();
+    ElMessage.success(`模块可见性已保存（${res?.updated_count ?? Object.keys(payload).length} 项）`);
+    showModuleManageDialog.value = false;
+  } catch (e: any) {
+    console.error('[模块管理] 保存失败:', e);
+    const msg = e?.response?.data?.msg || e?.msg || '保存失败，请稍后重试';
+    ElMessage.error(msg);
+  } finally {
+    savingModuleSettings.value = false;
+  }
+}
+
 // ========== 优化1：统一管理权限标识，动态生成权限判断 ==========
 // 定义权限标识与功能名称的映射表（核心：把所有权限集中管理）
 const permissionMap = {
@@ -293,8 +448,9 @@ const permissions = computed(() => {
 // 订单跟进栏目是否有可显示的菜单项
 const hasOrderMenu = computed(() => {
   if (!hasToken.value) return false; // 未登录时不显示
-  // 判断订单跟进下的所有权限项是否有至少一个为true
-  return permissions.value.inquiriesManage || permissions.value.orderManage || permissions.value.orderStatusManage || permissions.value.quotationManage || permissions.value.orderRecordManage;
+  // 判断订单跟进下的所有权限项是否有至少一个为 true 且未被隐藏
+  const orderKeys: Array<keyof typeof permissionMap> = ['inquiriesManage', 'orderManage', 'orderStatusManage', 'quotationManage', 'orderRecordManage'];
+  return orderKeys.some(k => permissions.value[k] && !hiddenModules.value.includes(k));
 });
 
 // ========== 方法定义 ==========
@@ -384,6 +540,9 @@ onMounted(async () => {
   }
   // 设置权限已加载状态，以确保菜单项正确显示
   permissionsLoaded.value = true;
+
+  // 加载模块可见性配置（admin only；未登录或非 admin 不发请求）
+  await loadModuleVisibility();
 });
 
 
@@ -408,6 +567,7 @@ const logout = async () => {
     localStorage.removeItem('oa_token');
     clearUserPermissions(); // 清空权限缓存
     hasToken.value = false;
+    hiddenModules.value = []; // 清空隐藏模块缓存
     ElMessage.success(`用户${userNameDisplay}已退出登录`);
     router.push('/login');
   } catch (error) {
@@ -637,6 +797,47 @@ const logout = async () => {
   }
   .column-title {
     font-size: 16px;
+  }
+}
+
+/* ========== 模块管理弹窗布局 ========== */
+.module-manage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 8px 4px;
+}
+
+.module-manage-column {
+  background-color: #f8fafc;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.module-manage-column-title {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  color: #0653a0;
+  padding-left: 8px;
+  border-left: 4px solid #0653a0;
+}
+
+.module-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.module-manage-item {
+  margin: 0 !important;
+  white-space: normal !important;
+  height: auto !important;
+}
+
+@media (max-width: 768px) {
+  .module-manage-grid {
+    grid-template-columns: 1fr;
   }
 }
 
