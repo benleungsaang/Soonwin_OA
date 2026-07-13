@@ -78,12 +78,17 @@ def _can_access_todo(todo: Todo, user_role: str, user_id: str) -> bool:
 
 
 def _save_todo_image(file, sub_dir: str = 'todo') -> str:
-    """保存 todo 图片，返回相对路径（用于 image_url 字段）"""
-    base_dir = _get_todo_media_dir()
+    """保存 todo 图片，返回带 sub_dir 前缀的相对路径（前端拼 /assets/TodoMedia/ 即可）
+
+    例：保存到 assets/TodoMedia/todo/2026/07/13/xxx.jpg → 返回 "todo/2026/07/13/xxx.jpg"
+    """
+    base_dir = _get_todo_media_dir()  # .../assets/TodoMedia
     target_dir = os.path.join(base_dir, sub_dir)
     os.makedirs(target_dir, exist_ok=True)
     save_path, relative_path, filename = save_uploaded_file(file, target_dir, use_date_subdir=True)
-    return relative_path.replace('\\', '/')
+    # relative_path 相对 target_dir；拼上 sub_dir 让前端拿到完整可定位的相对路径
+    full_relative = os.path.join(sub_dir, relative_path).replace('\\', '/')
+    return full_relative
 
 
 def _compute_unread_count(todo_id: int, user_id: str) -> int:
@@ -325,7 +330,9 @@ def complete_todo(todo_id):
         todo.completion_note = note or None
         todo.completion_image_url = image_url or None
         todo.status = 'completed'
-        todo.completed_at = datetime.now()
+        # 如果之前已有 completed_at（撤销后又重新完成），保留原值；否则记当前时间
+        if not todo.completed_at:
+            todo.completed_at = datetime.now()
         db.session.commit()
 
         return jsonify({'success': True, 'data': todo.to_dict(include_unread_count=0)})
@@ -352,9 +359,8 @@ def uncomplete_todo(todo_id):
             return jsonify({'success': False, 'message': '无权操作'}), 403
 
         todo.status = 'pending'
-        todo.completion_note = None
-        todo.completion_image_url = None
-        todo.completed_at = None
+        # 保留 completion_note / completion_image_url / completed_at（撤销完成时不丢弃，
+        # 用户再次勾选完成时可恢复填写；后端 complete 接口会优先复用已有值）
         db.session.commit()
 
         return jsonify({'success': True, 'data': todo.to_dict(include_unread_count=0)})
