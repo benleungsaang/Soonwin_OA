@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>本地待办事项清单</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+  <!-- 配置Tailwind自定义颜色 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            success: '#10b981',
+            warning: '#f59e0b',
+            danger: '#ef4444',
+            dark: '#1f2937',
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .task-transition {
+        transition: all 0.3s ease;
+      }
+      .scale-hover {
+        @apply hover:scale-105 transition-transform duration-200;
+      }
+      .drag-handle {
+        cursor: grab;
+        @apply opacity-50 hover:opacity-100 transition-opacity;
+      }
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+      .date-divider {
+        @apply bg-gray-50 text-gray-500 font-medium px-4 py-2 border-y border-gray-200;
+      }
+      .clock-widget {
+        @apply fixed p-4 rounded-lg shadow-lg bg-white z-10 transition-all duration-300;
+      }
+      .clock-header {
+        @apply flex justify-between items-center mb-2;
+      }
+      .save-status {
+        @apply text-xs text-gray-500 ml-2 opacity-0 transition-opacity duration-300;
+      }
+      .save-status.visible {
+        @apply opacity-100;
+      }
+      .note-text {
+        @apply text-gray-500 text-sm mt-1 line-clamp-1;
+      }
+      .note-expand {
+        @apply text-xs text-primary cursor-pointer ml-1;
+      }
+      .edit-input {
+        @apply w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-primary outline-none;
+      }
+      .autosave-widget {
+        @apply fixed p-3 rounded-lg shadow-lg bg-white/90 z-40 transition-all duration-300 backdrop-blur-sm;
+      }
+    }
+  </style>
+
+  <style>
+    /* 添加窗口大小调整时的响应式样式 */
+    @media screen and (max-width: 768px) {
+      .clock-widget {
+        right: 1rem !important;
+        bottom: 1rem !important;
+        left: auto !important;
+        top: auto !important;
+      }
+      .autosave-widget {
+        right: 1rem !important;
+        top: 1rem !important;
+        left: auto !important;
+        bottom: auto !important;
+      }
+      .autosave-header {
+        @apply flex justify-between items-center mb-1 cursor-move;
+      }
+      .show-completed-btn.active {
+        @apply bg-primary text-white;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gray-50 font-inter text-gray-900 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-3xl">
+    <!-- 标题区域 -->
+    <header class="mb-8 text-center">
+      <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold text-primary mb-2">待办事项清单</h1>
+      <p class="text-gray-600">轻松管理您的日常任务</p>
+    </header>
+
+    <!-- 功能控制区 -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+      <!-- 数据导入导出 -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button id="export-btn" class="bg-success hover:bg-success/90 text-white px-3 py-1.5 rounded-lg transition-all scale-hover text-sm flex items-center gap-1">
+          <i class="fa fa-download"></i> 导出数据
+        </button>
+        <label for="import-input" class="bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg transition-all scale-hover text-sm flex items-center gap-1 cursor-pointer">
+          <i class="fa fa-upload"></i> 导入数据
+        </label>
+        <input type="file" id="import-input" accept=".json" class="hidden">
+        <button id="set-save-path" class="bg-warning hover:bg-warning/90 text-white px-3 py-1.5 rounded-lg transition-all scale-hover text-sm flex items-center gap-1">
+          <i class="fa fa-folder"></i> 设置保存位置
+        </button>
+        <button id="save-btn" class="bg-dark hover:bg-dark/90 text-white px-3 py-1.5 rounded-lg transition-all scale-hover text-sm flex items-center gap-1">
+          <i class="fa fa-save"></i> 手动保存
+          <span id="save-status" class="save-status">已保存</span>
+        </button>
+        <span id="save-path-display" class="text-xs text-gray-500 ml-2 hidden"></span>
+      </div>
+
+      <!-- 添加新任务 -->
+      <div class="flex gap-2 mb-4">
+        <input
+          type="text"
+          id="new-task-input"
+          placeholder="添加新的待办事项..."
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+        >
+        <button
+          id="add-task-btn"
+          class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-all scale-hover flex items-center gap-1"
+        >
+          <i class="fa fa-plus"></i> 添加
+        </button>
+      </div>
+
+      <!-- 搜索和筛选 -->
+      <div class="flex flex-col sm:flex-row gap-4">
+        <div class="relative flex-1">
+          <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="搜索任务..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+          >
+        </div>
+
+        <button
+          id="show-completed"
+          class="show-completed-btn bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded-lg transition-all scale-hover text-sm flex items-center gap-1"
+        >
+          <i class="fa fa-check-circle-o text-primary"></i> 显示已完成
+        </button>
+      </div>
+    </div>
+
+    <!-- 任务列表 -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+      <div id="task-list" class="divide-y divide-gray-100">
+        <!-- 任务项将通过JavaScript动态生成 -->
+        <div class="text-center py-12 text-gray-500">
+          <i class="fa fa-check-circle-o text-4xl mb-3 opacity-30"></i>
+          <p>暂无任务，开始添加吧！</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 统计信息 -->
+    <div class="mt-6 text-center text-gray-600 text-sm">
+      <p id="task-stats">待完成: 0 | 已完成: 0 | 总计: 0</p>
+    </div>
+  </div>
+
+  <!-- 备注详情模态框 -->
+  <div id="note-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">任务详情</h3>
+        <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times text-xl"></i>
+        </button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+        <input type="text" id="modal-task-title" class="edit-input">
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-1">备注内容</label>
+        <textarea id="modal-note-content" rows="4" class="edit-input"></textarea>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button id="save-note" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-all">
+          保存
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自动保存计时器控件 -->
+  <div id="autosave-widget" class="autosave-widget right-4 top-4 w-64 hidden">
+    <div class="autosave-header">
+      <span class="text-sm font-medium">自动保存</span>
+      <button id="cancel-autosave" class="text-gray-400 hover:text-gray-600 text-sm">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+    <div id="autosave-timer" class="text-center text-sm">
+      <p>60秒后自动保存</p>
+      <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+        <div id="autosave-progress" class="bg-primary h-1.5 rounded-full" style="width: 0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 悬浮时钟 -->
+  <div id="clock-widget" class="clock-widget right-4 bottom-4 w-64">
+    <div class="clock-header" id="clock-handle">
+      <span class="text-sm font-medium">当前时间</span>
+      <button id="toggle-clock" class="text-gray-400 hover:text-gray-600">
+        <i class="fa fa-chevron-up"></i>
+      </button>
+    </div>
+    <div id="clock-content" class="text-center">
+      <div id="current-date" class="text-lg font-medium"></div>
+      <div id="current-time" class="text-3xl font-bold mt-1"></div>
+    </div>
+  </div>
+
+  <script>
+    // 定义全局函数，以便在所有模块中使用
+    let renderTasks = null;
+    let taskListEl = null;
+    let searchInput = null;
+    let showCompletedCheckbox = null;
+
+    // 任务数据管理
+    let fileHandle = null; // FileSystemFileHandle for the JSON file
+    let savePathDB = null; // IndexedDB for persisting the handle
+
+    const TaskManager = {
+      // 初始化任务列表
+      init() {
+        // 初始化任务数组
+        this.tasks = [];
+        this.lastSavedTime = Date.now();
+        this.autoSaveTimer = null; // 自动保存计时器
+        this.autoSaveProgress = null; // 自动保存进度计时器
+
+        // 打开IndexedDB用于持久化保存路径
+        this.openSavePathDB();
+
+        // 从localStorage加载数据
+        this.loadFromLocalStorage();
+        this.updateStats();
+      },
+
+      // 打开IndexedDB用于存储FileSystemFileHandle
+      openSavePathDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open('TodoListDB', 1);
+
+          request.onerror = () => {
+            console.error('打开IndexedDB失败');
+            resolve(null);
+          };
+
+          request.onsuccess = (event) => {
+            savePathDB = event.target.result;
+            this.restoreFileHandle();
+            resolve(savePathDB);
+          };
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('settings')) {
+              db.createObjectStore('settings', { keyPath: 'key' });
+            }
+          };
+        });
+      },
+
+      // 恢复之前保存的文件句柄
+      async restoreFileHandle() {
+        if (!savePathDB) return;
+
+        try {
+          const transaction = savePathDB.transaction(['settings'], 'readonly');
+          const store = transaction.objectStore('settings');
+          const request = store.get('fileHandle');
+
+          request.onsuccess = async () => {
+            if (request.result && request.result.handle) {
+              // 验证句柄是否仍然有效
+              try {
+                const permission = await request.result.handle.queryPermission({ mode: 'readwrite' });
+                if (permission === 'granted') {
+                  fileHandle = request.result.handle;
+                  this.updateSavePathDisplay();
+                  this.loadFromFile(); // 加载文件数据
+                  console.log('已恢复文件句柄');
+                } else {
+                  // 需要重新请求权限
+                  const result = await request.result.handle.requestPermission({ mode: 'readwrite' });
+                  if (result === 'granted') {
+                    fileHandle = request.result.handle;
+                    this.updateSavePathDisplay();
+                    this.loadFromFile();
+                    console.log('已恢复文件句柄（已重新授权）');
+                  }
+                }
+              } catch (e) {
+                console.log('文件句柄已失效，需要重新选择:', e.message);
+              }
+            }
+          };
+        } catch (e) {
+          console.log('无法恢复文件句柄:', e.message);
+        }
+      },
+
+      // 保存文件句柄到IndexedDB
+      async persistFileHandle() {
+        if (!savePathDB || !fileHandle) return;
+
+        try {
+          const transaction = savePathDB.transaction(['settings'], 'readwrite');
+          const store = transaction.objectStore('settings');
+          await new Promise((resolve, reject) => {
+            const request = store.put({ key: 'fileHandle', handle: fileHandle });
+            request.onsuccess = resolve;
+            request.onerror = reject;
+          });
+          console.log('文件句柄已持久化');
+        } catch (e) {
+          console.error('持久化文件句柄失败:', e);
+        }
+      },
+
+      // 设置保存路径（选择文件）
+      async setSavePath() {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{
+              description: 'JSON文件',
+              accept: { 'application/json': ['.json'] }
+            }],
+            multiple: false
+          });
+
+          if (handle) {
+            fileHandle = handle;
+            // 保存到IndexedDB以便跨会话恢复
+            await this.persistFileHandle();
+            this.updateSavePathDisplay();
+            alert('保存路径设置成功！');
+            // 加载该文件的数据
+            await this.loadFromFile();
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            console.error('设置保存路径失败:', e);
+            alert('设置保存路径失败，请重试');
+          }
+        }
+      },
+
+      // 从文件加载数据
+      async loadFromFile() {
+        if (!fileHandle) return;
+
+        try {
+          const file = await fileHandle.getFile();
+          const text = await file.text();
+          const data = JSON.parse(text);
+
+          if (Array.isArray(data)) {
+            this.tasks = data.map(task => {
+              return {
+                id: task.id || Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                content: task.content || '',
+                completed: task.completed || false,
+                color: task.color || 'white',
+                date: task.date || this.formatDate(new Date()),
+                note: task.note || ''
+              };
+            });
+            this.saveToLocalStorage(); // 同时保存到localStorage
+            this.updateStats();
+            console.log('从文件加载数据成功');
+          }
+        } catch (e) {
+          console.log('从文件读取数据失败:', e.message);
+        }
+      },
+
+      // 更新保存路径显示
+      updateSavePathDisplay() {
+        const displayEl = document.getElementById('save-path-display');
+        if (displayEl) {
+          if (fileHandle) {
+            displayEl.textContent = '已设置保存位置';
+            displayEl.classList.remove('hidden');
+          } else {
+            displayEl.classList.add('hidden');
+          }
+        }
+      },
+
+      // 从localStorage加载数据
+      loadFromLocalStorage() {
+        try {
+          const savedTasks = localStorage.getItem('todoList');
+          if(savedTasks) {
+            try {
+              // 兼容旧数据格式，添加日期和备注字段
+              this.tasks = JSON.parse(savedTasks).map(task => {
+                return {
+                  ...task,
+                  date: task.date || this.formatDate(new Date()),
+                  note: task.note || ''
+                };
+              });
+              console.log('从浏览器缓存加载数据');
+            } catch (e) {
+              console.log('本地缓存数据解析失败:', e.message);
+              this.tasks = [];
+            }
+          } else {
+            this.tasks = [];
+          }
+        } catch (e) {
+          console.log('访问localStorage失败（可能是隐私设置阻止）:', e.message);
+          this.tasks = [];
+        }
+
+        this.updateStats();
+      },
+
+      // 设置自动保存计时器 (30秒无操作自动保存)
+      setupAutoSaveTimer() {
+        // 清除之前的计时器
+        if(this.autoSaveTimer) {
+          clearTimeout(this.autoSaveTimer);
+        }
+        if(this.autoSaveProgress) {
+          clearInterval(this.autoSaveProgress);
+        }
+
+        // 显示自动保存控件
+        document.getElementById('autosave-widget').classList.remove('hidden');
+
+        // 设置30秒倒计时
+        let secondsLeft = 30;
+        document.getElementById('autosave-timer').innerHTML = `
+          <p>${secondsLeft}秒后自动保存</p>
+          <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+            <div id="autosave-progress" class="bg-primary h-1.5 rounded-full" style="width: 0%"></div>
+          </div>
+        `;
+
+        // 更新进度条
+        const progressInterval = setInterval(() => {
+          secondsLeft--;
+          const progressPercent = ((30 - secondsLeft) / 30) * 100;
+          document.getElementById('autosave-timer').innerHTML = `
+            <p>${secondsLeft}秒后自动保存</p>
+            <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+              <div id="autosave-progress" class="bg-primary h-1.5 rounded-full" style="width: ${progressPercent}%"></div>
+            </div>
+          `;
+
+          if(secondsLeft <= 0) {
+            clearInterval(progressInterval);
+          }
+        }, 1000);
+
+        this.autoSaveProgress = progressInterval;
+
+        // 30秒后自动保存
+        this.autoSaveTimer = setTimeout(() => {
+          this.saveToFile();
+          console.log('自动保存完成');
+          // 显示保存成功提示
+          this.showSaveSuccess();
+          // 隐藏自动保存控件
+          document.getElementById('autosave-widget').classList.add('hidden');
+          clearInterval(this.autoSaveProgress);
+        }, 30000); // 30秒后自动保存
+      },
+
+      // 取消自动保存计时器
+      cancelAutoSaveTimer() {
+        if(this.autoSaveTimer) {
+          clearTimeout(this.autoSaveTimer);
+          this.autoSaveTimer = null;
+        }
+        if(this.autoSaveProgress) {
+          clearInterval(this.autoSaveProgress);
+          this.autoSaveProgress = null;
+        }
+        // 隐藏自动保存控件
+        document.getElementById('autosave-widget').classList.add('hidden');
+      },
+
+      // 显示保存状态提示
+      showSaveStatus() {
+        const statusEl = document.getElementById('save-status');
+        statusEl.classList.add('visible');
+        setTimeout(() => {
+          statusEl.classList.remove('visible');
+        }, 2000);
+      },
+
+      // 显示保存成功提示
+      showSaveSuccess() {
+        const widget = document.getElementById('autosave-widget');
+        const timerEl = document.getElementById('autosave-timer');
+
+        // 显示保存成功状态
+        timerEl.innerHTML = `
+          <p class="text-success font-medium"><i class="fa fa-check-circle"></i> 已保存</p>
+        `;
+
+        // 2秒后隐藏控件
+        setTimeout(() => {
+          widget.classList.add('hidden');
+        }, 2000);
+      },
+
+      // 格式化日期为YYYY-MM-DD
+      formatDate(date) {
+        return date.toISOString().split('T')[0];
+      },
+
+      // 获取今天的日期字符串
+      getToday() {
+        return this.formatDate(new Date());
+      },
+
+      // 保存任务到localStorage
+      saveToLocalStorage() {
+        try {
+          localStorage.setItem('todoList', JSON.stringify(this.tasks));
+          this.lastSavedTime = Date.now();
+          this.updateStats();
+        } catch (e) {
+          console.error('保存到localStorage失败:', e);
+          // 如果localStorage失败，尝试保存到文件
+          this.saveToFile();
+        }
+      },
+
+      // 保存任务到本地文件
+      async saveToFile() {
+        const dataStr = JSON.stringify(this.tasks, null, 2);
+
+        // 如果有文件句柄，直接写入文件
+        if (fileHandle) {
+          try {
+            const writable = await fileHandle.createWritable();
+            await writable.write(dataStr);
+            await writable.close();
+            console.log('数据已保存到文件');
+            this.lastSavedTime = Date.now();
+            this.updateStats();
+            return true;
+          } catch (e) {
+            console.error('写入文件失败:', e);
+            return false;
+          }
+        }
+
+        // 没有设置保存路径时，只保存到localStorage
+        this.saveToLocalStorage();
+        return false;
+      },
+
+      // 导出任务为JSON文件 (当前日期命名)
+      exportTasks() {
+        const date = this.formatDate(new Date());
+        const filename = `${date}_todolist_data.json`;
+        const dataStr = JSON.stringify(this.tasks, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 0);
+      },
+
+      // 手动保存到todolist_data.json文件
+      async manualSave() {
+        const result = await this.saveToFile();
+        if (result) {
+          this.showSaveSuccessManual();
+        } else {
+          this.showSaveStatus('请先设置保存路径');
+        }
+      },
+
+      // 显示手动保存成功提示
+      showSaveSuccessManual() {
+        const statusEl = document.getElementById('save-status');
+        statusEl.textContent = '已保存';
+        statusEl.classList.add('visible');
+        setTimeout(() => {
+          statusEl.classList.remove('visible');
+        }, 2000);
+      },
+
+      // 导入任务从JSON文件
+      importTasks(data) {
+        try {
+          // 验证导入的数据格式
+          if (Array.isArray(data)) {
+            this.tasks = data.map(task => {
+              // 确保任务有必要的字段
+              return {
+                id: task.id || Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                content: task.content || '',
+                completed: task.completed || false,
+                color: task.color || 'white',
+                date: task.date || this.getToday(),
+                note: task.note || '' // 新增备注字段
+              };
+            });
+            this.saveToLocalStorage();
+            return true;
+          }
+          return false;
+        } catch (e) {
+          console.error('导入失败:', e);
+          return false;
+        }
+      },
+
+      // 添加新任务
+      addTask(content, date = this.getToday()) {
+        if (!content.trim()) return false;
+
+        const newTask = {
+          id: Date.now().toString(),
+          content: content.trim(),
+          completed: false,
+          color: 'white', // 默认白色
+          date: date, // 添加日期字段
+          note: '' // 初始备注为空
+        };
+
+        this.tasks.unshift(newTask); // 添加到列表开头
+        this.saveToLocalStorage();
+
+        // 启动自动保存计时器
+        this.setupAutoSaveTimer();
+
+        return newTask;
+      },
+
+      // 切换任务完成状态
+      toggleTask(id) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+          task.completed = !task.completed;
+          this.saveToLocalStorage();
+
+          // 启动自动保存计时器
+          this.setupAutoSaveTimer();
+
+          return task;
+        }
+        return null;
+      },
+
+      // 更新任务内容和备注
+      updateTaskContent(id, content, note) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+          task.content = content;
+          task.note = note;
+          this.saveToLocalStorage();
+
+          // 启动自动保存计时器
+          this.setupAutoSaveTimer();
+
+          return task;
+        }
+        return null;
+      },
+
+      // 删除任务
+      deleteTask(id) {
+        const initialLength = this.tasks.length;
+        this.tasks = this.tasks.filter(t => t.id !== id);
+        this.saveToLocalStorage();
+
+        // 启动自动保存计时器
+        this.setupAutoSaveTimer();
+
+        return initialLength !== this.tasks.length;
+      },
+
+      // 更新任务颜色
+      updateTaskColor(id, color) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+          task.color = color;
+          this.saveToLocalStorage();
+
+          // 启动自动保存计时器
+          this.setupAutoSaveTimer();
+
+          return task;
+        }
+        return null;
+      },
+
+      // 重新排序任务
+      reorderTasks(newOrder) {
+        this.tasks = newOrder;
+        this.saveToLocalStorage();
+
+        // 启动自动保存计时器
+        this.setupAutoSaveTimer();
+      },
+
+      // 获取过滤后的任务并按日期分组
+      getFilteredAndGroupedTasks(searchTerm = '', showCompleted = true) {
+        // 确保this.tasks存在且为数组
+        if (!this.tasks || !Array.isArray(this.tasks)) {
+          this.tasks = [];
+        }
+
+        // 过滤任务
+        const filteredTasks = this.tasks.filter(task => {
+          const matchesSearch =
+            task.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            task.note.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesCompletion = showCompleted || !task.completed;
+          return matchesSearch && matchesCompletion;
+        });
+
+        // 按日期分组
+        const grouped = {};
+        filteredTasks.forEach(task => {
+          if (!grouped[task.date]) {
+            grouped[task.date] = [];
+          }
+          grouped[task.date].push(task);
+        });
+
+        // 按日期排序（最新的在前）
+        const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b) - new Date(a));
+
+        return { grouped, sortedDates };
+      },
+
+      // 更新统计信息
+      updateStats() {
+        const total = this.tasks && Array.isArray(this.tasks) ? this.tasks.length : 0;
+        const completed = this.tasks && Array.isArray(this.tasks) ? this.tasks.filter(t => t.completed).length : 0;
+        const pending = total - completed;
+
+        document.getElementById('task-stats').textContent =
+          `待完成: ${pending} | 已完成: ${completed} | 总计: ${total}`;
+      }
+    };
+
+    // 时钟组件管理
+    const ClockWidget = {
+      init() {
+        this.widgetEl = document.getElementById('clock-widget');
+        this.handleEl = document.getElementById('clock-handle');
+        this.toggleBtn = document.getElementById('toggle-clock');
+        this.contentEl = document.getElementById('clock-content');
+        this.dateEl = document.getElementById('current-date');
+        this.timeEl = document.getElementById('current-time');
+        this.isVisible = true;
+
+        // 固定在右下角，不使用拖拽
+        this.widgetEl.style.top = 'auto';
+        this.widgetEl.style.left = 'auto';
+        this.widgetEl.style.right = '1rem';
+        this.widgetEl.style.bottom = '1rem';
+        this.widgetEl.style.zIndex = '10'; // 较低层级，不遮挡主体内容
+
+        // 设置切换显示/隐藏功能
+        this.toggleBtn.addEventListener('click', () => this.toggleVisibility());
+
+        // 更新时间并设置定时器
+        this.updateTime();
+        setInterval(() => this.updateTime(), 1000);
+      },
+
+      updateTime() {
+        const now = new Date();
+
+        // 格式化日期
+        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+        this.dateEl.textContent = now.toLocaleDateString('zh-CN', options);
+
+        // 格式化时间
+        this.timeEl.textContent = now.toLocaleTimeString('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      },
+
+      toggleVisibility() {
+        this.isVisible = !this.isVisible;
+        this.contentEl.style.display = this.isVisible ? 'block' : 'none';
+        this.toggleBtn.innerHTML = this.isVisible ?
+          '<i class="fa fa-chevron-up"></i>' :
+          '<i class="fa fa-chevron-down"></i>';
+      }
+    };
+
+    // 自动保存计时器组件管理
+    const AutoSaveWidget = {
+      init() {
+        this.widgetEl = document.getElementById('autosave-widget');
+        this.handleEl = document.getElementById('autosave-handle');
+        this.cancelBtn = document.getElementById('cancel-autosave');
+
+        // 固定在右上角，不使用拖拽
+        this.widgetEl.style.top = '1rem';
+        this.widgetEl.style.left = 'auto';
+        this.widgetEl.style.right = '1rem';
+        this.widgetEl.style.bottom = 'auto';
+        this.widgetEl.style.zIndex = '10'; // 较低层级，不遮挡主体内容
+
+        // 设置取消自动保存功能
+        this.cancelBtn.addEventListener('click', () => {
+          TaskManager.cancelAutoSaveTimer();
+        });
+      }
+    };
+
+    // 备注模态框管理
+    const NoteModal = {
+      init() {
+        this.modalEl = document.getElementById('note-modal');
+        this.closeBtn = document.getElementById('close-modal');
+        this.saveBtn = document.getElementById('save-note');
+        this.taskTitleInput = document.getElementById('modal-task-title');
+        this.noteContentInput = document.getElementById('modal-note-content');
+        this.currentTaskId = null;
+
+        // 关闭模态框事件
+        this.closeBtn.addEventListener('click', () => this.hide());
+        this.modalEl.addEventListener('click', (e) => {
+          if (e.target === this.modalEl) this.hide();
+        });
+
+        // 保存备注事件
+        this.saveBtn.addEventListener('click', () => this.saveNote());
+
+        // 按ESC键关闭
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && !this.modalEl.classList.contains('hidden')) {
+            this.hide();
+          }
+        });
+      },
+
+      // 显示模态框并加载任务数据
+      show(taskId) {
+        const task = TaskManager.tasks.find(t => t.id === taskId);
+        if (task) {
+          this.currentTaskId = taskId;
+          this.taskTitleInput.value = task.content;
+          this.noteContentInput.value = task.note || '';
+          this.modalEl.classList.remove('hidden');
+          // 聚焦到标题输入框
+          setTimeout(() => this.taskTitleInput.focus(), 300);
+        }
+      },
+
+      // 隐藏模态框
+      hide() {
+        this.modalEl.classList.add('hidden');
+        this.currentTaskId = null;
+      },
+
+      // 保存备注
+      saveNote() {
+        if (this.currentTaskId) {
+          const newContent = this.taskTitleInput.value.trim();
+          const newNote = this.noteContentInput.value.trim();
+
+          if (newContent) {
+            TaskManager.updateTaskContent(this.currentTaskId, newContent, newNote);
+            if (typeof renderTasks === 'function') {
+              renderTasks();
+            } else {
+              console.error('renderTasks function is not defined');
+            }
+            this.hide();
+          } else {
+            alert('任务标题不能为空');
+          }
+        }
+      }
+    };
+
+    // DOM操作和事件处理
+    document.addEventListener('DOMContentLoaded', () => {
+      // 初始化各组件
+      TaskManager.init();
+      ClockWidget.init();
+      AutoSaveWidget.init();
+      NoteModal.init();
+
+      // 获取DOM元素
+      taskListEl = document.getElementById('task-list');
+      const newTaskInput = document.getElementById('new-task-input');
+      const addTaskBtn = document.getElementById('add-task-btn');
+      searchInput = document.getElementById('search-input');
+      showCompletedCheckbox = document.getElementById('show-completed');
+
+      // 从localStorage读取隐藏已完成开关的状态
+      const savedShowCompletedState = localStorage.getItem('showCompleted');
+      if (savedShowCompletedState === 'false') {
+        // 如果之前设置为隐藏已完成，则保持隐藏状态
+        showCompletedCheckbox.classList.remove('active');
+        showCompletedCheckbox.innerHTML = '<i class="fa fa-check-circle-o text-primary"></i> 显示已完成';
+      } else {
+        // 否则默认显示已完成（保持原有行为）
+        showCompletedCheckbox.classList.add('active');
+        showCompletedCheckbox.innerHTML = '<i class="fa fa-check-circle-o text-white"></i> 隐藏已完成';
+      }
+
+      const exportBtn = document.getElementById('export-btn');
+      const importInput = document.getElementById('import-input');
+      const saveBtn = document.getElementById('save-btn');
+
+      // 初始化拖拽排序
+      let sortable = null;
+
+      // 创建任务元素
+      function createTaskElement(task) {
+        const taskEl = document.createElement('div');
+        taskEl.className = `p-4 flex items-center gap-3 task-transition ${
+          task.completed ? 'opacity-70' : ''
+        }`;
+        taskEl.dataset.id = task.id;
+        taskEl.dataset.date = task.date;
+
+        // 根据颜色设置背景
+        const bgColors = {
+          white: 'bg-white',
+          danger: 'bg-danger/10',
+          warning: 'bg-warning/10',
+          success: 'bg-success/10',
+          primary: 'bg-primary/10',
+          dark: 'bg-dark/10'
+        };
+
+        taskEl.classList.add(bgColors[task.color] || 'bg-white');
+
+        // 构建任务HTML，拖拽图标移至末尾
+        let taskHtml = `
+          <!-- 完成状态复选框 -->
+          <div class="flex-shrink-0">
+            <input
+              type="checkbox"
+              class="w-5 h-5 rounded-full border-2 border-gray-300 text-primary focus:ring-primary focus:ring-2 transition-all cursor-pointer"
+              ${task.completed ? 'checked' : ''}
+            >
+          </div>
+
+          <!-- 任务内容和备注 -->
+          <div class="flex-1 min-w-0">
+            <p class="${task.completed ? 'line-through text-gray-500' : 'text-gray-900'} transition-all truncate">
+              ${task.content}
+            </p>
+        `;
+
+        // 如果有备注，显示备注预览
+        if (task.note) {
+          const previewText = task.note.length > 20
+            ? task.note.substring(0, 20) + '...'
+            : task.note;
+
+          taskHtml += `
+            <p class="note-text">
+              ${previewText}
+              <span class="note-expand" data-id="${task.id}">查看</span>
+            </p>
+          `;
+        }
+
+        taskHtml += `
+          </div>
+
+          <!-- 颜色选择器 -->
+          <div class="flex gap-1 flex-shrink-0">
+            ${['white', 'danger', 'warning', 'success', 'primary', 'dark'].map(color => `
+              <button
+                class="w-5 h-5 rounded-full border-2 ${
+                  color === 'white' ? 'border-gray-300 bg-white' : `bg-${color}`
+                } ${task.color === color ? 'ring-2 ring-offset-2 ring-primary' : ''} scale-100"
+                data-color="${color}"
+                title="${getColorName(color)}"
+              ></button>
+            `).join('')}
+          </div>
+
+          <!-- 删除按钮 -->
+          <button class="text-gray-400 hover:text-danger transition-colors scale-hover flex-shrink-0">
+            <i class="fa fa-trash-o"></i>
+          </button>
+
+          <!-- 编辑按钮 -->
+          <button class="text-gray-400 hover:text-primary transition-colors scale-hover flex-shrink-0 edit-btn" data-id="${task.id}">
+            <i class="fa fa-pencil"></i>
+          </button>
+
+          <!-- 拖拽手柄（移至末尾） -->
+          <div class="drag-handle text-gray-400 flex-shrink-0">
+            <i class="fa fa-bars"></i>
+          </div>
+        `;
+
+        taskEl.innerHTML = taskHtml;
+        return taskEl;
+      }
+
+      // 创建日期分隔符
+      function createDateDivider(date) {
+        const divider = document.createElement('div');
+        divider.className = 'date-divider';
+
+        // 格式化日期显示
+        const dateObj = new Date(date);
+        const today = TaskManager.getToday();
+        const yesterday = TaskManager.formatDate(new Date(Date.now() - 86400000));
+
+        let displayText;
+        if (date === today) {
+          displayText = '今天';
+        } else if (date === yesterday) {
+          displayText = '昨天';
+        } else {
+          displayText = dateObj.toLocaleDateString('zh-CN', {
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short'
+          });
+        }
+
+        divider.textContent = displayText;
+        divider.dataset.date = date;
+        return divider;
+      }
+
+      // 获取颜色名称
+      function getColorName(color) {
+        const names = {
+          white: '默认',
+          danger: '紧急',
+          warning: '重要',
+          success: '普通',
+          primary: '次要',
+          dark: '长期'
+        };
+        return names[color] || color;
+      }
+
+      // 渲染任务列表（带日期分组）
+      renderTasks = function() {
+        const searchTerm = searchInput.value;
+        const showCompleted = showCompletedCheckbox.classList.contains('active');
+        const { grouped, sortedDates } = TaskManager.getFilteredAndGroupedTasks(searchTerm, showCompleted);
+
+        // 清空列表
+        taskListEl.innerHTML = '';
+
+        // 如果没有任务，显示提示
+        if (sortedDates.length === 0) {
+          taskListEl.innerHTML = `
+            <div class="text-center py-12 text-gray-500">
+              <i class="fa fa-search text-4xl mb-3 opacity-30"></i>
+              <p>没有找到匹配的任务</p>
+            </div>
+          `;
+          return;
+        }
+
+        // 添加分组的任务和日期分隔符
+        sortedDates.forEach(date => {
+          // 添加日期分隔符
+          const divider = createDateDivider(date);
+          taskListEl.appendChild(divider);
+
+          // 添加该日期下的所有任务
+          grouped[date].forEach(task => {
+            const taskEl = createTaskElement(task);
+            taskListEl.appendChild(taskEl);
+          });
+        });
+
+        // 重新初始化拖拽排序（忽略日期分隔符）
+        if (sortable) sortable.destroy();
+        sortable = new Sortable(taskListEl, {
+          handle: '.drag-handle',
+          animation: 150,
+          filter: '.date-divider', // 不允许拖拽日期分隔符
+          onEnd: function() {
+            // 获取所有任务元素（排除日期分隔符）
+            const taskElements = Array.from(taskListEl.children).filter(
+              el => !el.classList.contains('date-divider')
+            );
+
+            // 获取新的排序
+            const newOrder = taskElements.map(el => {
+              const id = el.dataset.id;
+              return TaskManager.tasks.find(t => t.id === id);
+            }).filter(Boolean); // 过滤可能的空值
+
+            TaskManager.reorderTasks(newOrder);
+          }
+        });
+      };
+
+      // 添加新任务
+      function addNewTask() {
+        const content = newTaskInput.value;
+        if (TaskManager.addTask(content)) {
+          newTaskInput.value = '';
+          renderTasks();
+          // 添加成功动画效果
+          const firstTask = taskListEl.querySelector('[data-id]');
+          if (firstTask) {
+            firstTask.classList.add('bg-primary/20');
+            setTimeout(() => {
+              firstTask.classList.remove('bg-primary/20');
+            }, 500);
+          }
+        }
+      }
+
+      // 事件监听：添加任务按钮点击
+      addTaskBtn.addEventListener('click', addNewTask);
+
+      // 事件监听：按Enter键添加任务
+      newTaskInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addNewTask();
+      });
+
+      // 事件监听：搜索输入变化
+      searchInput.addEventListener('input', renderTasks);
+
+      // 事件监听：显示已完成任务按钮点击
+      showCompletedCheckbox.addEventListener('click', () => {
+        // 切换按钮状态
+        showCompletedCheckbox.classList.toggle('active');
+
+        // 更新按钮文本和图标
+        const isActive = showCompletedCheckbox.classList.contains('active');
+        if (isActive) {
+          showCompletedCheckbox.innerHTML = '<i class="fa fa-check-circle-o text-white"></i> 隐藏已完成';
+        } else {
+          showCompletedCheckbox.innerHTML = '<i class="fa fa-check-circle-o text-primary"></i> 显示已完成';
+        }
+
+        // 将状态保存到localStorage
+        localStorage.setItem('showCompleted', isActive);
+
+        // 重新渲染任务列表
+        renderTasks();
+      });
+
+      // 事件监听：导出数据
+      exportBtn.addEventListener('click', () => {
+        TaskManager.exportTasks();
+      });
+
+      // 事件监听：导入数据
+      importInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.name.endsWith('.json')) {
+          alert('请选择JSON格式的文件');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = JSON.parse(event.target.result);
+            if (TaskManager.importTasks(data)) {
+              renderTasks();
+              alert('数据导入成功');
+            } else {
+              alert('导入的数据格式不正确');
+            }
+          } catch (err) {
+            alert('导入失败：' + err.message);
+          }
+        };
+        reader.readAsText(file);
+
+        // 重置input，允许重复选择同一个文件
+        importInput.value = '';
+      });
+
+      // 事件监听：手动保存
+      saveBtn.addEventListener('click', () => {
+        TaskManager.manualSave();
+      });
+
+      // 事件监听：设置保存路径
+      const setSavePathBtn = document.getElementById('set-save-path');
+      if (setSavePathBtn) {
+        setSavePathBtn.addEventListener('click', () => {
+          TaskManager.setSavePath();
+        });
+      }
+
+      // 事件监听：任务列表点击事件（委托）
+      taskListEl.addEventListener('click', (e) => {
+        const taskEl = e.target.closest('[data-id]');
+        if (!taskEl) return;
+
+        const taskId = taskEl.dataset.id;
+
+        // 处理完成状态切换
+        if (e.target.type === 'checkbox') {
+          TaskManager.toggleTask(taskId);
+          renderTasks();
+        }
+
+        // 处理颜色变更
+        if (e.target.dataset.color) {
+          TaskManager.updateTaskColor(taskId, e.target.dataset.color);
+          renderTasks();
+        }
+
+        // 处理删除任务
+        if (e.target.closest('.fa-trash-o')) {
+          // 添加删除动画
+          taskEl.classList.add('scale-95', 'opacity-0');
+          setTimeout(() => {
+            TaskManager.deleteTask(taskId);
+            renderTasks();
+          }, 200);
+        }
+
+        // 处理编辑任务和备注（编辑按钮或查看备注）
+        if (e.target.closest('.edit-btn') || e.target.classList.contains('note-expand')) {
+          NoteModal.show(taskId);
+        }
+      });
+
+      // 初始渲染
+      renderTasks();
+
+      // 监听窗口大小调整事件，确保控件位置正确
+      window.addEventListener('resize', function() {
+        // 延迟执行以确保窗口大小调整完成
+        setTimeout(() => {
+          // 重新应用时钟位置
+          if (typeof ClockWidget !== 'undefined' && ClockWidget.applySavedPosition) {
+            ClockWidget.applySavedPosition('clockPosition');
+          }
+
+          // 重新应用自动保存控件位置
+          if (typeof AutoSaveWidget !== 'undefined' && AutoSaveWidget.applySavedPosition) {
+            AutoSaveWidget.applySavedPosition('autosavePosition');
+          }
+        }, 100); // 延迟100毫秒以确保窗口调整完成
+      });
+    });
+  </script>
+</body>
+</html>
