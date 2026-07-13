@@ -87,7 +87,10 @@
               v-for="todo in groups[date]"
               :key="todo.id"
               class="task-card"
-              :class="['color-' + todo.color, { 'is-completed': todo.status === 'completed' }]"
+              :class="['color-' + todo.color, {
+                'is-completed': todo.status === 'completed',
+                'menu-open': openMenuId === todo.id,
+              }]"
               @click="openViewDialog(todo)"
             >
               <!-- 圆形复选框（div 模拟，状态由 todo.status 完全控制，避免取消时 UI 翻转） -->
@@ -115,7 +118,7 @@
                 <div v-if="todo.note" class="note-text">{{ todo.note }}</div>
               </div>
 
-              <!-- 任务附图（右上角浮动，2 行字高，不撑开卡片高度） -->
+              <!-- 任务附图（位于内容右边、操作按钮左边，60×40px） -->
               <img
                 v-if="todo.image_url"
                 :src="resolveAssetUrl(todo.image_url)"
@@ -1139,7 +1142,7 @@ onBeforeUnmount(() => {
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
+  /* 不要 overflow: hidden — 会截断自定义菜单的弹出层 */
 }
 
 .loading-state, .empty-state { padding: 48px 16px; }
@@ -1155,19 +1158,21 @@ onBeforeUnmount(() => {
 }
 
 /* ============================================================
-   任务卡片：6 色 + 右上角浮动图片
+   任务卡片：6 色 + flex 横向布局
    ============================================================ */
 .task-card {
-  position: relative;
-  padding: 16px 88px 16px 16px;  /* 右侧给图片留空间 */
+  padding: 16px;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
   border-bottom: 1px solid #f3f4f6;
   transition: all 0.3s ease;
   cursor: pointer;
-  min-height: 64px;  /* 保证最小高度容纳 2 行字 + 图片 */
+  position: relative;  /* 为菜单 z-index 准备 stacking context */
+  z-index: 1;
 }
+
+.task-card.menu-open { z-index: 50; }  /* 菜单打开时把当前卡片提到上层 */
 
 .task-card:last-child { border-bottom: none; }
 .task-card.is-completed { opacity: 0.75; }
@@ -1276,35 +1281,26 @@ onBeforeUnmount(() => {
   word-break: break-all;
 }
 
-/* 任务附图：右上角浮动，高度 2 行字，不撑开卡片 */
+/* 任务附图：位于内容右边、操作按钮左边，60×40px */
 .task-thumb {
-  position: absolute;
-  top: 16px;
-  right: 16px;
   width: 60px;
-  height: 40px;  /* ≈ 2 行字的高度 */
+  height: 40px;
   object-fit: cover;
   border-radius: 6px;
   cursor: pointer;
   background: #f3f4f6;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* ============================================================
    任务操作区
    ============================================================ */
 .task-actions {
-  position: absolute;
-  top: 16px;
-  right: 16px;
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  z-index: 2;
-  /* 当图片存在时，操作区会和图片重叠在右上角，操作区优先级更高（盖在图片上） */
-}
-
-.task-card:has(.task-thumb) .task-actions {
-  right: 84px;  /* 让位给图片 */
+  flex-shrink: 0;
 }
 
 .completion-btn {
@@ -1327,7 +1323,7 @@ onBeforeUnmount(() => {
 /* ============================================================
    自定义菜单弹出
    ============================================================ */
-.menu-wrapper { position: relative; }
+.menu-wrapper { position: relative; z-index: 10; }
 
 .menu-trigger {
   width: 32px;
@@ -1354,7 +1350,7 @@ onBeforeUnmount(() => {
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px #e5e7eb;
-  z-index: 30;
+  z-index: 100;  /* 高于其他卡片，避免被遮挡 */
   min-width: 160px;
   padding: 4px 0;
 }
