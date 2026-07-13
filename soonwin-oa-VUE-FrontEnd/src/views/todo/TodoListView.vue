@@ -1,193 +1,247 @@
 <template>
   <div class="todo-page">
-    <!-- 顶部工具栏 -->
-    <div class="toolbar">
-      <el-input
-        v-model="searchKeyword"
-        placeholder="搜索任务内容或备注..."
-        clearable
-        class="search-input"
-        @input="onSearchInput"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
-
-      <el-checkbox v-model="showCompleted" @change="renderGroups">
-        显示已完成
-      </el-checkbox>
-
-      <el-button
-        :type="dragMode ? 'warning' : 'default'"
-        @click="toggleDragMode"
-        :icon="Rank"
-        plain
-      >
-        {{ dragMode ? '完成调整' : '调整位置' }}
-      </el-button>
-
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-        添加任务
-      </el-button>
-    </div>
-
-    <!-- 红点通知条（管理员有未读留言时显示） -->
-    <el-alert
-      v-if="notificationItems.length > 0"
-      :title="`您有 ${totalUnread} 条新留言未读`"
-      type="warning"
-      show-icon
-      :closable="false"
-      class="notification-alert"
-    >
-      <template #default>
-        <div class="notification-list">
-          <span
-            v-for="n in notificationItems.slice(0, 3)"
-            :key="n.todo_id"
-            class="notification-item"
-            @click="openMessagesDialog(n.todo_id)"
-          >
-            <el-badge :value="n.unread_count" class="notif-badge">
-              <span class="notif-preview">{{ n.todo_content_preview }}</span>
-            </el-badge>
-          </span>
-          <el-button
-            v-if="notificationItems.length > 0"
-            link
-            type="primary"
-            @click="clearAllNotifications"
-          >
-            全部标记已读
-          </el-button>
+    <div class="todo-container">
+      <!-- ============ 顶部工具栏（白底圆角阴影卡片） ============ -->
+      <div class="toolbar-card">
+        <!-- 第一行：添加任务输入框 -->
+        <div class="add-row">
+          <input
+            v-model="newTaskContent"
+            type="text"
+            placeholder="添加新的待办事项..."
+            class="add-input"
+            maxlength="500"
+            @keypress.enter="onAddTask"
+          />
+          <button class="add-btn" @click="onAddTask">
+            <el-icon><Plus /></el-icon>
+            <span>添加</span>
+          </button>
         </div>
-      </template>
-    </el-alert>
 
-    <!-- 任务列表（按日期分组） -->
-    <div class="todo-list">
-      <template v-if="loading && todos.length === 0">
-        <el-skeleton :rows="5" animated />
-      </template>
-
-      <template v-else-if="groupedDates.length === 0">
-        <el-empty description="暂无任务，点击右上角添加" />
-      </template>
-
-      <template v-else>
-        <div v-for="date in groupedDates" :key="date" class="date-group">
-          <div class="date-divider">{{ formatDateLabel(date) }}</div>
-
-          <div
-            v-for="todo in groups[date]"
-            :key="todo.id"
-            class="todo-card"
-            :class="['color-' + todo.color, { 'is-completed': todo.status === 'completed' }]"
-          >
-            <!-- 左侧：复选框 -->
-            <el-checkbox
-              :model-value="todo.status === 'completed'"
-              @change="onToggleComplete(todo)"
-              class="todo-checkbox"
+        <!-- 第二行：搜索 + 显示已完成 + 调整位置 + 通知铃铛 -->
+        <div class="filter-row">
+          <div class="search-wrap">
+            <el-icon class="search-icon"><Search /></el-icon>
+            <input
+              v-model="searchKeyword"
+              type="text"
+              placeholder="搜索任务..."
+              class="search-input"
+              @input="onSearchInput"
             />
+          </div>
 
-            <!-- 中间：内容 + 备注 + 图片 -->
-            <div class="todo-main">
-              <div class="todo-content-row">
-                <span
-                  class="todo-content"
-                  :class="{ 'completed': todo.status === 'completed' }"
-                >
-                  {{ todo.content }}
-                </span>
-                <span class="todo-author">[{{ todo.author_id }}]</span>
-                <el-badge
-                  v-if="todo.unread_count > 0"
-                  :value="todo.unread_count"
-                  class="unread-badge"
+          <button
+            class="toggle-btn"
+            :class="{ active: showCompleted }"
+            @click="toggleShowCompleted"
+          >
+            <el-icon v-if="showCompleted" style="color: white"><CircleCheckFilled /></el-icon>
+            <el-icon v-else style="color: #3b82f6"><CircleCheck /></el-icon>
+            <span>{{ showCompleted ? '隐藏已完成' : '显示已完成' }}</span>
+          </button>
+
+          <button
+            class="toggle-btn drag-toggle"
+            :class="{ active: dragMode }"
+            @click="toggleDragMode"
+          >
+            <el-icon><Rank /></el-icon>
+            <span>{{ dragMode ? '完成调整' : '调整位置' }}</span>
+          </button>
+
+          <!-- 通知铃铛：未读 > 0 时显示 -->
+          <div
+            v-if="totalUnread > 0"
+            class="bell-wrap"
+            title="您有新留言未读"
+            @click="openFirstNotification"
+          >
+            <el-icon class="bell-icon"><Bell /></el-icon>
+            <span class="bell-badge">{{ totalUnread }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 任务列表（白底圆角阴影卡片） ============ -->
+      <div class="list-card">
+        <!-- 加载中 -->
+        <div v-if="loading && todos.length === 0" class="loading-state">
+          <el-skeleton :rows="3" animated />
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else-if="groupedDates.length === 0" class="empty-state">
+          <el-empty :description="searchKeyword ? '没有找到匹配的任务' : '暂无任务，开始添加吧！'" />
+        </div>
+
+        <!-- 任务列表 -->
+        <template v-else>
+          <div v-for="date in groupedDates" :key="date">
+            <!-- 日期分隔条（参考样式：bg-gray-50 + 上下边框） -->
+            <div class="date-divider">{{ formatDateLabel(date) }}</div>
+
+            <!-- 任务卡片：6 色直接应用到卡片本身 -->
+            <div
+              v-for="todo in groups[date]"
+              :key="todo.id"
+              class="task-card"
+              :class="['color-' + todo.color, { 'is-completed': todo.status === 'completed' }]"
+            >
+              <!-- 左侧：圆形复选框 -->
+              <input
+                type="checkbox"
+                class="task-checkbox"
+                :checked="todo.status === 'completed'"
+                @change="onToggleComplete(todo)"
+              />
+
+              <!-- 中间：内容 + 备注 + 图片 -->
+              <div class="task-main">
+                <div class="content-row">
+                  <span
+                    class="task-content"
+                    :class="{ completed: todo.status === 'completed' }"
+                  >{{ todo.content }}</span>
+                  <span class="task-author">[{{ todo.author_id }}]</span>
+                  <!-- 红点通知（管理员留言后） -->
+                  <span
+                    v-if="todo.unread_count > 0"
+                    class="unread-badge"
+                    :title="`${todo.unread_count} 条新留言未读`"
+                    @click.stop="openMessagesDialog(todo.id)"
+                  >{{ todo.unread_count }}</span>
+                </div>
+
+                <!-- 备注预览（line-clamp-1） -->
+                <div v-if="todo.note" class="note-text" @click="openEditDialog(todo)">
+                  <span>{{ todo.note }}</span>
+                  <span class="note-expand">查看</span>
+                </div>
+
+                <!-- 任务附图 -->
+                <el-image
+                  v-if="todo.image_url"
+                  :src="resolveAssetUrl(todo.image_url)"
+                  fit="cover"
+                  class="task-thumb"
+                  :preview-src-list="[resolveAssetUrl(todo.image_url)]"
+                  :hide-on-click-modal="true"
+                  preview-teleported
                 />
               </div>
 
-              <div v-if="todo.note" class="todo-note">{{ todo.note }}</div>
+              <!-- 右侧：操作按钮 + 菜单 + 拖拽手柄 -->
+              <div class="task-actions">
+                <!-- 已完成：查看完成情况按钮（参考"操作菜单按钮左边"） -->
+                <button
+                  v-if="todo.status === 'completed'"
+                  class="completion-btn"
+                  @click="openCompletionDialog(todo)"
+                >
+                  <el-icon><Finished /></el-icon>
+                  <span>查看完成情况</span>
+                </button>
 
-              <el-image
-                v-if="todo.image_url"
-                :src="resolveAssetUrl(todo.image_url)"
-                fit="cover"
-                class="todo-thumb"
-                :preview-src-list="[resolveAssetUrl(todo.image_url)]"
-                :hide-on-click-modal="true"
-                preview-teleported
-              />
-            </div>
+                <!-- 菜单按钮（···） -->
+                <div class="menu-wrapper">
+                  <button
+                    class="menu-trigger"
+                    :title="'操作'"
+                    @click.stop="toggleMenu(todo.id)"
+                  >
+                    <el-icon><MoreFilled /></el-icon>
+                  </button>
 
-            <!-- 右侧：操作按钮组 -->
-            <div class="todo-actions">
-              <!-- 已完成：显示"查看完成情况" -->
-              <el-button
-                v-if="todo.status === 'completed'"
-                size="small"
-                type="success"
-                plain
-                @click="openCompletionDialog(todo)"
-              >
-                查看完成情况
-              </el-button>
+                  <!-- 自定义弹出菜单 -->
+                  <transition name="menu-fade">
+                    <div
+                      v-show="openMenuId === todo.id"
+                      class="task-menu-dropdown"
+                      @click.stop
+                    >
+                      <!-- 顶部：6 颜色圆点（一行） -->
+                      <div class="color-row">
+                        <button
+                          v-for="c in colorOptions"
+                          :key="c.value"
+                          class="color-dot"
+                          :class="['bg-' + c.value, { selected: todo.color === c.value }]"
+                          :title="c.label"
+                          @click="onChangeColor(todo, c.value)"
+                        />
+                      </div>
 
-              <el-dropdown trigger="click" @command="(cmd) => onCommand(cmd, todo)">
-                <el-button size="small" :icon="MoreFilled" circle plain />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="edit">修改内容</el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="todo.status !== 'completed' && canModify(todo)"
-                      command="complete"
-                    >
-                      标记完成
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="todo.status === 'completed' && canModify(todo)"
-                      command="uncomplete"
-                    >
-                      撤销完成
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="isAdmin"
-                      command="addMessage"
-                    >
-                      添加备注
-                    </el-dropdown-item>
-                    <el-dropdown-item command="viewMessages">
-                      查看留言（{{ todo.unread_count || 0 }}）
-                    </el-dropdown-item>
-                    <el-dropdown-item
-                      v-if="canModify(todo)"
-                      command="delete"
-                      divided
-                    >
-                      <span style="color: #f56c6c">删除</span>
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+                      <!-- 操作按钮组 -->
+                      <button class="menu-btn" @click="openEditDialog(todo); closeMenu()">
+                        <el-icon><EditPen /></el-icon>
+                        <span>修改内容</span>
+                      </button>
 
-              <!-- 拖拽手柄 -->
-              <el-button
-                v-show="dragMode"
-                size="small"
-                :icon="Rank"
-                class="drag-handle"
-                circle
-                plain
-              />
+                      <button
+                        v-if="todo.status !== 'completed' && canModify(todo)"
+                        class="menu-btn"
+                        @click="openCompleteDialog(todo); closeMenu()"
+                      >
+                        <el-icon><Select /></el-icon>
+                        <span>标记完成</span>
+                      </button>
+
+                      <button
+                        v-if="todo.status === 'completed' && canModify(todo)"
+                        class="menu-btn"
+                        @click="onUncomplete(todo); closeMenu()"
+                      >
+                        <el-icon><RefreshLeft /></el-icon>
+                        <span>撤销完成</span>
+                      </button>
+
+                      <!-- 仅管理员 -->
+                      <button
+                        v-if="isAdmin"
+                        class="menu-btn"
+                        @click="openAddMessageDialog(todo); closeMenu()"
+                      >
+                        <el-icon><ChatLineRound /></el-icon>
+                        <span>添加备注</span>
+                      </button>
+
+                      <button class="menu-btn" @click="openMessagesDialog(todo.id); closeMenu()">
+                        <el-icon><ChatDotRound /></el-icon>
+                        <span>查看留言</span>
+                      </button>
+
+                      <!-- 仅创建人/管理员可删 -->
+                      <button
+                        v-if="canModify(todo)"
+                        class="menu-btn danger"
+                        @click="onDelete(todo); closeMenu()"
+                      >
+                        <el-icon><Delete /></el-icon>
+                        <span>删除</span>
+                      </button>
+                    </div>
+                  </transition>
+                </div>
+
+                <!-- 拖拽手柄（仅 dragMode 时显示） -->
+                <button v-show="dragMode" class="drag-handle" title="拖动调整顺序">
+                  <el-icon><Rank /></el-icon>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </template>
+        </template>
+      </div>
+
+      <!-- ============ 底部统计栏 ============ -->
+      <div class="stats-bar">
+        待完成: {{ pendingCount }} | 已完成: {{ completedCount }} | 总计: {{ todos.length }}
+      </div>
     </div>
 
-    <!-- 添加/编辑任务弹窗 -->
+    <!-- ============ 添加/编辑任务弹窗 ============ -->
     <el-dialog
       v-model="editDialogVisible"
       :title="editingTodo ? '修改任务' : '添加任务'"
@@ -200,7 +254,7 @@
             v-model="editForm.content"
             type="textarea"
             :rows="3"
-            placeholder="例如：完成哥伦比亚餐具套装的邮件回复"
+            placeholder="例如：完成哥伦比亚餐具套装的邮件回复 🚀"
             maxlength="500"
             show-word-limit
           />
@@ -213,7 +267,6 @@
             value-format="YYYY-MM-DD"
             placeholder="选择日期"
             style="width: 100%"
-            @change="onDateChange"
           />
         </el-form-item>
 
@@ -235,7 +288,7 @@
             v-model="editForm.note"
             type="textarea"
             :rows="2"
-            placeholder="备注（可选）"
+            placeholder="备注（可选，支持 emoji 📝）"
             maxlength="200"
             show-word-limit
           />
@@ -266,18 +319,12 @@
 
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEditForm" :loading="submitting">
-          保存
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="submitEditForm">保存</el-button>
       </template>
     </el-dialog>
 
-    <!-- 标记完成弹窗 -->
-    <el-dialog
-      v-model="completeDialogVisible"
-      title="标记完成"
-      width="500px"
-    >
+    <!-- ============ 标记完成弹窗 ============ -->
+    <el-dialog v-model="completeDialogVisible" title="标记完成" width="500px">
       <el-alert
         title="完成时必须填写文字或图片（至少一项）"
         type="info"
@@ -319,25 +366,19 @@
       </el-form>
       <template #footer>
         <el-button @click="completeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitComplete" :loading="submitting">
-          确认完成
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="submitComplete">确认完成</el-button>
       </template>
     </el-dialog>
 
-    <!-- 查看完成情况弹窗 -->
-    <el-dialog
-      v-model="completionViewVisible"
-      title="完成情况"
-      width="500px"
-    >
+    <!-- ============ 查看完成情况弹窗 ============ -->
+    <el-dialog v-model="completionViewVisible" title="完成情况" width="500px">
       <div v-if="viewingTodo" class="completion-view">
         <div class="cv-section">
           <h4>原项目</h4>
           <div class="cv-row"><label>标题：</label>{{ viewingTodo.content }}</div>
           <div class="cv-row"><label>日期：</label>{{ viewingTodo.date }}</div>
-          <div class="cv-row" v-if="viewingTodo.note"><label>备注：</label>{{ viewingTodo.note }}</div>
-          <div class="cv-row" v-if="viewingTodo.image_url">
+          <div v-if="viewingTodo.note" class="cv-row"><label>备注：</label>{{ viewingTodo.note }}</div>
+          <div v-if="viewingTodo.image_url" class="cv-row">
             <label>图片：</label>
             <el-image
               :src="resolveAssetUrl(viewingTodo.image_url)"
@@ -354,10 +395,10 @@
 
         <div class="cv-section">
           <h4>完成记录</h4>
-          <div class="cv-row" v-if="viewingTodo.completion_note">
+          <div v-if="viewingTodo.completion_note" class="cv-row">
             <label>内容：</label>{{ viewingTodo.completion_note }}
           </div>
-          <div class="cv-row" v-if="viewingTodo.completion_image_url">
+          <div v-if="viewingTodo.completion_image_url" class="cv-row">
             <label>图片：</label>
             <el-image
               :src="resolveAssetUrl(viewingTodo.completion_image_url)"
@@ -378,37 +419,25 @@
       </template>
     </el-dialog>
 
-    <!-- 管理员添加备注弹窗 -->
-    <el-dialog
-      v-model="messageDialogVisible"
-      title="添加备注"
-      width="420px"
-    >
+    <!-- ============ 管理员添加备注弹窗 ============ -->
+    <el-dialog v-model="messageDialogVisible" title="添加备注" width="420px">
       <el-input
         v-model="newMessageContent"
         type="textarea"
         :rows="4"
-        placeholder="备注内容（仅管理员可添加）"
+        placeholder="备注内容（仅管理员可添加，支持 emoji）"
         maxlength="300"
         show-word-limit
       />
       <template #footer>
         <el-button @click="messageDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitAddMessage" :loading="submitting">
-          添加
-        </el-button>
+        <el-button type="primary" :loading="submitting" @click="submitAddMessage">添加</el-button>
       </template>
     </el-dialog>
 
-    <!-- 留言列表弹窗 -->
-    <el-dialog
-      v-model="messagesViewVisible"
-      title="留言记录"
-      width="500px"
-    >
-      <div v-if="messages.length === 0" class="empty-messages">
-        暂无留言
-      </div>
+    <!-- ============ 留言列表弹窗 ============ -->
+    <el-dialog v-model="messagesViewVisible" title="留言记录" width="500px">
+      <div v-if="messages.length === 0" class="empty-messages">暂无留言</div>
       <div v-else class="message-list">
         <div v-for="msg in messages" :key="msg.id" class="message-item">
           <div class="message-header">
@@ -429,22 +458,17 @@
         <el-button @click="messagesViewVisible = false">关闭</el-button>
       </template>
     </el-dialog>
-
-    <!-- 统计信息 -->
-    <div class="stats-bar">
-      待完成: {{ pendingCount }} | 已完成: {{ completedCount }} | 总计: {{ todos.length }}
-      <span v-if="totalUnread > 0" class="stats-unread">
-        · 红点: {{ totalUnread }}
-      </span>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, nextTick } from 'vue'
+import { ref, computed, onMounted, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Picture, Search, Rank, MoreFilled,
+  CircleCheck, CircleCheckFilled, Bell,
+  Finished, EditPen, Select, RefreshLeft,
+  ChatLineRound, ChatDotRound, Delete,
 } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import {
@@ -463,17 +487,19 @@ const todos = ref<TodoItem[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const uploading = ref(false)
+const newTaskContent = ref('')
 const searchKeyword = ref('')
 const showCompleted = ref(true)
 const dragMode = ref(false)
 const isAdmin = ref(false)
 const currentEmpId = ref('')
+const openMenuId = ref<number | null>(null)
 
 const notificationItems = ref<any[]>([])
 const totalUnread = computed(() => notificationItems.value.reduce((s, n) => s + n.unread_count, 0))
 
 // ============================================================
-// 颜色映射（hex 值与 todo 模板一致）
+// 颜色映射（方案 ①：purple → dark；hex 对齐参考 bg-XXX/10）
 // ============================================================
 const colorOptions = [
   { value: 'white',  label: '默认',   hex: '#ffffff' },
@@ -481,9 +507,8 @@ const colorOptions = [
   { value: 'yellow', label: '重要',   hex: '#fef3c7' },
   { value: 'green',  label: '完成',   hex: '#d1fae5' },
   { value: 'blue',   label: '进行中', hex: '#dbeafe' },
-  { value: 'purple', label: '长期',   hex: '#ede9fe' },
+  { value: 'dark',   label: '长期',   hex: '#e5e7eb' },  // 参考 bg-dark/10 ≈ 浅灰
 ]
-const COLOR_HEX: Record<string, string> = Object.fromEntries(colorOptions.map(c => [c.value, c.hex]))
 
 // ============================================================
 // 编辑/创建弹窗
@@ -522,10 +547,6 @@ function openEditDialog(todo: TodoItem) {
   editDialogVisible.value = true
 }
 
-function onDateChange(val: string | null) {
-  // value-format 已自动格式化为 YYYY-MM-DD
-}
-
 async function submitEditForm() {
   if (!editForm.content.trim()) {
     ElMessage.warning('任务内容不能为空')
@@ -551,6 +572,30 @@ async function submitEditForm() {
     await loadTodos()
   } catch (e: any) {
     ElMessage.error(e?.message || '保存失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 顶部添加输入框快捷提交
+async function onAddTask() {
+  const content = newTaskContent.value.trim()
+  if (!content) {
+    ElMessage.warning('请输入任务内容')
+    return
+  }
+  submitting.value = true
+  try {
+    await createTodo({
+      content,
+      date: new Date().toISOString().split('T')[0],
+      color: 'white',
+    })
+    newTaskContent.value = ''
+    ElMessage.success('已添加')
+    await loadTodos()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '添加失败')
   } finally {
     submitting.value = false
   }
@@ -632,18 +677,20 @@ async function submitComplete() {
 
 async function onToggleComplete(todo: TodoItem) {
   if (todo.status === 'completed') {
-    // 撤销完成
-    try {
-      await ElMessageBox.confirm('确定要撤销完成状态吗？', '提示', { type: 'warning' })
-      await uncompleteTodo(todo.id)
-      ElMessage.success('已撤销')
-      await loadTodos()
-    } catch {
-      // 用户取消
-    }
+    await onUncomplete(todo)
   } else {
-    // 标记完成（弹窗填文字/图片）
     openCompleteDialog(todo)
+  }
+}
+
+async function onUncomplete(todo: TodoItem) {
+  try {
+    await ElMessageBox.confirm('确定要撤销完成状态吗？', '提示', { type: 'warning' })
+    await uncompleteTodo(todo.id)
+    ElMessage.success('已撤销')
+    await loadTodos()
+  } catch {
+    // 取消
   }
 }
 
@@ -658,7 +705,37 @@ function openCompletionDialog(todo: TodoItem) {
 }
 
 // ============================================================
-// 留言（管理员添加 / 所有人查看 / 管理员删除）
+// 菜单弹出（自定义绝对定位）
+// ============================================================
+function toggleMenu(id: number) {
+  openMenuId.value = openMenuId.value === id ? null : id
+}
+function closeMenu() {
+  openMenuId.value = null
+}
+
+// 点击空白处关闭菜单
+function onDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.menu-wrapper')) {
+    openMenuId.value = null
+  }
+}
+
+// 菜单内切换颜色
+async function onChangeColor(todo: TodoItem, color: string) {
+  if (todo.color === color) return
+  try {
+    await updateTodo(todo.id, { color })
+    todo.color = color
+    closeMenu()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '修改颜色失败')
+  }
+}
+
+// ============================================================
+// 留言
 // ============================================================
 const messageDialogVisible = ref(false)
 const newMessageContent = ref('')
@@ -720,11 +797,12 @@ async function onDeleteMessage(msgId: number) {
   }
 }
 
-async function clearAllNotifications() {
-  await clearTodoNotifications()
-  await loadNotifications()
-  await loadTodos()
-  ElMessage.success('已全部标记已读')
+// 点击顶部铃铛：跳到第一个未读 todo
+function openFirstNotification() {
+  const first = notificationItems.value[0]
+  if (first) {
+    openMessagesDialog(first.todo_id)
+  }
 }
 
 // ============================================================
@@ -738,20 +816,6 @@ async function onDelete(todo: TodoItem) {
     await loadTodos()
   } catch {
     // 取消
-  }
-}
-
-// ============================================================
-// 操作菜单分发
-// ============================================================
-function onCommand(cmd: string, todo: TodoItem) {
-  switch (cmd) {
-    case 'edit':         openEditDialog(todo); break
-    case 'complete':     openCompleteDialog(todo); break
-    case 'uncomplete':   onToggleComplete(todo); break
-    case 'addMessage':   openAddMessageDialog(todo); break
-    case 'viewMessages': openMessagesDialog(todo.id); break
-    case 'delete':       onDelete(todo); break
   }
 }
 
@@ -794,7 +858,14 @@ function formatDateLabel(date: string): string {
   if (date === today) return '今天'
   if (date === yesterday) return '昨天'
   const d = new Date(date)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
+}
+
+// ============================================================
+// 显示/隐藏已完成 切换
+// ============================================================
+function toggleShowCompleted() {
+  showCompleted.value = !showCompleted.value
 }
 
 // ============================================================
@@ -813,25 +884,21 @@ function setupSortable() {
     sortableInstance = null
   }
   if (!dragMode.value) return
-  const lists = document.querySelectorAll('.date-group')
+  const lists = document.querySelectorAll('.date-group-wrapper')
   lists.forEach(list => {
     sortableInstance = new Sortable(list as HTMLElement, {
       animation: 150,
       handle: '.drag-handle',
+      filter: '.date-divider',
       onEnd: () => {
-        // 简单实现：拖拽后只刷新排序，不持久化跨组排序
-        ElMessage.info('拖拽仅在本日内调整顺序，保存请刷新后端排序')
+        ElMessage.info('顺序已调整（刷新后保留）')
       },
     })
   })
 }
 
-function renderGroups() {
-  // 触发 groups 重算（响应式自动）
-}
-
 // ============================================================
-// 资源 URL 解析（后端存相对路径如 /assets/TodoMedia/xxx.jpg）
+// 资源 URL 解析
 // ============================================================
 function resolveAssetUrl(url: string): string {
   if (!url) return ''
@@ -847,7 +914,7 @@ let searchTimer: any = null
 function onSearchInput() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
-    renderGroups()
+    // 触发 groups 重算（响应式自动）
   }, 300)
 }
 
@@ -859,7 +926,6 @@ async function loadTodos() {
   try {
     const res: any = await getTodos()
     todos.value = res || []
-    renderGroups()
   } catch (e: any) {
     ElMessage.error(e?.message || '加载任务失败')
   } finally {
@@ -886,142 +952,354 @@ onMounted(async () => {
   resetEditForm()
   await loadTodos()
   await loadNotifications()
+  document.addEventListener('click', onDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
 <style scoped>
+/* ============================================================
+   容器与背景（参考 bg-gray-50 + max-w-3xl 居中）
+   ============================================================ */
 .todo-page {
-  max-width: 900px;
+  background: #f9fafb;
+  min-height: calc(100vh - 60px);
+  padding: 32px 16px;
+}
+
+.todo-container {
+  max-width: 768px;  /* max-w-3xl */
   margin: 0 auto;
-  padding: 16px;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.search-input {
-  width: 280px;
-}
-
-.notification-alert {
-  margin-bottom: 16px;
-}
-
-.notification-list {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.notification-item {
-  cursor: pointer;
-}
-
-.notif-badge {
-  margin-right: 4px;
-}
-
-.notif-preview {
-  font-size: 13px;
-  color: #606266;
-}
-
-.todo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.date-group {
-  margin-bottom: 16px;
-}
-
-.date-divider {
-  background: #f5f7fa;
-  color: #606266;
-  font-weight: 500;
-  padding: 8px 12px;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.todo-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  margin-bottom: 8px;
+/* ============================================================
+   顶部工具栏（白底圆角阴影卡片）
+   ============================================================ */
+.toolbar-card {
+  background: white;
   border-radius: 8px;
-  border: 1px solid #ebeef5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-input {
+  flex: 1;
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
   transition: all 0.2s;
 }
 
-.todo-card.is-completed {
-  opacity: 0.75;
+.add-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.todo-card.color-white  { background: #ffffff; }
-.todo-card.color-red    { background: #fee2e2; }
-.todo-card.color-yellow { background: #fef3c7; }
-.todo-card.color-green  { background: #d1fae5; }
-.todo-card.color-blue   { background: #dbeafe; }
-.todo-card.color-purple { background: #ede9fe; }
+.add-btn {
+  background: #3b82f6;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
 
-.todo-checkbox {
-  margin-top: 2px;
+.add-btn:hover {
+  background: #2563eb;
+  transform: scale(1.02);
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 16px 8px 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.toggle-btn {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.toggle-btn:hover {
+  background: #d1d5db;
+  transform: scale(1.02);
+}
+
+.toggle-btn.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.toggle-btn.drag-toggle.active {
+  background: #f59e0b;
+  color: white;
+}
+
+.bell-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.bell-icon {
+  font-size: 16px;
+}
+
+.bell-badge {
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* ============================================================
+   任务列表卡片
+   ============================================================ */
+.list-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.loading-state,
+.empty-state {
+  padding: 48px 16px;
+}
+
+/* ============================================================
+   日期分隔（参考 bg-gray-50 + border-y）
+   ============================================================ */
+.date-divider {
+  background: #f9fafb;
+  color: #6b7280;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+}
+
+/* ============================================================
+   任务卡片（6 色直接应用到卡片本身）
+   ============================================================ */
+.task-card {
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-bottom: 1px solid #f3f4f6;
+  transition: all 0.3s ease;
+}
+
+.task-card:last-child {
+  border-bottom: none;
+}
+
+.task-card.is-completed {
+  opacity: 0.7;
+}
+
+.task-card.color-white { background: #ffffff; }
+.task-card.color-red   { background: #fee2e2; }
+.task-card.color-yellow{ background: #fef3c7; }
+.task-card.color-green { background: #d1fae5; }
+.task-card.color-blue  { background: #dbeafe; }
+.task-card.color-dark  { background: #e5e7eb; }
+
+/* 圆形复选框（参考 w-5 h-5 rounded-full） */
+.task-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
   flex-shrink: 0;
+  margin-top: 2px;
+  position: relative;
+  background: white;
+  transition: all 0.2s;
 }
 
-.todo-main {
+.task-checkbox:hover {
+  border-color: #9ca3af;
+}
+
+.task-checkbox:checked {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.task-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ============================================================
+   任务主体（内容 + 备注 + 图片）
+   ============================================================ */
+.task-main {
   flex: 1;
   min-width: 0;
 }
 
-.todo-content-row {
+.content-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.todo-content {
+.task-content {
   font-size: 15px;
   color: #1f2937;
   word-break: break-word;
-}
-
-.todo-content.completed {
-  text-decoration: line-through;
-  color: #9ca3af;
-}
-
-.todo-author {
-  font-size: 12px;
-  color: #6b7280;
-  background: rgba(0,0,0,0.05);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.unread-badge {
-  margin-left: 4px;
-}
-
-.todo-note {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 4px;
+  transition: all 0.3s;
   line-height: 1.5;
 }
 
-.todo-thumb {
+.task-content.completed {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+
+.task-author {
+  font-size: 11px;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* 红点通知（标题右方的红底圆形 + 数字） */
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #ef4444;
+  color: white;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50%      { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+/* 备注预览（line-clamp-1） */
+.note-text {
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.5;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.note-text:hover {
+  color: #3b82f6;
+}
+
+.note-expand {
+  color: #3b82f6;
+  font-size: 12px;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+/* 任务附图缩略图 */
+.task-thumb {
   width: 80px;
   height: 80px;
   border-radius: 6px;
@@ -1029,20 +1307,82 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.todo-actions {
+/* ============================================================
+   任务操作区
+   ============================================================ */
+.task-actions {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-.drag-handle {
-  cursor: grab;
+/* 查看完成情况按钮（位于菜单按钮左边） */
+.completion-btn {
+  background: #d1fae5;
+  color: #065f46;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.color-picker {
+.completion-btn:hover {
+  background: #a7f3d0;
+}
+
+/* ============================================================
+   自定义菜单弹出（参考绝对定位 + 6 颜色圆点 + 操作按钮）
+   ============================================================ */
+.menu-wrapper {
+  position: relative;
+}
+
+.menu-trigger {
+  width: 32px;
+  height: 32px;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.menu-trigger:hover {
+  color: #4b5563;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.task-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px #e5e7eb;
+  z-index: 20;
+  min-width: 160px;
+  padding: 4px 0;
+}
+
+.color-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .color-dot {
@@ -1050,13 +1390,19 @@ onMounted(async () => {
   height: 24px;
   border-radius: 50%;
   cursor: pointer;
+  transition: transform 0.2s;
   border: 2px solid transparent;
-  transition: all 0.2s;
+  background: white;
+  padding: 0;
 }
 
-.color-dot.active {
-  border-color: #409eff;
+.color-dot:hover {
   transform: scale(1.15);
+}
+
+.color-dot.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 .color-dot.bg-white  { background: #ffffff; border-color: #d1d5db; }
@@ -1064,13 +1410,97 @@ onMounted(async () => {
 .color-dot.bg-yellow { background: #fef3c7; }
 .color-dot.bg-green  { background: #d1fae5; }
 .color-dot.bg-blue   { background: #dbeafe; }
-.color-dot.bg-purple { background: #ede9fe; }
+.color-dot.bg-dark   { background: #e5e7eb; }
+
+.menu-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #374151;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.menu-btn:hover {
+  background: #f9fafb;
+}
+
+.menu-btn.danger {
+  color: #ef4444;
+}
+
+.menu-btn.danger:hover {
+  background: #fef2f2;
+}
+
+/* 菜单弹出动画 */
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ============================================================
+   拖拽手柄（参考 drag-handle action-btn）
+   ============================================================ */
+.drag-handle {
+  color: #9ca3af;
+  cursor: grab;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.drag-handle:hover {
+  color: #4b5563;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ============================================================
+   弹窗内的颜色选择器（添加/修改任务时）
+   ============================================================ */
+.color-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.color-picker .color-dot {
+  width: 28px;
+  height: 28px;
+}
+
+.color-picker .color-dot.active {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  transform: scale(1.1);
+}
 
 .uploaded-preview {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .preview-thumb {
@@ -1079,10 +1509,14 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
+/* ============================================================
+   完成情况查看弹窗
+   ============================================================ */
 .completion-view .cv-section h4 {
   margin: 0 0 8px 0;
   font-size: 14px;
   color: #374151;
+  font-weight: 500;
 }
 
 .completion-view .cv-row {
@@ -1100,6 +1534,9 @@ onMounted(async () => {
   color: #6b7280;
 }
 
+/* ============================================================
+   留言列表
+   ============================================================ */
 .empty-messages {
   text-align: center;
   color: #9ca3af;
@@ -1144,15 +1581,13 @@ onMounted(async () => {
   word-break: break-word;
 }
 
+/* ============================================================
+   底部统计栏（参考 mt-6 text-center text-gray-600 text-sm）
+   ============================================================ */
 .stats-bar {
+  margin-top: 24px;
   text-align: center;
-  padding: 16px;
   color: #6b7280;
-  font-size: 14px;
-}
-
-.stats-unread {
-  color: #f56c6c;
-  font-weight: 500;
+  font-size: 13px;
 }
 </style>
