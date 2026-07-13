@@ -78,6 +78,8 @@ def create_app(port=5000):
         from .models.task_visibility import TaskVisibility
         from .models.task_like import TaskLike
         from .models.task_history import TaskHistory
+        # 待办事项模块（todo）
+        from .models.todo import Todo, TodoMessage, TodoMessageRead
         # 模块可见性配置（管理员可在主页隐藏某些模块菜单项）
         from .models.module_visibility import ModuleVisibility
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
@@ -184,6 +186,10 @@ def create_app(port=5000):
         # 注册任务跟踪相关路由蓝图
         from .routes.task_routes import task_bp
         app.register_blueprint(task_bp, url_prefix='/api')
+
+        # 注册待办事项相关路由蓝图
+        from .routes.todo_routes import todo_bp
+        app.register_blueprint(todo_bp, url_prefix='/api')
 
         # 注册管理员模块可见性路由蓝图（主页模块隐藏/显示开关）
         from .routes.admin_module_routes import admin_module_bp

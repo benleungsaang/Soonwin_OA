@@ -199,6 +199,10 @@
                       <el-icon><List /></el-icon>
                       <span>任务跟踪</span>
                     </el-menu-item>
+                    <el-menu-item index="23" @click="goToTodo" v-if="hasToken && permissions.todoManage && !hiddenModules.includes('todoManage')">
+                      <el-icon><Tickets /></el-icon>
+                      <span>待办事项</span>
+                    </el-menu-item>
                   </el-menu>
                   <!-- 登录按钮：未登录时显示在其它功能列底部 -->
                   <el-menu class="menu-list login-menu" v-if="!hasToken">
@@ -230,7 +234,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box, Setting
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box, Setting, Tickets
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -305,7 +309,7 @@ const hiddenModules = ref<string[]>([]);
 const moduleGroupMap: Record<string, string[]> = {
   resource: ['photoManage', 'videoManage', 'machineManage', 'expenseManage', 'employeeManage'],
   order:    ['inquiriesManage', 'orderManage', 'orderStatusManage', 'quotationManage', 'orderRecordManage', 'customerManage'],
-  other:    ['punchManage', 'punchRecordsManage', 'displayFilesManage', 'attendanceManage', 'blogManage', 'containerLayoutManage', 'taskTrackManage'],
+  other:    ['punchManage', 'punchRecordsManage', 'displayFilesManage', 'attendanceManage', 'blogManage', 'containerLayoutManage', 'taskTrackManage', 'todoManage'],
 };
 
 /** 弹窗分组定义（显示标题 + key 列表） */
@@ -439,7 +443,8 @@ const permissionMap = {
   customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
   blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' },
   containerLayoutManage: { key: 'container_layout_manage', name: '货柜排布', path: '/container-layout' },
-  taskTrackManage: { key: 'task_track_manage', name: '任务跟踪', path: '/task-track' }
+  taskTrackManage: { key: 'task_track_manage', name: '任务跟踪', path: '/task-track' },
+  todoManage: { key: 'todo_manage', name: '待办事项', path: '/todo' }
 };
 
 // 动态生成权限计算属性（替代原来的多个零散computed）
@@ -494,6 +499,7 @@ const goToCustomerManage = () => navigateToPage('customerManage');
 const goToBlog = () => navigateToPage('blogManage');
 const goToContainerLayout = () => navigateToPage('containerLayoutManage');
 const goToTaskTrack = () => navigateToPage('taskTrackManage');
+const goToTodo = () => navigateToPage('todoManage');
 
 // 折叠/展开切换方法
 const toggleCollapse = (column: 'resource' | 'order' | 'other') => {

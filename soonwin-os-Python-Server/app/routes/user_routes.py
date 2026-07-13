@@ -558,6 +558,7 @@ def get_all_routes():
             "blog_manage": "工作记录",
             "container_layout_manage": "货柜排布",
             "task_track_manage": "任务跟踪",
+            "todo_manage": "待办事项",
         }
 
         # 从常量中获取所有路由

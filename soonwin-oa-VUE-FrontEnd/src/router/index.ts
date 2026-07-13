@@ -25,6 +25,7 @@ const QuotationManagementView = () => import('@/views/QuotationManagementView.vu
 const BlogManagementView = () => import('@/views/BlogManagementView.vue');
 const ContainerLayoutView = () => import('@/views/ContainerLayoutView.vue');
 const TaskTrackView = () => import('@/views/TaskTrackView.vue');
+const TodoListView = () => import('@/views/todo/TodoListView.vue');
 
 
 
@@ -200,6 +201,12 @@ const routes: RouteRecordRaw[] = [
     name: 'taskTrack',
     component: TaskTrackView,
     meta: { title: '任务跟踪', requiresAuth: true }
+  },
+  {
+    path: '/todo',
+    name: 'todo',
+    component: TodoListView,
+    meta: { title: '待办事项', requiresAuth: true }
   },
 
 
