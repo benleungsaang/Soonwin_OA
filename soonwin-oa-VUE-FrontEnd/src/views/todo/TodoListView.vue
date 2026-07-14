@@ -1159,7 +1159,7 @@ onBeforeUnmount(() => {
 /* ============================================================
    图片边框 & 灯箱
    ============================================================ */
-.img-border { border: 2px solid #e5e7eb; border-radius: 6px; }
+.img-border { border: 4px solid #e5e7eb; border-radius: 6px; }
 
 .item-thumb:hover { cursor: pointer; }
 
