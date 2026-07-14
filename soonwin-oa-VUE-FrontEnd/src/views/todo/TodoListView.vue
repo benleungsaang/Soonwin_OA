@@ -105,7 +105,7 @@
     <!-- ============================================================
          详情弹窗（左轨时间线 + V2 边框块 + V4 行内输入）
          ============================================================ -->
-    <el-dialog v-model="viewDialogVisible" title="任务详情" width="520px" top="8vh" @closed="onDetailClosed">
+    <el-dialog v-model="viewDialogVisible" title="任务详情" width="640px" top="8vh" @closed="onDetailClosed">
       <div class="da-outer">
         <div class="da-rail">
           <div class="da-rail-line"></div>
@@ -271,10 +271,11 @@
       </template>
     </el-dialog>
 
-    <!-- ============ 图片灯箱（点击空白处关闭） ============ -->
+    <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <div v-if="imageViewerVisible" class="lightbox-overlay" @click="imageViewerVisible=false">
-      <img :src="resolveAssetUrl(imageViewerUrl)" class="lightbox-image" @click.stop />
-      <button class="lightbox-close" @click="imageViewerVisible=false">✕</button>
+      <div class="lightbox-viewer" @click.stop>
+        <el-image-viewer :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
+      </div>
     </div>
   </div>
 </template>
@@ -1158,24 +1159,22 @@ onBeforeUnmount(() => {
 /* ============================================================
    图片边框 & 灯箱
    ============================================================ */
-.img-border { border: 1px solid #e5e7eb; border-radius: 6px; }
+.img-border { border: 2px solid #e5e7eb; border-radius: 6px; }
+
+.item-thumb:hover { cursor: pointer; }
 
 .lightbox-overlay {
   position: fixed; inset: 0; z-index: 9999;
   background: rgba(0,0,0,0.85);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; padding: 40px;
+  cursor: default;
 }
-.lightbox-image {
-  max-width: 90vw; max-height: 90vh; object-fit: contain;
-  border-radius: 8px; cursor: default;
+.lightbox-viewer {
+  position: fixed; inset: 0; z-index: 10000;
 }
-.lightbox-close {
-  position: absolute; top: 20px; right: 24px;
-  width: 40px; height: 40px; border-radius: 50%;
-  background: rgba(255,255,255,0.15); color: white;
-  border: none; font-size: 18px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-}
-.lightbox-close:hover { background: rgba(255,255,255,0.3); }
+</style>
+
+<style>
+/* 图片灯箱内 cursor 样式（非 scoped 穿透 el-image-viewer） */
+.lightbox-overlay .el-image-viewer__img { cursor: grab; }
+.lightbox-overlay .el-image-viewer__img:active { cursor: grabbing; }
 </style>
