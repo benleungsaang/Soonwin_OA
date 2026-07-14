@@ -169,8 +169,7 @@
           <div class="ntc-toolbar">
             <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiC=!ntEmojiC" title="插入 emoji">😊</button>
             <button type="button" class="ntc-tool-btn" @click="ntImgC=ntImgC?'':thumbRandom()" title="添加图片">🖼️</button>
-            <div class="ntc-tool-spacer"></div>
-            <span class="ntc-date-chip">{{ ntDate }}</span>
+            <input v-model="ntDate" type="date" class="ntc-date-input" />
             <div class="ntc-color-chip" :class="'bg-'+ntColor"></div>
           </div>
           <div v-show="ntEmojiC" class="ntc-emoji-pop" @click.stop><emoji-picker class="ntc-ep" @emoji-click="e=>ntContent+=e.detail.emoji.unicode" /></div>
@@ -815,11 +814,14 @@ function a1dSend() {
   a1dEmojiVisible.value = false
 }
 
-// 点击外部关闭 emoji picker
+// 点击外部关闭 emoji picker（处理 V4 + C 弹窗两个 emoji）
 function onDocClickEmoji(e: MouseEvent) {
   const t = e.target as HTMLElement
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) {
     a1dEmojiVisible.value = false
+  }
+  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) {
+    ntEmojiC.value = false
   }
 }
 
@@ -1496,18 +1498,20 @@ watch(newTaskType, (v) => {
   color: #9ca3af; cursor: pointer; font-size: 18px; transition: all 0.15s;
 }
 .ntc-tool-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
-.ntc-tool-spacer { flex: 1; }
-.ntc-date-chip {
-  font-size: 12px; color: #6b7280; background: #f3f4f6;
-  padding: 2px 10px; border-radius: 10px;
+.ntc-date-input {
+  border: none; outline: none; font-size: 12px; color: #6b7280;
+  background: #f3f4f6; padding: 3px 10px; border-radius: 10px;
+  margin-left: 4px; cursor: pointer;
 }
+.ntc-date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.5; }
 .ntc-color-chip {
   width: 16px; height: 16px; border-radius: 50%;
   border: 2px solid white; box-shadow: 0 0 0 1px #e5e7eb;
 }
 
 .ntc-emoji-pop {
-  position: absolute; bottom: 50px; left: 0; z-index: 200;
+  position: absolute; bottom: 100%; left: 0; z-index: 200;
+  margin-bottom: 4px;
 }
 .ntc-ep { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; }
 
