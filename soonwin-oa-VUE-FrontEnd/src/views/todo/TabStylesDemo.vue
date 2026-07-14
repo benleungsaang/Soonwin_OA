@@ -160,18 +160,17 @@
       <!-- ===== 弹窗 C · 聊天式 ===== -->
       <el-dialog v-model="newTaskOpenC" title="新建任务" width="500px" top="10vh">
         <div class="ntc-body">
-          <!-- 标题行（带 emoji 按钮） -->
+          <!-- 标题行 -->
           <div class="ntc-title-row">
-            <input v-model="ntTitle" ref="ntTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" />
-            <button type="button" class="ntc-title-emoji-btn" @click.stop="ntEmojiTarget='title'; ntEmojiC=!ntEmojiC" title="插入 emoji 到标题">😊</button>
+            <input v-model="ntTitle" ref="ntTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" @focus="ntFocused='title'" @blur="ntFocused=''" />
           </div>
           <div class="ntc-sep"></div>
           <div class="ntc-content-area">
-            <textarea v-model="ntContent" ref="ntContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500"></textarea>
+            <textarea v-model="ntContent" ref="ntContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500" @focus="ntFocused='content'" @blur="ntFocused=''"></textarea>
           </div>
-          <!-- 附件条 -->
+          <!-- 附件条（唯一 😊 按钮，自动插入到当前焦点所在字段） -->
           <div class="ntc-toolbar">
-            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiTarget='content'; ntEmojiC=!ntEmojiC" title="插入 emoji 到内容">😊</button>
+            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiC=!ntEmojiC" title="插入 emoji">😊</button>
             <button type="button" class="ntc-tool-btn" @click="ntImgC=ntImgC?'':thumbRandom()" title="添加图片">🖼️</button>
             <input v-model="ntDate" type="date" class="ntc-date-input" />
             <div class="ntc-color-chip" :class="'bg-'+ntColor"></div>
@@ -851,13 +850,13 @@ const ntImgC = ref('')
 const ntEmojiA = ref(false)
 const ntEmojiB = ref(false)
 const ntEmojiC = ref(false)
-const ntEmojiTarget = ref<'title'|'content'>('content')
+const ntFocused = ref<'title'|'content'|''>('content')
 const ntTitleRef = ref<HTMLInputElement|null>(null)
 const ntContentRef = ref<HTMLTextAreaElement|null>(null)
 
 function ntInsertEmoji(event: any) {
   const emoji = event.detail.emoji.unicode
-  const target = ntEmojiTarget.value
+  const target = ntFocused.value || 'content'
   const el = target === 'title' ? ntTitleRef.value : ntContentRef.value
   if (el) {
     const start = el.selectionStart ?? 0
@@ -1514,13 +1513,6 @@ watch(newTaskType, (v) => {
   font-size: 18px; font-weight: 600; color: #1f2937;
 }
 .ntc-title-input::placeholder { color: #d1d5db; font-weight: 400; }
-.ntc-title-emoji-btn {
-  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 6px; background: transparent;
-  font-size: 18px; cursor: pointer; color: #9ca3af; transition: all 0.15s;
-  flex-shrink: 0; margin-bottom: 6px;
-}
-.ntc-title-emoji-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
 .ntc-sep { height: 12px; }
 .ntc-content-area { }
 .ntc-textarea {
