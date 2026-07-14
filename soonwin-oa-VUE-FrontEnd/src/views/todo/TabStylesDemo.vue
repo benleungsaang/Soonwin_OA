@@ -52,16 +52,16 @@
            ============================================================ -->
       <section class="demo-section">
         <h2 class="section-title">
-          <span class="section-badge">▼</span>
-          详情弹窗样式投票
-          <span class="section-sub">—— 同一数据，三种布局，请选择你最喜欢的一款</span>
+          <span class="section-badge selected-badge">★</span>
+          详情弹窗样式 <span class="selected-label">已选用 A</span>
+          <span class="section-sub">—— 左轨时间线，内容卡片浅灰背景+边框</span>
         </h2>
 
         <!-- 三列预览按钮 -->
         <div class="detail-preview-row">
-          <button class="preview-card" @click="openDialog('a')">
+          <button class="preview-card preview-chosen" @click="openDialog('a')">
             <span class="preview-badge" style="background:#6366f1">A</span>
-            <span class="preview-label">左轨时间线</span>
+            <span class="preview-label">左轨时间线 <span class="chosen-tag">已选用</span></span>
             <span class="preview-desc">卡片左侧时间线导轨·内容自由流淌</span>
           </button>
           <button class="preview-card" @click="openDialog('b')">
@@ -432,6 +432,23 @@ function openDialog(which:'a'|'b'|'c') {
 .preview-label { font-size:14px; font-weight:600; color:#1f2937; }
 .preview-desc { font-size:12px; color:#9ca3af; }
 
+/* 已选中的预览卡 */
+.preview-chosen {
+  border-color: #6366f1 !important;
+  background: #f5f3ff !important;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.12);
+}
+.chosen-tag {
+  font-size: 10px;
+  font-weight: 600;
+  background: #6366f1;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 /* ============================================================
    功能说明卡
    ============================================================ */
@@ -488,10 +505,14 @@ function openDialog(which:'a'|'b'|'c') {
   margin-bottom: -2px;
 }
 
-/* 卡片 */
+/* 卡片（浅灰背景 + 边框，包围内容部分，不含时间线和弹窗标题） */
 .da-card {
   flex: 1;
   min-width: 0;
+  background: #f8f9fb;
+  border: 1px solid #e8eaee;
+  border-radius: 10px;
+  padding: 16px 18px;
 }
 
 .da-top {
@@ -519,7 +540,8 @@ function openDialog(which:'a'|'b'|'c') {
 .da-note-text {
   font-size: 14px;
   color: #4b5563;
-  background: #f9fafb;
+  background: #ffffff;
+  border: 1px solid #e8eaee;
   padding: 10px 14px;
   border-radius: 8px;
   line-height: 1.7;
@@ -542,7 +564,8 @@ function openDialog(which:'a'|'b'|'c') {
 .da-comp-note {
   font-size: 14px;
   color: #374151;
-  background: #f0fdf4;
+  background: #ffffff;
+  border: 1px solid #d1fae5;
   padding: 8px 12px;
   border-radius: 8px;
   line-height: 1.6;
