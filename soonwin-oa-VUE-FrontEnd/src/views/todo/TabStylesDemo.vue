@@ -162,15 +162,15 @@
         <div class="ntc-body">
           <!-- 标题行 -->
           <div class="ntc-title-row">
-            <input v-model="ntTitle" ref="ntTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" @focus="ntFocused='title'" @blur="ntFocused=''" />
+            <input v-model="ntTitle" ref="ntTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" @focus="ntLastFocus='title'" />
           </div>
           <div class="ntc-sep"></div>
           <div class="ntc-content-area">
-            <textarea v-model="ntContent" ref="ntContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500" @focus="ntFocused='content'" @blur="ntFocused=''"></textarea>
+            <textarea v-model="ntContent" ref="ntContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500" @focus="ntLastFocus='content'"></textarea>
           </div>
           <!-- 附件条（唯一 😊 按钮，自动插入到当前焦点所在字段） -->
           <div class="ntc-toolbar">
-            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiC=!ntEmojiC" title="插入 emoji">😊</button>
+            <button type="button" class="ntc-tool-btn" @click.stop="onNtcEmojiClick" title="插入 emoji">😊</button>
             <button type="button" class="ntc-tool-btn" @click="ntImgC=ntImgC?'':thumbRandom()" title="添加图片">🖼️</button>
             <input v-model="ntDate" type="date" class="ntc-date-input" />
             <div class="ntc-color-chip" :class="'bg-'+ntColor"></div>
@@ -207,6 +207,71 @@
         </h2>
         <div class="demo-card">
           <ListStyle02 :items="filteredItems" />
+        </div>
+      </section>
+
+      <!-- ============================================================
+           搜索栏方案投票
+           ============================================================ -->
+      <section class="demo-section">
+        <h2 class="section-title">
+          <span class="section-badge" style="background:#0891b2">🔍</span>
+          搜索栏方案投票
+          <span class="section-sub">—— Enter 触发搜索，输入后右侧显示清除按钮</span>
+        </h2>
+        <p class="supplement-intro">三种搜索栏样式，按 Enter 才触发搜索，文字清除按钮在输入内容后出现。</p>
+
+        <div class="detail-preview-row">
+          <button class="preview-card" @click="srDemo='a'">
+            <span class="preview-badge" style="background:#6366f1">A</span>
+            <span class="preview-label">简约圆角式</span>
+            <span class="preview-desc">圆角白底，图标+输入+清除完整</span>
+          </button>
+          <button class="preview-card" @click="srDemo='b'">
+            <span class="preview-badge" style="background:#0891b2">B</span>
+            <span class="preview-label">分段式</span>
+            <span class="preview-desc">搜索标签+输入框+操作区</span>
+          </button>
+          <button class="preview-card" @click="srDemo='c'">
+            <span class="preview-badge" style="background:#7c3aed">C</span>
+            <span class="preview-label">卡片内嵌式</span>
+            <span class="preview-desc">卡片容器，柔和灰底</span>
+          </button>
+        </div>
+
+        <!-- A · 简约圆角 -->
+        <div v-if="srDemo==='a'" class="demo-card sr-demo-card">
+          <div class="sr-demo-header">方案 A · 简约圆角式</div>
+          <div class="sr-a">
+            <svg class="sr-a-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input v-model="srAInput" class="sr-a-input" placeholder="搜索任务..." @keypress.enter="srSearch('A')" />
+            <button v-if="srAInput" class="sr-a-clear" @click="srAInput=''">清除</button>
+          </div>
+          <div class="sr-demo-note">圆角 10px，蓝色边框聚焦，清除按钮灰底</div>
+        </div>
+
+        <!-- B · 分段式 -->
+        <div v-if="srDemo==='b'" class="demo-card sr-demo-card">
+          <div class="sr-demo-header">方案 B · 分段式</div>
+          <div class="sr-b">
+            <span class="sr-b-tag">搜索</span>
+            <input v-model="srBInput" class="sr-b-input" placeholder="输入关键词，Enter 搜索" @keypress.enter="srSearch('B')" />
+            <button v-if="srBInput" class="sr-b-clear" @click="srBInput=''">✕ 清除</button>
+          </div>
+          <div class="sr-demo-note">左侧"搜索"标签，取消/清除按钮在右侧</div>
+        </div>
+
+        <!-- C · 卡片内嵌式 -->
+        <div v-if="srDemo==='c'" class="demo-card sr-demo-card">
+          <div class="sr-demo-header">方案 C · 卡片内嵌式</div>
+          <div class="sr-c">
+            <div class="sr-c-inner">
+              <svg class="sr-c-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input v-model="srCInput" class="sr-c-input" placeholder="按 Enter 搜索任务…" @keypress.enter="srSearch('C')" />
+              <button v-if="srCInput" class="sr-c-clear" @click="srCInput=''">清除</button>
+            </div>
+          </div>
+          <div class="sr-demo-note">卡片式容器，柔和灰底，聚焦时边框高亮</div>
         </div>
       </section>
 
@@ -850,13 +915,18 @@ const ntImgC = ref('')
 const ntEmojiA = ref(false)
 const ntEmojiB = ref(false)
 const ntEmojiC = ref(false)
-const ntFocused = ref<'title'|'content'|''>('content')
+const ntLastFocus = ref<'title'|'content'>('content')
 const ntTitleRef = ref<HTMLInputElement|null>(null)
 const ntContentRef = ref<HTMLTextAreaElement|null>(null)
 
+function onNtcEmojiClick() {
+  ntEmojiC.value = !ntEmojiC.value
+}
+
 function ntInsertEmoji(event: any) {
   const emoji = event.detail.emoji.unicode
-  const target = ntFocused.value || 'content'
+  // 根据 @focus 记录的最后焦点字段插入
+  const target = ntLastFocus.value
   const el = target === 'title' ? ntTitleRef.value : ntContentRef.value
   if (el) {
     const start = el.selectionStart ?? 0
@@ -898,6 +968,18 @@ watch(newTaskType, (v) => {
   else if (v==='b') newTaskOpenB.value = true
   else newTaskOpenC.value = true
 })
+
+// ===== 搜索栏 Demo =====
+const srDemo = ref('a')
+const srAInput = ref('')
+const srBInput = ref('')
+const srCInput = ref('')
+
+function srSearch(which:string) {
+  const val = which==='A' ? srAInput.value : which==='B' ? srBInput.value : srCInput.value
+  if (!val.trim()) { ElMessage.warning('请输入搜索关键词'); return }
+  ElMessage.success(`搜索「${val.trim()}」（模拟）`)
+}
 </script>
 
 <style scoped>
@@ -1565,6 +1647,90 @@ watch(newTaskType, (v) => {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6;
 }
 .ntc-color-label { font-size: 12px; color: #9ca3af; margin-right: 4px; }
+
+/* ============================================================
+   搜索栏 Demo 样式
+   ============================================================ */
+.sr-demo-card { margin-top: 14px; padding: 0; overflow: hidden; }
+.sr-demo-header {
+  font-size: 13px; font-weight: 600; color: #6b7280;
+  padding: 10px 16px; background: #fafafa; border-bottom: 1px solid #f3f4f6;
+}
+.sr-demo-note {
+  font-size: 12px; color: #9ca3af;
+  padding: 8px 16px 12px; border-top: 1px solid #f3f4f6;
+}
+
+/* A · 简约圆角 */
+.sr-a {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px;
+}
+.sr-a-icon {
+  flex-shrink: 0; color: #9ca3af;
+}
+.sr-a-input {
+  flex: 1; padding: 8px 0; border: none; outline: none;
+  font-size: 14px; color: #1f2937;
+}
+.sr-a-input::placeholder { color: #d1d5db; }
+.sr-a-clear {
+  flex-shrink: 0; padding: 4px 12px; border: none; border-radius: 6px;
+  background: #f3f4f6; color: #6b7280; font-size: 12px; cursor: pointer;
+  transition: all 0.15s;
+}
+.sr-a-clear:hover { background: #e5e7eb; color: #374151; }
+
+/* B · 分段式 */
+.sr-b {
+  display: flex; align-items: center;
+  padding: 10px 16px; gap: 0;
+}
+.sr-b-tag {
+  font-size: 13px; font-weight: 500; color: #3b82f6;
+  background: #eff6ff; padding: 6px 14px; border-radius: 8px 0 0 8px;
+  white-space: nowrap; border: 1px solid #dbeafe; border-right: none;
+}
+.sr-b-input {
+  flex: 1; padding: 6px 12px; border: 1px solid #d1d5db; border-left: none; border-right: none;
+  outline: none; font-size: 14px; color: #1f2937; min-width: 0;
+}
+.sr-b-input:focus { border-color: #3b82f6; }
+.sr-b-input::placeholder { color: #d1d5db; }
+.sr-b-clear {
+  flex-shrink: 0; padding: 6px 14px; border: 1px solid #d1d5db; border-left: none;
+  border-radius: 0 8px 8px 0; background: white; color: #ef4444;
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.sr-b-clear:hover { background: #fef2f2; }
+
+/* C · 卡片内嵌式 */
+.sr-c {
+  padding: 14px 16px;
+}
+.sr-c-inner {
+  display: flex; align-items: center; gap: 8px;
+  background: #f3f4f6; border-radius: 10px; padding: 6px 12px;
+  border: 2px solid transparent; transition: all 0.2s;
+}
+.sr-c-inner:focus-within {
+  background: white; border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
+}
+.sr-c-icon {
+  flex-shrink: 0; color: #9ca3af;
+}
+.sr-c-input {
+  flex: 1; padding: 6px 0; border: none; outline: none;
+  font-size: 14px; color: #1f2937; background: transparent;
+}
+.sr-c-input::placeholder { color: #9ca3af; }
+.sr-c-clear {
+  flex-shrink: 0; padding: 4px 12px; border: none; border-radius: 6px;
+  background: #e5e7eb; color: #6b7280; font-size: 12px; cursor: pointer;
+  transition: all 0.15s;
+}
+.sr-c-clear:hover { background: #d1d5db; }
 
 /* ============================================================
    V4 · 边框块+行内输入
