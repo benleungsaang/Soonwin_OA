@@ -26,6 +26,7 @@ const BlogManagementView = () => import('@/views/BlogManagementView.vue');
 const ContainerLayoutView = () => import('@/views/ContainerLayoutView.vue');
 const TaskTrackView = () => import('@/views/TaskTrackView.vue');
 const TodoListView = () => import('@/views/todo/TodoListView.vue');
+const TabStylesDemo = () => import('@/views/todo/TabStylesDemo.vue');
 
 
 
@@ -207,6 +208,12 @@ const routes: RouteRecordRaw[] = [
     name: 'todo',
     component: TodoListView,
     meta: { title: '待办事项', requiresAuth: true }
+  },
+  {
+    path: '/todo/tab-demo',
+    name: 'todoTabDemo',
+    component: TabStylesDemo,
+    meta: { title: '选项卡样式 Demo', requiresAuth: true }
   },
 
 
