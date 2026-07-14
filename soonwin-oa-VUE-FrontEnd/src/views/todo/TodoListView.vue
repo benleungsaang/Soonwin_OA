@@ -60,8 +60,11 @@
                 <span class="item-text" :class="{ done: todo.status === 'completed' }">{{ todo.content }}</span>
               </div>
 
-              <!-- 缩略图 -->
-              <img v-if="todo.image_url" :src="resolveAssetUrl(todo.image_url, 'thumbnail')" class="item-thumb img-border" alt="附图" @click.stop="openImageViewer(todo.image_url)" />
+              <!-- 缩略图（固定位置占位，无图时留空保持对齐） -->
+              <span class="thumb-area">
+                <img v-if="todo.image_url" :src="resolveAssetUrl(todo.image_url, 'thumbnail')" class="item-thumb img-border" alt="附图" @click.stop="openImageViewer(todo.image_url)" />
+                <span v-else class="thumb-placeholder"></span>
+              </span>
 
               <!-- 作者 -->
               <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
@@ -272,11 +275,7 @@
     </el-dialog>
 
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
-    <div v-if="imageViewerVisible" class="lightbox-overlay" @click="imageViewerVisible=false">
-      <div class="lightbox-viewer" @click.stop>
-        <el-image-viewer :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
-      </div>
-    </div>
+    <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
   </div>
 </template>
 
@@ -1162,19 +1161,17 @@ onBeforeUnmount(() => {
 .img-border { border: 4px solid #e5e7eb; border-radius: 6px; }
 
 .item-thumb:hover { cursor: pointer; }
+.da-thumb:hover { cursor: pointer; }
 
-.lightbox-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: rgba(0,0,0,0.85);
-  cursor: default;
-}
-.lightbox-viewer {
-  position: fixed; inset: 0; z-index: 10000;
-}
+/* 缩略图固定占位（无论有无图片，对齐不受作者名影响） */
+.thumb-area { flex-shrink: 0; width: 56px; display: flex; align-items: center; justify-content: center; }
+.thumb-placeholder { width: 48px; height: 36px; display: block; }
+.item-thumb { display: block; }
+
 </style>
 
 <style>
-/* 图片灯箱内 cursor 样式（非 scoped 穿透 el-image-viewer） */
-.lightbox-overlay .el-image-viewer__img { cursor: grab; }
-.lightbox-overlay .el-image-viewer__img:active { cursor: grabbing; }
+/* 图片灯箱内 grab 光标（非 scoped 穿透 el-image-viewer） */
+.el-image-viewer__img { cursor: grab !important; }
+.el-image-viewer__img:active { cursor: grabbing !important; }
 </style>
