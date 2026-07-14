@@ -60,19 +60,19 @@
         <!-- 三列预览按钮 -->
         <div class="detail-preview-row">
           <button class="preview-card" @click="openDialog('a')">
-            <span class="preview-badge" style="background:#3b82f6">A</span>
-            <span class="preview-label">清爽两栏式</span>
-            <span class="preview-desc">左标签·右数值·横线分隔</span>
+            <span class="preview-badge" style="background:#6366f1">A</span>
+            <span class="preview-label">左轨时间线</span>
+            <span class="preview-desc">卡片左侧时间线导轨·内容自由流淌</span>
           </button>
           <button class="preview-card" @click="openDialog('b')">
-            <span class="preview-badge" style="background:#059669">B</span>
-            <span class="preview-label">卡片分层式</span>
-            <span class="preview-desc">分区面板·左色条·现代感</span>
+            <span class="preview-badge" style="background:#0891b2">B</span>
+            <span class="preview-label">流式时间线</span>
+            <span class="preview-desc">节点贯穿内容·分段但不分卡·圆点标记</span>
           </button>
           <button class="preview-card" @click="openDialog('c')">
-            <span class="preview-badge" style="background:#d97706">C</span>
-            <span class="preview-label">信息时间线式</span>
-            <span class="preview-desc">纵向时间线·圆点标记·流畅</span>
+            <span class="preview-badge" style="background:#7c3aed">C</span>
+            <span class="preview-label">卡片融合式</span>
+            <span class="preview-desc">彩色侧边栏·信息流式垂直排列</span>
           </button>
         </div>
       </section>
@@ -94,218 +94,160 @@
     </div>
 
     <!-- ============================================================
-         样式 A：清爽两栏式
+         样式 A：左轨时间线 — 卡片左侧时间线导轨，内容自由流淌
          ============================================================ -->
     <el-dialog v-model="dialogA.visible" title="任务详情" width="520px" top="8vh">
-      <div class="da-body">
-        <!-- 顶栏：状态标签 -->
-        <div class="da-topbar">
-          <span
-            class="da-status"
-            :class="demoItem.status === 'completed' ? 'da-done' : 'da-pending'"
-          >
-            {{ demoItem.status === 'completed' ? '✓ 已完成' : '● 待完成' }}
-          </span>
-          <span class="da-color-tag">
-            <span class="da-dot" :class="'dot-' + demoItem.color"></span>
-            {{ colorLabel(demoItem.color) }}
-          </span>
-          <span class="da-author-label">{{ demoItem.author }}</span>
+      <div class="da-outer">
+        <!-- 时间线导轨（固定左侧） -->
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
         </div>
 
-        <div class="da-fields">
-          <div class="da-row">
-            <span class="da-label">任务内容</span>
-            <span class="da-val da-content">{{ demoItem.content }}</span>
+        <!-- 卡片内容 -->
+        <div class="da-card">
+          <!-- 顶栏 -->
+          <div class="da-top">
+            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+            </span>
+            <span class="da-date">{{ demoItem.date }}</span>
+            <span class="da-author">{{ demoItem.author }}</span>
           </div>
-          <div class="da-row">
-            <span class="da-label">所属日期</span>
-            <span class="da-val">{{ demoItem.date }}</span>
-          </div>
-          <div class="da-row">
-            <span class="da-label">任务备注</span>
-            <span class="da-val da-note">{{ demoItem.note }}</span>
-          </div>
-          <div v-if="demoItem.image_url" class="da-row da-row-img">
-            <span class="da-label">任务附图</span>
-            <div class="d-thumb" :style="{ background: thumbBg(demoItem) }">
+
+          <!-- 主题（无标签） -->
+          <div class="da-subject">{{ demoItem.content }}</div>
+
+          <!-- 备注（直接跟在主题下，无标题） -->
+          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+
+          <!-- 附图（无标题） -->
+          <div v-if="demoItem.image_url" class="da-img-wrap">
+            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
               <span class="d-thumb-icon">🖼️</span>
-            </div>
-          </div>
-
-          <template v-if="demoItem.status === 'completed'">
-            <div class="da-sep"></div>
-            <div class="da-subtitle">完成信息</div>
-            <div v-if="demoItem.completion_note" class="da-row">
-              <span class="da-label">完成内容</span>
-              <span class="da-val da-note">{{ demoItem.completion_note }}</span>
-            </div>
-            <div v-if="demoItem.completion_image_url" class="da-row da-row-img">
-              <span class="da-label">完成图片</span>
-              <div class="d-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                <span class="d-thumb-icon">✅</span>
-              </div>
-            </div>
-            <div v-if="demoItem.completed_at" class="da-row">
-              <span class="da-label">完成时间</span>
-              <span class="da-val">{{ demoItem.completed_at }}</span>
-            </div>
-          </template>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="dialogA.visible = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         样式 B：卡片分层式
-         ============================================================ -->
-    <el-dialog v-model="dialogB.visible" title="任务详情" width="520px" top="6vh">
-      <div class="db-body">
-        <!-- 头部卡 -->
-        <div class="db-head-card" :class="'hc-' + demoItem.color">
-          <div class="db-head-top">
-            <span
-              class="db-status"
-              :class="demoItem.status === 'completed' ? 'db-done' : 'db-pending'"
-            >{{ demoItem.status === 'completed' ? '已完成' : '待完成' }}</span>
-            <span class="db-author">👤 {{ demoItem.author }}</span>
-          </div>
-          <div class="db-head-content">{{ demoItem.content }}</div>
-          <div class="db-head-date">{{ demoItem.date }}</div>
-        </div>
-
-        <!-- 备注卡 -->
-        <div v-if="demoItem.note" class="db-section-card">
-          <div class="db-sc-label">📝 任务备注</div>
-          <div class="db-sc-body">{{ demoItem.note }}</div>
-        </div>
-
-        <!-- 附图卡 -->
-        <div v-if="demoItem.image_url" class="db-section-card">
-          <div class="db-sc-label">🖼️ 任务附图</div>
-          <div class="d-thumb db-thumb" :style="{ background: thumbBg(demoItem) }">
-            <span class="d-thumb-icon">🖼️</span>
-          </div>
-        </div>
-
-        <!-- 完成卡 -->
-        <template v-if="demoItem.status === 'completed'">
-          <div class="db-section-card db-complete-card">
-            <div class="db-sc-label">✅ 完成情况</div>
-            <div v-if="demoItem.completion_note" class="db-sc-body">{{ demoItem.completion_note }}</div>
-            <div v-if="demoItem.completion_image_url" class="db-sc-body" style="margin-top:8px">
-              <div class="d-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                <span class="d-thumb-icon">✅</span>
-              </div>
-            </div>
-            <div v-if="demoItem.completed_at" class="db-sc-meta">{{ demoItem.completed_at }}</div>
-          </div>
-        </template>
-      </div>
-      <template #footer>
-        <el-button @click="dialogB.visible = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         样式 C：信息时间线式
-         ============================================================ -->
-    <el-dialog v-model="dialogC.visible" title="任务详情" width="520px" top="8vh">
-      <div class="dc-body">
-        <!-- 顶栏状态 -->
-        <div class="dc-top">
-          <span
-            class="dc-pill"
-            :class="demoItem.status === 'completed' ? 'dc-pill-done' : 'dc-pill-pending'"
-          >{{ demoItem.status === 'completed' ? '已完成' : '待完成' }}</span>
-          <span class="dc-color"><span class="dc-dot" :class="'dot-' + demoItem.color"></span>{{ colorLabel(demoItem.color) }}</span>
-        </div>
-
-        <!-- 时间线区域 -->
-        <div class="dc-timeline">
-          <!-- 01 内容 -->
-          <div class="dc-node">
-            <div class="dc-node-dot dc-node-main"></div>
-            <div class="dc-node-body">
-              <div class="dc-node-label">任务内容</div>
-              <div class="dc-node-val dc-content">{{ demoItem.content }}</div>
-            </div>
-          </div>
-
-          <!-- 02 日期 + 作者 -->
-          <div class="dc-node">
-            <div class="dc-node-dot dc-node-sub"></div>
-            <div class="dc-node-body">
-              <div class="dc-node-label">所属日期</div>
-              <div class="dc-node-val">{{ demoItem.date }}</div>
-            </div>
-          </div>
-          <div class="dc-node">
-            <div class="dc-node-dot dc-node-sub"></div>
-            <div class="dc-node-body">
-              <div class="dc-node-label">发布人</div>
-              <div class="dc-node-val"><span class="dc-author-pill">{{ demoItem.author }}</span></div>
-            </div>
-          </div>
-
-          <!-- 03 备注 -->
-          <div v-if="demoItem.note" class="dc-node">
-            <div class="dc-node-dot dc-node-sub"></div>
-            <div class="dc-node-body">
-              <div class="dc-node-label">任务备注</div>
-              <div class="dc-node-val dc-note-text">{{ demoItem.note }}</div>
-            </div>
-          </div>
-
-          <!-- 04 附图 -->
-          <div v-if="demoItem.image_url" class="dc-node">
-            <div class="dc-node-dot dc-node-sub"></div>
-            <div class="dc-node-body">
-              <div class="dc-node-label">任务附图</div>
-              <div class="d-thumb dc-thumb" :style="{ background: thumbBg(demoItem) }">
-                <span class="d-thumb-icon">🖼️</span>
-              </div>
             </div>
           </div>
 
           <!-- 完成信息 -->
           <template v-if="demoItem.status === 'completed'">
-            <div class="dc-node">
-              <div class="dc-node-dot dc-node-done"></div>
-              <div class="dc-node-body">
-                <div class="dc-node-label dc-done-label">✅ 完成情况</div>
+            <div class="da-sep"></div>
+            <div class="da-complete-header">✅ 完成情况</div>
+            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                <span class="d-thumb-icon">✅</span>
               </div>
             </div>
-            <div v-if="demoItem.completion_note" class="dc-node">
-              <div class="dc-node-dot dc-node-sub"></div>
-              <div class="dc-node-body">
-                <div class="dc-node-label">完成内容</div>
-                <div class="dc-node-val dc-note-text">{{ demoItem.completion_note }}</div>
-              </div>
-            </div>
-            <div v-if="demoItem.completion_image_url" class="dc-node">
-              <div class="dc-node-dot dc-node-sub"></div>
-              <div class="dc-node-body">
-                <div class="dc-node-label">完成图片</div>
-                <div class="d-thumb dc-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                  <span class="d-thumb-icon">✅</span>
-                </div>
-              </div>
-            </div>
-            <div v-if="demoItem.completed_at" class="dc-node" style="padding-bottom:0">
-              <div class="dc-node-dot dc-node-sub"></div>
-              <div class="dc-node-body">
-                <div class="dc-node-label">完成时间</div>
-                <div class="dc-node-val">{{ demoItem.completed_at }}</div>
-              </div>
-            </div>
+            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
           </template>
         </div>
       </div>
       <template #footer>
-        <el-button @click="dialogC.visible = false">关闭</el-button>
+        <el-button @click="dialogA.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         样式 B：流式时间线 — 节点贯穿内容，分段但不分卡
+         ============================================================ -->
+    <el-dialog v-model="dialogB.visible" title="任务详情" width="520px" top="6vh">
+      <div class="db-outer">
+        <div class="db-timeline">
+          <!-- 节点 1：主题 + 备注（合并，无备注标题） -->
+          <div class="db-node">
+            <div class="db-dot db-dot-main"></div>
+            <div class="db-node-body">
+              <div class="db-subject">{{ demoItem.content }}</div>
+              <div v-if="demoItem.note" class="db-note-text">{{ demoItem.note }}</div>
+            </div>
+          </div>
+
+          <!-- 节点 2：附图（无标题） -->
+          <div v-if="demoItem.image_url" class="db-node">
+            <div class="db-dot db-dot-sub"></div>
+            <div class="db-node-body">
+              <div class="d-thumb db-thumb" :style="{ background: thumbBg(demoItem) }">
+                <span class="d-thumb-icon">🖼️</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 节点 3：完成信息 -->
+          <template v-if="demoItem.status === 'completed'">
+            <div class="db-node">
+              <div class="db-dot db-dot-done"></div>
+              <div class="db-node-body">
+                <div class="db-section-label">✅ 完成情况</div>
+                <div v-if="demoItem.completion_note" class="db-note-text" style="margin-top:6px">{{ demoItem.completion_note }}</div>
+                <div v-if="demoItem.completion_image_url" class="d-thumb db-thumb" style="margin-top:8px;background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                  <span class="d-thumb-icon">✅</span>
+                </div>
+                <div v-if="demoItem.completed_at" class="db-meta" style="margin-top:6px">{{ demoItem.completed_at }}</div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- 浮动状态角标 -->
+        <div class="db-corner-badge" :class="demoItem.status==='completed'?'db-c-done':'db-c-pending'">
+          <span class="db-corner-status">{{ demoItem.status==='completed'?'已完成':'待完成' }}</span>
+          <span class="db-corner-date">{{ demoItem.date }}</span>
+          <span class="db-corner-author">{{ demoItem.author }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogB.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         样式 C：卡片融合式 — 彩色侧边栏 + 信息流式垂直排列
+         ============================================================ -->
+    <el-dialog v-model="dialogC.visible" title="任务详情" width="520px" top="8vh">
+      <div class="dc-outer" :class="'dc-accent-' + demoItem.color">
+        <!-- 左侧彩色侧边栏 -->
+        <div class="dc-accent"></div>
+
+        <!-- 主卡片 -->
+        <div class="dc-card">
+          <!-- 元信息行 -->
+          <div class="dc-meta-row">
+            <span class="dc-pill" :class="demoItem.status==='completed'?'dc-pill-done':'dc-pill-pending'">
+              {{ demoItem.status==='completed'?'已完成':'待完成' }}
+            </span>
+            <span class="dc-date">{{ demoItem.date }}</span>
+            <span class="dc-author">{{ demoItem.author }}</span>
+          </div>
+
+          <!-- 主题 -->
+          <div class="dc-subject">{{ demoItem.content }}</div>
+
+          <!-- 备注（无标题，灰色底框） -->
+          <div v-if="demoItem.note" class="dc-note-block">{{ demoItem.note }}</div>
+
+          <!-- 附图（无标题） -->
+          <div v-if="demoItem.image_url" class="dc-img-block">
+            <div class="d-thumb dc-thumb" :style="{ background: thumbBg(demoItem) }">
+              <span class="d-thumb-icon">🖼️</span>
+            </div>
+          </div>
+
+          <!-- 完成信息 -->
+          <template v-if="demoItem.status === 'completed'">
+            <div class="dc-divider"></div>
+            <div class="dc-section-tag">✅ 完成情况</div>
+            <div v-if="demoItem.completion_note" class="dc-note-block">{{ demoItem.completion_note }}</div>
+            <div v-if="demoItem.completion_image_url" class="dc-img-block">
+              <div class="d-thumb dc-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                <span class="d-thumb-icon">✅</span>
+              </div>
+            </div>
+            <div v-if="demoItem.completed_at" class="dc-meta-time">{{ demoItem.completed_at }}</div>
+          </template>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogC.visible=false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -510,112 +452,316 @@ function openDialog(which:'a'|'b'|'c') {
 .d-thumb-icon { font-size: 22px; opacity: 0.7; }
 
 /* ============================================================
-   样式 A：清爽两栏式
+   样式 A：左轨时间线
    ============================================================ */
-.da-body { padding: 4px 0; }
-
-.da-topbar {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f3f4f6;
+.da-outer {
+  display: flex;
+  gap: 16px;
+  padding: 4px 0;
+  min-height: 120px;
 }
-.da-status { font-size:12px; font-weight:600; padding:3px 10px; border-radius:6px; }
+
+/* 时间线导轨 */
+.da-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+.da-rail-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid white;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+  flex-shrink: 0;
+  z-index: 1;
+}
+.da-rail-line {
+  width: 2px;
+  flex: 1;
+  background: linear-gradient(to bottom, #e5e7eb, #f3f4f6);
+  margin-top: -2px;
+  margin-bottom: -2px;
+}
+
+/* 卡片 */
+.da-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.da-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.da-status { font-size:11px; font-weight:600; padding:2px 10px; border-radius:6px; }
 .da-pending { background:#dbeafe; color:#2563eb; }
 .da-done { background:#d1fae5; color:#059669; }
-.da-color-tag { display:flex; align-items:center; gap:5px; font-size:12px; color:#6b7280; }
-.da-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.da-author-label { margin-left:auto; font-size:12px; color:#9ca3af; }
+.da-date { font-size:12px; color:#9ca3af; margin-left:auto; }
+.da-author { font-size:12px; color:#6b7280; background:#f3f4f6; padding:1px 10px; border-radius:10px; }
 
-.da-fields { }
-.da-row { display:flex; align-items:flex-start; gap:14px; margin-bottom:14px; font-size:14px; color:#374151; }
-.da-label { flex-shrink:0; width:70px; color:#6b7280; font-size:13px; padding-top:2px; }
-.da-val { flex:1; word-break:break-word; line-height:1.6; }
-.da-content { font-size:15px; color:#1f2937; font-weight:500; }
-.da-note { background:#f9fafb; padding:8px 12px; border-radius:6px; font-size:13px; color:#4b5563; }
-.da-row-img { align-items:center; }
-.da-sep { height:1px; background:#e5e7eb; margin:16px 0; }
-.da-subtitle { font-size:13px; font-weight:600; color:#374151; margin-bottom:14px; }
+.da-subject {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.6;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+
+.da-note-text {
+  font-size: 14px;
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 10px 14px;
+  border-radius: 8px;
+  line-height: 1.7;
+  margin-bottom: 10px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.da-img-wrap { margin-bottom: 10px; }
+.da-thumb { width: 120px; height: 72px; }
+
+.da-sep { height:1px; background:#e5e7eb; margin:14px 0; }
+
+.da-complete-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #059669;
+  margin-bottom: 8px;
+}
+.da-comp-note {
+  font-size: 14px;
+  color: #374151;
+  background: #f0fdf4;
+  padding: 8px 12px;
+  border-radius: 8px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.da-comp-time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
 
 /* ============================================================
-   样式 B：卡片分层式
+   样式 B：流式时间线
    ============================================================ */
-.db-body { display:flex; flex-direction:column; gap:14px; }
-
-.db-head-card {
-  border-radius: 10px; padding: 18px 20px;
-  border-left: 4px solid #d1d5db;
-}
-.hc-white  { background:#fafafa; border-left-color:#d1d5db; }
-.hc-red    { background:#fef2f2; border-left-color:#f87171; }
-.hc-yellow { background:#fffbeb; border-left-color:#fbbf24; }
-.hc-blue   { background:#eff6ff; border-left-color:#60a5fa; }
-.hc-green  { background:#ecfdf5; border-left-color:#34d399; }
-
-.db-head-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.db-status { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; }
-.db-pending { background:#dbeafe; color:#2563eb; }
-.db-done { background:#d1fae5; color:#059669; }
-.db-author { font-size:12px; color:#9ca3af; margin-left:auto; }
-.db-head-content { font-size:15px; font-weight:600; color:#1f2937; line-height:1.5; margin-bottom:4px; }
-.db-head-date { font-size:12px; color:#9ca3af; }
-
-.db-section-card {
-  background: #fafafa; border-radius: 10px; padding: 16px 18px;
-  border: 1px solid #f3f4f6;
-}
-.db-sc-label { font-size:13px; font-weight:600; color:#6b7280; margin-bottom:8px; }
-.db-sc-body { font-size:14px; color:#374151; line-height:1.6; word-break:break-word; white-space:pre-wrap; }
-.db-sc-meta { margin-top:8px; font-size:12px; color:#9ca3af; }
-
-.db-complete-card { background:#f0fdf4; border-color:#d1fae5; }
-.db-complete-card .db-sc-label { color:#059669; }
-
-.db-thumb { margin-top:4px; }
-
-/* ============================================================
-   样式 C：信息时间线式
-   ============================================================ */
-.dc-body { padding: 4px 0; }
-
-.dc-top {
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f3f4f6;
-}
-.dc-pill { font-size:12px; font-weight:600; padding:3px 12px; border-radius:20px; }
-.dc-pill-pending { background:#dbeafe; color:#2563eb; }
-.dc-pill-done { background:#d1fae5; color:#059669; }
-.dc-color { display:flex; align-items:center; gap:5px; font-size:13px; color:#6b7280; }
-.dc-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-
-.dc-timeline { position:relative; }
-/* 竖线 */
-.dc-timeline::before {
-  content:''; position:absolute; left:11px; top:8px; bottom:8px;
-  width:2px; background:#e5e7eb; border-radius:1px;
+.db-outer {
+  display: flex;
+  gap: 0;
+  padding: 4px 0;
+  position: relative;
 }
 
-.dc-node { display:flex; gap:16px; padding-bottom:18px; position:relative; }
-.dc-node-dot {
-  width: 24px; height: 24px; border-radius: 50%;
-  flex-shrink: 0; position: relative; z-index: 1;
-  display: flex; align-items: center; justify-content: center;
+/* 状态角标（右上角） */
+.db-corner-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 0 10px 0 8px;
+  font-size: 11px;
+}
+.db-c-pending { background:#eff6ff; }
+.db-c-done { background:#ecfdf5; }
+.db-corner-status { font-weight:600; }
+.db-c-pending .db-corner-status { color:#2563eb; }
+.db-c-done .db-corner-status { color:#059669; }
+.db-corner-date { color:#9ca3af; }
+.db-corner-author { color:#6b7280; }
+
+/* 时间线 */
+.db-timeline {
+  flex: 1;
+  position: relative;
+  padding: 4px 0 4px 28px;
+}
+.db-timeline::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #e5e7eb;
+  border-radius: 1px;
+}
+
+.db-node {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 22px;
+  position: relative;
+}
+.db-node:last-child { padding-bottom: 4px; }
+
+.db-dot {
+  position: absolute;
+  left: -20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  z-index: 1;
   border: 2px solid white;
 }
-.dc-node-main {
-  background: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+.db-dot-main {
+  width: 14px;
+  height: 14px;
+  top: 2px;
+  background: #0891b2;
+  box-shadow: 0 0 0 3px rgba(8,145,178,0.15);
 }
-.dc-node-main::after {
-  content: ''; width: 8px; height: 8px; border-radius: 50%; background: white;
+.db-dot-sub {
+  width: 8px;
+  height: 8px;
+  top: 5px;
+  background: #d1d5db;
+  border: none;
 }
-.dc-node-sub {
-  width: 10px; height: 10px; margin: 7px 7px;
-  background: #d1d5db; border: none;
+.db-dot-done {
+  width: 10px;
+  height: 10px;
+  top: 4px;
+  background: #059669;
+  border: none;
 }
-.dc-node-body { flex:1; min-width:0; padding-top:2px; }
-.dc-node-label { font-size:12px; color:#9ca3af; margin-bottom:4px; }
-.dc-node-val { font-size:14px; color:#374151; line-height:1.5; }
-.dc-content { font-size:15px; color:#1f2937; font-weight:500; }
-.dc-note-text { background:#f9fafb; padding:8px 12px; border-radius:6px; font-size:13px; color:#4b5563; }
-.dc-author-pill { font-size:12px; color:#6b7280; background:#f3f4f6; padding:2px 12px; border-radius:12px; }
-.dc-thumb { margin-top:4px; }
-.dc-done-label { color:#059669; font-weight:600; }
+
+.db-node-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.db-subject {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.db-note-text {
+  font-size: 14px;
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 8px 12px;
+  border-radius: 8px;
+  line-height: 1.7;
+  margin-top: 6px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.db-thumb { margin-top: 6px; }
+
+.db-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.db-meta {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* ============================================================
+   样式 C：卡片融合式
+   ============================================================ */
+.dc-outer {
+  display: flex;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  min-height: 120px;
+}
+
+/* 左侧彩色侧边栏 */
+.dc-accent {
+  width: 5px;
+  flex-shrink: 0;
+}
+.dc-accent-white  { background: #d1d5db; }
+.dc-accent-red    { background: #f87171; }
+.dc-accent-yellow { background: #fbbf24; }
+.dc-accent-green  { background: #34d399; }
+.dc-accent-blue   { background: #60a5fa; }
+.dc-accent-dark   { background: #9ca3af; }
+
+.dc-card {
+  flex: 1;
+  padding: 20px;
+  min-width: 0;
+}
+
+.dc-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.dc-pill { font-size:11px; font-weight:600; padding:2px 10px; border-radius:20px; }
+.dc-pill-pending { background:#dbeafe; color:#2563eb; }
+.dc-pill-done { background:#d1fae5; color:#059669; }
+.dc-date { font-size:12px; color:#9ca3af; margin-left:auto; }
+.dc-author { font-size:12px; color:#6b7280; background:#f3f4f6; padding:1px 10px; border-radius:10px; }
+
+.dc-subject {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+
+.dc-note-block {
+  font-size: 14px;
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 10px 14px;
+  border-radius: 8px;
+  line-height: 1.7;
+  margin-bottom: 10px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.dc-img-block { margin-bottom: 10px; }
+.dc-thumb { width: 120px; height: 72px; }
+
+.dc-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 14px 0;
+}
+
+.dc-section-tag {
+  font-size: 13px;
+  font-weight: 600;
+  color: #059669;
+  margin-bottom: 8px;
+}
+
+.dc-meta-time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
 </style>
