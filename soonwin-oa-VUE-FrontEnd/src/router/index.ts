@@ -27,6 +27,7 @@ const ContainerLayoutView = () => import('@/views/ContainerLayoutView.vue');
 const TaskTrackView = () => import('@/views/TaskTrackView.vue');
 const TodoListView = () => import('@/views/todo/TodoListView.vue');
 const TabStylesDemo = () => import('@/views/todo/TabStylesDemo.vue');
+const TodoFinalPreview = () => import('@/views/todo/TodoFinalPreview.vue');
 
 
 
@@ -214,6 +215,12 @@ const routes: RouteRecordRaw[] = [
     name: 'todoTabDemo',
     component: TabStylesDemo,
     meta: { title: '选项卡样式 Demo', requiresAuth: true }
+  },
+  {
+    path: '/todo/final',
+    name: 'todoFinal',
+    component: TodoFinalPreview,
+    meta: { title: '待办事项 · 最终方案', requiresAuth: true }
   },
 
 
