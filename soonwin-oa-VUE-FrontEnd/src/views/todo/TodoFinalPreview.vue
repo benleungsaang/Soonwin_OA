@@ -216,55 +216,38 @@
     </el-dialog>
 
     <!-- ============================================================
-         修改内容弹窗（聊天式 C 风格）
+         任务表单弹窗（新建/修改共用 · C 聊天式）
          ============================================================ -->
-    <el-dialog v-model="editVisible" title="修改内容" width="500px" top="10vh">
-      <div class="ntc-body">
-        <div class="ntc-content-area">
-          <textarea v-model="editContent" ref="editContentRef" class="ntc-textarea" placeholder="修改任务内容…" rows="5" maxlength="500" @focus="editLastFocus='content'"></textarea>
-        </div>
-        <div class="ntc-toolbar">
-          <button type="button" class="ntc-tool-btn" @click="onEditEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
-        </div>
-        <div v-show="editEmojiVisible" class="ntc-emoji-pop" @click.stop>
-          <emoji-picker class="ntc-ep" @emoji-click="insertEditEmoji" />
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="editVisible=false">取消</el-button>
-        <el-button type="primary" @click="submitEdit">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         新建任务弹窗（聊天式 C）
-         ============================================================ -->
-    <el-dialog v-model="newTaskVisible" title="新建任务" width="500px" top="10vh">
+    <el-dialog v-model="formVisible" :title="formMode==='edit'?'修改内容':'新建任务'" width="500px" top="10vh">
       <div class="ntc-body">
         <div class="ntc-title-row">
-          <input v-model="newTitle" ref="newTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" @focus="newLastFocus='title'" />
+          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" @focus="formLastFocus='title'" />
         </div>
         <div class="ntc-sep"></div>
         <div class="ntc-content-area">
-          <textarea v-model="newContent" ref="newContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500" @focus="newLastFocus='content'"></textarea>
+          <textarea v-model="formContent" ref="formContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500" @focus="formLastFocus='content'"></textarea>
         </div>
         <div class="ntc-toolbar">
-          <button type="button" class="ntc-tool-btn" @click="onNewEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
-          <button type="button" class="ntc-tool-btn" @click="mockNewImage" title="添加图片"><span style="font-size:18px">🖼️</span></button>
-          <input v-model="newDate" type="date" class="ntc-date-input" />
-          <div class="ntc-color-chip" :class="'bg-'+newColor"></div>
+          <button type="button" class="ntc-tool-btn" @click="onFormEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
+          <button type="button" class="ntc-tool-btn" @click="mockFormImage" title="添加图片"><span style="font-size:18px">🖼️</span></button>
+          <input v-model="formDate" type="date" class="ntc-date-input" />
+          <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
         </div>
-        <div v-show="newEmojiVisible" class="ntc-emoji-pop" @click.stop>
-          <emoji-picker class="ntc-ep" @emoji-click="insertNewEmoji" />
+        <div v-show="formEmojiVisible" class="ntc-emoji-pop" @click.stop>
+          <emoji-picker class="ntc-ep" @emoji-click="insertFormEmoji" />
+        </div>
+        <div v-if="formImagePreview" class="ntc-img-bar">
+          <div class="ntc-img-thumb" :style="{ background: formImagePreview }"></div>
+          <button class="ntc-img-remove" @click="formImagePreview=''">✕ 移除</button>
         </div>
         <div class="ntc-color-bar">
           <span class="ntc-color-label">颜色</span>
-          <button v-for="c in colorOpts" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:newColor===c.value}]" :title="c.label" @click="newColor=c.value" />
+          <button v-for="c in colorOpts" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:formColor===c.value}]" :title="c.label" @click="formColor=c.value" />
         </div>
       </div>
       <template #footer>
-        <el-button @click="newTaskVisible=false">取消</el-button>
-        <el-button type="primary" @click="submitNewTask">确认添加</el-button>
+        <el-button @click="formVisible=false">取消</el-button>
+        <el-button type="primary" @click="submitTaskForm">{{ formMode==='edit'?'保存修改':'确认添加' }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -383,39 +366,76 @@ function onViewDetail(item: TodoItem) {
   detailVisible.value = true
 }
 
-// ===== 编辑弹窗（C · 聊天式风格） =====
-const editVisible = ref(false)
-const editItem = ref<TodoItem | null>(null)
-const editContent = ref('')
-const editEmojiVisible = ref(false)
-const editLastFocus = ref<'title'|'content'>('content')
-const editTitleRef = ref<HTMLInputElement|null>(null)
-const editContentRef = ref<HTMLTextAreaElement|null>(null)
+// ===== 任务表单（新建/修改共用） =====
+const formMode = ref<'create'|'edit'>('create')
+const formVisible = ref(false)
+const formEditTarget = ref<TodoItem | null>(null)
+const formTitle = ref('')
+const formContent = ref('')
+const formDate = ref('')
+const formColor = ref('white')
+const formImagePreview = ref('')
+const formEmojiVisible = ref(false)
+const formLastFocus = ref<'title'|'content'>('content')
+const formTitleRef = ref<HTMLInputElement|null>(null)
+const formContentRef = ref<HTMLTextAreaElement|null>(null)
+
+function openNewTask() {
+  formMode.value = 'create'
+  formTitle.value = ''
+  formContent.value = ''
+  formDate.value = new Date().toISOString().split('T')[0]
+  formColor.value = 'white'
+  formImagePreview.value = ''
+  formEmojiVisible.value = false
+  formEditTarget.value = null
+  formVisible.value = true
+}
 
 function onEditItem(item: TodoItem) {
-  editItem.value = item
-  editContent.value = item.content
-  editEmojiVisible.value = false
-  editVisible.value = true
+  formMode.value = 'edit'
+  formTitle.value = item.content  // 内容复用为可编辑字段
+  formContent.value = item.note || ''
+  formDate.value = item.date
+  formColor.value = item.color
+  formImagePreview.value = item.image_url ? 'linear-gradient(135deg,#e5e7eb,#d1d5db)' : ''
+  formEmojiVisible.value = false
+  formEditTarget.value = item
+  formVisible.value = true
 }
-function onEditEmojiClick() { editEmojiVisible.value = !editEmojiVisible.value }
-function insertEditEmoji(event: any) {
+
+function onFormEmojiClick() { formEmojiVisible.value = !formEmojiVisible.value }
+
+function insertFormEmoji(event: any) {
   const emoji = event.detail.emoji.unicode
-  const el = editContentRef.value
+  const target = formLastFocus.value
+  const el = target === 'title' ? formTitleRef.value : formContentRef.value
   if (el) {
     const start = el.selectionStart ?? 0
     const end = el.selectionEnd ?? start
-    editContent.value = editContent.value.substring(0, start) + emoji + editContent.value.substring(end)
+    const text = target === 'title' ? formTitle.value : formContent.value
+    const newText = text.substring(0, start) + emoji + text.substring(end)
+    if (target === 'title') formTitle.value = newText
+    else formContent.value = newText
     nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
-  } else {
-    editContent.value += emoji
   }
 }
-function submitEdit() {
-  if (!editContent.value.trim()) { ElMessage.warning('内容不能为空'); return }
-  if (editItem.value) editItem.value.content = editContent.value.trim()
-  editVisible.value = false
-  ElMessage.success('内容已更新（模拟）')
+
+function mockFormImage() {
+  const colors = ['#fca5a5,#f87171','#fde68a,#fbbf24','#a7f3d0,#6ee7b7','#93c5fd,#60a5fa','#c4b5fd,#a78bfa']
+  formImagePreview.value = `linear-gradient(135deg, ${colors[Math.floor(Math.random()*colors.length)]})`
+  ElMessage.success('图片已添加（模拟）')
+}
+
+function submitTaskForm() {
+  if (!formTitle.value.trim()) { ElMessage.warning('请输入任务标题'); return }
+  if (formMode.value === 'edit' && formEditTarget.value) {
+    formEditTarget.value.content = formTitle.value.trim()
+    ElMessage.success('内容已更新（模拟）')
+  } else {
+    ElMessage.success('任务已创建（模拟）')
+  }
+  formVisible.value = false
 }
 
 // 留言输入
@@ -433,53 +453,12 @@ function sendMessage() {
 function mockMsgImage() { ElMessage.success('图片已添加（模拟）') }
 
 // ============================================================
-// 新建任务弹窗（C · 聊天式）
-// ============================================================
-const newTaskVisible = ref(false)
-const newTitle = ref('')
-const newContent = ref('')
-const newDate = ref(new Date().toISOString().split('T')[0])
-const newColor = ref('white')
-const newEmojiVisible = ref(false)
-const newLastFocus = ref<'title'|'content'>('content')
-const newTitleRef = ref<HTMLInputElement|null>(null)
-const newContentRef = ref<HTMLTextAreaElement|null>(null)
-
-function openNewTask() {
-  newTitle.value = ''; newContent.value = ''; newColor.value = 'white'
-  newDate.value = new Date().toISOString().split('T')[0]
-  newEmojiVisible.value = false
-  newTaskVisible.value = true
-}
-function onNewEmojiClick() { newEmojiVisible.value = !newEmojiVisible.value }
-function insertNewEmoji(event: any) {
-  const emoji = event.detail.emoji.unicode
-  const target = newLastFocus.value
-  const el = target === 'title' ? newTitleRef.value : newContentRef.value
-  if (el) {
-    const start = el.selectionStart ?? 0
-    const end = el.selectionEnd ?? start
-    const text = target === 'title' ? newTitle.value : newContent.value
-    const newText = text.substring(0, start) + emoji + text.substring(end)
-    if (target === 'title') newTitle.value = newText
-    else newContent.value = newText
-    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
-  }
-}
-function mockNewImage() { ElMessage.success('图片已添加（模拟）') }
-function submitNewTask() {
-  if (!newTitle.value.trim()) { ElMessage.warning('请输入任务标题'); return }
-  newTaskVisible.value = false
-  ElMessage.success('任务已创建（模拟）')
-}
-
-// ============================================================
 // emoji 外部关闭
 // ============================================================
 function onDocClick(e: MouseEvent) {
   const t = e.target as HTMLElement
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
-  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) { newEmojiVisible.value = false; editEmojiVisible.value = false }
+  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) { formEmojiVisible.value = false }
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
