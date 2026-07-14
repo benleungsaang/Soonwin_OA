@@ -72,31 +72,30 @@
       <section class="demo-section">
         <h2 class="section-title">
           <span class="section-badge">▼</span>
-          补充功能方案投票
-          <span class="section-sub">—— 在详情弹窗中加入「管理员留言」和「用户补充信息」</span>
+          补充功能 — 三块分隔样式投票
+          <span class="section-sub">—— 已选用 A1 对话流式，三种区块分隔方案</span>
         </h2>
         <p class="supplement-intro">
-          以下三种方案基于已选定的左轨时间线款式，以不同方式展示这两块新增内容。
-          <strong>模拟数据</strong>：
+          同一套「基础信息·留言·补充」三段内容，三种区块分隔方式呈现。<strong>模拟数据</strong>：
           <span class="demo-tag">💬 管理员留言 2 条</span>
           <span class="demo-tag">📎 用户补充信息 1 条</span>
         </p>
 
         <div class="detail-preview-row">
-          <button class="preview-card" @click="openDialog('a1')">
-            <span class="preview-badge" style="background:#6366f1">A1</span>
-            <span class="preview-label">对话流式</span>
-            <span class="preview-desc">留言以对话气泡形式追加在时间线中</span>
+          <button class="preview-card" @click="openDialog('a1a')">
+            <span class="preview-badge" style="background:#6366f1">V1</span>
+            <span class="preview-label">间隔底色</span>
+            <span class="preview-desc">三块不同底色过渡，自然分区</span>
           </button>
-          <button class="preview-card" @click="openDialog('a2')">
-            <span class="preview-badge" style="background:#0891b2">A2</span>
-            <span class="preview-label">区块面板式</span>
-            <span class="preview-desc">独立区块+分区标题，结构清晰</span>
+          <button class="preview-card" @click="openDialog('a1b')">
+            <span class="preview-badge" style="background:#0891b2">V2</span>
+            <span class="preview-label">边框块</span>
+            <span class="preview-desc">三个独立边框块，层次分明</span>
           </button>
-          <button class="preview-card" @click="openDialog('a3')">
-            <span class="preview-badge" style="background:#7c3aed">A3</span>
-            <span class="preview-label">标签切换式</span>
-            <span class="preview-desc">底部标签栏切换留言/补充，省空间</span>
+          <button class="preview-card" @click="openDialog('a1c')">
+            <span class="preview-badge" style="background:#7c3aed">V3</span>
+            <span class="preview-label">图标标题分隔</span>
+            <span class="preview-desc">图标标题+装饰分隔线，干净轻盈</span>
           </button>
         </div>
       </section>
@@ -183,16 +182,154 @@
     </el-dialog>
 
     <!-- ============================================================
-         A1 · 对话流式 — 管理留言以对话气泡追加，用户补充独立区块
+         V1 · 间隔底色 — 三块不同底色过渡
          ============================================================ -->
-    <el-dialog v-model="dialogA1.visible" title="任务详情" width="520px" top="8vh">
+    <el-dialog v-model="dialogA1a.visible" title="任务详情" width="520px" top="8vh">
       <div class="da-outer">
         <div class="da-rail">
           <div class="da-rail-line"></div>
           <div class="da-rail-dot"></div>
         </div>
-        <div class="da-card">
-          <!-- 顶栏 -->
+        <div class="da-card a1a-card">
+          <!-- ===== 块 1：基础信息（白底） ===== -->
+          <div class="a1a-section">
+            <div class="da-top">
+              <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+                {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+              </span>
+              <span class="da-date">{{ demoItem.date }}</span>
+              <span class="da-author">{{ demoItem.author }}</span>
+            </div>
+            <div class="da-subject">{{ demoItem.content }}</div>
+            <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+            <div v-if="demoItem.image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
+                <span class="d-thumb-icon">🖼️</span>
+              </div>
+            </div>
+            <template v-if="demoItem.status === 'completed'">
+              <div class="da-sep"></div>
+              <div class="da-complete-header">✅ 完成情况</div>
+              <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+              <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+                <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                  <span class="d-thumb-icon">✅</span>
+                </div>
+              </div>
+              <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
+            </template>
+          </div>
+
+          <!-- ===== 块 2：留言（浅蓝底） ===== -->
+          <div class="a1a-section a1a-section-msg">
+            <div class="a1a-section-title">💬 管理员留言</div>
+            <div class="a1a-messages">
+              <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1-bubble" :class="msg.author==='你'?'a1-self':'a1-other'">
+                <div class="a1-bubble-author">{{ msg.author }}</div>
+                <div class="a1-bubble-text">{{ msg.content }}</div>
+                <div class="a1-bubble-time">{{ msg.time }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== 块 3：补充（浅黄底） ===== -->
+          <div class="a1a-section a1a-section-supp">
+            <div class="a1a-section-title">📎 用户补充信息</div>
+            <div class="a1b-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a1b-supp-img">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                <span class="d-thumb-icon">📎</span>
+              </div>
+            </div>
+            <div class="a1b-supp-time">{{ demoUserSupplement.addedAt }}</div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogA1a.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         V2 · 边框块 — 三个独立边框块
+         ============================================================ -->
+    <el-dialog v-model="dialogA1b.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card a1b-card">
+          <!-- ===== 块 1：基础信息边框块 ===== -->
+          <div class="a1b-block">
+            <div class="da-top">
+              <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+                {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+              </span>
+              <span class="da-date">{{ demoItem.date }}</span>
+              <span class="da-author">{{ demoItem.author }}</span>
+            </div>
+            <div class="da-subject">{{ demoItem.content }}</div>
+            <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+            <div v-if="demoItem.image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
+                <span class="d-thumb-icon">🖼️</span>
+              </div>
+            </div>
+            <template v-if="demoItem.status === 'completed'">
+              <div class="da-sep"></div>
+              <div class="da-complete-header">✅ 完成情况</div>
+              <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+              <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+                <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                  <span class="d-thumb-icon">✅</span>
+                </div>
+              </div>
+              <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
+            </template>
+          </div>
+
+          <!-- ===== 块 2：留言边框块 ===== -->
+          <div class="a1b-block a1b-block-msg">
+            <div class="a1b-block-title">💬 管理员留言</div>
+            <div class="a1b-msgs">
+              <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1b-msg-item">
+                <span class="a1b-msg-author">{{ msg.author }}</span>
+                <span class="a1b-msg-text">{{ msg.content }}</span>
+                <span class="a1b-msg-time">{{ msg.time }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== 块 3：补充边框块 ===== -->
+          <div class="a1b-block a1b-block-supp">
+            <div class="a1b-block-title">📎 用户补充信息</div>
+            <div class="a1b-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a1b-supp-img">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                <span class="d-thumb-icon">📎</span>
+              </div>
+            </div>
+            <div class="a1b-supp-time">{{ demoUserSupplement.addedAt }}</div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogA1b.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         V3 · 图标标题分隔 — 图标标题 + 装饰分隔线
+         ============================================================ -->
+    <el-dialog v-model="dialogA1c.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card a1c-card">
+          <!-- ===== 块 1：基础信息 ===== -->
           <div class="da-top">
             <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
               {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
@@ -200,7 +337,6 @@
             <span class="da-date">{{ demoItem.date }}</span>
             <span class="da-author">{{ demoItem.author }}</span>
           </div>
-
           <div class="da-subject">{{ demoItem.content }}</div>
           <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
           <div v-if="demoItem.image_url" class="da-img-wrap">
@@ -208,8 +344,6 @@
               <span class="d-thumb-icon">🖼️</span>
             </div>
           </div>
-
-          <!-- 完成信息 -->
           <template v-if="demoItem.status === 'completed'">
             <div class="da-sep"></div>
             <div class="da-complete-header">✅ 完成情况</div>
@@ -222,10 +356,12 @@
             <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
           </template>
 
-          <!-- ===== 管理员留言（对话气泡风格） ===== -->
-          <div class="a1-sep"></div>
-          <div class="a1-section-label">💬 管理员留言</div>
-          <div class="a1-messages">
+          <!-- 装饰分隔线 -->
+          <div class="a1c-divider"><span class="a1c-divider-icon">✦</span></div>
+
+          <!-- ===== 块 2：留言 ===== -->
+          <div class="a1c-section-label">💬 管理员留言</div>
+          <div class="a1c-messages">
             <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1-bubble" :class="msg.author==='你'?'a1-self':'a1-other'">
               <div class="a1-bubble-author">{{ msg.author }}</div>
               <div class="a1-bubble-text">{{ msg.content }}</div>
@@ -233,166 +369,24 @@
             </div>
           </div>
 
-          <!-- ===== 用户补充信息 ===== -->
-          <div class="a1-sep"></div>
-          <div class="a1-section-label">📎 用户补充信息</div>
-          <div class="a1-supplement">
-            <div class="a1-supp-text">{{ demoUserSupplement.content }}</div>
-            <div v-if="demoUserSupplement.image_url" class="a1-supp-img">
+          <!-- 装饰分隔线 -->
+          <div class="a1c-divider"><span class="a1c-divider-icon">✦</span></div>
+
+          <!-- ===== 块 3：补充 ===== -->
+          <div class="a1c-section-label">📎 用户补充信息</div>
+          <div class="a1c-supp">
+            <div class="a1c-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a1c-supp-img">
               <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
                 <span class="d-thumb-icon">📎</span>
               </div>
             </div>
-            <div class="a1-supp-time">{{ demoUserSupplement.addedAt }}</div>
+            <div class="a1c-supp-time">{{ demoUserSupplement.addedAt }}</div>
           </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="dialogA1.visible=false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         A2 · 区块面板式 — 独立方框 + 分区标题，层次分明
-         ============================================================ -->
-    <el-dialog v-model="dialogA2.visible" title="任务详情" width="520px" top="8vh">
-      <div class="da-outer">
-        <div class="da-rail">
-          <div class="da-rail-line"></div>
-          <div class="da-rail-dot"></div>
-        </div>
-        <div class="da-card">
-          <div class="da-top">
-            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
-              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
-            </span>
-            <span class="da-date">{{ demoItem.date }}</span>
-            <span class="da-author">{{ demoItem.author }}</span>
-          </div>
-
-          <div class="da-subject">{{ demoItem.content }}</div>
-          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
-          <div v-if="demoItem.image_url" class="da-img-wrap">
-            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
-              <span class="d-thumb-icon">🖼️</span>
-            </div>
-          </div>
-
-          <template v-if="demoItem.status === 'completed'">
-            <div class="da-sep"></div>
-            <div class="da-complete-header">✅ 完成情况</div>
-            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
-            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
-              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                <span class="d-thumb-icon">✅</span>
-              </div>
-            </div>
-            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
-          </template>
-
-          <!-- ===== 管理员留言（独立区块） ===== -->
-          <div class="a2-block a2-block-msg">
-            <div class="a2-block-title">💬 管理员留言</div>
-            <div v-for="msg in demoAdminMessages" :key="msg.id" class="a2-msg-row">
-              <span class="a2-msg-author">{{ msg.author }}</span>
-              <span class="a2-msg-text">{{ msg.content }}</span>
-              <span class="a2-msg-time">{{ msg.time }}</span>
-            </div>
-          </div>
-
-          <!-- ===== 用户补充信息（独立区块） ===== -->
-          <div class="a2-block a2-block-supp">
-            <div class="a2-block-title">📎 用户补充信息</div>
-            <div class="a2-supp-body">
-              <div class="a2-supp-text">{{ demoUserSupplement.content }}</div>
-              <div v-if="demoUserSupplement.image_url" class="a2-supp-img">
-                <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
-                  <span class="d-thumb-icon">📎</span>
-                </div>
-              </div>
-              <div class="a2-supp-time">{{ demoUserSupplement.addedAt }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="dialogA2.visible=false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         A3 · 标签切换式 — 底部标签栏切换留言/补充，节省空间
-         ============================================================ -->
-    <el-dialog v-model="dialogA3.visible" title="任务详情" width="520px" top="8vh">
-      <div class="da-outer">
-        <div class="da-rail">
-          <div class="da-rail-line"></div>
-          <div class="da-rail-dot"></div>
-        </div>
-        <div class="da-card">
-          <div class="da-top">
-            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
-              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
-            </span>
-            <span class="da-date">{{ demoItem.date }}</span>
-            <span class="da-author">{{ demoItem.author }}</span>
-          </div>
-
-          <div class="da-subject">{{ demoItem.content }}</div>
-          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
-          <div v-if="demoItem.image_url" class="da-img-wrap">
-            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
-              <span class="d-thumb-icon">🖼️</span>
-            </div>
-          </div>
-
-          <template v-if="demoItem.status === 'completed'">
-            <div class="da-sep"></div>
-            <div class="da-complete-header">✅ 完成情况</div>
-            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
-            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
-              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                <span class="d-thumb-icon">✅</span>
-              </div>
-            </div>
-            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
-          </template>
-
-          <!-- ===== 底部标签栏 ===== -->
-          <div class="a3-tabs">
-            <button class="a3-tab" :class="{ active: a3ActiveTab === 'messages' }" @click="a3ActiveTab='messages'">
-              💬 留言 <span class="a3-tab-count">{{ demoAdminMessages.length }}</span>
-            </button>
-            <button class="a3-tab" :class="{ active: a3ActiveTab === 'supplement' }" @click="a3ActiveTab='supplement'">
-              📎 补充
-            </button>
-          </div>
-
-          <!-- 留言内容 -->
-          <div v-if="a3ActiveTab==='messages'" class="a3-panel">
-            <div v-for="msg in demoAdminMessages" :key="msg.id" class="a3-msg-row">
-              <div class="a3-msg-header">
-                <span class="a3-msg-author">{{ msg.author }}</span>
-                <span class="a3-msg-time">{{ msg.time }}</span>
-              </div>
-              <div class="a3-msg-text">{{ msg.content }}</div>
-            </div>
-          </div>
-
-          <!-- 补充内容 -->
-          <div v-if="a3ActiveTab==='supplement'" class="a3-panel">
-            <div class="a3-supp-text">{{ demoUserSupplement.content }}</div>
-            <div v-if="demoUserSupplement.image_url" class="a3-supp-img">
-              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
-                <span class="d-thumb-icon">📎</span>
-              </div>
-            </div>
-            <div class="a3-supp-time">{{ demoUserSupplement.addedAt }}</div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="dialogA3.visible=false">关闭</el-button>
+        <el-button @click="dialogA1c.visible=false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -492,10 +486,10 @@ const demoUserSupplement = {
 }
 
 // ===== 弹窗状态 =====
-const dialogA  = reactive({ visible:false })
-const dialogA1 = reactive({ visible:false })
-const dialogA2 = reactive({ visible:false })
-const dialogA3 = reactive({ visible:false })
+const dialogA   = reactive({ visible:false })
+const dialogA1a = reactive({ visible:false })
+const dialogA1b = reactive({ visible:false })
+const dialogA1c = reactive({ visible:false })
 
 // 用于弹窗显示的任务（取第 1 条有附件的待完成任务）
 const demoItem = computed<MockTodo>(() => {
@@ -503,14 +497,11 @@ const demoItem = computed<MockTodo>(() => {
   return rich || mockTodos[0]
 })
 
-const a3ActiveTab = ref<'messages'|'supplement'>('messages')
-
 function openDialog(which:string) {
-  a3ActiveTab.value = 'messages'
-  if(which==='a')  dialogA.visible=true
-  else if(which==='a1') dialogA1.visible=true
-  else if(which==='a2') dialogA2.visible=true
-  else if(which==='a3') dialogA3.visible=true
+  if(which==='a')    dialogA.visible=true
+  else if(which==='a1a') dialogA1a.visible=true
+  else if(which==='a1b') dialogA1b.visible=true
+  else if(which==='a1c') dialogA1c.visible=true
 }
 </script>
 
@@ -785,35 +776,50 @@ function openDialog(which:string) {
 }
 
 /* ============================================================
-   A1 · 对话流式 — 管理留言对话气泡 + 用户补充
+   V1 · 间隔底色 — 三块不同底色过渡
    ============================================================ */
-.a1-sep {
-  height: 1px;
-  background: #e5e7eb;
-  margin: 14px 0;
+.a1a-card {
+  padding: 0 !important;       /* 去掉卡片整体 padding，由各区自己控制 */
+  overflow: hidden;
+  border-radius: 10px;
 }
-.a1-section-label {
+
+.a1a-section {
+  padding: 18px 18px 14px;
+}
+.a1a-section:last-child { padding-bottom: 18px; }
+
+.a1a-section-msg {
+  background: #f5f9ff;
+  border-top: 1px solid #e8edf5;
+  border-bottom: 1px solid #e8edf5;
+}
+.a1a-section-supp {
+  background: #fffcf0;
+}
+
+.a1a-section-title {
   font-size: 13px;
   font-weight: 600;
   color: #6b7280;
   margin-bottom: 10px;
 }
 
-/* 对话气泡 */
-.a1-messages {
+.a1a-messages {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 4px;
 }
+
+/* 气泡样式（所有变体共用） */
 .a1-bubble {
   padding: 10px 14px;
   border-radius: 10px;
-  max-width: 85%;
+  max-width: 88%;
   position: relative;
 }
 .a1-other {
-  background: #f0f4ff;
+  background: #ffffff;
   border: 1px solid #dbeafe;
   align-self: flex-start;
   border-bottom-left-radius: 4px;
@@ -844,21 +850,14 @@ function openDialog(which:string) {
   text-align: right;
 }
 
-/* 用户补充 */
-.a1-supplement {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 10px;
-  padding: 12px 14px;
-}
-.a1-supp-text {
+.a1b-supp-text {
   font-size: 14px;
-  color: #1f2937;
+  color: #374151;
   line-height: 1.6;
   word-break: break-word;
 }
-.a1-supp-img { margin-top: 8px; }
-.a1-supp-time {
+.a1b-supp-img { margin-top: 8px; }
+.a1b-supp-time {
   font-size: 12px;
   color: #9ca3af;
   margin-top: 6px;
@@ -866,159 +865,134 @@ function openDialog(which:string) {
 }
 
 /* ============================================================
-   A2 · 区块面板式 — 独立方框 + 分区标题
+   V2 · 边框块 — 三个独立边框块
    ============================================================ */
-.a2-block {
+.a1b-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.a1b-block {
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 14px 16px;
-  margin-top: 14px;
+  padding: 16px 18px;
+  margin: 12px 14px;
+  background: #ffffff;
 }
-.a2-block-msg {
+.a1b-block:first-child { margin-top: 14px; }
+.a1b-block:last-child { margin-bottom: 14px; }
+
+.a1b-block-msg {
+  border-color: #dbeafe;
   background: #f8faff;
-  border: 1px solid #e0e7ff;
 }
-.a2-block-supp {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+.a1b-block-supp {
+  border-color: #fde68a;
+  background: #fffcf5;
 }
-.a2-block-title {
+
+.a1b-block-title {
   font-size: 13px;
   font-weight: 600;
-  color: #4b5563;
+  color: #6b7280;
   margin-bottom: 10px;
 }
 
 /* 留言条目 */
-.a2-msg-row {
+.a1b-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.a1b-msg-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
+  padding: 6px 10px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
 }
-.a2-msg-row:last-child { border-bottom: none; padding-bottom: 0; }
-.a2-msg-author {
+.a1b-msg-author {
   font-size: 12px;
   font-weight: 600;
   color: #3b82f6;
   white-space: nowrap;
-  min-width: 36px;
+  min-width: 34px;
 }
-.a2-msg-text {
+.a1b-msg-text {
   flex: 1;
   font-size: 14px;
   color: #374151;
   line-height: 1.5;
   word-break: break-word;
 }
-.a2-msg-time {
+.a1b-msg-time {
   font-size: 11px;
   color: #9ca3af;
   white-space: nowrap;
 }
 
-/* 用户补充 */
-.a2-supp-body { }
-.a2-supp-text {
+/* ============================================================
+   V3 · 图标标题分隔 — 装饰分隔线
+   ============================================================ */
+.a1c-card {
+  /* 使用卡片默认 padding */
+}
+
+.a1c-divider {
+  text-align: center;
+  margin: 16px 0;
+  position: relative;
+}
+.a1c-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+}
+.a1c-divider-icon {
+  position: relative;
+  z-index: 1;
+  background: #f8f9fb;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+.a1c-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.a1c-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.a1c-supp {
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid #f3f4f6;
+}
+.a1c-supp-text {
   font-size: 14px;
   color: #374151;
   line-height: 1.6;
   word-break: break-word;
 }
-.a2-supp-img { margin-top: 8px; }
-.a2-supp-time {
+.a1c-supp-img { margin-top: 8px; }
+.a1c-supp-time {
   font-size: 12px;
   color: #9ca3af;
   margin-top: 6px;
   text-align: right;
-}
-
-/* ============================================================
-   A3 · 标签切换式 — 底部标签栏
-   ============================================================ */
-.a3-tabs {
-  display: flex;
-  gap: 4px;
-  margin-top: 16px;
-  background: #f3f4f6;
-  border-radius: 8px;
-  padding: 3px;
-}
-.a3-tab {
-  flex: 1;
-  text-align: center;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #6b7280;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.a3-tab.active {
-  color: #1f2937;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-.a3-tab-count {
-  font-size: 11px;
-  background: #e5e7eb;
-  color: #6b7280;
-  padding: 0 6px;
-  border-radius: 8px;
-  line-height: 16px;
-  margin-left: 3px;
-}
-.a3-tab.active .a3-tab-count {
-  background: #dbeafe;
-  color: #3b82f6;
-}
-
-.a3-panel {
-  padding: 12px 0 4px;
-}
-
-/* 留言条目 */
-.a3-msg-row {
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-.a3-msg-row:last-child { border-bottom: none; }
-.a3-msg-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.a3-msg-author {
-  font-size: 12px;
-  font-weight: 600;
-  color: #3b82f6;
-}
-.a3-msg-time {
-  font-size: 11px;
-  color: #9ca3af;
-}
-.a3-msg-text {
-  font-size: 14px;
-  color: #374151;
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-/* 补充内容 */
-.a3-supp-text {
-  font-size: 14px;
-  color: #374151;
-  line-height: 1.6;
-  word-break: break-word;
-}
-.a3-supp-img { margin-top: 8px; }
-.a3-supp-time {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 6px;
 }
 </style>
