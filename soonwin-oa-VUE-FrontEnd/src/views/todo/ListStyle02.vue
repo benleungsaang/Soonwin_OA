@@ -12,7 +12,7 @@
           v-for="item in groups[date]"
           :key="item.id"
           class="item-row"
-          :class="{ completed: item.status === 'completed' }"
+          :class="{ completed: item.status === 'completed', 'menu-open': openMenuId === item.id }"
           @click="openDetail(item)"
         >
           <!-- 彩色圆点 -->
@@ -220,11 +220,14 @@ interface TodoItem {
 
 const props = defineProps<{
   items: TodoItem[]
+  noDialogs?: boolean   // true 时点击条目/编辑由父组件处理
 }>()
 
 // ===== emit =====
 const emit = defineEmits<{
   (e: 'update:items', items: TodoItem[]): void
+  (e: 'view-detail', item: TodoItem): void
+  (e: 'edit-item', item: TodoItem): void
 }>()
 
 // ===== 本地数据（模拟，不影响父级） =====
@@ -320,6 +323,11 @@ const editContent = ref('')
 const editingItem = ref<TodoItem | null>(null)
 
 function onEdit(item: TodoItem) {
+  if (props.noDialogs) {
+    openMenuId.value = null
+    emit('edit-item', item)
+    return
+  }
   editingItem.value = item
   editContent.value = item.content
   openMenuId.value = null
@@ -360,6 +368,10 @@ const detailVisible = ref(false)
 const detailItem = ref<TodoItem | null>(null)
 
 function openDetail(item: TodoItem) {
+  if (props.noDialogs) {
+    emit('view-detail', item)
+    return
+  }
   detailItem.value = item
   detailVisible.value = true
 }
@@ -401,6 +413,7 @@ function openDetail(item: TodoItem) {
 
 .item-row:last-child { border-bottom: none; }
 .item-row:hover { background: #f5f7fa; }
+.item-row.menu-open { z-index: 50; position: relative; }
 .item-row.completed { opacity: 0.6; }
 
 /* ============================================================

@@ -22,7 +22,7 @@
 
       <!-- ============ 任务列表 ============ -->
       <div class="list-card">
-        <ListStyle02 :items="filteredItems" />
+        <ListStyle02 :items="filteredItems" :no-dialogs="true" @view-detail="onViewDetail" @edit-item="onEditItem" />
 
         <!-- 空状态 -->
         <div v-if="filteredItems.length === 0" class="empty-state">
@@ -216,6 +216,27 @@
     </el-dialog>
 
     <!-- ============================================================
+         修改内容弹窗（聊天式 C 风格）
+         ============================================================ -->
+    <el-dialog v-model="editVisible" title="修改内容" width="500px" top="10vh">
+      <div class="ntc-body">
+        <div class="ntc-content-area">
+          <textarea v-model="editContent" ref="editContentRef" class="ntc-textarea" placeholder="修改任务内容…" rows="5" maxlength="500" @focus="editLastFocus='content'"></textarea>
+        </div>
+        <div class="ntc-toolbar">
+          <button type="button" class="ntc-tool-btn" @click="onEditEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
+        </div>
+        <div v-show="editEmojiVisible" class="ntc-emoji-pop" @click.stop>
+          <emoji-picker class="ntc-ep" @emoji-click="insertEditEmoji" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="editVisible=false">取消</el-button>
+        <el-button type="primary" @click="submitEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
          新建任务弹窗（聊天式 C）
          ============================================================ -->
     <el-dialog v-model="newTaskVisible" title="新建任务" width="500px" top="10vh">
@@ -355,6 +376,48 @@ const detailItem = ref<TodoItem | null>(null)
 const detailMessages = ref<any[]>([])
 const detailSupplement = ref(demoUserSupplement)
 
+function onViewDetail(item: TodoItem) {
+  detailItem.value = item
+  detailMessages.value = demoAdminMessages.value
+  detailSupplement.value = demoUserSupplement
+  detailVisible.value = true
+}
+
+// ===== 编辑弹窗（C · 聊天式风格） =====
+const editVisible = ref(false)
+const editItem = ref<TodoItem | null>(null)
+const editContent = ref('')
+const editEmojiVisible = ref(false)
+const editLastFocus = ref<'title'|'content'>('content')
+const editTitleRef = ref<HTMLInputElement|null>(null)
+const editContentRef = ref<HTMLTextAreaElement|null>(null)
+
+function onEditItem(item: TodoItem) {
+  editItem.value = item
+  editContent.value = item.content
+  editEmojiVisible.value = false
+  editVisible.value = true
+}
+function onEditEmojiClick() { editEmojiVisible.value = !editEmojiVisible.value }
+function insertEditEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  const el = editContentRef.value
+  if (el) {
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    editContent.value = editContent.value.substring(0, start) + emoji + editContent.value.substring(end)
+    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
+  } else {
+    editContent.value += emoji
+  }
+}
+function submitEdit() {
+  if (!editContent.value.trim()) { ElMessage.warning('内容不能为空'); return }
+  if (editItem.value) editItem.value.content = editContent.value.trim()
+  editVisible.value = false
+  ElMessage.success('内容已更新（模拟）')
+}
+
 // 留言输入
 const msgInput = ref('')
 const msgEmojiVisible = ref(false)
@@ -416,7 +479,7 @@ function submitNewTask() {
 function onDocClick(e: MouseEvent) {
   const t = e.target as HTMLElement
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
-  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) newEmojiVisible.value = false
+  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) { newEmojiVisible.value = false; editEmojiVisible.value = false }
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
