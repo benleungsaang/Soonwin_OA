@@ -61,7 +61,7 @@
               </div>
 
               <!-- 缩略图 -->
-              <img v-if="todo.image_url" :src="resolveAssetUrl(todo.image_url)" class="item-thumb" alt="附图" @click.stop="openImageViewer(todo.image_url)" />
+              <img v-if="todo.image_url" :src="resolveAssetUrl(todo.image_url, 'thumbnail')" class="item-thumb img-border" alt="附图" @click.stop="openImageViewer(todo.image_url)" />
 
               <!-- 作者 -->
               <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
@@ -83,22 +83,6 @@
                     <button class="menu-btn" @click="openEditDialog(todo); closeMenu()">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                       <span>修改内容</span>
-                    </button>
-                    <button v-if="todo.status !== 'completed' && canModify(todo)" class="menu-btn" @click="openCompleteDialog(todo); closeMenu()">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
-                      <span>标记完成</span>
-                    </button>
-                    <button v-if="todo.status === 'completed' && canModify(todo)" class="menu-btn" @click="onUncomplete(todo); closeMenu()">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
-                      <span>撤销完成</span>
-                    </button>
-                    <button v-if="isAdmin" class="menu-btn" @click="openAddMessageDialog(todo); closeMenu()">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                      <span>添加备注</span>
-                    </button>
-                    <button class="menu-btn" @click="openMessagesDialog(todo.id); closeMenu()">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                      <span>查看留言</span>
                     </button>
                     <button v-if="canModify(todo)" class="menu-btn danger" @click="onDelete(todo); closeMenu()">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -138,17 +122,8 @@
             <div class="da-subject">{{ viewingTodo?.content }}</div>
             <div v-if="viewingTodo?.note" class="da-note-text">{{ viewingTodo.note }}</div>
             <div v-if="viewingTodo?.image_url" class="da-img-wrap">
-              <img :src="resolveAssetUrl(viewingTodo.image_url)" class="d-thumb da-thumb" style="object-fit:cover;background:#f3f4f6" @click.stop="openImageViewer(viewingTodo!.image_url!)" />
+              <img :src="resolveAssetUrl(viewingTodo.image_url)" class="d-thumb da-thumb img-border" style="object-fit:cover;background:#f3f4f6" @click.stop="openImageViewer(viewingTodo!.image_url!)" />
             </div>
-            <template v-if="viewingTodo?.status === 'completed'">
-              <div class="da-sep"></div>
-              <div class="da-complete-header">✅ 完成情况</div>
-              <div v-if="viewingTodo?.completion_note" class="da-comp-note">{{ viewingTodo.completion_note }}</div>
-              <div v-if="viewingTodo?.completion_image_url" class="da-img-wrap">
-                <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
-              </div>
-              <div v-if="viewingTodo?.completed_at" class="da-comp-time">{{ viewingTodo.completed_at }}</div>
-            </template>
           </div>
 
           <!-- 块 2：留言 + 行内输入 -->
@@ -178,13 +153,13 @@
             </div>
           </div>
 
-          <!-- 块 3：用户补充信息 -->
+          <!-- 块 3：完成情况 -->
           <div class="a1b-block a1b-block-supp">
-            <div class="a1b-block-title">📎 用户补充信息</div>
+            <div class="a1b-block-title">✅ 完成情况</div>
             <div v-if="viewingTodo?.status === 'completed'" class="a1b-supp-text">{{ viewingTodo.completion_note || '未填写完成说明' }}</div>
             <div v-else class="a1b-supp-text a1b-supp-empty">任务尚未完成，暂无补充信息</div>
             <div v-if="viewingTodo?.completion_image_url" class="a1b-supp-img">
-              <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
+              <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb img-border" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
             </div>
             <div v-if="viewingTodo?.completed_at" class="a1b-supp-time">{{ viewingTodo.completed_at }}</div>
           </div>
@@ -219,7 +194,7 @@
         </div>
         <!-- 图片预览 -->
         <div v-if="formImageUrl" class="ntc-img-bar">
-          <img :src="resolveAssetUrl(formImageUrl)" class="ntc-img-thumb-real" />
+          <img :src="resolveAssetUrl(formImageUrl)" class="ntc-img-thumb-real img-border" />
           <span class="ntc-img-label">已上传</span>
           <button class="ntc-img-remove" @click="formImageUrl=''">✕ 移除</button>
         </div>
@@ -296,8 +271,11 @@
       </template>
     </el-dialog>
 
-    <!-- ============ 图片灯箱 ============ -->
-    <el-image-viewer v-if="imageViewerVisible" :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
+    <!-- ============ 图片灯箱（点击空白处关闭） ============ -->
+    <div v-if="imageViewerVisible" class="lightbox-overlay" @click="imageViewerVisible=false">
+      <img :src="resolveAssetUrl(imageViewerUrl)" class="lightbox-image" @click.stop />
+      <button class="lightbox-close" @click="imageViewerVisible=false">✕</button>
+    </div>
   </div>
 </template>
 
@@ -362,10 +340,14 @@ function colorLabel(v: string) { return colorOptions.find(c => c.value === v)?.l
 // ============================================================
 // 资源 URL 解析
 // ============================================================
-function resolveAssetUrl(url: string): string {
+function resolveAssetUrl(url: string, variant?: 'display' | 'thumbnail'): string {
   if (!url) return ''
   if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url
   if (url.startsWith('/')) return url
+  // 新上传的图片是 WebP 双尺寸：_display.webp（详情/灯箱）/_thumbnail.webp（缩略图）
+  if (variant === 'thumbnail' && url.includes('_display.webp')) {
+    url = url.replace('_display.webp', '_thumbnail.webp')
+  }
   return '/assets/TodoMedia/' + url
 }
 
@@ -1172,4 +1154,28 @@ onBeforeUnmount(() => {
 .msg-author { font-weight: 500; color: #374151; }
 .msg-time { color: #9ca3af; }
 .msg-content { font-size: 14px; color: #1f2937; word-break: break-word; white-space: pre-wrap; }
+
+/* ============================================================
+   图片边框 & 灯箱
+   ============================================================ */
+.img-border { border: 1px solid #e5e7eb; border-radius: 6px; }
+
+.lightbox-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 40px;
+}
+.lightbox-image {
+  max-width: 90vw; max-height: 90vh; object-fit: contain;
+  border-radius: 8px; cursor: default;
+}
+.lightbox-close {
+  position: absolute; top: 20px; right: 24px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); color: white;
+  border: none; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.lightbox-close:hover { background: rgba(255,255,255,0.3); }
 </style>

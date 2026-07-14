@@ -36,7 +36,7 @@ def _resolve_user_name(user_id: str, fallback: str = '') -> str:
 from app.constants.simple_permission_constants import ROUTE_TODO_MANAGE
 from app.models.todo import Todo, TodoMessage, TodoMessageRead
 from app.models.employee import Employee
-from app.utils.upload_utils import save_uploaded_file
+from app.utils.upload_utils import save_uploaded_file, process_image_with_variants
 
 todo_bp = Blueprint('todo', __name__)
 
@@ -78,17 +78,40 @@ def _can_access_todo(todo: Todo, user_role: str, user_id: str) -> bool:
 
 
 def _save_todo_image(file, sub_dir: str = 'todo') -> str:
-    """保存 todo 图片，返回带 sub_dir 前缀的相对路径（前端拼 /assets/TodoMedia/ 即可）
+    """保存 todo 图片，生成 WebP 变体，删除原图
 
-    例：保存到 assets/TodoMedia/todo/2026/07/13/xxx.jpg → 返回 "todo/2026/07/13/xxx.jpg"
+    生成规则：
+    - display: 最大 1600px WebP（详情弹窗用）
+    - thumbnail: 最大 800px WebP（列表缩略图用）
+    - 原图（JPG/PNG）生成 WebP 后删除，不保留大图
+
+    返回 display WebP 的相对路径，前端用同一路径填充 image_url，
+    缩略图通过命名约定访问：将 _display.webp → _thumbnail.webp
     """
-    base_dir = _get_todo_media_dir()  # .../assets/TodoMedia
+    base_dir = _get_todo_media_dir()
     target_dir = os.path.join(base_dir, sub_dir)
     os.makedirs(target_dir, exist_ok=True)
     save_path, relative_path, filename = save_uploaded_file(file, target_dir, use_date_subdir=True)
-    # relative_path 相对 target_dir；拼上 sub_dir 让前端拿到完整可定位的相对路径
-    full_relative = os.path.join(sub_dir, relative_path).replace('\\', '/')
-    return full_relative
+    # relative_path 相对 target_dir（如 "2026/07/13/xxx.jpg"）
+    name_no_ext, _ = os.path.splitext(filename)
+    file_prefix = name_no_ext  # 不含扩展名的文件名
+
+    # 生成 WebP 变体
+    result = process_image_with_variants(
+        save_path, base_dir,
+        file_prefix=f"{sub_dir}/{relative_path.replace(filename, name_no_ext)}",
+        ext='jpg',
+    )
+    display_path = result.get('display', '')
+
+    # 删除原图（JPG/PNG）
+    try:
+        os.remove(save_path)
+    except OSError:
+        pass
+
+    # 返回 display 路径（前端拼 /assets/TodoMedia/）
+    return display_path
 
 
 def _compute_unread_count(todo_id: int, user_id: str) -> int:
