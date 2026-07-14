@@ -1165,7 +1165,7 @@ onBeforeUnmount(() => {
 
 /* 缩略图固定占位（无论有无图片，对齐不受作者名影响） */
 .thumb-area { flex-shrink: 0; width: 56px; display: flex; align-items: center; justify-content: center; }
-.thumb-placeholder { width: 48px; height: 36px; display: block; }
+.thumb-placeholder { width: 56px; height: 44px; display: block; }
 .item-thumb { display: block; }
 
 </style>
