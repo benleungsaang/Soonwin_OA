@@ -34,6 +34,103 @@
       </section>
 
       <!-- ============================================================
+           添加任务方案投票
+           ============================================================ -->
+      <section class="demo-section">
+        <h2 class="section-title">
+          <span class="section-badge" style="background:#d97706">+</span>
+          添加任务方案投票
+          <span class="section-sub">—— 在已定稿页面上补充新建任务的方式</span>
+        </h2>
+        <p class="supplement-intro">搜索栏保持现有样式不变，以下三种方案仅影响「添加任务」区域的交互布局。</p>
+
+        <div class="detail-preview-row">
+          <button class="preview-card" @click="addDemoVisible='a'; showAddDemo=true">
+            <span class="preview-badge" style="background:#6366f1">A</span>
+            <span class="preview-label">顶栏精简添加</span>
+            <span class="preview-desc">输入框+颜色点+添加按钮，一行搞定</span>
+          </button>
+          <button class="preview-card" @click="addDemoVisible='b'; showAddDemo=true">
+            <span class="preview-badge" style="background:#0891b2">B</span>
+            <span class="preview-label">展开式面板</span>
+            <span class="preview-desc">点击"新建"展开表单，用完收起</span>
+          </button>
+          <button class="preview-card" @click="addDemoVisible='c'; showAddDemo=true">
+            <span class="preview-badge" style="background:#7c3aed">C</span>
+            <span class="preview-label">浮动 FAB + 弹窗</span>
+            <span class="preview-desc">右下角悬浮按钮→弹窗完整录入</span>
+          </button>
+        </div>
+
+        <!-- 方案 A 演示 -->
+        <div v-if="showAddDemo && addDemoVisible==='a'" class="demo-card add-demo-card">
+          <div class="add-demo-header">方案 A · 顶栏精简添加</div>
+          <div class="add-bar-demo">
+            <input v-model="addDemoInput" type="text" class="add-bar-input" placeholder="添加新的待办事项..." maxlength="500" @keypress.enter="addDemoInput=''; ElMessage.success('已添加（模拟）')" />
+            <div class="add-bar-colors">
+              <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value, { active: addDemoColor===c.value }]" :title="c.label" @click="addDemoColor=c.value" />
+            </div>
+            <button class="add-bar-btn" @click="addDemoInput=''; ElMessage.success('已添加（模拟）')">添加</button>
+          </div>
+          <div class="add-demo-note">快捷添加，默认今天/白色，颜色点速选</div>
+        </div>
+
+        <!-- 方案 B 演示 -->
+        <div v-if="showAddDemo && addDemoVisible==='b'" class="demo-card add-demo-card">
+          <div class="add-demo-header">方案 B · 展开式面板</div>
+          <div class="add-expand-demo">
+            <button class="add-expand-trigger" @click="addExpanded=!addExpanded">
+              <span>＋ 新建任务</span>
+              <svg :class="{ rotated: addExpanded }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div v-if="addExpanded" class="add-expand-body">
+              <input v-model="addDemoInput2" type="text" class="add-bar-input" placeholder="输入任务内容..." maxlength="500" style="width:100%;margin-bottom:10px" />
+              <div class="add-expand-row">
+                <span class="add-expand-label">日期</span>
+                <input type="date" class="add-expand-date" v-model="addDemoDate" />
+              </div>
+              <div class="add-expand-row">
+                <span class="add-expand-label">颜色</span>
+                <div class="add-bar-colors">
+                  <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:addDemoColor2===c.value}]" :title="c.label" @click="addDemoColor2=c.value" />
+                </div>
+              </div>
+              <button class="add-bar-btn" style="width:100%;justify-content:center;margin-top:8px" @click="addExpanded=false;ElMessage.success('已添加（模拟）')">确认添加</button>
+            </div>
+          </div>
+          <div class="add-demo-note">点击"＋ 新建任务"展开表单，用完自动收起</div>
+        </div>
+
+        <!-- 方案 C 演示 -->
+        <div v-if="showAddDemo && addDemoVisible==='c'" class="demo-card add-demo-card" style="position:relative;min-height:140px">
+          <div class="add-demo-header">方案 C · 浮动 FAB + 弹窗</div>
+          <p style="font-size:14px;color:#6b7280;padding:20px 0;text-align:center">工具栏无添加区域，右下角悬浮按钮</p>
+          <button class="add-fab-demo" @click="addFabOpen=true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="add-demo-note">FAB 悬浮在右下角，不占用工具栏空间</div>
+        </div>
+      </section>
+
+      <!-- 添加任务弹窗（方案 C） -->
+      <el-dialog v-model="addFabOpen" title="新建任务" width="480px" top="20vh">
+        <div class="add-fab-form">
+          <label class="add-fab-label">任务内容</label>
+          <input v-model="addDemoInput3" type="text" class="add-bar-input" placeholder="输入任务内容..." maxlength="500" style="width:100%;margin-bottom:14px" />
+          <label class="add-fab-label">所属日期</label>
+          <input type="date" class="add-expand-date" v-model="addDemoDate2" style="width:100%;margin-bottom:14px" />
+          <label class="add-fab-label">卡片颜色</label>
+          <div class="add-bar-colors" style="margin-bottom:4px">
+            <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:addDemoColor3===c.value}]" :title="c.label" @click="addDemoColor3=c.value" />
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="addFabOpen=false">取消</el-button>
+          <el-button type="primary" @click="addFabOpen=false;ElMessage.success('已添加（模拟）')">确认添加</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- ============================================================
            下部：样式② 彩色圆点式（已选用）
            ============================================================ -->
       <section class="demo-section">
@@ -445,7 +542,7 @@
               </div>
             </div>
 
-            <!-- 行内输入框 -->
+            <!-- 行内输入框（含 emoji + 图片 + 发送） -->
             <div class="a1d-inline-input">
               <input
                 v-model="a1dInput"
@@ -455,9 +552,30 @@
                 maxlength="300"
                 @keypress.enter="a1dSend"
               />
-              <button class="a1d-send-btn" :disabled="!a1dInput.trim()" @click="a1dSend">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-              </button>
+              <div class="a1d-actions">
+                <!-- emoji 按钮 -->
+                <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="a1dToggleEmoji">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
+                <!-- 图片上传按钮 -->
+                <button type="button" class="a1d-action-btn" title="上传图片" @click="a1dTriggerUpload">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                </button>
+                <!-- 发送按钮 -->
+                <button class="a1d-send-btn" :disabled="!a1dInput.trim() && !a1dPendingImage" @click="a1dSend">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </button>
+              </div>
+              <!-- emoji picker 弹层 -->
+              <div v-show="a1dEmojiVisible" class="a1d-emoji-popup" @click.stop>
+                <emoji-picker class="a1d-emoji-picker" @emoji-click="a1dInsertEmoji" />
+              </div>
+            </div>
+            <!-- 图片预览 -->
+            <div v-if="a1dPendingImage" class="a1d-image-preview">
+              <div class="a1d-image-thumb" :style="{ background: a1dPendingImage }"></div>
+              <span class="a1d-image-label">待发送</span>
+              <button class="a1d-image-remove" @click="a1dPendingImage=''">✕</button>
             </div>
           </div>
 
@@ -482,7 +600,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ElMessage } from 'element-plus'
+import 'emoji-picker-element'
 import { List, CircleCheck, Clock, Flag } from '@element-plus/icons-vue'
 import CommonHeader from '@/components/CommonHeader.vue'
 import ListStyle02 from './ListStyle02.vue'
@@ -595,19 +715,69 @@ function openDialog(which:string) {
   else if(which==='a1d') dialogA1d.visible=true
 }
 
-// ===== V4 行内输入模拟 =====
+// ===== V4 行内输入模拟（含 emoji + 图片） =====
 const a1dInput = ref('')
+const a1dEmojiVisible = ref(false)
+const a1dPendingImage = ref('')
+
+function a1dToggleEmoji() {
+  a1dEmojiVisible.value = !a1dEmojiVisible.value
+}
+
+function a1dInsertEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  a1dInput.value += emoji
+}
+
+function a1dTriggerUpload() {
+  // 模拟上传：生成随机渐变图占位
+  const colors = ['#fca5a5,#f87171', '#fde68a,#fbbf24', '#a7f3d0,#6ee7b7', '#93c5fd,#60a5fa', '#c4b5fd,#a78bfa']
+  const pair = colors[Math.floor(Math.random() * colors.length)]
+  a1dPendingImage.value = `linear-gradient(135deg, ${pair})`
+  ElMessage.success('图片已添加（模拟）')
+}
+
 function a1dSend() {
-  if (!a1dInput.value.trim()) return
-  // 模拟发出去的效果：输入内容加到 demoAdminMessages 中
+  if (!a1dInput.value.trim() && !a1dPendingImage.value) return
+  let content = a1dInput.value.trim()
+  if (a1dPendingImage.value) {
+    content = content ? `${content} [图片]` : '[图片]'
+  }
   demoAdminMessages.push({
     id: Date.now(),
-    content: a1dInput.value.trim(),
+    content,
     author: '你',
     time: new Date().toLocaleString('zh-CN', { hour12: false }),
   })
   a1dInput.value = ''
+  a1dPendingImage.value = ''
+  a1dEmojiVisible.value = false
 }
+
+// 点击外部关闭 emoji picker
+function onDocClickEmoji(e: MouseEvent) {
+  const t = e.target as HTMLElement
+  if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) {
+    a1dEmojiVisible.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onDocClickEmoji))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClickEmoji))
+
+// ===== 添加任务 Demo 状态 =====
+const showAddDemo = ref(false)
+const addDemoVisible = ref<'a'|'b'|'c'>('a')
+const addDemoInput = ref('')
+const addDemoColor = ref('white')
+const addDemoInput2 = ref('')
+const addDemoColor2 = ref('white')
+const addDemoDate = ref(new Date().toISOString().split('T')[0])
+const addExpanded = ref(false)
+const addDemoInput3 = ref('')
+const addDemoColor3 = ref('white')
+const addDemoDate2 = ref(new Date().toISOString().split('T')[0])
+const addFabOpen = ref(false)
 </script>
 
 <style scoped>
@@ -1068,6 +1238,91 @@ function a1dSend() {
 }
 
 /* ============================================================
+   添加任务 Demo 样式
+   ============================================================ */
+.add-demo-card { margin-top: 14px; padding: 0; overflow: hidden; }
+.add-demo-header {
+  font-size: 13px; font-weight: 600; color: #6b7280;
+  padding: 10px 16px; background: #fafafa;
+  border-bottom: 1px solid #f3f4f6;
+}
+.add-demo-note {
+  font-size: 12px; color: #9ca3af;
+  padding: 8px 16px 12px; border-top: 1px solid #f3f4f6;
+}
+
+/* A 顶栏精简 */
+.add-bar-demo {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px;
+}
+.add-bar-input {
+  flex: 1; padding: 8px 14px; border: 1px solid #d1d5db;
+  border-radius: 8px; outline: none; font-size: 14px; transition: all 0.2s;
+}
+.add-bar-input:focus {
+  border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+.add-bar-colors { display: flex; gap: 4px; flex-shrink: 0; }
+.add-bar-colors .color-dot-btn {
+  width: 20px; height: 20px; border-radius: 50%;
+  cursor: pointer; transition: transform 0.15s;
+  border: 2px solid transparent; padding: 0;
+}
+.add-bar-colors .color-dot-btn:hover { transform: scale(1.15); }
+.add-bar-colors .color-dot-btn.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+.add-bar-colors .bg-white  { background: #ffffff; border-color: #d1d5db; }
+.add-bar-colors .bg-red    { background: #fee2e2; }
+.add-bar-colors .bg-yellow { background: #fef3c7; }
+.add-bar-colors .bg-green  { background: #d1fae5; }
+.add-bar-colors .bg-blue   { background: #dbeafe; }
+.add-bar-colors .bg-dark   { background: #e5e7eb; }
+
+.add-bar-btn {
+  padding: 8px 18px; border: none; border-radius: 8px;
+  background: #3b82f6; color: white; font-size: 14px;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.add-bar-btn:hover { background: #2563eb; }
+
+/* B 展开式面板 */
+.add-expand-demo { padding: 10px 16px; }
+.add-expand-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 10px; border: 2px dashed #d1d5db;
+  border-radius: 8px; background: transparent; color: #6b7280;
+  font-size: 14px; cursor: pointer; transition: all 0.2s;
+}
+.add-expand-trigger:hover {
+  border-color: #3b82f6; color: #3b82f6; background: #f0f7ff;
+}
+.add-expand-trigger svg { transition: transform 0.25s; }
+.add-expand-trigger svg.rotated { transform: rotate(180deg); }
+.add-expand-body { margin-top: 12px; padding: 14px; background: #f9fafb; border-radius: 8px; }
+.add-expand-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.add-expand-label { font-size: 13px; color: #6b7280; white-space: nowrap; min-width: 36px; }
+.add-expand-date {
+  padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+  font-size: 13px; outline: none;
+}
+
+/* C FAB */
+.add-fab-demo {
+  position: absolute; right: 20px; bottom: 50px;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: #3b82f6; color: white; border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(59,130,246,0.35);
+  transition: all 0.2s;
+}
+.add-fab-demo:hover { transform: scale(1.08); background: #2563eb; }
+
+.add-fab-form { padding: 8px 0; }
+.add-fab-label { display: block; font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+
+/* ============================================================
    V4 · 边框块+行内输入
    ============================================================ */
 .a1d-inline-input {
@@ -1076,6 +1331,7 @@ function a1dSend() {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #e5e7eb;
+  position: relative;  /* emoji picker 定位锚点 */
 }
 .a1d-input {
   flex: 1;
@@ -1110,5 +1366,87 @@ function a1dSend() {
 .a1d-send-btn:disabled {
   background: #d1d5db;
   cursor: not-allowed;
+}
+
+/* 操作按钮组（emoji + 图片） */
+.a1d-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.a1d-action-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.a1d-action-btn:hover {
+  color: #3b82f6;
+  background: rgba(59,130,246,0.08);
+}
+
+/* emoji picker 弹出 */
+.a1d-emoji-popup {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+}
+.a1d-emoji-picker {
+  height: 220px;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  --num-columns: 8;
+  --border-radius: 10px;
+}
+
+/* 图片预览条 */
+.a1d-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+.a1d-image-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.a1d-image-label {
+  font-size: 12px;
+  color: #6b7280;
+  flex: 1;
+}
+.a1d-image-remove {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.a1d-image-remove:hover {
+  background: #fecaca;
+  color: #dc2626;
 }
 </style>
