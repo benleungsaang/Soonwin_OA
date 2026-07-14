@@ -48,7 +48,7 @@
       </section>
 
       <!-- ============================================================
-           详情弹窗样式对比
+           详情弹窗样式（已选用 A 左轨时间线）
            ============================================================ -->
       <section class="demo-section">
         <h2 class="section-title">
@@ -57,38 +57,73 @@
           <span class="section-sub">—— 左轨时间线，内容卡片浅灰背景+边框</span>
         </h2>
 
-        <!-- 三列预览按钮 -->
         <div class="detail-preview-row">
           <button class="preview-card preview-chosen" @click="openDialog('a')">
             <span class="preview-badge" style="background:#6366f1">A</span>
             <span class="preview-label">左轨时间线 <span class="chosen-tag">已选用</span></span>
-            <span class="preview-desc">卡片左侧时间线导轨·内容自由流淌</span>
-          </button>
-          <button class="preview-card" @click="openDialog('b')">
-            <span class="preview-badge" style="background:#0891b2">B</span>
-            <span class="preview-label">流式时间线</span>
-            <span class="preview-desc">节点贯穿内容·分段但不分卡·圆点标记</span>
-          </button>
-          <button class="preview-card" @click="openDialog('c')">
-            <span class="preview-badge" style="background:#7c3aed">C</span>
-            <span class="preview-label">卡片融合式</span>
-            <span class="preview-desc">彩色侧边栏·信息流式垂直排列</span>
+            <span class="preview-desc">点击查看当前的完整效果</span>
           </button>
         </div>
       </section>
 
       <!-- ============================================================
-           功能说明卡
+           补充功能方案：管理员的留言 + 用户完成后的补充信息
+           ============================================================ -->
+      <section class="demo-section">
+        <h2 class="section-title">
+          <span class="section-badge">▼</span>
+          补充功能方案投票
+          <span class="section-sub">—— 在详情弹窗中加入「管理员留言」和「用户补充信息」</span>
+        </h2>
+        <p class="supplement-intro">
+          以下三种方案基于已选定的左轨时间线款式，以不同方式展示这两块新增内容。
+          <strong>模拟数据</strong>：
+          <span class="demo-tag">💬 管理员留言 2 条</span>
+          <span class="demo-tag">📎 用户补充信息 1 条</span>
+        </p>
+
+        <div class="detail-preview-row">
+          <button class="preview-card" @click="openDialog('a1')">
+            <span class="preview-badge" style="background:#6366f1">A1</span>
+            <span class="preview-label">对话流式</span>
+            <span class="preview-desc">留言以对话气泡形式追加在时间线中</span>
+          </button>
+          <button class="preview-card" @click="openDialog('a2')">
+            <span class="preview-badge" style="background:#0891b2">A2</span>
+            <span class="preview-label">区块面板式</span>
+            <span class="preview-desc">独立区块+分区标题，结构清晰</span>
+          </button>
+          <button class="preview-card" @click="openDialog('a3')">
+            <span class="preview-badge" style="background:#7c3aed">A3</span>
+            <span class="preview-label">标签切换式</span>
+            <span class="preview-desc">底部标签栏切换留言/补充，省空间</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           功能说明卡（已确认 + 待定）
            ============================================================ -->
       <section class="feature-card">
-        <h3>当前条目功能列表（模拟）</h3>
-        <div class="feature-grid">
-          <div class="feat-item"><span class="feat-icon">🖼️</span><span>缩略图占位</span></div>
-          <div class="feat-item"><span class="feat-icon">🎨</span><span>三点菜单 → 选择颜色</span></div>
-          <div class="feat-item"><span class="feat-icon">✏️</span><span>三点菜单 → 修改内容</span></div>
-          <div class="feat-item"><span class="feat-icon">🗑️</span><span>三点菜单 → 删除</span></div>
-          <div class="feat-item"><span class="feat-icon">👁️</span><span>点击条目 → 查看详情</span></div>
-          <div class="feat-item"><span class="feat-icon">📋</span><span>A/B/C 三种详情弹窗样式</span></div>
+        <div class="fc-row">
+          <span class="fc-row-badge">✅ 已确认</span>
+          <div class="feature-grid">
+            <span class="feat-item">🏷️ 药丸式 Tab</span>
+            <span class="feat-item">🔵 彩色圆点条目</span>
+            <span class="feat-item">🖼️ 缩略图占位</span>
+            <span class="feat-item">🎨 三点菜单→选色</span>
+            <span class="feat-item">✏️ 三点菜单→改内容</span>
+            <span class="feat-item">🗑️ 三点菜单→删除</span>
+            <span class="feat-item">👁️ 点击条目→查看详情</span>
+            <span class="feat-item">📋 左轨时间线详情布局</span>
+          </div>
+        </div>
+        <div class="fc-row fc-row-new">
+          <span class="fc-row-badge fc-badge-new">🆕 待定</span>
+          <div class="feature-grid">
+            <span class="feat-item feat-new">💬 管理员留言</span>
+            <span class="feat-item feat-new">📎 用户完成后的补充信息</span>
+          </div>
         </div>
       </section>
     </div>
@@ -148,106 +183,216 @@
     </el-dialog>
 
     <!-- ============================================================
-         样式 B：流式时间线 — 节点贯穿内容，分段但不分卡
+         A1 · 对话流式 — 管理留言以对话气泡追加，用户补充独立区块
          ============================================================ -->
-    <el-dialog v-model="dialogB.visible" title="任务详情" width="520px" top="6vh">
-      <div class="db-outer">
-        <div class="db-timeline">
-          <!-- 节点 1：主题 + 备注（合并，无备注标题） -->
-          <div class="db-node">
-            <div class="db-dot db-dot-main"></div>
-            <div class="db-node-body">
-              <div class="db-subject">{{ demoItem.content }}</div>
-              <div v-if="demoItem.note" class="db-note-text">{{ demoItem.note }}</div>
-            </div>
-          </div>
-
-          <!-- 节点 2：附图（无标题） -->
-          <div v-if="demoItem.image_url" class="db-node">
-            <div class="db-dot db-dot-sub"></div>
-            <div class="db-node-body">
-              <div class="d-thumb db-thumb" :style="{ background: thumbBg(demoItem) }">
-                <span class="d-thumb-icon">🖼️</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 节点 3：完成信息 -->
-          <template v-if="demoItem.status === 'completed'">
-            <div class="db-node">
-              <div class="db-dot db-dot-done"></div>
-              <div class="db-node-body">
-                <div class="db-section-label">✅ 完成情况</div>
-                <div v-if="demoItem.completion_note" class="db-note-text" style="margin-top:6px">{{ demoItem.completion_note }}</div>
-                <div v-if="demoItem.completion_image_url" class="d-thumb db-thumb" style="margin-top:8px;background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
-                  <span class="d-thumb-icon">✅</span>
-                </div>
-                <div v-if="demoItem.completed_at" class="db-meta" style="margin-top:6px">{{ demoItem.completed_at }}</div>
-              </div>
-            </div>
-          </template>
+    <el-dialog v-model="dialogA1.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
         </div>
-
-        <!-- 浮动状态角标 -->
-        <div class="db-corner-badge" :class="demoItem.status==='completed'?'db-c-done':'db-c-pending'">
-          <span class="db-corner-status">{{ demoItem.status==='completed'?'已完成':'待完成' }}</span>
-          <span class="db-corner-date">{{ demoItem.date }}</span>
-          <span class="db-corner-author">{{ demoItem.author }}</span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="dialogB.visible=false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- ============================================================
-         样式 C：卡片融合式 — 彩色侧边栏 + 信息流式垂直排列
-         ============================================================ -->
-    <el-dialog v-model="dialogC.visible" title="任务详情" width="520px" top="8vh">
-      <div class="dc-outer" :class="'dc-accent-' + demoItem.color">
-        <!-- 左侧彩色侧边栏 -->
-        <div class="dc-accent"></div>
-
-        <!-- 主卡片 -->
-        <div class="dc-card">
-          <!-- 元信息行 -->
-          <div class="dc-meta-row">
-            <span class="dc-pill" :class="demoItem.status==='completed'?'dc-pill-done':'dc-pill-pending'">
-              {{ demoItem.status==='completed'?'已完成':'待完成' }}
+        <div class="da-card">
+          <!-- 顶栏 -->
+          <div class="da-top">
+            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
             </span>
-            <span class="dc-date">{{ demoItem.date }}</span>
-            <span class="dc-author">{{ demoItem.author }}</span>
+            <span class="da-date">{{ demoItem.date }}</span>
+            <span class="da-author">{{ demoItem.author }}</span>
           </div>
 
-          <!-- 主题 -->
-          <div class="dc-subject">{{ demoItem.content }}</div>
-
-          <!-- 备注（无标题，灰色底框） -->
-          <div v-if="demoItem.note" class="dc-note-block">{{ demoItem.note }}</div>
-
-          <!-- 附图（无标题） -->
-          <div v-if="demoItem.image_url" class="dc-img-block">
-            <div class="d-thumb dc-thumb" :style="{ background: thumbBg(demoItem) }">
+          <div class="da-subject">{{ demoItem.content }}</div>
+          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+          <div v-if="demoItem.image_url" class="da-img-wrap">
+            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
               <span class="d-thumb-icon">🖼️</span>
             </div>
           </div>
 
           <!-- 完成信息 -->
           <template v-if="demoItem.status === 'completed'">
-            <div class="dc-divider"></div>
-            <div class="dc-section-tag">✅ 完成情况</div>
-            <div v-if="demoItem.completion_note" class="dc-note-block">{{ demoItem.completion_note }}</div>
-            <div v-if="demoItem.completion_image_url" class="dc-img-block">
-              <div class="d-thumb dc-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+            <div class="da-sep"></div>
+            <div class="da-complete-header">✅ 完成情况</div>
+            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
                 <span class="d-thumb-icon">✅</span>
               </div>
             </div>
-            <div v-if="demoItem.completed_at" class="dc-meta-time">{{ demoItem.completed_at }}</div>
+            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
           </template>
+
+          <!-- ===== 管理员留言（对话气泡风格） ===== -->
+          <div class="a1-sep"></div>
+          <div class="a1-section-label">💬 管理员留言</div>
+          <div class="a1-messages">
+            <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1-bubble" :class="msg.author==='你'?'a1-self':'a1-other'">
+              <div class="a1-bubble-author">{{ msg.author }}</div>
+              <div class="a1-bubble-text">{{ msg.content }}</div>
+              <div class="a1-bubble-time">{{ msg.time }}</div>
+            </div>
+          </div>
+
+          <!-- ===== 用户补充信息 ===== -->
+          <div class="a1-sep"></div>
+          <div class="a1-section-label">📎 用户补充信息</div>
+          <div class="a1-supplement">
+            <div class="a1-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a1-supp-img">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                <span class="d-thumb-icon">📎</span>
+              </div>
+            </div>
+            <div class="a1-supp-time">{{ demoUserSupplement.addedAt }}</div>
+          </div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="dialogC.visible=false">关闭</el-button>
+        <el-button @click="dialogA1.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         A2 · 区块面板式 — 独立方框 + 分区标题，层次分明
+         ============================================================ -->
+    <el-dialog v-model="dialogA2.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card">
+          <div class="da-top">
+            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+            </span>
+            <span class="da-date">{{ demoItem.date }}</span>
+            <span class="da-author">{{ demoItem.author }}</span>
+          </div>
+
+          <div class="da-subject">{{ demoItem.content }}</div>
+          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+          <div v-if="demoItem.image_url" class="da-img-wrap">
+            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
+              <span class="d-thumb-icon">🖼️</span>
+            </div>
+          </div>
+
+          <template v-if="demoItem.status === 'completed'">
+            <div class="da-sep"></div>
+            <div class="da-complete-header">✅ 完成情况</div>
+            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                <span class="d-thumb-icon">✅</span>
+              </div>
+            </div>
+            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
+          </template>
+
+          <!-- ===== 管理员留言（独立区块） ===== -->
+          <div class="a2-block a2-block-msg">
+            <div class="a2-block-title">💬 管理员留言</div>
+            <div v-for="msg in demoAdminMessages" :key="msg.id" class="a2-msg-row">
+              <span class="a2-msg-author">{{ msg.author }}</span>
+              <span class="a2-msg-text">{{ msg.content }}</span>
+              <span class="a2-msg-time">{{ msg.time }}</span>
+            </div>
+          </div>
+
+          <!-- ===== 用户补充信息（独立区块） ===== -->
+          <div class="a2-block a2-block-supp">
+            <div class="a2-block-title">📎 用户补充信息</div>
+            <div class="a2-supp-body">
+              <div class="a2-supp-text">{{ demoUserSupplement.content }}</div>
+              <div v-if="demoUserSupplement.image_url" class="a2-supp-img">
+                <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                  <span class="d-thumb-icon">📎</span>
+                </div>
+              </div>
+              <div class="a2-supp-time">{{ demoUserSupplement.addedAt }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogA2.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ============================================================
+         A3 · 标签切换式 — 底部标签栏切换留言/补充，节省空间
+         ============================================================ -->
+    <el-dialog v-model="dialogA3.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card">
+          <div class="da-top">
+            <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+              {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+            </span>
+            <span class="da-date">{{ demoItem.date }}</span>
+            <span class="da-author">{{ demoItem.author }}</span>
+          </div>
+
+          <div class="da-subject">{{ demoItem.content }}</div>
+          <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+          <div v-if="demoItem.image_url" class="da-img-wrap">
+            <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
+              <span class="d-thumb-icon">🖼️</span>
+            </div>
+          </div>
+
+          <template v-if="demoItem.status === 'completed'">
+            <div class="da-sep"></div>
+            <div class="da-complete-header">✅ 完成情况</div>
+            <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+            <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                <span class="d-thumb-icon">✅</span>
+              </div>
+            </div>
+            <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
+          </template>
+
+          <!-- ===== 底部标签栏 ===== -->
+          <div class="a3-tabs">
+            <button class="a3-tab" :class="{ active: a3ActiveTab === 'messages' }" @click="a3ActiveTab='messages'">
+              💬 留言 <span class="a3-tab-count">{{ demoAdminMessages.length }}</span>
+            </button>
+            <button class="a3-tab" :class="{ active: a3ActiveTab === 'supplement' }" @click="a3ActiveTab='supplement'">
+              📎 补充
+            </button>
+          </div>
+
+          <!-- 留言内容 -->
+          <div v-if="a3ActiveTab==='messages'" class="a3-panel">
+            <div v-for="msg in demoAdminMessages" :key="msg.id" class="a3-msg-row">
+              <div class="a3-msg-header">
+                <span class="a3-msg-author">{{ msg.author }}</span>
+                <span class="a3-msg-time">{{ msg.time }}</span>
+              </div>
+              <div class="a3-msg-text">{{ msg.content }}</div>
+            </div>
+          </div>
+
+          <!-- 补充内容 -->
+          <div v-if="a3ActiveTab==='supplement'" class="a3-panel">
+            <div class="a3-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a3-supp-img">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                <span class="d-thumb-icon">📎</span>
+              </div>
+            </div>
+            <div class="a3-supp-time">{{ demoUserSupplement.addedAt }}</div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogA3.visible=false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -335,23 +480,37 @@ function thumbBg(item:MockTodo):string {
   return m[item.color]||m.white
 }
 
-// ===== 三个弹窗的状态 =====
-const dialogA = reactive({ visible:false })
-const dialogB = reactive({ visible:false })
-const dialogC = reactive({ visible:false })
+// ===== 管理员留言 & 用户补充的模拟数据 =====
+const demoAdminMessages = [
+  { id:1, content:'请确认样品规格是否与客户要求一致，特别是尺寸部分', author:'张总', time:'2026-07-14 09:30' },
+  { id:2, content:'已和工厂确认，规格无误，可以安排打样',             author:'你',   time:'2026-07-14 10:15' },
+]
+const demoUserSupplement = {
+  content: '已通知物流部门安排发货，预计 7/22 到达港口，附上装箱单照片',
+  image_url: 'mock',
+  addedAt: '2026-07-14 11:00',
+}
+
+// ===== 弹窗状态 =====
+const dialogA  = reactive({ visible:false })
+const dialogA1 = reactive({ visible:false })
+const dialogA2 = reactive({ visible:false })
+const dialogA3 = reactive({ visible:false })
 
 // 用于弹窗显示的任务（取第 1 条有附件的待完成任务）
-// 优先用 id=1（有备注有图），tab 筛选后可能没有，所以直接引用 mockTodos[0]
 const demoItem = computed<MockTodo>(() => {
-  // 优先找一个有图有待完成的条目
   const rich = mockTodos.find(t=>t.image_url && t.status==='pending' && t.note)
   return rich || mockTodos[0]
 })
 
-function openDialog(which:'a'|'b'|'c') {
-  if(which==='a') dialogA.visible=true
-  else if(which==='b') dialogB.visible=true
-  else dialogC.visible=true
+const a3ActiveTab = ref<'messages'|'supplement'>('messages')
+
+function openDialog(which:string) {
+  a3ActiveTab.value = 'messages'
+  if(which==='a')  dialogA.visible=true
+  else if(which==='a1') dialogA1.visible=true
+  else if(which==='a2') dialogA2.visible=true
+  else if(which==='a3') dialogA3.visible=true
 }
 </script>
 
@@ -579,212 +738,287 @@ function openDialog(which:'a'|'b'|'c') {
 }
 
 /* ============================================================
-   样式 B：流式时间线
+   功能说明卡新增样式
    ============================================================ */
-.db-outer {
-  display: flex;
-  gap: 0;
-  padding: 4px 0;
-  position: relative;
+.fc-row {
+  margin-bottom: 14px;
 }
+.fc-row:last-child { margin-bottom: 0; }
+.fc-row-new { padding-top: 14px; border-top: 1px dashed #e5e7eb; }
 
-/* 状态角标（右上角） */
-.db-corner-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  padding: 6px 12px;
-  border-radius: 0 10px 0 8px;
-  font-size: 11px;
-}
-.db-c-pending { background:#eff6ff; }
-.db-c-done { background:#ecfdf5; }
-.db-corner-status { font-weight:600; }
-.db-c-pending .db-corner-status { color:#2563eb; }
-.db-c-done .db-corner-status { color:#059669; }
-.db-corner-date { color:#9ca3af; }
-.db-corner-author { color:#6b7280; }
-
-/* 时间线 */
-.db-timeline {
-  flex: 1;
-  position: relative;
-  padding: 4px 0 4px 28px;
-}
-.db-timeline::before {
-  content: '';
-  position: absolute;
-  left: 11px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: #e5e7eb;
-  border-radius: 1px;
-}
-
-.db-node {
-  display: flex;
-  gap: 16px;
-  padding-bottom: 22px;
-  position: relative;
-}
-.db-node:last-child { padding-bottom: 4px; }
-
-.db-dot {
-  position: absolute;
-  left: -20px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  z-index: 1;
-  border: 2px solid white;
-}
-.db-dot-main {
-  width: 14px;
-  height: 14px;
-  top: 2px;
-  background: #0891b2;
-  box-shadow: 0 0 0 3px rgba(8,145,178,0.15);
-}
-.db-dot-sub {
-  width: 8px;
-  height: 8px;
-  top: 5px;
-  background: #d1d5db;
-  border: none;
-}
-.db-dot-done {
-  width: 10px;
-  height: 10px;
-  top: 4px;
-  background: #059669;
-  border: none;
-}
-
-.db-node-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.db-subject {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.db-note-text {
-  font-size: 14px;
-  color: #4b5563;
-  background: #f9fafb;
-  padding: 8px 12px;
-  border-radius: 8px;
-  line-height: 1.7;
-  margin-top: 6px;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.db-thumb { margin-top: 6px; }
-
-.db-section-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #059669;
-}
-
-.db-meta {
+.fc-row-badge {
+  display: inline-block;
   font-size: 12px;
-  color: #9ca3af;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #d1fae5;
+  color: #059669;
+  margin-bottom: 8px;
+}
+.fc-badge-new {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.feat-new {
+  background: #fffbeb !important;
+  border: 1px solid #fde68a;
 }
 
 /* ============================================================
-   样式 C：卡片融合式
+   补充功能方案的介绍行
    ============================================================ */
-.dc-outer {
-  display: flex;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-  min-height: 120px;
-}
-
-/* 左侧彩色侧边栏 */
-.dc-accent {
-  width: 5px;
-  flex-shrink: 0;
-}
-.dc-accent-white  { background: #d1d5db; }
-.dc-accent-red    { background: #f87171; }
-.dc-accent-yellow { background: #fbbf24; }
-.dc-accent-green  { background: #34d399; }
-.dc-accent-blue   { background: #60a5fa; }
-.dc-accent-dark   { background: #9ca3af; }
-
-.dc-card {
-  flex: 1;
-  padding: 20px;
-  min-width: 0;
-}
-
-.dc-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.dc-pill { font-size:11px; font-weight:600; padding:2px 10px; border-radius:20px; }
-.dc-pill-pending { background:#dbeafe; color:#2563eb; }
-.dc-pill-done { background:#d1fae5; color:#059669; }
-.dc-date { font-size:12px; color:#9ca3af; margin-left:auto; }
-.dc-author { font-size:12px; color:#6b7280; background:#f3f4f6; padding:1px 10px; border-radius:10px; }
-
-.dc-subject {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  line-height: 1.6;
-  margin-bottom: 12px;
-  word-break: break-word;
-}
-
-.dc-note-block {
+.supplement-intro {
   font-size: 14px;
-  color: #4b5563;
-  background: #f9fafb;
-  padding: 10px 14px;
-  border-radius: 8px;
-  line-height: 1.7;
-  margin-bottom: 10px;
-  word-break: break-word;
-  white-space: pre-wrap;
+  color: #6b7280;
+  margin: -4px 0 14px 0;
+  line-height: 1.6;
+}
+.demo-tag {
+  display: inline-block;
+  font-size: 12px;
+  background: #f3f4f6;
+  padding: 0 8px;
+  border-radius: 4px;
+  margin: 0 2px;
 }
 
-.dc-img-block { margin-bottom: 10px; }
-.dc-thumb { width: 120px; height: 72px; }
-
-.dc-divider {
+/* ============================================================
+   A1 · 对话流式 — 管理留言对话气泡 + 用户补充
+   ============================================================ */
+.a1-sep {
   height: 1px;
   background: #e5e7eb;
   margin: 14px 0;
 }
-
-.dc-section-tag {
+.a1-section-label {
   font-size: 13px;
   font-weight: 600;
-  color: #059669;
-  margin-bottom: 8px;
+  color: #6b7280;
+  margin-bottom: 10px;
 }
 
-.dc-meta-time {
-  font-size: 12px;
+/* 对话气泡 */
+.a1-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.a1-bubble {
+  padding: 10px 14px;
+  border-radius: 10px;
+  max-width: 85%;
+  position: relative;
+}
+.a1-other {
+  background: #f0f4ff;
+  border: 1px solid #dbeafe;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+.a1-self {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.a1-bubble-author {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3b82f6;
+  margin-bottom: 3px;
+}
+.a1-self .a1-bubble-author { color: #6b7280; }
+.a1-bubble-text {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.a1-bubble-time {
+  font-size: 11px;
   color: #9ca3af;
   margin-top: 4px;
+  text-align: right;
+}
+
+/* 用户补充 */
+.a1-supplement {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.a1-supp-text {
+  font-size: 14px;
+  color: #1f2937;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.a1-supp-img { margin-top: 8px; }
+.a1-supp-time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* ============================================================
+   A2 · 区块面板式 — 独立方框 + 分区标题
+   ============================================================ */
+.a2-block {
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+.a2-block-msg {
+  background: #f8faff;
+  border: 1px solid #e0e7ff;
+}
+.a2-block-supp {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.a2-block-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 10px;
+}
+
+/* 留言条目 */
+.a2-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+.a2-msg-row:last-child { border-bottom: none; padding-bottom: 0; }
+.a2-msg-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+  white-space: nowrap;
+  min-width: 36px;
+}
+.a2-msg-text {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.a2-msg-time {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+/* 用户补充 */
+.a2-supp-body { }
+.a2-supp-text {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.a2-supp-img { margin-top: 8px; }
+.a2-supp-time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* ============================================================
+   A3 · 标签切换式 — 底部标签栏
+   ============================================================ */
+.a3-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 3px;
+}
+.a3-tab {
+  flex: 1;
+  text-align: center;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.a3-tab.active {
+  color: #1f2937;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.a3-tab-count {
+  font-size: 11px;
+  background: #e5e7eb;
+  color: #6b7280;
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 16px;
+  margin-left: 3px;
+}
+.a3-tab.active .a3-tab-count {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+
+.a3-panel {
+  padding: 12px 0 4px;
+}
+
+/* 留言条目 */
+.a3-msg-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.a3-msg-row:last-child { border-bottom: none; }
+.a3-msg-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.a3-msg-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
+}
+.a3-msg-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.a3-msg-text {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* 补充内容 */
+.a3-supp-text {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.a3-supp-img { margin-top: 8px; }
+.a3-supp-time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 6px;
 }
 </style>
