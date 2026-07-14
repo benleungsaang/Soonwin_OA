@@ -185,7 +185,7 @@
               </div>
             </div>
             <div class="a1d-inline-input">
-              <input v-model="msgInput" type="text" class="a1d-input" placeholder="输入留言内容…" maxlength="300" @keypress.enter="sendMessage" />
+              <input v-model="msgInput" ref="msgInputRef" type="text" class="a1d-input" placeholder="输入留言内容…" maxlength="300" @keypress.enter="sendMessage" />
               <div class="a1d-actions">
                 <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="toggleMsgEmoji"><span style="font-size:18px">😊</span></button>
                 <button type="button" class="a1d-action-btn" title="上传图片" @click="mockMsgImage"><span style="font-size:18px">🖼️</span></button>
@@ -194,7 +194,7 @@
                 </button>
               </div>
               <div v-show="msgEmojiVisible" class="a1d-emoji-popup" @click.stop>
-                <emoji-picker class="a1d-emoji-picker" @emoji-click="e=>msgInput+=e.detail.emoji.unicode" />
+                <emoji-picker class="a1d-emoji-picker" @emoji-click="insertMsgEmoji" />
               </div>
             </div>
           </div>
@@ -440,8 +440,21 @@ function submitTaskForm() {
 
 // 留言输入
 const msgInput = ref('')
+const msgInputRef = ref<HTMLInputElement|null>(null)
 const msgEmojiVisible = ref(false)
 function toggleMsgEmoji() { msgEmojiVisible.value = !msgEmojiVisible.value }
+function insertMsgEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  const el = msgInputRef.value
+  if (el) {
+    const start = el.selectionStart ?? msgInput.value.length
+    const end = el.selectionEnd ?? start
+    msgInput.value = msgInput.value.substring(0, start) + emoji + msgInput.value.substring(end)
+    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
+  } else {
+    msgInput.value += emoji
+  }
+}
 function sendMessage() {
   if (!msgInput.value.trim()) return
   demoAdminMessages.value.push({
