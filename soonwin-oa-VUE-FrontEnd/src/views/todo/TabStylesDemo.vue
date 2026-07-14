@@ -34,99 +34,160 @@
       </section>
 
       <!-- ============================================================
-           添加任务方案投票
+           添加任务（FAB 已选用）+ 三种弹窗样式
            ============================================================ -->
       <section class="demo-section">
         <h2 class="section-title">
-          <span class="section-badge" style="background:#d97706">+</span>
-          添加任务方案投票
-          <span class="section-sub">—— 在已定稿页面上补充新建任务的方式</span>
+          <span class="section-badge selected-badge">★</span>
+          添加任务 <span class="selected-label">已选用 FAB</span>
+          <span class="section-sub">—— 右下角浮动按钮 + 弹窗完整录入</span>
         </h2>
-        <p class="supplement-intro">搜索栏保持现有样式不变，以下三种方案仅影响「添加任务」区域的交互布局。</p>
+        <p class="supplement-intro">搜索栏保持现有样式不变。FAB 悬浮在右下角，以下三种弹窗布局供选择。</p>
 
         <div class="detail-preview-row">
-          <button class="preview-card" @click="addDemoVisible='a'; showAddDemo=true">
+          <button class="preview-card" @click="newTaskType='a'; newTaskOpen=true">
             <span class="preview-badge" style="background:#6366f1">A</span>
-            <span class="preview-label">顶栏精简添加</span>
-            <span class="preview-desc">输入框+颜色点+添加按钮，一行搞定</span>
+            <span class="preview-label">表单式</span>
+            <span class="preview-desc">标签+字段，标准表单布局</span>
           </button>
-          <button class="preview-card" @click="addDemoVisible='b'; showAddDemo=true">
+          <button class="preview-card" @click="newTaskType='b'; newTaskOpen=true">
             <span class="preview-badge" style="background:#0891b2">B</span>
-            <span class="preview-label">展开式面板</span>
-            <span class="preview-desc">点击"新建"展开表单，用完收起</span>
+            <span class="preview-label">卡片分区式</span>
+            <span class="preview-desc">分区面板，现代感强</span>
           </button>
-          <button class="preview-card" @click="addDemoVisible='c'; showAddDemo=true">
+          <button class="preview-card" @click="newTaskType='c'; newTaskOpen=true">
             <span class="preview-badge" style="background:#7c3aed">C</span>
-            <span class="preview-label">浮动 FAB + 弹窗</span>
-            <span class="preview-desc">右下角悬浮按钮→弹窗完整录入</span>
+            <span class="preview-label">聊天式</span>
+            <span class="preview-desc">轻量输入，主题+内容流</span>
           </button>
         </div>
 
-        <!-- 方案 A 演示 -->
-        <div v-if="showAddDemo && addDemoVisible==='a'" class="demo-card add-demo-card">
-          <div class="add-demo-header">方案 A · 顶栏精简添加</div>
-          <div class="add-bar-demo">
-            <input v-model="addDemoInput" type="text" class="add-bar-input" placeholder="添加新的待办事项..." maxlength="500" @keypress.enter="addDemoInput=''; ElMessage.success('已添加（模拟）')" />
-            <div class="add-bar-colors">
-              <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value, { active: addDemoColor===c.value }]" :title="c.label" @click="addDemoColor=c.value" />
-            </div>
-            <button class="add-bar-btn" @click="addDemoInput=''; ElMessage.success('已添加（模拟）')">添加</button>
-          </div>
-          <div class="add-demo-note">快捷添加，默认今天/白色，颜色点速选</div>
-        </div>
-
-        <!-- 方案 B 演示 -->
-        <div v-if="showAddDemo && addDemoVisible==='b'" class="demo-card add-demo-card">
-          <div class="add-demo-header">方案 B · 展开式面板</div>
-          <div class="add-expand-demo">
-            <button class="add-expand-trigger" @click="addExpanded=!addExpanded">
-              <span>＋ 新建任务</span>
-              <svg :class="{ rotated: addExpanded }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div v-if="addExpanded" class="add-expand-body">
-              <input v-model="addDemoInput2" type="text" class="add-bar-input" placeholder="输入任务内容..." maxlength="500" style="width:100%;margin-bottom:10px" />
-              <div class="add-expand-row">
-                <span class="add-expand-label">日期</span>
-                <input type="date" class="add-expand-date" v-model="addDemoDate" />
-              </div>
-              <div class="add-expand-row">
-                <span class="add-expand-label">颜色</span>
-                <div class="add-bar-colors">
-                  <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:addDemoColor2===c.value}]" :title="c.label" @click="addDemoColor2=c.value" />
-                </div>
-              </div>
-              <button class="add-bar-btn" style="width:100%;justify-content:center;margin-top:8px" @click="addExpanded=false;ElMessage.success('已添加（模拟）')">确认添加</button>
-            </div>
-          </div>
-          <div class="add-demo-note">点击"＋ 新建任务"展开表单，用完自动收起</div>
-        </div>
-
-        <!-- 方案 C 演示 -->
-        <div v-if="showAddDemo && addDemoVisible==='c'" class="demo-card add-demo-card" style="position:relative;min-height:140px">
-          <div class="add-demo-header">方案 C · 浮动 FAB + 弹窗</div>
-          <p style="font-size:14px;color:#6b7280;padding:20px 0;text-align:center">工具栏无添加区域，右下角悬浮按钮</p>
-          <button class="add-fab-demo" @click="addFabOpen=true">
+        <!-- FAB 示意 -->
+        <div class="fab-area-demo">
+          <span class="fab-area-label">右下角 FAB</span>
+          <button class="fab-demo-btn" @click="ElMessage.info('点击预览按钮选择弹窗样式')">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <div class="add-demo-note">FAB 悬浮在右下角，不占用工具栏空间</div>
         </div>
       </section>
 
-      <!-- 添加任务弹窗（方案 C） -->
-      <el-dialog v-model="addFabOpen" title="新建任务" width="480px" top="20vh">
-        <div class="add-fab-form">
-          <label class="add-fab-label">任务内容</label>
-          <input v-model="addDemoInput3" type="text" class="add-bar-input" placeholder="输入任务内容..." maxlength="500" style="width:100%;margin-bottom:14px" />
-          <label class="add-fab-label">所属日期</label>
-          <input type="date" class="add-expand-date" v-model="addDemoDate2" style="width:100%;margin-bottom:14px" />
-          <label class="add-fab-label">卡片颜色</label>
-          <div class="add-bar-colors" style="margin-bottom:4px">
-            <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:addDemoColor3===c.value}]" :title="c.label" @click="addDemoColor3=c.value" />
+      <!-- ===== 弹窗 A · 表单式 ===== -->
+      <el-dialog v-model="newTaskOpenA" title="新建任务" width="500px" top="10vh">
+        <div class="nta-body">
+          <div class="nta-field">
+            <label class="nta-label">标题 <span class="nta-req">*</span></label>
+            <input v-model="ntTitle" class="nta-input" placeholder="任务标题" maxlength="100" />
+          </div>
+          <div class="nta-field">
+            <label class="nta-label">内容</label>
+            <div class="nta-emoji-wrap">
+              <textarea v-model="ntContent" class="nta-textarea" placeholder="详细描述..." rows="3" maxlength="500"></textarea>
+              <button type="button" class="nta-emoji-btn" @click.stop="ntEmojiA=!ntEmojiA">😊</button>
+              <div v-show="ntEmojiA" class="nta-emoji-pop" @click.stop><emoji-picker class="nta-ep" @emoji-click="e=>ntContent+=e.detail.emoji.unicode" /></div>
+            </div>
+          </div>
+          <div class="nta-row">
+            <div class="nta-field nta-half">
+              <label class="nta-label">日期</label>
+              <input v-model="ntDate" type="date" class="nta-input" />
+            </div>
+            <div class="nta-field nta-half">
+              <label class="nta-label">颜色</label>
+              <div class="nta-colors">
+                <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:ntColor===c.value}]" :title="c.label" @click="ntColor=c.value" />
+              </div>
+            </div>
+          </div>
+          <div class="nta-field">
+            <label class="nta-label">附图</label>
+            <div class="nta-upload-row">
+              <button class="nta-upload-btn" @click="ntImgA=ntImgA?'':thumbRandom()">
+                {{ ntImgA ? '更换图片' : '上传图片' }}
+              </button>
+              <div v-if="ntImgA" class="nta-img-preview" :style="{ background: ntImgA }">
+                <button class="nta-img-remove" @click="ntImgA=''">✕</button>
+              </div>
+            </div>
           </div>
         </div>
         <template #footer>
-          <el-button @click="addFabOpen=false">取消</el-button>
-          <el-button type="primary" @click="addFabOpen=false;ElMessage.success('已添加（模拟）')">确认添加</el-button>
+          <el-button @click="newTaskOpenA=false">取消</el-button>
+          <el-button type="primary" @click="ntSubmit('A')">确认添加</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- ===== 弹窗 B · 卡片分区式 ===== -->
+      <el-dialog v-model="newTaskOpenB" title="新建任务" width="500px" top="8vh">
+        <div class="ntb-body">
+          <div class="ntb-card">
+            <div class="ntb-card-title">📋 基本信息</div>
+            <input v-model="ntTitle" class="ntb-input" placeholder="任务标题" maxlength="100" />
+            <div class="ntb-emoji-wrap">
+              <textarea v-model="ntContent" class="ntb-textarea" placeholder="详细描述..." rows="3" maxlength="500"></textarea>
+              <button type="button" class="ntb-emoji-btn" @click.stop="ntEmojiB=!ntEmojiB">😊</button>
+              <div v-show="ntEmojiB" class="ntb-emoji-pop" @click.stop><emoji-picker class="ntb-ep" @emoji-click="e=>ntContent+=e.detail.emoji.unicode" /></div>
+            </div>
+          </div>
+          <div class="ntb-card">
+            <div class="ntb-card-title">⚙️ 设置</div>
+            <div class="ntb-setting-row">
+              <span class="ntb-setting-label">日期</span>
+              <input v-model="ntDate" type="date" class="ntb-date-input" />
+            </div>
+            <div class="ntb-setting-row">
+              <span class="ntb-setting-label">颜色</span>
+              <div class="add-bar-colors">
+                <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:ntColor===c.value}]" :title="c.label" @click="ntColor=c.value" />
+              </div>
+            </div>
+          </div>
+          <div class="ntb-card">
+            <div class="ntb-card-title">🖼️ 附图</div>
+            <button class="ntb-upload-area" @click="ntImgB=ntImgB?'':thumbRandom()">
+              {{ ntImgB ? '更换图片' : '＋ 点击上传图片' }}
+            </button>
+            <div v-if="ntImgB" class="ntb-img-preview" :style="{ background: ntImgB }">
+              <button class="ntb-img-remove" @click="ntImgB=''">✕</button>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="newTaskOpenB=false">取消</el-button>
+          <el-button type="primary" @click="ntSubmit('B')">确认添加</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- ===== 弹窗 C · 聊天式 ===== -->
+      <el-dialog v-model="newTaskOpenC" title="新建任务" width="500px" top="10vh">
+        <div class="ntc-body">
+          <input v-model="ntTitle" class="ntc-title-input" placeholder="任务标题" maxlength="100" />
+          <div class="ntc-sep"></div>
+          <div class="ntc-content-area">
+            <textarea v-model="ntContent" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500"></textarea>
+          </div>
+          <!-- 附件条 -->
+          <div class="ntc-toolbar">
+            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiC=!ntEmojiC" title="插入 emoji">😊</button>
+            <button type="button" class="ntc-tool-btn" @click="ntImgC=ntImgC?'':thumbRandom()" title="添加图片">🖼️</button>
+            <div class="ntc-tool-spacer"></div>
+            <span class="ntc-date-chip">{{ ntDate }}</span>
+            <div class="ntc-color-chip" :class="'bg-'+ntColor"></div>
+          </div>
+          <div v-show="ntEmojiC" class="ntc-emoji-pop" @click.stop><emoji-picker class="ntc-ep" @emoji-click="e=>ntContent+=e.detail.emoji.unicode" /></div>
+          <!-- 图片预览 -->
+          <div v-if="ntImgC" class="ntc-img-bar">
+            <div class="ntc-img-thumb" :style="{ background: ntImgC }"></div>
+            <button class="ntc-img-remove" @click="ntImgC=''">✕ 移除</button>
+          </div>
+          <!-- 颜色选择器（简化为小行） -->
+          <div class="ntc-color-bar">
+            <span class="ntc-color-label">颜色</span>
+            <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:ntColor===c.value}]" :title="c.label" @click="ntColor=c.value" />
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="newTaskOpenC=false">取消</el-button>
+          <el-button type="primary" @click="ntSubmit('C')">确认添加</el-button>
         </template>
       </el-dialog>
 
@@ -600,7 +661,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import 'emoji-picker-element'
 import { List, CircleCheck, Clock, Flag } from '@element-plus/icons-vue'
@@ -765,19 +826,45 @@ function onDocClickEmoji(e: MouseEvent) {
 onMounted(() => document.addEventListener('click', onDocClickEmoji))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClickEmoji))
 
-// ===== 添加任务 Demo 状态 =====
-const showAddDemo = ref(false)
-const addDemoVisible = ref<'a'|'b'|'c'>('a')
-const addDemoInput = ref('')
-const addDemoColor = ref('white')
-const addDemoInput2 = ref('')
-const addDemoColor2 = ref('white')
-const addDemoDate = ref(new Date().toISOString().split('T')[0])
-const addExpanded = ref(false)
-const addDemoInput3 = ref('')
-const addDemoColor3 = ref('white')
-const addDemoDate2 = ref(new Date().toISOString().split('T')[0])
-const addFabOpen = ref(false)
+// ===== 新建任务弹窗状态（A/B/C 三套共用数据） =====
+const newTaskType = ref<'a'|'b'|'c'>('a')
+const newTaskOpen = ref(false)
+const newTaskOpenA = ref(false)
+const newTaskOpenB = ref(false)
+const newTaskOpenC = ref(false)
+const ntTitle = ref('')
+const ntContent = ref('')
+const ntDate = ref(new Date().toISOString().split('T')[0])
+const ntColor = ref('white')
+const ntImgA = ref('')
+const ntImgB = ref('')
+const ntImgC = ref('')
+const ntEmojiA = ref(false)
+const ntEmojiB = ref(false)
+const ntEmojiC = ref(false)
+
+function thumbRandom() {
+  const colors = ['#fca5a5,#f87171','#fde68a,#fbbf24','#a7f3d0,#6ee7b7','#93c5fd,#60a5fa','#c4b5fd,#a78bfa']
+  return `linear-gradient(135deg, ${colors[Math.floor(Math.random()*colors.length)]})`
+}
+
+function ntSubmit(which:string) {
+  if (!ntTitle.value.trim()) { ElMessage.warning('请输入任务标题'); return }
+  if (which==='A') newTaskOpenA.value = false
+  else if (which==='B') newTaskOpenB.value = false
+  else newTaskOpenC.value = false
+  ElMessage.success('任务已创建（模拟）')
+  ntTitle.value = ''; ntContent.value = ''; ntColor.value = 'white'
+  ntImgA.value = ''; ntImgB.value = ''; ntImgC.value = ''
+  ntEmojiA.value = false; ntEmojiB.value = false; ntEmojiC.value = false
+}
+
+// 点击不同预览按钮触发对应弹窗
+watch(newTaskType, (v) => {
+  if (v==='a') newTaskOpenA.value = true
+  else if (v==='b') newTaskOpenB.value = true
+  else newTaskOpenC.value = true
+})
 </script>
 
 <style scoped>
@@ -1238,89 +1325,208 @@ const addFabOpen = ref(false)
 }
 
 /* ============================================================
-   添加任务 Demo 样式
+   FAB 示意 + 新建任务弹窗 A/B/C
    ============================================================ */
-.add-demo-card { margin-top: 14px; padding: 0; overflow: hidden; }
-.add-demo-header {
-  font-size: 13px; font-weight: 600; color: #6b7280;
-  padding: 10px 16px; background: #fafafa;
-  border-bottom: 1px solid #f3f4f6;
+.fab-area-demo {
+  display: flex; align-items: center; gap: 20px;
+  margin-top: 14px; padding: 16px 20px;
+  background: white; border-radius: 10px;
+  border: 2px dashed #d1d5db;
 }
-.add-demo-note {
-  font-size: 12px; color: #9ca3af;
-  padding: 8px 16px 12px; border-top: 1px solid #f3f4f6;
+.fab-area-label {
+  font-size: 14px; color: #6b7280;
 }
-
-/* A 顶栏精简 */
-.add-bar-demo {
-  display: flex; align-items: center; gap: 8px;
-  padding: 14px 16px;
-}
-.add-bar-input {
-  flex: 1; padding: 8px 14px; border: 1px solid #d1d5db;
-  border-radius: 8px; outline: none; font-size: 14px; transition: all 0.2s;
-}
-.add-bar-input:focus {
-  border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-}
-.add-bar-colors { display: flex; gap: 4px; flex-shrink: 0; }
-.add-bar-colors .color-dot-btn {
-  width: 20px; height: 20px; border-radius: 50%;
-  cursor: pointer; transition: transform 0.15s;
-  border: 2px solid transparent; padding: 0;
-}
-.add-bar-colors .color-dot-btn:hover { transform: scale(1.15); }
-.add-bar-colors .color-dot-btn.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
-.add-bar-colors .bg-white  { background: #ffffff; border-color: #d1d5db; }
-.add-bar-colors .bg-red    { background: #fee2e2; }
-.add-bar-colors .bg-yellow { background: #fef3c7; }
-.add-bar-colors .bg-green  { background: #d1fae5; }
-.add-bar-colors .bg-blue   { background: #dbeafe; }
-.add-bar-colors .bg-dark   { background: #e5e7eb; }
-
-.add-bar-btn {
-  padding: 8px 18px; border: none; border-radius: 8px;
-  background: #3b82f6; color: white; font-size: 14px;
-  cursor: pointer; transition: all 0.2s; white-space: nowrap;
-}
-.add-bar-btn:hover { background: #2563eb; }
-
-/* B 展开式面板 */
-.add-expand-demo { padding: 10px 16px; }
-.add-expand-trigger {
-  width: 100%; display: flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 10px; border: 2px dashed #d1d5db;
-  border-radius: 8px; background: transparent; color: #6b7280;
-  font-size: 14px; cursor: pointer; transition: all 0.2s;
-}
-.add-expand-trigger:hover {
-  border-color: #3b82f6; color: #3b82f6; background: #f0f7ff;
-}
-.add-expand-trigger svg { transition: transform 0.25s; }
-.add-expand-trigger svg.rotated { transform: rotate(180deg); }
-.add-expand-body { margin-top: 12px; padding: 14px; background: #f9fafb; border-radius: 8px; }
-.add-expand-row {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-}
-.add-expand-label { font-size: 13px; color: #6b7280; white-space: nowrap; min-width: 36px; }
-.add-expand-date {
-  padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;
-  font-size: 13px; outline: none;
-}
-
-/* C FAB */
-.add-fab-demo {
-  position: absolute; right: 20px; bottom: 50px;
+.fab-demo-btn {
   width: 48px; height: 48px; border-radius: 50%;
   background: #3b82f6; color: white; border: none;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 14px rgba(59,130,246,0.35);
   transition: all 0.2s;
 }
-.add-fab-demo:hover { transform: scale(1.08); background: #2563eb; }
+.fab-demo-btn:hover { transform: scale(1.08); background: #2563eb; }
 
-.add-fab-form { padding: 8px 0; }
-.add-fab-label { display: block; font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+/* ---- 通用 color-dot-btn（也用于弹窗） ---- */
+.color-dot-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; transition: transform 0.15s;
+  border: 2px solid transparent; padding: 0;
+}
+.color-dot-btn:hover { transform: scale(1.15); }
+.color-dot-btn.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+.color-dot-btn.bg-white  { background: #ffffff; border-color: #d1d5db; }
+.color-dot-btn.bg-red    { background: #fee2e2; }
+.color-dot-btn.bg-yellow { background: #fef3c7; }
+.color-dot-btn.bg-green  { background: #d1fae5; }
+.color-dot-btn.bg-blue   { background: #dbeafe; }
+.color-dot-btn.bg-dark   { background: #e5e7eb; }
+
+/* ===== 弹窗 A · 表单式 ===== */
+.nta-body { padding: 4px 0; }
+.nta-field { margin-bottom: 16px; }
+.nta-label {
+  display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px;
+}
+.nta-req { color: #ef4444; }
+.nta-input, .nta-textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+  border-radius: 8px; outline: none; font-size: 14px; transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.nta-input:focus, .nta-textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.08); }
+.nta-textarea { resize: vertical; font-family: inherit; }
+.nta-row { display: flex; gap: 14px; }
+.nta-half { flex: 1; }
+.nta-colors { display: flex; gap: 6px; padding-top: 4px; }
+
+.nta-emoji-wrap { position: relative; }
+.nta-emoji-btn {
+  position: absolute; right: 6px; bottom: 6px;
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; padding: 4px 6px; border-radius: 6px;
+  line-height: 1;
+}
+.nta-emoji-btn:hover { background: #f3f4f6; }
+.nta-emoji-pop {
+  position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 200;
+}
+.nta-ep { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; }
+
+.nta-upload-row { display: flex; align-items: center; gap: 10px; }
+.nta-upload-btn {
+  padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 6px;
+  background: white; color: #374151; font-size: 13px; cursor: pointer;
+  transition: all 0.15s;
+}
+.nta-upload-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+.nta-img-preview {
+  width: 60px; height: 40px; border-radius: 6px;
+  position: relative; flex-shrink: 0;
+}
+.nta-img-remove {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #ef4444; color: white; border: none;
+  font-size: 10px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+
+/* ===== 弹窗 B · 卡片分区式 ===== */
+.ntb-body { display: flex; flex-direction: column; gap: 14px; }
+.ntb-card {
+  background: #fafafa; border: 1px solid #e5e7eb;
+  border-radius: 10px; padding: 16px;
+}
+.ntb-card-title {
+  font-size: 13px; font-weight: 600; color: #6b7280;
+  margin-bottom: 10px;
+}
+.ntb-input, .ntb-textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+  border-radius: 8px; outline: none; font-size: 14px; transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.ntb-input:focus, .ntb-textarea:focus { border-color: #3b82f6; }
+.ntb-textarea { resize: vertical; font-family: inherit; }
+
+.ntb-emoji-wrap { position: relative; margin-top: 8px; }
+.ntb-emoji-btn {
+  position: absolute; right: 6px; bottom: 6px;
+  background: none; border: none; cursor: pointer; font-size: 18px;
+  padding: 4px 6px; border-radius: 6px; line-height: 1;
+}
+.ntb-emoji-btn:hover { background: #e5e7eb; }
+.ntb-emoji-pop {
+  position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 200;
+}
+.ntb-ep { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; }
+
+.ntb-setting-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+}
+.ntb-setting-row:last-child { margin-bottom: 0; }
+.ntb-setting-label { font-size: 13px; color: #6b7280; min-width: 36px; }
+.ntb-date-input {
+  padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+  font-size: 13px; outline: none;
+}
+
+.ntb-upload-area {
+  width: 100%; padding: 10px; text-align: center;
+  border: 2px dashed #d1d5db; border-radius: 8px;
+  background: transparent; color: #6b7280; font-size: 13px;
+  cursor: pointer; transition: all 0.2s;
+}
+.ntb-upload-area:hover { border-color: #3b82f6; color: #3b82f6; }
+.ntb-img-preview {
+  width: 100%; height: 60px; border-radius: 8px; margin-top: 8px;
+  position: relative;
+}
+.ntb-img-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,0.4); color: white; border: none;
+  font-size: 11px; cursor: pointer;
+}
+
+/* ===== 弹窗 C · 聊天式 ===== */
+.ntc-body { padding: 4px 0; position: relative; }
+.ntc-title-input {
+  width: 100%; padding: 4px 0 10px; border: none; border-bottom: 2px solid #e5e7eb;
+  outline: none; font-size: 18px; font-weight: 600; color: #1f2937;
+  transition: border-color 0.2s;
+}
+.ntc-title-input:focus { border-color: #3b82f6; }
+.ntc-title-input::placeholder { color: #d1d5db; font-weight: 400; }
+.ntc-sep { height: 12px; }
+.ntc-content-area { }
+.ntc-textarea {
+  width: 100%; padding: 0; border: none; outline: none;
+  font-size: 15px; color: #374151; line-height: 1.7;
+  resize: vertical; font-family: inherit;
+}
+.ntc-textarea::placeholder { color: #d1d5db; }
+
+.ntc-toolbar {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6;
+}
+.ntc-tool-btn {
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 6px; background: transparent;
+  color: #9ca3af; cursor: pointer; font-size: 18px; transition: all 0.15s;
+}
+.ntc-tool-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
+.ntc-tool-spacer { flex: 1; }
+.ntc-date-chip {
+  font-size: 12px; color: #6b7280; background: #f3f4f6;
+  padding: 2px 10px; border-radius: 10px;
+}
+.ntc-color-chip {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid white; box-shadow: 0 0 0 1px #e5e7eb;
+}
+
+.ntc-emoji-pop {
+  position: absolute; bottom: 50px; left: 0; z-index: 200;
+}
+.ntc-ep { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; }
+
+.ntc-img-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 6px 10px;
+  background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;
+}
+.ntc-img-thumb { width: 40px; height: 30px; border-radius: 4px; flex-shrink: 0; }
+.ntc-img-remove {
+  font-size: 12px; color: #ef4444; background: none; border: none;
+  cursor: pointer; padding: 2px 6px;
+}
+
+.ntc-color-bar {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6;
+}
+.ntc-color-label { font-size: 12px; color: #9ca3af; margin-right: 4px; }
 
 /* ============================================================
    V4 · 边框块+行内输入
