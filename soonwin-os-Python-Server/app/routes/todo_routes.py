@@ -94,12 +94,11 @@ def _save_todo_image(file, sub_dir: str = 'todo') -> str:
     save_path, relative_path, filename = save_uploaded_file(file, target_dir, use_date_subdir=True)
     # relative_path 相对 target_dir（如 "2026/07/13/xxx.jpg"）
     name_no_ext, _ = os.path.splitext(filename)
-    file_prefix = name_no_ext  # 不含扩展名的文件名
 
-    # 生成 WebP 变体
+    # 生成 WebP 变体（file_prefix 仅为文件名不含扩展名）
     result = process_image_with_variants(
         save_path, base_dir,
-        file_prefix=f"{sub_dir}/{relative_path.replace(filename, name_no_ext)}",
+        file_prefix=name_no_ext,
         ext='jpg',
     )
     display_path = result.get('display', '')
