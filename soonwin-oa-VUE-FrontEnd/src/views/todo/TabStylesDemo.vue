@@ -97,6 +97,11 @@
             <span class="preview-label">图标标题分隔</span>
             <span class="preview-desc">图标标题+装饰分隔线，干净轻盈</span>
           </button>
+          <button class="preview-card" @click="openDialog('a1d')">
+            <span class="preview-badge" style="background:#d97706">V4</span>
+            <span class="preview-label">边框块+行内输入</span>
+            <span class="preview-desc">V2 边框块 + 留言区行内输入框</span>
+          </button>
         </div>
       </section>
 
@@ -389,6 +394,90 @@
         <el-button @click="dialogA1c.visible=false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- ============================================================
+         V4 · 边框块+行内输入 — V2 边框块 + 留言区行内输入框
+         ============================================================ -->
+    <el-dialog v-model="dialogA1d.visible" title="任务详情" width="520px" top="8vh">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card a1b-card">
+          <!-- ===== 块 1：基础信息边框块 ===== -->
+          <div class="a1b-block">
+            <div class="da-top">
+              <span class="da-status" :class="demoItem.status==='completed'?'da-done':'da-pending'">
+                {{ demoItem.status==='completed'?'✓ 已完成':'● 待完成' }}
+              </span>
+              <span class="da-date">{{ demoItem.date }}</span>
+              <span class="da-author">{{ demoItem.author }}</span>
+            </div>
+            <div class="da-subject">{{ demoItem.content }}</div>
+            <div v-if="demoItem.note" class="da-note-text">{{ demoItem.note }}</div>
+            <div v-if="demoItem.image_url" class="da-img-wrap">
+              <div class="d-thumb da-thumb" :style="{ background: thumbBg(demoItem) }">
+                <span class="d-thumb-icon">🖼️</span>
+              </div>
+            </div>
+            <template v-if="demoItem.status === 'completed'">
+              <div class="da-sep"></div>
+              <div class="da-complete-header">✅ 完成情况</div>
+              <div v-if="demoItem.completion_note" class="da-comp-note">{{ demoItem.completion_note }}</div>
+              <div v-if="demoItem.completion_image_url" class="da-img-wrap">
+                <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+                  <span class="d-thumb-icon">✅</span>
+                </div>
+              </div>
+              <div v-if="demoItem.completed_at" class="da-comp-time">{{ demoItem.completed_at }}</div>
+            </template>
+          </div>
+
+          <!-- ===== 块 2：留言边框块 + 行内输入 ===== -->
+          <div class="a1b-block a1b-block-msg">
+            <div class="a1b-block-title">💬 管理员留言</div>
+            <div class="a1a-messages">
+              <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1-bubble" :class="msg.author==='你'?'a1-self':'a1-other'">
+                <div class="a1-bubble-author">{{ msg.author }}</div>
+                <div class="a1-bubble-text">{{ msg.content }}</div>
+                <div class="a1-bubble-time">{{ msg.time }}</div>
+              </div>
+            </div>
+
+            <!-- 行内输入框 -->
+            <div class="a1d-inline-input">
+              <input
+                v-model="a1dInput"
+                type="text"
+                class="a1d-input"
+                placeholder="输入留言内容..."
+                maxlength="300"
+                @keypress.enter="a1dSend"
+              />
+              <button class="a1d-send-btn" :disabled="!a1dInput.trim()" @click="a1dSend">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- ===== 块 3：补充边框块 ===== -->
+          <div class="a1b-block a1b-block-supp">
+            <div class="a1b-block-title">📎 用户补充信息</div>
+            <div class="a1b-supp-text">{{ demoUserSupplement.content }}</div>
+            <div v-if="demoUserSupplement.image_url" class="a1b-supp-img">
+              <div class="d-thumb da-thumb" style="background:linear-gradient(135deg,#fde68a,#fbbf24)">
+                <span class="d-thumb-icon">📎</span>
+              </div>
+            </div>
+            <div class="a1b-supp-time">{{ demoUserSupplement.addedAt }}</div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="dialogA1d.visible=false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -490,6 +579,7 @@ const dialogA   = reactive({ visible:false })
 const dialogA1a = reactive({ visible:false })
 const dialogA1b = reactive({ visible:false })
 const dialogA1c = reactive({ visible:false })
+const dialogA1d = reactive({ visible:false })
 
 // 用于弹窗显示的任务（取第 1 条有附件的待完成任务）
 const demoItem = computed<MockTodo>(() => {
@@ -502,6 +592,21 @@ function openDialog(which:string) {
   else if(which==='a1a') dialogA1a.visible=true
   else if(which==='a1b') dialogA1b.visible=true
   else if(which==='a1c') dialogA1c.visible=true
+  else if(which==='a1d') dialogA1d.visible=true
+}
+
+// ===== V4 行内输入模拟 =====
+const a1dInput = ref('')
+function a1dSend() {
+  if (!a1dInput.value.trim()) return
+  // 模拟发出去的效果：输入内容加到 demoAdminMessages 中
+  demoAdminMessages.push({
+    id: Date.now(),
+    content: a1dInput.value.trim(),
+    author: '你',
+    time: new Date().toLocaleString('zh-CN', { hour12: false }),
+  })
+  a1dInput.value = ''
 }
 </script>
 
@@ -960,5 +1065,50 @@ function openDialog(which:string) {
   color: #9ca3af;
   margin-top: 6px;
   text-align: right;
+}
+
+/* ============================================================
+   V4 · 边框块+行内输入
+   ============================================================ */
+.a1d-inline-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+.a1d-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  font-size: 13px;
+  transition: border-color 0.2s;
+  background: white;
+}
+.a1d-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+}
+.a1d-input::placeholder { color: #9ca3af; }
+.a1d-send-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.a1d-send-btn:hover { background: #2563eb; }
+.a1d-send-btn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
 }
 </style>
