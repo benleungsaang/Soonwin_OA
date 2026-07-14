@@ -289,14 +289,14 @@
             </template>
           </div>
 
-          <!-- ===== 块 2：留言边框块 ===== -->
+          <!-- ===== 块 2：留言边框块（同款气泡） ===== -->
           <div class="a1b-block a1b-block-msg">
             <div class="a1b-block-title">💬 管理员留言</div>
-            <div class="a1b-msgs">
-              <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1b-msg-item">
-                <span class="a1b-msg-author">{{ msg.author }}</span>
-                <span class="a1b-msg-text">{{ msg.content }}</span>
-                <span class="a1b-msg-time">{{ msg.time }}</span>
+            <div class="a1a-messages">
+              <div v-for="msg in demoAdminMessages" :key="msg.id" class="a1-bubble" :class="msg.author==='你'?'a1-self':'a1-other'">
+                <div class="a1-bubble-author">{{ msg.author }}</div>
+                <div class="a1-bubble-text">{{ msg.content }}</div>
+                <div class="a1-bubble-time">{{ msg.time }}</div>
               </div>
             </div>
           </div>
@@ -898,42 +898,7 @@ function openDialog(which:string) {
   margin-bottom: 10px;
 }
 
-/* 留言条目 */
-.a1b-msgs {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.a1b-msg-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 10px;
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #f3f4f6;
-}
-.a1b-msg-author {
-  font-size: 12px;
-  font-weight: 600;
-  color: #3b82f6;
-  white-space: nowrap;
-  min-width: 34px;
-}
-.a1b-msg-text {
-  flex: 1;
-  font-size: 14px;
-  color: #374151;
-  line-height: 1.5;
-  word-break: break-word;
-}
-.a1b-msg-time {
-  font-size: 11px;
-  color: #9ca3af;
-  white-space: nowrap;
-}
 
-/* ============================================================
    V3 · 图标标题分隔 — 装饰分隔线
    ============================================================ */
 .a1c-card {
