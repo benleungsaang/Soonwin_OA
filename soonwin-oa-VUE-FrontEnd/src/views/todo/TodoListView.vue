@@ -1,75 +1,31 @@
 <template>
   <div class="todo-page">
-    <!-- 通用顶栏（与其它模块一致） -->
     <CommonHeader title="待办事项" />
 
     <div class="todo-container">
-      <!-- ============ 顶部工具栏（白底圆角阴影卡片） ============ -->
-      <div class="toolbar-card">
-        <!-- 第一行：添加任务 -->
-        <div class="add-row">
-          <input
-            v-model="newTaskContent"
-            type="text"
-            placeholder="添加新的待办事项..."
-            class="add-input"
-            maxlength="500"
-            @keypress.enter="onAddTask"
-          />
-          <button class="add-btn" @click="onAddTask">
-            <el-icon><Plus /></el-icon>
-            <span>添加</span>
-          </button>
-        </div>
-
-        <!-- 第二行：搜索（独占一行，避免与按钮重叠） -->
-        <div class="search-row">
-          <div class="search-wrap">
-            <el-icon class="search-icon"><Search /></el-icon>
-            <input
-              v-model="searchKeyword"
-              type="text"
-              placeholder="搜索任务..."
-              class="search-input"
-              @input="onSearchInput"
-            />
-          </div>
-        </div>
-
-        <!-- 第三行：切换按钮 + 通知铃铛 -->
-        <div class="toggle-row">
-          <button
-            class="toggle-btn"
-            :class="{ active: showCompleted }"
-            @click="toggleShowCompleted"
-          >
-            <el-icon v-if="showCompleted" style="color: white"><CircleCheckFilled /></el-icon>
-            <el-icon v-else style="color: #3b82f6"><CircleCheck /></el-icon>
-            <span>{{ showCompleted ? '隐藏已完成' : '显示已完成' }}</span>
-          </button>
-
-          <button
-            class="toggle-btn drag-toggle"
-            :class="{ active: dragMode }"
-            @click="toggleDragMode"
-          >
-            <el-icon><Rank /></el-icon>
-            <span>{{ dragMode ? '完成调整' : '调整位置' }}</span>
-          </button>
-
-          <div
-            v-if="totalUnread > 0"
-            class="bell-wrap"
-            title="您有新留言未读"
-            @click="openFirstNotification"
-          >
-            <el-icon class="bell-icon"><Bell /></el-icon>
-            <span class="bell-badge">{{ totalUnread }}</span>
-          </div>
+      <!-- ============ 搜索栏（C · 卡片内嵌式） ============ -->
+      <div class="search-bar">
+        <div class="search-inner">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input v-model="searchKeyword" class="search-input" placeholder="按 Enter 搜索任务…" @keypress.enter="onSearchEnter" />
+          <button v-if="searchKeyword" class="search-clear" @click="clearSearch">清除</button>
         </div>
       </div>
 
-      <!-- ============ 任务列表（白底圆角阴影卡片） ============ -->
+      <!-- ============ 药丸式 Tab ============ -->
+      <div class="tabs-bar">
+        <button v-for="t in tabDefs" :key="t.key" class="tab-btn" :class="{ active: activeTab === t.key }" @click="switchTab(t.key)">
+          {{ t.label }}
+          <span class="tab-count">{{ t.count }}</span>
+        </button>
+        <!-- 通知铃铛 -->
+        <div v-if="totalUnread > 0" class="bell-btn" title="有新留言未读" @click="openFirstNotification">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="bell-badge">{{ totalUnread > 99 ? '99+' : totalUnread }}</span>
+        </div>
+      </div>
+
+      <!-- ============ 任务列表 ============ -->
       <div class="list-card">
         <div v-if="loading && todos.length === 0" class="loading-state">
           <el-skeleton :rows="3" animated />
@@ -86,378 +42,269 @@
             <div
               v-for="todo in groups[date]"
               :key="todo.id"
-              class="task-card"
-              :class="['color-' + todo.color, {
-                'is-completed': todo.status === 'completed',
+              class="item-row"
+              :class="{
+                completed: todo.status === 'completed',
                 'menu-open': openMenuId === todo.id,
-              }]"
+              }"
               @click="openViewDialog(todo)"
             >
-              <!-- 圆形复选框（div 模拟，状态由 todo.status 完全控制，避免取消时 UI 翻转） -->
-              <div
-                class="task-checkbox"
-                :class="{ checked: todo.status === 'completed' }"
-                @click.stop="onToggleComplete(todo)"
-              ></div>
+              <!-- 彩色圆点 -->
+              <span class="color-dot" :class="'dot-' + todo.color"></span>
 
-              <!-- 主体内容（label 显示） -->
-              <div class="task-main">
-                <div class="content-row">
-                  <span
-                    class="task-content"
-                    :class="{ completed: todo.status === 'completed' }"
-                  >{{ todo.content }}</span>
-                  <span class="task-author">[{{ todo.author_id }}]</span>
-                  <span
-                    v-if="todo.unread_count > 0"
-                    class="unread-badge"
-                    :title="`${todo.unread_count} 条新留言未读`"
-                    @click.stop="openMessagesDialog(todo.id)"
-                  >{{ todo.unread_count }}</span>
-                </div>
-                <div v-if="todo.note" class="note-text">{{ todo.note }}</div>
+              <!-- 复选框 -->
+              <div class="chk-box" :class="{ checked: todo.status === 'completed' }" @click.stop="onToggleComplete(todo)"></div>
+
+              <!-- 任务内容 -->
+              <div class="item-main">
+                <span class="item-text" :class="{ done: todo.status === 'completed' }">{{ todo.content }}</span>
               </div>
 
-              <!-- 任务附图（位于内容右边、操作按钮左边，60×40px） -->
-              <img
-                v-if="todo.image_url"
-                :src="resolveAssetUrl(todo.image_url)"
-                class="task-thumb"
-                alt="任务附图"
-                @click.stop="openImageViewer(todo.image_url)"
-              />
+              <!-- 缩略图 -->
+              <img v-if="todo.image_url" :src="resolveAssetUrl(todo.image_url)" class="item-thumb" alt="附图" @click.stop="openImageViewer(todo.image_url)" />
 
-              <!-- 操作按钮组（@click.stop 阻止冒泡到卡片查看） -->
-              <div class="task-actions" @click.stop>
-                <button
-                  v-if="todo.status === 'completed'"
-                  class="completion-btn"
-                  @click="openCompletionDialog(todo)"
-                >
-                  <el-icon><Finished /></el-icon>
-                  <span>查看完成情况</span>
+              <!-- 作者 -->
+              <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
+
+              <!-- 未读红点 -->
+              <span v-if="todo.unread_count > 0" class="unread-dot" :title="`${todo.unread_count} 条新留言`" @click.stop="openMessagesDialog(todo.id)">{{ todo.unread_count }}</span>
+
+              <!-- 三点菜单 -->
+              <div class="menu-wrapper" @click.stop>
+                <button class="menu-trigger" :class="{ open: openMenuId === todo.id }" @click="toggleMenu(todo.id)">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
                 </button>
-
-                <div class="menu-wrapper">
-                  <button
-                    class="menu-trigger"
-                    title="操作"
-                    @click.stop="toggleMenu(todo.id)"
-                  >
-                    <el-icon><MoreFilled /></el-icon>
-                  </button>
-
-                  <transition name="menu-fade">
-                    <div
-                      v-show="openMenuId === todo.id"
-                      class="task-menu-dropdown"
-                      @click.stop
-                    >
-                      <div class="color-row">
-                        <button
-                          v-for="c in colorOptions"
-                          :key="c.value"
-                          class="color-dot"
-                          :class="['bg-' + c.value, { selected: todo.color === c.value }]"
-                          :title="c.label"
-                          @click="onChangeColor(todo, c.value)"
-                        />
-                      </div>
-                      <button class="menu-btn" @click="openEditDialog(todo); closeMenu()">
-                        <el-icon><EditPen /></el-icon><span>修改内容</span>
-                      </button>
-                      <button
-                        v-if="todo.status !== 'completed' && canModify(todo)"
-                        class="menu-btn"
-                        @click="openCompleteDialog(todo); closeMenu()"
-                      >
-                        <el-icon><Select /></el-icon><span>标记完成</span>
-                      </button>
-                      <button
-                        v-if="todo.status === 'completed' && canModify(todo)"
-                        class="menu-btn"
-                        @click="onUncomplete(todo); closeMenu()"
-                      >
-                        <el-icon><RefreshLeft /></el-icon><span>撤销完成</span>
-                      </button>
-                      <button
-                        v-if="isAdmin"
-                        class="menu-btn"
-                        @click="openAddMessageDialog(todo); closeMenu()"
-                      >
-                        <el-icon><ChatLineRound /></el-icon><span>添加备注</span>
-                      </button>
-                      <button class="menu-btn" @click="openMessagesDialog(todo.id); closeMenu()">
-                        <el-icon><ChatDotRound /></el-icon><span>查看留言</span>
-                      </button>
-                      <button
-                        v-if="canModify(todo)"
-                        class="menu-btn danger"
-                        @click="onDelete(todo); closeMenu()"
-                      >
-                        <el-icon><Delete /></el-icon><span>删除</span>
-                      </button>
+                <transition name="menu-fade">
+                  <div v-show="openMenuId === todo.id" class="task-menu-dropdown" @click.stop>
+                    <div class="menu-color-row">
+                      <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:todo.color===c.value}]" :title="c.label" @click="onChangeColor(todo, c.value)" />
                     </div>
-                  </transition>
-                </div>
-
-                <button v-show="dragMode" class="drag-handle" title="拖动调整顺序">
-                  <el-icon><Rank /></el-icon>
-                </button>
+                    <div class="menu-divider"></div>
+                    <button class="menu-btn" @click="openEditDialog(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                      <span>修改内容</span>
+                    </button>
+                    <button v-if="todo.status !== 'completed' && canModify(todo)" class="menu-btn" @click="openCompleteDialog(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+                      <span>标记完成</span>
+                    </button>
+                    <button v-if="todo.status === 'completed' && canModify(todo)" class="menu-btn" @click="onUncomplete(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+                      <span>撤销完成</span>
+                    </button>
+                    <button v-if="isAdmin" class="menu-btn" @click="openAddMessageDialog(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      <span>添加备注</span>
+                    </button>
+                    <button class="menu-btn" @click="openMessagesDialog(todo.id); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                      <span>查看留言</span>
+                    </button>
+                    <button v-if="canModify(todo)" class="menu-btn danger" @click="onDelete(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      <span>删除</span>
+                    </button>
+                  </div>
+                </transition>
               </div>
             </div>
           </div>
         </template>
-      </div>
-
-      <div class="stats-bar">
-        待完成: {{ pendingCount }} | 已完成: {{ completedCount }} | 总计: {{ todos.length }}
       </div>
     </div>
 
-    <!-- ============ 查看详情弹窗（label 模式） ============ -->
-    <el-dialog v-model="viewDialogVisible" title="任务详情" width="500px">
-      <template v-if="viewingTodo">
-        <div class="view-row">
-          <label>任务内容</label>
-          <span class="view-content">{{ viewingTodo.content }}</span>
-        </div>
-        <div class="view-row">
-          <label>所属日期</label>
-          <span>{{ viewingTodo.date }}</span>
-        </div>
-        <div class="view-row">
-          <label>卡片颜色</label>
-          <span class="color-dot" :class="'bg-' + viewingTodo.color" :style="{ background: colorHex(viewingTodo.color) }"></span>
-          <span style="margin-left: 8px; color: #6b7280; font-size: 13px">{{ colorLabel(viewingTodo.color) }}</span>
-        </div>
-        <div v-if="viewingTodo.note" class="view-row">
-          <label>任务备注</label>
-          <span>{{ viewingTodo.note }}</span>
-        </div>
-        <div v-if="viewingTodo.image_url" class="view-row view-row-image">
-          <label>任务附图</label>
-          <img :src="resolveAssetUrl(viewingTodo.image_url)" class="view-image" @click="openImageViewer(viewingTodo.image_url)" />
-        </div>
+    <!-- ============ FAB 按钮 ============ -->
+    <button class="fab-btn" @click="openCreateDialog" title="新建任务">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 
-        <template v-if="viewingTodo.status === 'completed'">
-          <el-divider />
-          <div v-if="viewingTodo.completion_note" class="view-row">
-            <label>完成内容</label>
-            <span>{{ viewingTodo.completion_note }}</span>
+    <!-- ============================================================
+         详情弹窗（左轨时间线 + V2 边框块 + V4 行内输入）
+         ============================================================ -->
+    <el-dialog v-model="viewDialogVisible" title="任务详情" width="520px" top="8vh" @closed="onDetailClosed">
+      <div class="da-outer">
+        <div class="da-rail">
+          <div class="da-rail-line"></div>
+          <div class="da-rail-dot"></div>
+        </div>
+        <div class="da-card a1b-card">
+          <!-- 块 1：基础信息 -->
+          <div class="a1b-block">
+            <div class="da-top">
+              <span class="da-status" :class="viewingTodo?.status==='completed'?'da-done':'da-pending'">{{ viewingTodo?.status==='completed'?'✓ 已完成':'● 待完成' }}</span>
+              <span class="da-date">{{ viewingTodo?.date }}</span>
+              <span class="da-author">{{ viewingTodo?.author_name || viewingTodo?.author_id }}</span>
+            </div>
+            <div class="da-subject">{{ viewingTodo?.content }}</div>
+            <div v-if="viewingTodo?.note" class="da-note-text">{{ viewingTodo.note }}</div>
+            <div v-if="viewingTodo?.image_url" class="da-img-wrap">
+              <img :src="resolveAssetUrl(viewingTodo.image_url)" class="d-thumb da-thumb" style="object-fit:cover;background:#f3f4f6" @click.stop="openImageViewer(viewingTodo!.image_url!)" />
+            </div>
+            <template v-if="viewingTodo?.status === 'completed'">
+              <div class="da-sep"></div>
+              <div class="da-complete-header">✅ 完成情况</div>
+              <div v-if="viewingTodo?.completion_note" class="da-comp-note">{{ viewingTodo.completion_note }}</div>
+              <div v-if="viewingTodo?.completion_image_url" class="da-img-wrap">
+                <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
+              </div>
+              <div v-if="viewingTodo?.completed_at" class="da-comp-time">{{ viewingTodo.completed_at }}</div>
+            </template>
           </div>
-          <div v-if="viewingTodo.completion_image_url" class="view-row view-row-image">
-            <label>完成图片</label>
-            <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="view-image" @click="openImageViewer(viewingTodo.completion_image_url)" />
+
+          <!-- 块 2：留言 + 行内输入 -->
+          <div class="a1b-block a1b-block-msg">
+            <div class="a1b-block-title">💬 管理员留言</div>
+            <div v-if="detailMessages.length === 0" class="a1b-empty-msg">暂无留言</div>
+            <div v-else class="a1a-messages">
+              <div v-for="msg in detailMessages" :key="msg.id" class="a1-bubble" :class="msg.author_id===currentEmpId?'a1-self':'a1-other'">
+                <div class="a1-bubble-author">{{ msg.author_name || msg.author_id }}</div>
+                <div class="a1-bubble-text">{{ msg.content }}</div>
+                <div class="a1-bubble-time">{{ msg.created_at }}</div>
+              </div>
+            </div>
+            <!-- 行内输入（仅 admin） -->
+            <div v-if="isAdmin" class="a1d-inline-input">
+              <input v-model="msgInput" ref="msgInputRef" type="text" class="a1d-input" placeholder="输入留言内容…" maxlength="300" @keypress.enter="sendMessage" />
+              <div class="a1d-actions">
+                <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="toggleMsgEmoji"><span style="font-size:18px">😊</span></button>
+                <button type="button" class="a1d-action-btn" title="上传图片" @click="handleMsgImageUpload"><span style="font-size:18px">🖼️</span></button>
+                <button class="a1d-send-btn" :disabled="!msgInput.trim()" @click="sendMessage">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </button>
+              </div>
+              <div v-show="msgEmojiVisible" class="a1d-emoji-popup" @click.stop>
+                <emoji-picker class="a1d-emoji-picker" @emoji-click="insertMsgEmoji" />
+              </div>
+            </div>
           </div>
-          <div class="view-row">
-            <label>完成时间</label>
-            <span>{{ viewingTodo.completed_at || '—' }}</span>
+
+          <!-- 块 3：用户补充信息 -->
+          <div class="a1b-block a1b-block-supp">
+            <div class="a1b-block-title">📎 用户补充信息</div>
+            <div v-if="viewingTodo?.status === 'completed'" class="a1b-supp-text">{{ viewingTodo.completion_note || '未填写完成说明' }}</div>
+            <div v-else class="a1b-supp-text a1b-supp-empty">任务尚未完成，暂无补充信息</div>
+            <div v-if="viewingTodo?.completion_image_url" class="a1b-supp-img">
+              <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
+            </div>
+            <div v-if="viewingTodo?.completed_at" class="a1b-supp-time">{{ viewingTodo.completed_at }}</div>
           </div>
-        </template>
-      </template>
+        </div>
+      </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <el-button v-if="isAdmin" @click="openAddMessageDialog(viewingTodo!); viewDialogVisible = false">
-          添加备注
-        </el-button>
-        <el-button type="primary" v-if="canModify(viewingTodo!)" @click="switchViewToEdit">修改</el-button>
+        <el-button v-if="canModify(viewingTodo)" type="primary" @click="switchViewToEdit">修改</el-button>
       </template>
     </el-dialog>
 
-    <!-- ============ 编辑弹窗（input 模式） ============ -->
-    <el-dialog
-      v-model="editDialogVisible"
-      :title="editingTodo ? '修改任务' : '添加任务'"
-      width="500px"
-      @closed="resetEditForm"
-    >
-      <el-form :model="editForm" label-width="80px">
-        <el-form-item label="任务内容" required>
-          <!-- 内容 textarea + emoji picker -->
-          <div class="input-with-emoji">
-            <el-input
-              v-model="editForm.content"
-              type="textarea"
-              :rows="3"
-              placeholder="例如：完成哥伦比亚餐具套装的邮件回复 🚀"
-              maxlength="500"
-              show-word-limit
-              ref="editContentTextareaRef"
-            />
-            <button type="button" class="emoji-btn" @click="toggleEmoji('content')">😊</button>
-            <div v-show="emojiVisible.content" class="emoji-wrapper">
-              <emoji-picker class="emoji-picker" @emoji-click="(e) => insertEmojiTo('content', e)" />
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="所属日期">
-          <el-date-picker
-            v-model="editForm.dateObj"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择日期"
-            style="width: 100%"
-          />
-        </el-form-item>
-
-        <el-form-item label="卡片颜色">
-          <div class="color-picker">
-            <span
-              v-for="c in colorOptions"
-              :key="c.value"
-              class="color-dot"
-              :class="['bg-' + c.value, { active: editForm.color === c.value }]"
-              :title="c.label"
-              @click="editForm.color = c.value"
-            />
-          </div>
-        </el-form-item>
-
-        <el-form-item label="任务备注">
-          <div class="input-with-emoji">
-            <el-input
-              v-model="editForm.note"
-              type="textarea"
-              :rows="2"
-              placeholder="备注（可选）📝"
-              maxlength="200"
-              show-word-limit
-            />
-            <button type="button" class="emoji-btn" @click="toggleEmoji('note')">😊</button>
-            <div v-show="emojiVisible.note" class="emoji-wrapper">
-              <emoji-picker class="emoji-picker" @emoji-click="(e) => insertEmojiTo('note', e)" />
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="任务附图">
-          <el-upload
-            :show-file-list="false"
-            :http-request="handleUploadImage"
-            :before-upload="beforeImageUpload"
-            accept="image/*"
-          >
-            <el-button :icon="Picture" :loading="uploading">点击上传图片</el-button>
-          </el-upload>
-          <div v-if="editForm.image_url" class="uploaded-preview">
-            <img :src="resolveAssetUrl(editForm.image_url)" class="preview-thumb" @click="openImageViewer(editForm.image_url)" />
-            <el-button link type="danger" @click="editForm.image_url = ''">移除</el-button>
-          </div>
-        </el-form-item>
-      </el-form>
+    <!-- ============================================================
+         新建/修改弹窗（C · 聊天式）
+         ============================================================ -->
+    <el-dialog v-model="formVisible" :title="formMode==='edit'?'修改内容':'新建任务'" width="500px" top="10vh" @closed="onFormClosed">
+      <div class="ntc-body">
+        <div class="ntc-title-row">
+          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" @focus="formLastFocus='title'" />
+        </div>
+        <div class="ntc-sep"></div>
+        <div class="ntc-content-area">
+          <textarea v-model="formContent" ref="formContentRef" class="ntc-textarea" placeholder="备注内容…支持 emoji 📝" rows="3" maxlength="500" @focus="formLastFocus='content'"></textarea>
+        </div>
+        <div class="ntc-toolbar">
+          <button type="button" class="ntc-tool-btn" @click="onFormEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
+          <button type="button" class="ntc-tool-btn" @click="triggerFormImageUpload" title="添加图片"><span style="font-size:18px">🖼️</span></button>
+          <input v-model="formDate" type="date" class="ntc-date-input" />
+          <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
+        </div>
+        <div v-show="formEmojiVisible" class="ntc-emoji-pop" @click.stop>
+          <emoji-picker class="ntc-ep" @emoji-click="insertFormEmoji" />
+        </div>
+        <!-- 图片预览 -->
+        <div v-if="formImageUrl" class="ntc-img-bar">
+          <img :src="resolveAssetUrl(formImageUrl)" class="ntc-img-thumb-real" />
+          <span class="ntc-img-label">已上传</span>
+          <button class="ntc-img-remove" @click="formImageUrl=''">✕ 移除</button>
+        </div>
+        <div class="ntc-color-bar">
+          <span class="ntc-color-label">颜色</span>
+          <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:formColor===c.value}]" :title="c.label" @click="formColor=c.value" />
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitEditForm">保存</el-button>
+        <el-button @click="formVisible=false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitTaskForm">{{ formMode==='edit'?'保存修改':'确认添加' }}</el-button>
       </template>
     </el-dialog>
 
-    <!-- ============ 标记完成弹窗（带 emoji picker） ============ -->
-    <el-dialog v-model="completeDialogVisible" title="标记完成" width="500px">
-      <el-alert
-        title="完成时必须填写文字或图片（至少一项）。再次完成时会自动复用上次内容。"
-        type="info"
-        :closable="false"
-        style="margin-bottom: 16px"
-      />
-      <el-form :model="completeForm" label-width="80px">
-        <el-form-item label="完成内容">
-          <div class="input-with-emoji">
-            <el-input
-              v-model="completeForm.completion_note"
-              type="textarea"
-              :rows="3"
-              placeholder="简单说明完成情况"
-              maxlength="500"
-              show-word-limit
-            />
-            <button type="button" class="emoji-btn" @click="toggleEmoji('completion')">😊</button>
-            <div v-show="emojiVisible.completion" class="emoji-wrapper">
-              <emoji-picker class="emoji-picker" @emoji-click="(e) => insertEmojiTo('completion', e)" />
-            </div>
-          </div>
-        </el-form-item>
-        <el-form-item label="完成图片">
-          <el-upload
-            :show-file-list="false"
-            :http-request="(opt) => handleUploadImage(opt, 'completion')"
-            :before-upload="beforeImageUpload"
-            accept="image/*"
-          >
-            <el-button :icon="Picture" :loading="uploading">点击上传图片</el-button>
+    <!-- ============================================================
+         标记完成弹窗
+         ============================================================ -->
+    <el-dialog v-model="completeDialogVisible" title="标记完成" width="480px" top="20vh">
+      <el-alert title="完成时必须填写文字或图片（至少一项）" type="info" :closable="false" style="margin-bottom:14px" />
+      <div class="complete-body">
+        <div class="input-with-emoji" style="position:relative">
+          <el-input v-model="completeForm.completion_note" type="textarea" :rows="3" placeholder="简单说明完成情况" maxlength="500" show-word-limit />
+          <button type="button" class="emoji-btn" @click="toggleEmoji('completion')">😊</button>
+          <div v-show="emojiVisible.completion" class="emoji-wrapper"><emoji-picker class="emoji-picker" @emoji-click="(e)=>completeForm.completion_note+=e.detail.emoji.unicode" /></div>
+        </div>
+        <div style="margin-top:12px">
+          <el-upload :show-file-list="false" :http-request="(opt)=>handleUploadImage(opt,'completion')" :before-upload="beforeImageUpload" accept="image/*">
+            <el-button :icon="Picture" :loading="uploading">上传完成图片</el-button>
           </el-upload>
           <div v-if="completeForm.completion_image_url" class="uploaded-preview">
             <img :src="resolveAssetUrl(completeForm.completion_image_url)" class="preview-thumb" @click="openImageViewer(completeForm.completion_image_url)" />
-            <el-button link type="danger" @click="completeForm.completion_image_url = ''">移除</el-button>
+            <el-button link type="danger" @click="completeForm.completion_image_url=''">移除</el-button>
           </div>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="completeDialogVisible = false">取消</el-button>
+        <el-button @click="completeDialogVisible=false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="submitComplete">确认完成</el-button>
       </template>
     </el-dialog>
 
-    <!-- ============ 添加备注弹窗（带 emoji picker） ============ -->
-    <el-dialog v-model="messageDialogVisible" title="添加备注" width="420px">
-      <div class="input-with-emoji">
-        <el-input
-          v-model="newMessageContent"
-          type="textarea"
-          :rows="4"
-          placeholder="备注内容（仅管理员可添加）"
-          maxlength="300"
-          show-word-limit
-        />
+    <!-- ============================================================
+         添加备注弹窗
+         ============================================================ -->
+    <el-dialog v-model="messageDialogVisible" title="添加备注" width="420px" top="20vh">
+      <div class="input-with-emoji" style="position:relative">
+        <el-input v-model="newMessageContent" type="textarea" :rows="4" placeholder="备注内容（仅管理员可添加）" maxlength="300" show-word-limit />
         <button type="button" class="emoji-btn" @click="toggleEmoji('message')">😊</button>
-        <div v-show="emojiVisible.message" class="emoji-wrapper">
-          <emoji-picker class="emoji-picker" @emoji-click="(e) => insertEmojiTo('message', e)" />
-        </div>
+        <div v-show="emojiVisible.message" class="emoji-wrapper"><emoji-picker class="emoji-picker" @emoji-click="(e)=>newMessageContent+=e.detail.emoji.unicode" /></div>
       </div>
       <template #footer>
-        <el-button @click="messageDialogVisible = false">取消</el-button>
+        <el-button @click="messageDialogVisible=false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="submitAddMessage">添加</el-button>
       </template>
     </el-dialog>
 
-    <!-- ============ 留言列表弹窗 ============ -->
-    <el-dialog v-model="messagesViewVisible" title="留言记录" width="500px">
-      <div v-if="messages.length === 0" class="empty-messages">暂无留言</div>
-      <div v-else class="message-list">
-        <div v-for="msg in messages" :key="msg.id" class="message-item">
-          <div class="message-header">
-            <span class="message-author">{{ msg.author_name }}</span>
-            <span class="message-time">{{ msg.created_at }}</span>
+    <!-- ============================================================
+         留言列表弹窗
+         ============================================================ -->
+    <el-dialog v-model="messagesViewVisible" title="留言记录" width="480px" top="15vh">
+      <div v-if="messages.length===0" class="empty-msg">暂无留言</div>
+      <div v-else class="msg-list">
+        <div v-for="msg in messages" :key="msg.id" class="msg-item">
+          <div class="msg-header">
+            <span class="msg-author">{{ msg.author_name || msg.author_id }}</span>
+            <span class="msg-time">{{ msg.created_at }}</span>
             <el-button v-if="isAdmin" link type="danger" size="small" @click="onDeleteMessage(msg.id)">删除</el-button>
           </div>
-          <div class="message-content">{{ msg.content }}</div>
+          <div class="msg-content">{{ msg.content }}</div>
         </div>
       </div>
       <template #footer>
-        <el-button @click="messagesViewVisible = false">关闭</el-button>
+        <el-button @click="messagesViewVisible=false">关闭</el-button>
       </template>
     </el-dialog>
 
-    <!-- ============ 图片灯箱（替代 el-image 的 preview） ============ -->
-    <el-image-viewer
-      v-if="imageViewerVisible"
-      :url-list="[resolveAssetUrl(imageViewerUrl)]"
-      @close="imageViewerVisible = false"
-    />
+    <!-- ============ 图片灯箱 ============ -->
+    <el-image-viewer v-if="imageViewerVisible" :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Plus, Picture, Search, Rank, MoreFilled,
-  CircleCheck, CircleCheckFilled, Bell,
-  Finished, EditPen, Select, RefreshLeft,
-  ChatLineRound, ChatDotRound, Delete,
-} from '@element-plus/icons-vue'
-import Sortable from 'sortablejs'
+import { Picture } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
 import CommonHeader from '@/components/CommonHeader.vue'
 import {
@@ -476,46 +323,44 @@ const todos = ref<TodoItem[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const uploading = ref(false)
-const newTaskContent = ref('')
 const searchKeyword = ref('')
-const showCompleted = ref(true)
-const dragMode = ref(false)
+const activeTab = ref('all')
 const isAdmin = ref(false)
 const currentEmpId = ref('')
 const openMenuId = ref<number | null>(null)
-
 const notificationItems = ref<any[]>([])
-const totalUnread = computed(() => notificationItems.value.reduce((s, n) => s + n.unread_count, 0))
-
-// emoji picker 状态（4 个输入框各一个）
-const emojiVisible = reactive<Record<string, boolean>>({
-  content: false,
-  note: false,
-  completion: false,
-  message: false,
-})
-
-// 图片灯箱
+const totalUnread = computed(() => notificationItems.value.reduce((s: number, n: any) => s + n.unread_count, 0))
 const imageViewerVisible = ref(false)
 const imageViewerUrl = ref('')
 
+// emoji picker 状态
+const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: false, completion: false, message: false })
+
 // ============================================================
-// 颜色映射（hex 与参考模板 bg-XXX/10 一致；purple → dark）
+// Tab 定义（动态计算数量）
+// ============================================================
+const tabDefs = computed(() => [
+  { key: 'all',       label: '全部',   count: todos.value.length },
+  { key: 'pending',   label: '待完成', count: todos.value.filter(t => t.status === 'pending').length },
+  { key: 'completed', label: '已完成', count: todos.value.filter(t => t.status === 'completed').length },
+  { key: 'urgent',    label: '紧急',   count: todos.value.filter(t => t.color === 'red').length },
+])
+
+// ============================================================
+// 颜色
 // ============================================================
 const colorOptions = [
-  { value: 'white',  label: '默认',   hex: '#ffffff' },
-  { value: 'red',    label: '紧急',   hex: '#fee2e2' },
-  { value: 'yellow', label: '重要',   hex: '#fef3c7' },
-  { value: 'green',  label: '完成',   hex: '#d1fae5' },
-  { value: 'blue',   label: '进行中', hex: '#dbeafe' },
-  { value: 'dark',   label: '长期',   hex: '#e5e7eb' },
+  { value: 'white',  label: '默认' },
+  { value: 'red',    label: '紧急' },
+  { value: 'yellow', label: '重要' },
+  { value: 'green',  label: '完成' },
+  { value: 'blue',   label: '进行中' },
+  { value: 'dark',   label: '长期' },
 ]
-const COLOR_HEX: Record<string, string> = Object.fromEntries(colorOptions.map(c => [c.value, c.hex]))
-function colorHex(v: string) { return COLOR_HEX[v] || '#ffffff' }
 function colorLabel(v: string) { return colorOptions.find(c => c.value === v)?.label || v }
 
 // ============================================================
-// 资源 URL 解析（后端存相对路径如 "todo/2026/07/13/xxx.jpg" → 拼 /assets/TodoMedia/）
+// 资源 URL 解析
 // ============================================================
 function resolveAssetUrl(url: string): string {
   if (!url) return ''
@@ -533,183 +378,132 @@ function openImageViewer(url: string) {
 }
 
 // ============================================================
-// emoji picker
+// Tab 切换 + 搜索
 // ============================================================
-function toggleEmoji(target: string) {
-  // 关闭其他弹层
-  for (const k of Object.keys(emojiVisible)) {
-    emojiVisible[k] = k === target ? !emojiVisible[target] : false
+function switchTab(key: string) {
+  activeTab.value = key
+  loadTodos()
+}
+
+function onSearchEnter() {
+  loadTodos()
+}
+
+function clearSearch() {
+  searchKeyword.value = ''
+  loadTodos()
+}
+
+// ============================================================
+// 分组与日期
+// ============================================================
+const groups = computed<Record<string, TodoItem[]>>(() => {
+  const g: Record<string, TodoItem[]> = {}
+  for (const t of todos.value) {
+    if (!g[t.date]) g[t.date] = []
+    g[t.date].push(t)
   }
-}
-
-function insertEmojiTo(target: string, event: any) {
-  const emoji = event.detail.emoji.unicode
-  if (target === 'content') editForm.content += emoji
-  else if (target === 'note') editForm.note += emoji
-  else if (target === 'completion') completeForm.completion_note += emoji
-  else if (target === 'message') newMessageContent.value += emoji
-}
-
-// 点击 emoji 弹层外部关闭
-function onDocumentClickEmoji(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (target.closest('.emoji-wrapper') || target.closest('.emoji-btn')) return
-  for (const k of Object.keys(emojiVisible)) emojiVisible[k] = false
-}
-
-// ============================================================
-// 编辑/创建弹窗
-// ============================================================
-const editDialogVisible = ref(false)
-const editingTodo = ref<TodoItem | null>(null)
-const editForm = reactive({
-  content: '',
-  dateObj: null as string | null,
-  color: 'white',
-  note: '',
-  image_url: '',
+  return g
 })
+const groupedDates = computed(() => Object.keys(groups.value).sort((a, b) => b.localeCompare(a)))
 
-function resetEditForm() {
-  editForm.content = ''
-  editForm.dateObj = new Date().toISOString().split('T')[0]
-  editForm.color = 'white'
-  editForm.note = ''
-  editForm.image_url = ''
-  editingTodo.value = null
+function formatDateLabel(date: string): string {
+  const today = new Date().toISOString().split('T')[0]
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+  if (date === today) return '今天'
+  if (date === yesterday) return '昨天'
+  const d = new Date(date)
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 }
 
-function openCreateDialog() {
-  resetEditForm()
-  editDialogVisible.value = true
-}
-
-function openEditDialog(todo: TodoItem) {
-  editingTodo.value = todo
-  editForm.content = todo.content
-  editForm.dateObj = todo.date
-  editForm.color = todo.color
-  editForm.note = todo.note
-  editForm.image_url = todo.image_url
-  editDialogVisible.value = true
-}
-
-async function submitEditForm() {
-  if (!editForm.content.trim()) {
-    ElMessage.warning('任务内容不能为空')
-    return
-  }
-  submitting.value = true
+// ============================================================
+// 加载数据
+// ============================================================
+async function loadTodos() {
+  loading.value = true
   try {
-    const payload = {
-      content: editForm.content.trim(),
-      date: editForm.dateObj || new Date().toISOString().split('T')[0],
-      color: editForm.color,
-      note: editForm.note,
-      image_url: editForm.image_url,
-    }
-    if (editingTodo.value) {
-      await updateTodo(editingTodo.value.id, payload)
-      ElMessage.success('已更新')
-    } else {
-      await createTodo(payload)
-      ElMessage.success('已添加')
-    }
-    editDialogVisible.value = false
+    const params: any = {}
+    if (searchKeyword.value.trim()) params.search = searchKeyword.value.trim()
+    if (activeTab.value === 'pending') params.status = 'pending'
+    else if (activeTab.value === 'completed') params.status = 'completed'
+    const res: any = await getTodos(params)
+    todos.value = res || []
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加载任务失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadNotifications() {
+  try {
+    const res: any = await getTodoNotifications()
+    notificationItems.value = res?.items || []
+  } catch {
+    notificationItems.value = []
+  }
+}
+
+// ============================================================
+// 三点菜单
+// ============================================================
+function toggleMenu(id: number) { openMenuId.value = openMenuId.value === id ? null : id }
+function closeMenu() { openMenuId.value = null }
+
+function onDocumentClick(e: MouseEvent) {
+  const t = e.target as HTMLElement
+  if (!t.closest('.menu-wrapper')) openMenuId.value = null
+  // emoji close
+  if (!t.closest('.emoji-wrapper') && !t.closest('.emoji-btn')) {
+    for (const k of Object.keys(emojiVisible)) emojiVisible[k] = false
+  }
+  if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
+  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) formEmojiVisible.value = false
+}
+
+// ============================================================
+// 颜色修改
+// ============================================================
+async function onChangeColor(todo: TodoItem, color: string) {
+  if (todo.color === color) return
+  try {
+    await updateTodo(todo.id, { color })
+    todo.color = color
+    closeMenu()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '修改颜色失败')
+  }
+}
+
+// ============================================================
+// 权限
+// ============================================================
+function canModify(todo: TodoItem | null): boolean {
+  if (!todo) return false
+  return isAdmin.value || todo.author_id === currentEmpId.value
+}
+
+// ============================================================
+// 删除
+// ============================================================
+async function onDelete(todo: TodoItem) {
+  try {
+    await ElMessageBox.confirm(`确定删除任务"${todo.content}"吗？`, '提示', { type: 'warning' })
+    await deleteTodo(todo.id)
+    ElMessage.success('已删除')
     await loadTodos()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败')
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function onAddTask() {
-  const content = newTaskContent.value.trim()
-  if (!content) {
-    ElMessage.warning('请输入任务内容')
-    return
-  }
-  submitting.value = true
-  try {
-    await createTodo({
-      content,
-      date: new Date().toISOString().split('T')[0],
-      color: 'white',
-    })
-    newTaskContent.value = ''
-    ElMessage.success('已添加')
-    await loadTodos()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '添加失败')
-  } finally {
-    submitting.value = false
-  }
+  } catch { /* cancel */ }
 }
 
 // ============================================================
-// 图片上传
-// ============================================================
-function beforeImageUpload(file: File) {
-  const isImage = file.type.startsWith('image/')
-  const isLt5M = file.size / 1024 / 1024 < 5
-  if (!isImage) ElMessage.error('只能上传图片')
-  if (!isLt5M) ElMessage.error('图片大小不能超过 5MB')
-  return isImage && isLt5M
-}
-
-async function handleUploadImage(option: any, subDir: 'todo' | 'completion' = 'todo') {
-  uploading.value = true
-  try {
-    const res: any = await uploadTodoImage(option.file, subDir)
-    const url = res?.image_url || res?.data?.image_url
-    if (url) {
-      if (subDir === 'completion') completeForm.completion_image_url = url
-      else editForm.image_url = url
-      ElMessage.success('上传成功')
-      option.onSuccess?.(res)
-    } else {
-      throw new Error('未拿到图片 URL')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '上传失败')
-    option.onError?.(e)
-  } finally {
-    uploading.value = false
-  }
-}
-
-// ============================================================
-// 查看详情弹窗（label 模式 + 切换编辑）
-// ============================================================
-const viewDialogVisible = ref(false)
-const viewingTodo = ref<TodoItem | null>(null)
-
-function openViewDialog(todo: TodoItem) {
-  viewingTodo.value = todo
-  viewDialogVisible.value = true
-}
-
-function switchViewToEdit() {
-  if (!viewingTodo.value) return
-  viewDialogVisible.value = false
-  // 延迟一下避免两个 dialog 同时打开
-  setTimeout(() => openEditDialog(viewingTodo.value!), 100)
-}
-
-// ============================================================
-// 完成弹窗（保留上次填写内容）
+// 完成 / 撤销
 // ============================================================
 const completeDialogVisible = ref(false)
 const completingTodo = ref<TodoItem | null>(null)
-const completeForm = reactive({
-  completion_note: '',
-  completion_image_url: '',
-})
+const completeForm = reactive({ completion_note: '', completion_image_url: '' })
 
 function openCompleteDialog(todo: TodoItem) {
   completingTodo.value = todo
-  // 复用已有完成内容（撤销后重新完成时自动填入）
   completeForm.completion_note = todo.completion_note || ''
   completeForm.completion_image_url = todo.completion_image_url || ''
   completeDialogVisible.value = true
@@ -748,54 +542,236 @@ async function onToggleComplete(todo: TodoItem) {
 async function onUncomplete(todo: TodoItem) {
   try {
     await ElMessageBox.confirm(
-      `确定撤销"${todo.content}"的完成状态吗？\n（已填写的完成内容会保留，再次勾选完成时自动恢复）`,
-      '提示',
-      { type: 'warning' }
+      `确定撤销"${todo.content}"的完成状态吗？\n（已填写的完成内容会保留）`,
+      '提示', { type: 'warning' }
     )
     await uncompleteTodo(todo.id)
     ElMessage.success('已撤销')
     await loadTodos()
-  } catch {
-    // 用户取消 → 不修改 todo.status，UI 自然保持原样
-  }
+  } catch { /* cancel */ }
 }
 
 // ============================================================
-// 查看完成情况
+// 图片上传
 // ============================================================
-const completionViewVisible = ref(false)
-const completionViewTodo = ref<TodoItem | null>(null)
-function openCompletionDialog(todo: TodoItem) {
-  completionViewTodo.value = todo
-  completionViewVisible.value = true
+function beforeImageUpload(file: File) {
+  const isImage = file.type.startsWith('image/')
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isImage) ElMessage.error('只能上传图片')
+  if (!isLt5M) ElMessage.error('图片大小不能超过 5MB')
+  return isImage && isLt5M
 }
 
-// ============================================================
-// 菜单
-// ============================================================
-function toggleMenu(id: number) {
-  openMenuId.value = openMenuId.value === id ? null : id
-}
-function closeMenu() { openMenuId.value = null }
-
-function onDocumentClickMenu(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target.closest('.menu-wrapper')) openMenuId.value = null
-}
-
-async function onChangeColor(todo: TodoItem, color: string) {
-  if (todo.color === color) return
+async function handleUploadImage(option: any, subDir: 'todo' | 'completion' = 'todo') {
+  uploading.value = true
   try {
-    await updateTodo(todo.id, { color })
-    todo.color = color
-    closeMenu()
+    const res: any = await uploadTodoImage(option.file, subDir)
+    const url = res?.image_url || res?.data?.image_url
+    if (url) {
+      if (subDir === 'completion') completeForm.completion_image_url = url
+      else formImageUrl.value = url
+      ElMessage.success('上传成功')
+      option.onSuccess?.(res)
+    } else {
+      throw new Error('未拿到图片 URL')
+    }
   } catch (e: any) {
-    ElMessage.error(e?.message || '修改颜色失败')
+    ElMessage.error(e?.message || '上传失败')
+    option.onError?.(e)
+  } finally {
+    uploading.value = false
   }
 }
 
 // ============================================================
-// 留言
+// 详情弹窗
+// ============================================================
+const viewDialogVisible = ref(false)
+const viewingTodo = ref<TodoItem | null>(null)
+const detailMessages = ref<TodoMessage[]>([])
+
+async function openViewDialog(todo: TodoItem) {
+  viewingTodo.value = todo
+  try {
+    const res: any = await getTodo(todo.id)
+    if (res?.messages) detailMessages.value = res.messages
+    else detailMessages.value = []
+    viewDialogVisible.value = true
+    await clearTodoNotifications(todo.id)
+    await loadNotifications()
+  } catch {
+    detailMessages.value = []
+    viewDialogVisible.value = true
+  }
+}
+
+function onDetailClosed() {
+  // 关闭详情后刷新列表（更新未读计数等）
+  loadTodos()
+}
+
+function switchViewToEdit() {
+  if (!viewingTodo.value) return
+  viewDialogVisible.value = false
+  setTimeout(() => openEditDialog(viewingTodo.value!), 100)
+}
+
+// ============================================================
+// 详情弹窗 - 留言输入（V4 行内）
+// ============================================================
+const msgInput = ref('')
+const msgInputRef = ref<HTMLInputElement | null>(null)
+const msgEmojiVisible = ref(false)
+
+function toggleMsgEmoji() { msgEmojiVisible.value = !msgEmojiVisible.value }
+
+function insertMsgEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  const el = msgInputRef.value
+  if (el) {
+    const start = el.selectionStart ?? msgInput.value.length
+    const end = el.selectionEnd ?? start
+    msgInput.value = msgInput.value.substring(0, start) + emoji + msgInput.value.substring(end)
+    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
+  } else {
+    msgInput.value += emoji
+  }
+}
+
+async function sendMessage() {
+  if (!msgInput.value.trim() || !viewingTodo.value) return
+  try {
+    await addTodoMessage(viewingTodo.value.id, msgInput.value.trim())
+    // 重新加载留言
+    const res: any = await getTodo(viewingTodo.value.id)
+    if (res?.messages) detailMessages.value = res.messages
+    msgInput.value = ''
+  } catch (e: any) {
+    ElMessage.error(e?.message || '发送失败')
+  }
+}
+
+function handleMsgImageUpload() {
+  ElMessage.info('图片上传功能已在主流程中支持（留言图片后续可扩展）')
+}
+
+// ============================================================
+// 新建 / 修改弹窗（C · 聊天式）
+// ============================================================
+const formMode = ref<'create' | 'edit'>('create')
+const formVisible = ref(false)
+const formEditId = ref<number | null>(null)
+const formTitle = ref('')
+const formContent = ref('')
+const formDate = ref('')
+const formColor = ref('white')
+const formImageUrl = ref('')
+const formEmojiVisible = ref(false)
+const formLastFocus = ref<'title' | 'content'>('content')
+const formTitleRef = ref<HTMLInputElement | null>(null)
+const formContentRef = ref<HTMLTextAreaElement | null>(null)
+
+function resetForm() {
+  formTitle.value = ''
+  formContent.value = ''
+  formDate.value = new Date().toISOString().split('T')[0]
+  formColor.value = 'white'
+  formImageUrl.value = ''
+  formEmojiVisible.value = false
+  formEditId.value = null
+}
+
+function openCreateDialog() {
+  formMode.value = 'create'
+  resetForm()
+  formVisible.value = true
+}
+
+function openEditDialog(todo: TodoItem) {
+  formMode.value = 'edit'
+  formTitle.value = todo.content
+  formContent.value = todo.note || ''
+  formDate.value = todo.date
+  formColor.value = todo.color
+  formImageUrl.value = todo.image_url || ''
+  formEmojiVisible.value = false
+  formEditId.value = todo.id
+  formVisible.value = true
+}
+
+function onFormClosed() {
+  // nothing needed
+}
+
+function onFormEmojiClick() { formEmojiVisible.value = !formEmojiVisible.value }
+
+function insertFormEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  const target = formLastFocus.value
+  const el = target === 'title' ? formTitleRef.value : formContentRef.value
+  if (el) {
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    const text = target === 'title' ? formTitle.value : formContent.value
+    const newText = text.substring(0, start) + emoji + text.substring(end)
+    if (target === 'title') formTitle.value = newText
+    else formContent.value = newText
+    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
+  }
+}
+
+function triggerFormImageUpload() {
+  // 模拟文件 input 触发
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = async (e: any) => {
+    const file = e.target?.files?.[0]
+    if (!file) return
+    if (!beforeImageUpload(file)) return
+    uploading.value = true
+    try {
+      const res: any = await uploadTodoImage(file, 'todo')
+      const url = res?.image_url || res?.data?.image_url
+      if (url) { formImageUrl.value = url; ElMessage.success('上传成功') }
+    } catch (err: any) {
+      ElMessage.error(err?.message || '上传失败')
+    } finally {
+      uploading.value = false
+    }
+  }
+  input.click()
+}
+
+async function submitTaskForm() {
+  if (!formTitle.value.trim()) { ElMessage.warning('请输入任务标题'); return }
+  submitting.value = true
+  try {
+    const payload = {
+      content: formTitle.value.trim(),
+      date: formDate.value || new Date().toISOString().split('T')[0],
+      color: formColor.value,
+      note: formContent.value.trim(),
+      image_url: formImageUrl.value || undefined,
+    }
+    if (formMode.value === 'edit' && formEditId.value) {
+      await updateTodo(formEditId.value, payload)
+      ElMessage.success('已更新')
+    } else {
+      await createTodo(payload)
+      ElMessage.success('已添加')
+    }
+    formVisible.value = false
+    await loadTodos()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+// ============================================================
+// 留言（管理员添加/查看）
 // ============================================================
 const messageDialogVisible = ref(false)
 const newMessageContent = ref('')
@@ -803,7 +779,6 @@ const messagingTodo = ref<TodoItem | null>(null)
 
 const messagesViewVisible = ref(false)
 const messages = ref<TodoMessage[]>([])
-const viewingMessagesTodo = ref<TodoItem | null>(null)
 
 function openAddMessageDialog(todo: TodoItem) {
   messagingTodo.value = todo
@@ -813,10 +788,7 @@ function openAddMessageDialog(todo: TodoItem) {
 
 async function submitAddMessage() {
   if (!messagingTodo.value) return
-  if (!newMessageContent.value.trim()) {
-    ElMessage.warning('备注内容不能为空')
-    return
-  }
+  if (!newMessageContent.value.trim()) { ElMessage.warning('备注内容不能为空'); return }
   submitting.value = true
   try {
     await addTodoMessage(messagingTodo.value.id, newMessageContent.value.trim())
@@ -834,7 +806,6 @@ async function openMessagesDialog(todoId: number) {
   try {
     const res: any = await getTodoMessages(todoId)
     messages.value = res || []
-    viewingMessagesTodo.value = todos.value.find(t => t.id === todoId) || null
     messagesViewVisible.value = true
     await clearTodoNotifications(todoId)
     await loadNotifications()
@@ -845,10 +816,9 @@ async function openMessagesDialog(todoId: number) {
 }
 
 async function onDeleteMessage(msgId: number) {
-  if (!viewingMessagesTodo.value) return
   try {
     await ElMessageBox.confirm('确定删除该留言吗？', '提示', { type: 'warning' })
-    await deleteTodoMessage(viewingMessagesTodo.value.id, msgId)
+    await deleteTodoMessage(messages.value[0]?.todo_id || 0, msgId)
     ElMessage.success('已删除')
     messages.value = messages.value.filter(m => m.id !== msgId)
   } catch { /* cancel */ }
@@ -860,117 +830,11 @@ function openFirstNotification() {
 }
 
 // ============================================================
-// 删除 todo
+// emoji（旧弹窗用）
 // ============================================================
-async function onDelete(todo: TodoItem) {
-  try {
-    await ElMessageBox.confirm(`确定删除任务"${todo.content}"吗？`, '提示', { type: 'warning' })
-    await deleteTodo(todo.id)
-    ElMessage.success('已删除')
-    await loadTodos()
-  } catch { /* cancel */ }
-}
-
-// ============================================================
-// 权限判断
-// ============================================================
-function canModify(todo: TodoItem | null): boolean {
-  if (!todo) return false
-  return isAdmin.value || todo.author_id === currentEmpId.value
-}
-
-// ============================================================
-// 分组与日期
-// ============================================================
-const groups = computed<Record<string, TodoItem[]>>(() => {
-  const filtered = todos.value.filter(t => {
-    if (!showCompleted.value && t.status === 'completed') return false
-    if (searchKeyword.value) {
-      const kw = searchKeyword.value.toLowerCase()
-      return t.content.toLowerCase().includes(kw) ||
-             (t.note && t.note.toLowerCase().includes(kw))
-    }
-    return true
-  })
-  const g: Record<string, TodoItem[]> = {}
-  for (const t of filtered) {
-    if (!g[t.date]) g[t.date] = []
-    g[t.date].push(t)
-  }
-  return g
-})
-
-const groupedDates = computed(() => Object.keys(groups.value).sort((a, b) => b.localeCompare(a)))
-const pendingCount = computed(() => todos.value.filter(t => t.status !== 'completed').length)
-const completedCount = computed(() => todos.value.filter(t => t.status === 'completed').length)
-
-function formatDateLabel(date: string): string {
-  const today = new Date().toISOString().split('T')[0]
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-  if (date === today) return '今天'
-  if (date === yesterday) return '昨天'
-  const d = new Date(date)
-  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
-}
-
-// ============================================================
-// 显示/隐藏已完成
-// ============================================================
-function toggleShowCompleted() { showCompleted.value = !showCompleted.value }
-
-// ============================================================
-// 拖拽
-// ============================================================
-let sortableInstance: Sortable | null = null
-async function toggleDragMode() {
-  dragMode.value = !dragMode.value
-  await nextTick()
-  setupSortable()
-}
-function setupSortable() {
-  if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null }
-  if (!dragMode.value) return
-  const lists = document.querySelectorAll('.date-group-wrapper')
-  lists.forEach(list => {
-    sortableInstance = new Sortable(list as HTMLElement, {
-      animation: 150,
-      handle: '.drag-handle',
-      filter: '.date-divider',
-      onEnd: () => { ElMessage.info('顺序已调整（刷新后保留）') },
-    })
-  })
-}
-
-// ============================================================
-// 搜索防抖
-// ============================================================
-let searchTimer: any = null
-function onSearchInput() {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { /* 触发响应式重算 */ }, 300)
-}
-
-// ============================================================
-// 加载数据
-// ============================================================
-async function loadTodos() {
-  loading.value = true
-  try {
-    const res: any = await getTodos()
-    todos.value = res || []
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载任务失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadNotifications() {
-  try {
-    const res: any = await getTodoNotifications()
-    notificationItems.value = res?.items || []
-  } catch {
-    notificationItems.value = []
+function toggleEmoji(target: string) {
+  for (const k of Object.keys(emojiVisible)) {
+    emojiVisible[k] = k === target ? !emojiVisible[target] : false
   }
 }
 
@@ -981,637 +845,331 @@ onMounted(async () => {
   const userInfo = getCurrentUserInfo()
   isAdmin.value = userInfo?.user_role === 'admin'
   currentEmpId.value = getCurrentUserEmpId() || ''
-  resetEditForm()
   await loadTodos()
   await loadNotifications()
-  document.addEventListener('click', onDocumentClickMenu)
-  document.addEventListener('click', onDocumentClickEmoji)
+  document.addEventListener('click', onDocumentClick)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocumentClickMenu)
-  document.removeEventListener('click', onDocumentClickEmoji)
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>
 
 <style scoped>
 /* ============================================================
-   容器
+   页面
    ============================================================ */
 .todo-page {
   background: #f9fafb;
   min-height: calc(100vh - 60px);
-  padding: 32px 16px;
+  padding: 32px 16px 96px;
+  position: relative;
 }
-
-.todo-container {
-  max-width: 768px;
-  margin: 0 auto;
-}
+.todo-container { max-width: 768px; margin: 0 auto; }
 
 /* ============================================================
-   顶部工具栏（三行布局，避免重叠）
+   搜索栏（C · 卡片内嵌式）
    ============================================================ */
-.toolbar-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  padding: 16px;
-  margin-bottom: 24px;
+.search-bar { margin-bottom: 14px; }
+.search-inner {
+  display: flex; align-items: center; gap: 8px;
+  background: #f3f4f6; border-radius: 10px; padding: 8px 14px;
+  border: 2px solid transparent; transition: all 0.2s;
 }
-
-.add-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+.search-inner:focus-within {
+  background: white; border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
 }
-
-.add-input {
-  flex: 1;
-  padding: 8px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  outline: none;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.add-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.add-btn {
-  background: #3b82f6;
-  color: white;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s;
-}
-
-.add-btn:hover { background: #2563eb; transform: scale(1.02); }
-
-.search-row { margin-bottom: 12px; }
-
-.search-wrap { position: relative; width: 100%; }
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-  pointer-events: none;
-}
-
+.search-icon { flex-shrink: 0; color: #9ca3af; }
 .search-input {
-  width: 100%;
-  padding: 8px 16px 8px 40px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  outline: none;
-  font-size: 14px;
+  flex: 1; padding: 4px 0; border: none; outline: none;
+  font-size: 14px; color: #1f2937; background: transparent;
+}
+.search-input::placeholder { color: #9ca3af; }
+.search-clear {
+  flex-shrink: 0; padding: 3px 10px; border: none; border-radius: 6px;
+  background: #e5e7eb; color: #6b7280; font-size: 12px; cursor: pointer;
+}
+.search-clear:hover { background: #d1d5db; }
+
+/* ============================================================
+   药丸式 Tab
+   ============================================================ */
+.tabs-bar {
+  display: flex; gap: 4px; padding: 10px 14px;
+  background: white; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 16px; align-items: center;
+}
+.tab-btn {
+  flex: 1; padding: 7px 10px; font-size: 13px; font-weight: 500;
+  color: #6b7280; background: transparent; border: none; border-radius: 20px;
+  cursor: pointer; transition: all 0.25s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.tab-btn:hover { color: #374151; background: rgba(0,0,0,0.03); }
+.tab-btn.active {
+  color: white; background: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+.tab-count {
+  font-size: 11px; background: rgba(0,0,0,0.08); color: inherit;
+  padding: 0 7px; border-radius: 10px; line-height: 18px;
+}
+.tab-btn.active .tab-count { background: rgba(255,255,255,0.25); color: white; }
+
+/* 通知铃铛 */
+.bell-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  color: #92400e; background: #fef3c7; cursor: pointer; flex-shrink: 0;
   transition: all 0.2s;
 }
-
-.search-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.toggle-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.toggle-btn {
-  background: #e5e7eb;
-  color: #374151;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.toggle-btn:hover { background: #d1d5db; transform: scale(1.02); }
-.toggle-btn.active { background: #3b82f6; color: white; }
-.toggle-btn.drag-toggle.active { background: #f59e0b; color: white; }
-
-.bell-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: #fef3c7;
-  color: #92400e;
-  cursor: pointer;
-  font-size: 13px;
-  margin-left: auto;
-}
-
+.bell-btn:hover { background: #fde68a; }
 .bell-badge {
-  background: #ef4444;
-  color: white;
-  font-size: 11px;
-  padding: 0 6px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-  font-weight: 500;
+  position: absolute; top: -2px; right: -2px;
+  min-width: 18px; height: 16px; padding: 0 5px;
+  background: #ef4444; color: white; font-size: 10px; font-weight: 600;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
 }
 
 /* ============================================================
    任务列表
    ============================================================ */
 .list-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  /* 不要 overflow: hidden — 会截断自定义菜单的弹出层 */
+  background: white; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-
 .loading-state, .empty-state { padding: 48px 16px; }
 
 .date-divider {
-  background: #f9fafb;
-  color: #6b7280;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-top: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 14px;
+  background: #f9fafb; color: #374151; font-weight: 600;
+  padding: 10px 16px; border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb; font-size: 15px;
 }
 
 /* ============================================================
-   任务卡片：6 色 + flex 横向布局
+   条目行
    ============================================================ */
-.task-card {
-  padding: 16px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  border-bottom: 1px solid #f3f4f6;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;  /* 为菜单 z-index 准备 stacking context */
-  z-index: 1;
+.item-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid #f3f4f6;
+  transition: background 0.12s; cursor: pointer;
+}
+.item-row:last-child { border-bottom: none; }
+.item-row:hover { background: #f5f7fa; }
+.item-row.completed { opacity: 0.6; }
+.item-row.menu-open { z-index: 50; position: relative; }
+
+/* 彩色圆点 */
+.color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; transition: transform 0.2s; }
+.item-row:hover .color-dot { transform: scale(1.2); }
+.dot-white  { background: #e5e7eb; }
+.dot-red    { background: #f87171; }
+.dot-yellow { background: #fbbf24; }
+.dot-green  { background: #34d399; }
+.dot-blue   { background: #60a5fa; }
+.dot-dark   { background: #9ca3af; }
+
+/* 复选框 */
+.chk-box {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid #d1d5db; flex-shrink: 0; background: white;
+  position: relative; transition: all 0.2s;
+}
+.chk-box.checked { background: #3b82f6; border-color: #3b82f6; }
+.chk-box.checked::after {
+  content: ''; position: absolute; left: 5px; top: 2px;
+  width: 5px; height: 9px; border: solid white;
+  border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.chk-box:hover { border-color: #60a5fa; }
+
+/* 任务内容 */
+.item-main { flex: 1; min-width: 0; }
+.item-text { font-size: 15px; color: #1f2937; line-height: 1.5; word-break: break-word; }
+.item-text.done { text-decoration: line-through; color: #9ca3af; }
+
+/* 缩略图 */
+.item-thumb { width: 48px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; background: #f3f4f6; }
+
+/* 作者 */
+.author-pill {
+  font-size: 12px; color: #6b7280; background: #f3f4f6;
+  padding: 2px 10px; border-radius: 12px; white-space: nowrap; line-height: 20px; flex-shrink: 0;
 }
 
-.task-card.menu-open { z-index: 50; }  /* 菜单打开时把当前卡片提到上层 */
-
-.task-card:last-child { border-bottom: none; }
-.task-card.is-completed { opacity: 0.75; }
-
-.task-card.color-white { background: #ffffff; }
-.task-card.color-red   { background: #fee2e2; }
-.task-card.color-yellow{ background: #fef3c7; }
-.task-card.color-green { background: #d1fae5; }
-.task-card.color-blue  { background: #dbeafe; }
-.task-card.color-dark  { background: #e5e7eb; }
-
-/* 复选框：div 模拟（避免原生 checkbox 取消时 UI 翻转） */
-.task-checkbox {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid #d1d5db;
-  cursor: pointer;
-  flex-shrink: 0;
-  margin-top: 2px;
-  background: white;
-  transition: all 0.2s;
-  position: relative;
+/* 未读红点 */
+.unread-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: #ef4444; color: white; border-radius: 9px;
+  font-size: 11px; font-weight: 500; cursor: pointer; flex-shrink: 0;
 }
 
-.task-checkbox:hover { border-color: #9ca3af; }
-.task-checkbox.checked {
-  background: #3b82f6;
-  border-color: #3b82f6;
-}
-.task-checkbox.checked::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 5px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-/* 主体内容（label 显示） */
-.task-main { flex: 1; min-width: 0; }
-
-.content-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.task-content {
-  font-size: 15px;
-  color: #1f2937;
-  word-break: break-word;
-  transition: all 0.3s;
-  line-height: 1.5;
-}
-
-.task-content.completed {
-  text-decoration: line-through;
-  color: #6b7280;
-}
-
-.task-author {
-  font-size: 11px;
-  color: #6b7280;
-  background: rgba(0, 0, 0, 0.06);
-  padding: 1px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.unread-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: #ef4444;
-  color: white;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  flex-shrink: 0;
-  animation: pulse-badge 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-badge {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50%      { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
-}
-
-.note-text {
-  color: #6b7280;
-  font-size: 13px;
-  margin-top: 4px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-all;
-}
-
-/* 任务附图：位于内容右边、操作按钮左边，60×40px */
-.task-thumb {
-  width: 60px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 6px;
-  cursor: pointer;
-  background: #f3f4f6;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-/* ============================================================
-   任务操作区
-   ============================================================ */
-.task-actions {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.completion-btn {
-  background: #d1fae5;
-  color: #065f46;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.completion-btn:hover { background: #a7f3d0; }
-
-/* ============================================================
-   自定义菜单弹出
-   ============================================================ */
-.menu-wrapper { position: relative; z-index: 10; }
-
+/* 三点菜单 */
+.menu-wrapper { position: relative; flex-shrink: 0; }
 .menu-trigger {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; background: transparent; border: none;
+  color: #9ca3af; cursor: pointer; transition: all 0.15s;
 }
-
-.menu-trigger:hover { color: #4b5563; background: rgba(0, 0, 0, 0.05); }
+.menu-trigger:hover, .menu-trigger.open { color: #4b5563; background: rgba(0,0,0,0.05); }
 
 .task-menu-dropdown {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 4px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px #e5e7eb;
-  z-index: 100;  /* 高于其他卡片，避免被遮挡 */
-  min-width: 160px;
-  padding: 4px 0;
+  position: absolute; right: 0; top: calc(100% + 4px);
+  background: white; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  z-index: 200; min-width: 170px; padding: 6px 0;
 }
-
-.color-row {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid #f3f4f6;
+.menu-color-row {
+  display: flex; justify-content: center; gap: 6px; padding: 8px 14px;
 }
-
-.color-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 0.2s;
-  border: 2px solid transparent;
-  background: white;
-  padding: 0;
-  display: inline-block;
-}
-
-.color-dot:hover { transform: scale(1.15); }
-.color-dot.selected {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-}
-
-.color-dot.bg-white  { background: #ffffff; border-color: #d1d5db; }
-.color-dot.bg-red    { background: #fee2e2; }
-.color-dot.bg-yellow { background: #fef3c7; }
-.color-dot.bg-green  { background: #d1fae5; }
-.color-dot.bg-blue   { background: #dbeafe; }
-.color-dot.bg-dark   { background: #e5e7eb; }
-
+.menu-divider { height: 1px; background: #f3f4f6; margin: 4px 8px; }
 .menu-btn {
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #374151;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 0.15s;
+  width: 100%; text-align: left; padding: 8px 14px; font-size: 13px;
+  color: #374151; background: transparent; border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; transition: background 0.1s;
 }
-
 .menu-btn:hover { background: #f9fafb; }
 .menu-btn.danger { color: #ef4444; }
 .menu-btn.danger:hover { background: #fef2f2; }
+.menu-fade-enter-active, .menu-fade-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
+.menu-fade-enter-from, .menu-fade-leave-to { opacity: 0; transform: translateY(-4px); }
 
-.menu-fade-enter-active, .menu-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+/* FAB */
+.fab-btn {
+  position: fixed; right: 28px; bottom: 32px;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #3b82f6; color: white; border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(59,130,246,0.4);
+  transition: all 0.2s; z-index: 100;
 }
-.menu-fade-enter-from, .menu-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
+.fab-btn:hover { transform: scale(1.08); background: #2563eb; }
 
 /* ============================================================
-   拖拽手柄
+   左轨时间线（详情弹窗复用）
    ============================================================ */
-.drag-handle {
-  color: #9ca3af;
-  cursor: grab;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  transition: all 0.2s;
-}
+.da-outer { display: flex; gap: 16px; padding: 4px 0; min-height: 120px; }
+.da-rail { display: flex; flex-direction: column; align-items: center; width: 20px; flex-shrink: 0; padding-top: 6px; }
+.da-rail-dot { width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; border: 2px solid white; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); flex-shrink: 0; z-index: 1; }
+.da-rail-line { width: 2px; flex: 1; background: linear-gradient(to bottom, #e5e7eb, #f3f4f6); margin-top: -2px; margin-bottom: -2px; }
+.a1b-card { padding: 0 !important; overflow: hidden; }
+.a1b-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin: 12px 14px; background: #ffffff; }
+.a1b-block:first-child { margin-top: 14px; }
+.a1b-block:last-child { margin-bottom: 14px; }
+.a1b-block-msg { border-color: #dbeafe; background: #f8faff; }
+.a1b-block-supp { border-color: #fde68a; background: #fffcf5; }
+.a1b-block-title { font-size: 13px; font-weight: 600; color: #6b7280; margin-bottom: 10px; }
+.a1b-empty-msg { font-size: 13px; color: #9ca3af; text-align: center; padding: 12px 0; }
 
-.drag-handle:hover { color: #4b5563; background: rgba(0, 0, 0, 0.05); }
-.drag-handle:active { cursor: grabbing; }
+.da-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.da-status { font-size:11px; font-weight:600; padding:2px 10px; border-radius:6px; }
+.da-pending { background:#dbeafe; color:#2563eb; }
+.da-done { background:#d1fae5; color:#059669; }
+.da-date { font-size:12px; color:#9ca3af; margin-left:auto; }
+.da-author { font-size:12px; color:#6b7280; background:#f3f4f6; padding:1px 10px; border-radius:10px; }
+.da-subject { font-size: 16px; font-weight: 600; color: #1f2937; line-height: 1.6; margin-bottom: 10px; word-break: break-word; }
+.da-note-text { font-size: 14px; color: #4b5563; background: #ffffff; border: 1px solid #e8eaee; padding: 10px 14px; border-radius: 8px; line-height: 1.7; margin-bottom: 10px; }
+.da-img-wrap { margin-bottom: 10px; }
+.da-thumb { width: 120px; height: 72px; border-radius:8px; }
+.da-sep { height:1px; background:#e5e7eb; margin:14px 0; }
+.da-complete-header { font-size: 13px; font-weight: 600; color: #059669; margin-bottom: 8px; }
+.da-comp-note { font-size: 14px; color: #374151; background: #ffffff; border: 1px solid #d1fae5; padding: 8px 12px; border-radius: 8px; line-height: 1.6; margin-bottom: 8px; }
+.da-comp-time { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+.d-thumb { width: 100px; height: 64px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(0,0,0,0.06); flex-shrink: 0; }
+
+/* 消息气泡 */
+.a1a-messages { display: flex; flex-direction: column; gap: 10px; margin-bottom:4px; }
+.a1-bubble { padding: 10px 14px; border-radius: 10px; max-width: 88%; position: relative; }
+.a1-other { background: #ffffff; border: 1px solid #dbeafe; align-self: flex-start; border-bottom-left-radius: 4px; }
+.a1-self { background: #f3f4f6; border: 1px solid #e5e7eb; align-self: flex-end; border-bottom-right-radius: 4px; }
+.a1-bubble-author { font-size: 11px; font-weight: 600; color: #3b82f6; margin-bottom: 3px; }
+.a1-self .a1-bubble-author { color: #6b7280; }
+.a1-bubble-text { font-size: 14px; color: #1f2937; line-height: 1.6; word-break: break-word; }
+.a1-bubble-time { font-size: 11px; color: #9ca3af; margin-top: 4px; text-align: right; }
+
+/* 行内输入 */
+.a1d-inline-input { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; position: relative; }
+.a1d-input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; outline: none; font-size: 13px; transition: border-color 0.2s; background: white; }
+.a1d-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+.a1d-input::placeholder { color: #9ca3af; }
+.a1d-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.a1d-action-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent; color: #9ca3af; cursor: pointer; transition: all 0.15s; }
+.a1d-action-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
+.a1d-send-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 8px; background: #3b82f6; color: white; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+.a1d-send-btn:hover { background: #2563eb; }
+.a1d-send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+.a1d-emoji-popup { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 200; }
+.a1d-emoji-picker { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; --border-radius:10px; }
+
+/* 补充块 */
+.a1b-supp-text { font-size: 14px; color: #374151; line-height: 1.6; word-break: break-word; }
+.a1b-supp-empty { color: #9ca3af; font-style: italic; }
+.a1b-supp-img { margin-top: 8px; }
+.a1b-supp-time { font-size: 12px; color: #9ca3af; margin-top: 6px; text-align: right; }
 
 /* ============================================================
-   emoji picker（参考 blog 模块样式）
+   C 聊天式弹窗（新建/修改共用）
    ============================================================ */
-.input-with-emoji {
-  position: relative;
-  width: 100%;
-}
+.ntc-body { padding: 4px 0; position: relative; }
+.ntc-title-row { display: flex; align-items: center; gap: 6px; border-bottom: 2px solid #e5e7eb; transition: border-color 0.2s; }
+.ntc-title-row:focus-within { border-color: #3b82f6; }
+.ntc-title-input { flex: 1; padding: 4px 0 10px; border: none; outline: none; font-size: 18px; font-weight: 600; color: #1f2937; }
+.ntc-title-input::placeholder { color: #d1d5db; font-weight: 400; }
+.ntc-sep { height: 12px; }
+.ntc-textarea { width: 100%; padding: 0; border: none; outline: none; font-size: 15px; color: #374151; line-height: 1.7; resize: vertical; font-family: inherit; }
+.ntc-textarea::placeholder { color: #d1d5db; }
+.ntc-toolbar { display: flex; align-items: center; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
+.ntc-tool-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 6px; background: transparent; color: #9ca3af; cursor: pointer; font-size: 18px; transition: all 0.15s; }
+.ntc-tool-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
+.ntc-date-input { border: none; outline: none; font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 3px 10px; border-radius: 10px; margin-left: 4px; cursor: pointer; }
+.ntc-date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.5; }
+.ntc-color-chip { width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px #e5e7eb; flex-shrink:0; }
+.ntc-color-chip.bg-white { background:#e5e7eb; }
+.ntc-color-chip.bg-red { background:#f87171; }
+.ntc-color-chip.bg-yellow { background:#fbbf24; }
+.ntc-color-chip.bg-green { background:#34d399; }
+.ntc-color-chip.bg-blue { background:#60a5fa; }
+.ntc-color-chip.bg-dark { background:#9ca3af; }
+.ntc-emoji-pop { position: absolute; bottom: 100%; left: 0; z-index: 200; margin-bottom: 4px; }
+.ntc-ep { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; }
+.ntc-img-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+.ntc-img-thumb-real { width: 40px; height: 30px; border-radius: 4px; object-fit: cover; }
+.ntc-img-label { font-size: 12px; color: #6b7280; flex:1; }
+.ntc-img-remove { font-size: 12px; color: #ef4444; background: none; border: none; cursor: pointer; padding: 2px 6px; white-space:nowrap; }
+.ntc-color-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
+.ntc-color-label { font-size: 12px; color: #9ca3af; margin-right: 4px; }
 
-.emoji-btn {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 18px;
-  line-height: 1;
-  transition: all 0.15s;
-  z-index: 5;
-}
+/* color-dot-btn 通用 */
+.color-dot-btn { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; transition: transform 0.15s; border: 2px solid transparent; padding: 0; display:inline-block; }
+.color-dot-btn:hover { transform: scale(1.15); }
+.color-dot-btn.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+.color-dot-btn.bg-white { background:#ffffff; border-color:#d1d5db; }
+.color-dot-btn.bg-red { background:#fee2e2; }
+.color-dot-btn.bg-yellow { background:#fef3c7; }
+.color-dot-btn.bg-green { background:#d1fae5; }
+.color-dot-btn.bg-blue { background:#dbeafe; }
+.color-dot-btn.bg-dark { background:#e5e7eb; }
 
+/* ============================================================
+   旧弹窗遗留样式（完成/备注/留言列表）
+   ============================================================ */
+.complete-body { padding: 4px 0; }
+.input-with-emoji { position: relative; width: 100%; }
+.emoji-btn { position: absolute; right: 4px; bottom: 4px; background: none; border: none; cursor: pointer; padding: 6px 10px; border-radius: 8px; font-size: 18px; line-height: 1; z-index: 5; }
 .emoji-btn:hover { background: #f3f4f6; }
-
 .emoji-wrapper { position: relative; }
-
-.emoji-picker {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
-  z-index: 200;
-  height: 260px;
-  border-radius: 12px;
-  --num-columns: 8;
-  --border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-/* ============================================================
-   编辑/修改弹窗内的颜色选择器
-   ============================================================ */
-.color-picker {
-  display: flex;
-  gap: 8px;
-}
-.color-picker .color-dot {
-  width: 28px;
-  height: 28px;
-}
-.color-picker .color-dot.active {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-  transform: scale(1.1);
-}
-
-.uploaded-preview {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.preview-thumb {
-  width: 60px;
-  height: 60px;
-  border-radius: 4px;
-  object-fit: cover;
-  cursor: pointer;
-}
-
-/* ============================================================
-   查看详情弹窗（label 模式）
-   ============================================================ */
-.view-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: #374151;
-}
-
-.view-row label {
-  flex-shrink: 0;
-  width: 80px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.view-row .view-content {
-  flex: 1;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.view-row-image { align-items: center; }
-
-.view-image {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 6px;
-  object-fit: cover;
-  cursor: pointer;
-}
-
-/* ============================================================
-   完成情况查看弹窗
-   ============================================================ */
-.completion-view .cv-section h4 {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.completion-view .cv-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 14px;
-  color: #4b5563;
-}
-
-.completion-view .cv-row label {
-  flex-shrink: 0;
-  width: 60px;
-  color: #6b7280;
-}
-
-.completion-view .cv-row img {
-  max-width: 160px;
-  max-height: 160px;
-  border-radius: 4px;
-  object-fit: cover;
-  cursor: pointer;
-}
-
-/* ============================================================
-   留言列表
-   ============================================================ */
-.empty-messages { text-align: center; color: #9ca3af; padding: 24px; }
-
-.message-list { max-height: 400px; overflow-y: auto; }
-
-.message-item {
-  padding: 10px 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-.message-item:last-child { border-bottom: none; }
-
-.message-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-
-.message-author { font-weight: 500; color: #374151; }
-.message-time { color: #9ca3af; }
-.message-content {
-  font-size: 14px;
-  color: #1f2937;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-/* ============================================================
-   底部统计栏
-   ============================================================ */
-.stats-bar {
-  margin-top: 24px;
-  text-align: center;
-  color: #6b7280;
-  font-size: 13px;
-}
+.emoji-picker { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 200; height: 260px; border-radius: 12px; --num-columns: 8; --border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); }
+.uploaded-preview { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.preview-thumb { width: 60px; height: 60px; border-radius: 4px; object-fit: cover; cursor: pointer; }
+.empty-msg { text-align: center; color: #9ca3af; padding: 24px; }
+.msg-list { max-height: 400px; overflow-y: auto; }
+.msg-item { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+.msg-item:last-child { border-bottom: none; }
+.msg-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.msg-author { font-weight: 500; color: #374151; }
+.msg-time { color: #9ca3af; }
+.msg-content { font-size: 14px; color: #1f2937; word-break: break-word; white-space: pre-wrap; }
 </style>
