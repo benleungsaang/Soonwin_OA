@@ -160,19 +160,26 @@
       <!-- ===== 弹窗 C · 聊天式 ===== -->
       <el-dialog v-model="newTaskOpenC" title="新建任务" width="500px" top="10vh">
         <div class="ntc-body">
-          <input v-model="ntTitle" class="ntc-title-input" placeholder="任务标题" maxlength="100" />
+          <!-- 标题行（带 emoji 按钮） -->
+          <div class="ntc-title-row">
+            <input v-model="ntTitle" ref="ntTitleRef" class="ntc-title-input" placeholder="任务标题" maxlength="100" />
+            <button type="button" class="ntc-title-emoji-btn" @click.stop="ntEmojiTarget='title'; ntEmojiC=!ntEmojiC" title="插入 emoji 到标题">😊</button>
+          </div>
           <div class="ntc-sep"></div>
           <div class="ntc-content-area">
-            <textarea v-model="ntContent" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500"></textarea>
+            <textarea v-model="ntContent" ref="ntContentRef" class="ntc-textarea" placeholder="写点什么…支持 emoji 📝" rows="4" maxlength="500"></textarea>
           </div>
           <!-- 附件条 -->
           <div class="ntc-toolbar">
-            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiC=!ntEmojiC" title="插入 emoji">😊</button>
+            <button type="button" class="ntc-tool-btn" @click.stop="ntEmojiTarget='content'; ntEmojiC=!ntEmojiC" title="插入 emoji 到内容">😊</button>
             <button type="button" class="ntc-tool-btn" @click="ntImgC=ntImgC?'':thumbRandom()" title="添加图片">🖼️</button>
             <input v-model="ntDate" type="date" class="ntc-date-input" />
             <div class="ntc-color-chip" :class="'bg-'+ntColor"></div>
           </div>
-          <div v-show="ntEmojiC" class="ntc-emoji-pop" @click.stop><emoji-picker class="ntc-ep" @emoji-click="e=>ntContent+=e.detail.emoji.unicode" /></div>
+          <!-- emoji picker（标题和内容共用，由 ntEmojiTarget 决定插入位置） -->
+          <div v-show="ntEmojiC" class="ntc-emoji-pop" @click.stop>
+            <emoji-picker class="ntc-ep" @emoji-click="ntInsertEmoji" />
+          </div>
           <!-- 图片预览 -->
           <div v-if="ntImgC" class="ntc-img-bar">
             <div class="ntc-img-thumb" :style="{ background: ntImgC }"></div>
@@ -660,7 +667,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import 'emoji-picker-element'
 import { List, CircleCheck, Clock, Flag } from '@element-plus/icons-vue'
@@ -844,6 +851,31 @@ const ntImgC = ref('')
 const ntEmojiA = ref(false)
 const ntEmojiB = ref(false)
 const ntEmojiC = ref(false)
+const ntEmojiTarget = ref<'title'|'content'>('content')
+const ntTitleRef = ref<HTMLInputElement|null>(null)
+const ntContentRef = ref<HTMLTextAreaElement|null>(null)
+
+function ntInsertEmoji(event: any) {
+  const emoji = event.detail.emoji.unicode
+  const target = ntEmojiTarget.value
+  const el = target === 'title' ? ntTitleRef.value : ntContentRef.value
+  if (el) {
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    const text = target === 'title' ? ntTitle.value : ntContent.value
+    const newText = text.substring(0, start) + emoji + text.substring(end)
+    if (target === 'title') ntTitle.value = newText
+    else ntContent.value = newText
+    nextTick(() => {
+      el.selectionStart = el.selectionEnd = start + emoji.length
+      el.focus()
+    })
+  } else {
+    // fallback
+    if (target === 'title') ntTitle.value += emoji
+    else ntContent.value += emoji
+  }
+}
 
 function thumbRandom() {
   const colors = ['#fca5a5,#f87171','#fde68a,#fbbf24','#a7f3d0,#6ee7b7','#93c5fd,#60a5fa','#c4b5fd,#a78bfa']
@@ -1472,13 +1504,23 @@ watch(newTaskType, (v) => {
 
 /* ===== 弹窗 C · 聊天式 ===== */
 .ntc-body { padding: 4px 0; position: relative; }
-.ntc-title-input {
-  width: 100%; padding: 4px 0 10px; border: none; border-bottom: 2px solid #e5e7eb;
-  outline: none; font-size: 18px; font-weight: 600; color: #1f2937;
-  transition: border-color 0.2s;
+.ntc-title-row {
+  display: flex; align-items: center; gap: 6px;
+  border-bottom: 2px solid #e5e7eb; transition: border-color 0.2s;
 }
-.ntc-title-input:focus { border-color: #3b82f6; }
+.ntc-title-row:focus-within { border-color: #3b82f6; }
+.ntc-title-input {
+  flex: 1; padding: 4px 0 10px; border: none; outline: none;
+  font-size: 18px; font-weight: 600; color: #1f2937;
+}
 .ntc-title-input::placeholder { color: #d1d5db; font-weight: 400; }
+.ntc-title-emoji-btn {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 6px; background: transparent;
+  font-size: 18px; cursor: pointer; color: #9ca3af; transition: all 0.15s;
+  flex-shrink: 0; margin-bottom: 6px;
+}
+.ntc-title-emoji-btn:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
 .ntc-sep { height: 12px; }
 .ntc-content-area { }
 .ntc-textarea {
