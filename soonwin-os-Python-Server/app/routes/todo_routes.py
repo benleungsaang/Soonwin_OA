@@ -238,13 +238,16 @@ def create_todo():
 @todo_bp.route('/todos/<int:todo_id>', methods=['GET'])
 @route_permission(ROUTE_TODO_MANAGE)
 def get_todo(todo_id):
-    """获取单条 todo 详情 + 留言列表"""
+    """获取单条 todo 详情 + 留言列表（已删除条目也可查看）"""
     try:
         user_id = get_user_id_from_token() or ''
         user_role = get_user_role_from_token() or ''
-        todo = Todo.query.filter_by(id=todo_id, is_deleted=0).first()
+        todo = Todo.query.filter_by(id=todo_id).first()
         if not todo:
             return jsonify({'success': False, 'message': '任务不存在'}), 404
+        # 已删除的条目需校验访问权限（管理员/创建人可看）
+        if todo.is_deleted and not _can_access_todo(todo, user_role, user_id):
+            return jsonify({'success': False, 'message': '无权访问'}), 403
         if not _can_access_todo(todo, user_role, user_id):
             return jsonify({'success': False, 'message': '无权访问'}), 403
 
@@ -666,4 +669,35 @@ def restore_todo(todo_id):
     except Exception as e:
         db.session.rollback()
         print(f"[todo] restore_todo 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================
+# 16. 永久删除 DELETE /api/todos/<id>/permanent
+# ============================================================
+@todo_bp.route('/todos/<int:todo_id>/permanent', methods=['DELETE'])
+@route_permission(ROUTE_TODO_MANAGE)
+def permanent_delete_todo(todo_id):
+    """永久删除 todo（仅管理员可操作）"""
+    try:
+        user_id = get_user_id_from_token() or ''
+        user_role = get_user_role_from_token() or ''
+        if not _is_admin(user_role):
+            return jsonify({'success': False, 'message': '仅管理员可永久删除'}), 403
+
+        todo = Todo.query.filter_by(id=todo_id).first()
+        if not todo:
+            return jsonify({'success': False, 'message': '任务不存在'}), 404
+
+        # 删除相关留言
+        TodoMessage.query.filter_by(todo_id=todo_id).delete()
+        # 删除已读记录
+        TodoMessageRead.query.filter_by(todo_id=todo_id).delete()
+        # 删除 todo 本身
+        db.session.delete(todo)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print(f"[todo] permanent_delete_todo 失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

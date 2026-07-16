@@ -174,3 +174,8 @@ export function getDeletedTodos() {
 export function restoreTodo(id: number) {
   return request.post(`/api/todos/${id}/restore`)
 }
+
+/** 永久删除 todo（仅管理员） */
+export function permanentDeleteTodo(id: number) {
+  return request.delete(`/api/todos/${id}/permanent`)
+}

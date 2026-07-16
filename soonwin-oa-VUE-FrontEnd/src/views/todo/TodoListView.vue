@@ -28,7 +28,7 @@
       <div class="tabs-bar">
         <button v-for="t in tabDefs" :key="t.key" class="tab-btn" :class="{ active: activeTab === t.key }" @click="switchTab(t.key)">
           {{ t.label }}
-          <span class="tab-count">{{ t.count }}</span>
+          <span v-if="t.key !== 'deleted' || t.count > 0" class="tab-count">{{ t.count }}</span>
         </button>
         <!-- 通知铃铛 -->
         <div v-if="totalUnread > 0" class="bell-btn" title="有新留言未读" @click="openFirstNotification">
@@ -48,9 +48,12 @@
           <div v-if="filteredDeleted.length === 0" class="empty-state">
             <el-empty description="回收站暂无内容" />
           </div>
-          <div v-for="dt in filteredDeleted" :key="dt.id" class="item-row deleted-row" @click="onRestoreTodo(dt)">
-            <!-- 恢复按钮 -->
-            <span class="restore-icon" title="恢复" @click.stop="onRestoreTodo(dt)">↶</span>
+          <div v-for="dt in filteredDeleted" :key="dt.id" class="item-row deleted-row" :class="{'menu-open': openMenuId === dt.id}" @click="openViewDialog(dt)">
+            <!-- 灰色圆点 -->
+            <span class="color-dot dot-dark"></span>
+
+            <!-- 恢复图标（代替复选框） -->
+            <div class="restore-icon-wrap" @click.stop="onRestoreTodo(dt)" title="恢复">↶</div>
 
             <!-- 任务内容 -->
             <div class="item-main">
@@ -63,10 +66,26 @@
               <span v-else class="thumb-placeholder"></span>
             </span>
 
-            <!-- 右侧固定组（作者） -->
+            <!-- 右侧固定组（作者 + 三点菜单） -->
             <span class="item-right-group">
               <span class="author-pill">{{ dt.author_name || dt.author_id }}</span>
-              <span class="deleted-date">{{ dt.date }}</span>
+              <!-- 三点菜单 -->
+              <div class="menu-wrapper" @click.stop>
+                <button class="menu-trigger" :class="{ open: openMenuId === dt.id }" @click="toggleMenu(dt.id)">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
+                </button>
+                <transition name="menu-fade">
+                  <div v-show="openMenuId === dt.id" class="task-menu-dropdown" @click.stop>
+                    <div class="menu-divider" style="margin:0"></div>
+                    <button class="menu-btn" @click="onRestoreTodo(dt); closeMenu()">
+                      <span>↶ 恢复</span>
+                    </button>
+                    <button v-if="isAdmin" class="menu-btn danger" @click="onPermanentDelete(dt); closeMenu()">
+                      <span>🗑️ 彻底删除</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
             </span>
           </div>
         </template>
@@ -172,8 +191,8 @@
             </div>
           </div>
 
-          <!-- 块 2：留言 + 行内输入 -->
-          <div class="a1b-block a1b-block-msg">
+          <!-- 块 2：留言 + 行内输入（已删除条目不显示） -->
+          <div v-if="!viewingTodo?.is_deleted" class="a1b-block a1b-block-msg">
             <div class="a1b-block-title">💬 留言</div>
             <div v-if="detailMessages.length === 0" class="a1b-empty-msg">暂无留言</div>
             <div v-else class="a1a-messages">
@@ -199,8 +218,8 @@
             </div>
           </div>
 
-          <!-- 块 3：完成情况 -->
-          <div class="a1b-block a1b-block-supp">
+          <!-- 块 3：完成情况（已删除条目不显示） -->
+          <div v-if="!viewingTodo?.is_deleted" class="a1b-block a1b-block-supp">
             <div class="a1b-block-title">✅ 完成情况</div>
             <div v-if="viewingTodo?.status === 'completed'" class="a1b-supp-text">{{ viewingTodo.completion_note || '未填写完成说明' }}</div>
             <div v-else class="a1b-supp-text a1b-supp-empty">任务尚未完成，暂无补充信息</div>
@@ -334,7 +353,7 @@ import {
   completeTodo, uncompleteTodo, uploadTodoImage,
   getTodoMessages, addTodoMessage, deleteTodoMessage,
   getTodoNotifications, clearTodoNotifications,
-  getDeletedTodos, restoreTodo,
+  getDeletedTodos, restoreTodo, permanentDeleteTodo,
   type TodoItem, type TodoMessage,
 } from '@/api/todo'
 import { getCurrentUserInfo, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -542,6 +561,7 @@ async function onChangeColor(todo: TodoItem, color: string) {
 // ============================================================
 function canModify(todo: TodoItem | null): boolean {
   if (!todo) return false
+  if (todo.is_deleted) return false
   return isAdmin.value || todo.author_id === currentEmpId.value
 }
 
@@ -905,6 +925,16 @@ async function onRestoreTodo(todo: TodoItem) {
   }
 }
 
+async function onPermanentDelete(todo: TodoItem) {
+  try {
+    await ElMessageBox.confirm(`确定永久删除"${todo.content}"吗？此操作不可撤销！`, '警告', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' })
+    await permanentDeleteTodo(todo.id)
+    ElMessage.success('已永久删除')
+    deletedTodos.value = deletedTodos.value.filter(t => t.id !== todo.id)
+    deletedCount.value = deletedTodos.value.length
+  } catch { /* cancel */ }
+}
+
 // ============================================================
 // emoji（旧弹窗用）
 // ============================================================
@@ -966,14 +996,13 @@ onBeforeUnmount(() => {
    ============================================================ */
 .deleted-row { opacity: 0.75; }
 .deleted-row:hover { opacity: 1; }
-.restore-icon {
+.restore-icon-wrap {
   width: 20px; height: 20px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: #e5e7eb; color: #6b7280; font-size: 13px; font-weight: 600;
   flex-shrink: 0; cursor: pointer; transition: all 0.15s;
 }
-.restore-icon:hover { background: #3b82f6; color: white; }
-.deleted-date { font-size: 12px; color: #9ca3af; white-space: nowrap; }
+.restore-icon-wrap:hover { background: #3b82f6; color: white; }
 
 /* ============================================================
    搜索栏（C · 卡片内嵌式）
