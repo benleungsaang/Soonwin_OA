@@ -236,11 +236,11 @@
     <el-dialog v-model="formVisible" :title="formMode==='edit'?'修改内容':'新建任务'" width="500px" top="10vh" @closed="onFormClosed">
       <div class="ntc-body">
         <div class="ntc-title-row">
-          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" @focus="formLastFocus='title'" />
+          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" @focus="formLastFocus='title'" @paste="(e) => onPasteImage(e, 'form')" />
         </div>
         <div class="ntc-sep"></div>
         <div class="ntc-content-area">
-          <textarea v-model="formContent" ref="formContentRef" class="ntc-textarea" placeholder="备注内容…支持 emoji 📝" rows="3" maxlength="500" @focus="formLastFocus='content'"></textarea>
+          <textarea v-model="formContent" ref="formContentRef" class="ntc-textarea" placeholder="备注内容…支持 emoji 📝" rows="3" maxlength="500" @focus="formLastFocus='content'" @paste="(e) => onPasteImage(e, 'form')"></textarea>
         </div>
         <div class="ntc-toolbar">
           <button type="button" class="ntc-tool-btn" @click="onFormEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
@@ -274,7 +274,7 @@
     <el-dialog v-model="completeDialogVisible" title="标记完成" width="480px" top="20vh">
       <el-alert title="完成时必须填写文字或图片（至少一项）" type="info" :closable="false" style="margin-bottom:14px" />
       <div class="complete-body">
-        <textarea v-model="completeForm.completion_note" class="ntc-textarea" placeholder="简单说明完成情况…" rows="3" maxlength="500"></textarea>
+        <textarea v-model="completeForm.completion_note" class="ntc-textarea" placeholder="简单说明完成情况…" rows="3" maxlength="500" @paste="(e) => onPasteImage(e, 'completion')"></textarea>
         <div class="ntc-toolbar" style="margin-top:8px">
           <button type="button" class="ntc-tool-btn" @click="toggleEmoji('completion')" title="插入 emoji"><span style="font-size:18px">😊</span></button>
           <button type="button" class="ntc-tool-btn" @click="triggerImageUpload('completion')" title="添加图片"><span style="font-size:18px">🖼️</span></button>
@@ -811,6 +811,40 @@ async function onFileSelect(e: Event) {
   } finally {
     uploading.value = false
     target.value = ''
+  }
+}
+
+// 粘贴图片检测：Ctrl+V 中的图片 → 自动上传
+async function onPasteImage(e: ClipboardEvent, target: 'form' | 'completion') {
+  const items = e.clipboardData?.items
+  if (!items) return
+  const files: File[] = []
+  for (let i = 0; i < items.length; i++) {
+    const f = items[i].getAsFile()
+    if (f && f.type.startsWith('image/')) files.push(f)
+  }
+  if (files.length === 0) return
+  e.preventDefault()
+  for (const file of files) {
+    if (!beforeImageUpload(file)) continue
+    uploading.value = true
+    try {
+      const subDir = target === 'completion' ? 'completion' : 'todo'
+      const res: any = await uploadTodoImage(file, subDir)
+      const url = res?.image_url || res?.data?.image_url
+      if (url) {
+        if (target === 'completion') {
+          completeForm.completion_image_url = url
+        } else {
+          formImageUrl.value = url
+        }
+        ElMessage.success('图片已粘贴上传')
+      }
+    } catch (err: any) {
+      ElMessage.error(err?.message || '图片上传失败')
+    } finally {
+      uploading.value = false
+    }
   }
 }
 
