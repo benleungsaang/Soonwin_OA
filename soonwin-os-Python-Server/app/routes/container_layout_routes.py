@@ -111,7 +111,7 @@ def create_layout():
             # 允许只创建元数据，data 留空待编辑时填充
             data = {
                 'version': 2,
-                'container': {'name': '40尺普柜', 'l': 12030, 'w': 2350, 'h': 2390},
+                'container': {'name': '40尺高柜', 'l': 12030, 'w': 2350, 'h': 2690},
                 'cargos': [],
                 'allowOverflow': False,
                 'interactionMode': 'direct',
