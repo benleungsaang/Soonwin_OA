@@ -72,10 +72,10 @@
                   <div v-show="openMenuId === dt.id" class="task-menu-dropdown" @click.stop>
                     <div class="menu-divider" style="margin:0"></div>
                     <button class="menu-btn" @click="onRestoreTodo(dt); closeMenu()">
-                      <span>↶ 恢复</span>
+                      <span class="mi-fixed">↶</span><span>恢复</span>
                     </button>
                     <button v-if="isAdmin" class="menu-btn danger" @click="onPermanentDelete(dt); closeMenu()">
-                      <span>🗑️ 彻底删除</span>
+                      <span class="mi-fixed">🗑️</span><span>彻底删除</span>
                     </button>
                   </div>
                 </transition>
@@ -201,7 +201,7 @@
             </div>
             <!-- 行内输入（管理员或创建人可留言） -->
             <div v-if="isAdmin || viewingTodo?.author_id === currentEmpId" class="a1d-inline-input">
-              <input v-model="msgInput" ref="msgInputRef" type="text" class="a1d-input" placeholder="输入留言内容…" maxlength="300" @keypress.enter="sendMessage" />
+              <input v-model="msgInput" ref="msgInputRef" type="text" class="a1d-input" placeholder="输入留言内容…（支持 Ctrl+V 粘贴图片）" maxlength="300" @keypress.enter="sendMessage" @paste="onMsgPaste" />
               <div class="a1d-actions">
                 <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="toggleMsgEmoji"><span style="font-size:18px">😊</span></button>
                 <button type="button" class="a1d-action-btn" title="上传图片" @click="handleMsgImageUpload"><span style="font-size:18px">🖼️</span></button>
@@ -755,6 +755,23 @@ function handleMsgImageUpload() {
   input.click()
 }
 
+function onMsgPaste(e: ClipboardEvent) {
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (let i = 0; i < items.length; i++) {
+    const f = items[i].getAsFile()
+    if (f && f.type.startsWith('image/')) {
+      e.preventDefault()
+      if (!beforeImageUpload(f)) return
+      uploadTodoImage(f, 'todo').then((res: any) => {
+        const url = res?.image_url || res?.data?.image_url
+        if (url) msgImageUrl.value = '/assets/TodoMedia/' + url
+      }).catch((err: any) => ElMessage.error(err?.message || '图片上传失败'))
+      break
+    }
+  }
+}
+
 // ============================================================
 // 新建 / 修改弹窗（C · 聊天式）
 // ============================================================
@@ -1162,6 +1179,7 @@ onBeforeUnmount(() => {
 .menu-btn:hover { background: #f9fafb; }
 .menu-btn.danger { color: #ef4444; }
 .menu-btn.danger:hover { background: #fef2f2; }
+.mi-fixed { display: inline-block; width: 18px; text-align: center; flex-shrink: 0; }
 .menu-fade-enter-active, .menu-fade-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
 .menu-fade-enter-from, .menu-fade-leave-to { opacity: 0; transform: translateY(-4px); }
 
@@ -1218,7 +1236,7 @@ onBeforeUnmount(() => {
 .a1-bubble-text { font-size: 14px; color: #1f2937; line-height: 1.6; word-break: break-word; }
 .a1-bubble-time { font-size: 11px; color: #9ca3af; margin-top: 4px; text-align: right; }
 .a1-bubble-img { margin-top: 6px; }
-.a1-bubble-img img { max-width: 160px; max-height: 100px; border-radius: 6px; }
+.a1-bubble-img img { width: 120px; height: 80px; object-fit: cover; border-radius: 6px; cursor: pointer; }
 
 /* 行内输入 */
 .a1d-inline-input { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; position: relative; }
