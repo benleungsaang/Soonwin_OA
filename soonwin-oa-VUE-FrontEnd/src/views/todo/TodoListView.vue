@@ -958,7 +958,7 @@ onBeforeUnmount(() => {
 .chk-box:hover { border-color: #60a5fa; }
 
 /* 任务内容 */
-.item-main { flex: 1; min-width: 0; }
+.item-main { flex: 0 0 60%; min-width: 0; }
 .item-text { font-size: 15px; color: #1f2937; line-height: 1.5; word-break: break-word; }
 .item-text.done { text-decoration: line-through; color: #9ca3af; }
 
