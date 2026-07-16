@@ -1181,7 +1181,7 @@
         <!-- 3D 视口 -->
         <div id="viewport">
             <div id="viewport-info">
-                <div><span class="label">货柜</span> <span class="val" id="infoContainer">40尺普柜</span></div>
+                <div><span class="label">货柜</span> <span class="val" id="infoContainer">40尺高柜</span></div>
                 <div><span class="label">尺寸</span> <span class="val" id="infoSize">12030 × 2350 × 2390 mm</span></div>
                 <div><span class="label">货物数量</span> <span class="val" id="infoCargoCount">0</span></div>
             </div>
@@ -1308,7 +1308,7 @@
         //  状态管理
         // ============================================================
         const state = {
-            container: { name: '40尺普柜', l: 12030, w: 2350, h: 2390 },
+            container: { name: '40尺高柜', l: 12030, w: 2350, h: 2690 },
             cargos: [], // { id, name, sx, sy, sz, px, py, pz, color }
             cargoMeshes: [], // 与 cargos 同步
             selectedCargo: null,             // 主选中（最近点击的，用于详情框/列表滚动）
@@ -4689,16 +4689,18 @@
 
         // 启动默认数据（无 id 或加载失败时使用）
         function loadDefault() {
-            const defaultBtn = document.querySelector('#containerSelector button.active');
-            if (defaultBtn) {
-                const name = defaultBtn.dataset.name;
-                const l = parseFloat(defaultBtn.dataset.l);
-                const w = parseFloat(defaultBtn.dataset.w);
-                const h = parseFloat(defaultBtn.dataset.h);
-                state.container = { name, l, w, h };
-                customL.value = l;
-                customW.value = w;
-                customH.value = h;
+            const sel = containerTypeSelect.options[containerTypeSelect.selectedIndex];
+            if (sel && sel.value !== 'custom') {
+                const name = sel.value;
+                const l = parseFloat(sel.dataset.l);
+                const w = parseFloat(sel.dataset.w);
+                const h = parseFloat(sel.dataset.h);
+                if (l && w && h) {
+                    state.container = { name, l, w, h };
+                    customL.value = l;
+                    customW.value = w;
+                    customH.value = h;
+                }
             }
             buildScene();
             const defaultText = cargoInput.value;
