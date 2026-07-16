@@ -3,19 +3,21 @@
     <CommonHeader title="待办事项" />
 
     <div class="todo-container">
-      <!-- ============ 搜索栏（含管理员用户筛选） ============ -->
-      <div class="search-bar">
-        <div class="search-inner">
-          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input v-model="searchKeyword" class="search-input" placeholder="按 Enter 搜索任务…" @keypress.enter="onSearchEnter" />
-          <button v-if="searchKeyword" class="search-clear" @click="clearSearch">清除</button>
-          <div v-if="isAdmin" class="search-filter">
-            <span class="at-label">用户</span>
-            <select v-model="selectedUserId" class="at-select">
-              <option value="">全部用户</option>
-              <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
-            </select>
+      <!-- ============ 搜索栏 + 管理员筛选（独立圆角容器） ============ -->
+      <div class="search-row">
+        <div class="search-bar">
+          <div class="search-inner">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input v-model="searchKeyword" class="search-input" placeholder="按 Enter 搜索任务…" @keypress.enter="onSearchEnter" />
+            <button v-if="searchKeyword" class="search-clear" @click="clearSearch">清除</button>
           </div>
+        </div>
+        <div v-if="isAdmin" class="search-filter-box">
+          <span class="at-label">用户</span>
+          <select v-model="selectedUserId" class="at-select">
+            <option value="">全部用户</option>
+            <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+          </select>
         </div>
       </div>
 
@@ -46,9 +48,6 @@
           <div v-for="dt in filteredDeleted" :key="dt.id" class="item-row deleted-row" :class="{'menu-open': openMenuId === dt.id}" @click="openViewDialog(dt)">
             <!-- 灰色圆点 -->
             <span class="color-dot dot-dark"></span>
-
-            <!-- 恢复图标（代替复选框） -->
-            <div class="restore-icon-wrap" @click.stop="onRestoreTodo(dt)" title="恢复">↶</div>
 
             <!-- 任务内容 -->
             <div class="item-main">
@@ -405,13 +404,18 @@ const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: f
 // ============================================================
 // Tab 定义（动态计算数量）
 // ============================================================
-const tabDefs = computed(() => [
-  { key: 'all',       label: '全部',     count: todos.value.length },
-  { key: 'pending',   label: '待完成',   count: todos.value.filter(t => t.status === 'pending').length },
-  { key: 'completed', label: '已完成',   count: todos.value.filter(t => t.status === 'completed').length },
-  { key: 'urgent',    label: '紧急',     count: todos.value.filter(t => t.color === 'red').length },
-  { key: 'deleted',   label: '🗑️ 回收站', count: deletedCount.value },
-])
+const tabDefs = computed(() => {
+  const defs = [
+    { key: 'all',       label: '全部',     count: todos.value.length },
+    { key: 'pending',   label: '待完成',   count: todos.value.filter(t => t.status === 'pending').length },
+    { key: 'completed', label: '已完成',   count: todos.value.filter(t => t.status === 'completed').length },
+    { key: 'urgent',    label: '紧急',     count: todos.value.filter(t => t.color === 'red').length },
+  ]
+  if (isAdmin.value) {
+    defs.push({ key: 'deleted', label: '🗑️ 回收站', count: deletedCount.value })
+  }
+  return defs
+})
 
 // ============================================================
 // 颜色
@@ -971,9 +975,15 @@ onBeforeUnmount(() => {
 /* ============================================================
    管理员工具栏
    ============================================================ */
-.search-filter {
-  display: flex; align-items: center; gap: 6px;
-  flex-shrink: 0; margin-left: 4px;
+/* ============================================================
+   搜索栏行 + 独立筛选容器
+   ============================================================ */
+.search-row { display: flex; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+.search-bar { flex: 1; min-width: 0; margin-bottom: 0; }
+.search-filter-box {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  background: #f3f4f6; border-radius: 10px; padding: 8px 14px;
+  border: 2px solid transparent;
 }
 .at-label { font-size: 12px; color: #6b7280; white-space: nowrap; }
 .at-select {
@@ -988,18 +998,10 @@ onBeforeUnmount(() => {
    ============================================================ */
 .deleted-row { opacity: 0.75; }
 .deleted-row:hover { opacity: 1; }
-.restore-icon-wrap {
-  width: 20px; height: 20px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: #e5e7eb; color: #6b7280; font-size: 13px; font-weight: 600;
-  flex-shrink: 0; cursor: pointer; transition: all 0.15s;
-}
-.restore-icon-wrap:hover { background: #3b82f6; color: white; }
 
 /* ============================================================
-   搜索栏（C · 卡片内嵌式）
+   搜索栏
    ============================================================ */
-.search-bar { margin-bottom: 14px; }
 .search-inner {
   display: flex; align-items: center; gap: 8px;
   background: #f3f4f6; border-radius: 10px; padding: 8px 14px;
@@ -1087,7 +1089,11 @@ onBeforeUnmount(() => {
 }
 .item-row:last-child { border-bottom: none; }
 .item-row:hover { background: #f5f7fa; }
-.item-row.completed { opacity: 0.6; }
+.item-row.completed .item-text,
+.item-row.completed .color-dot,
+.item-row.completed .author-pill,
+.item-row.completed .thumb-area { opacity: 0.6; }
+.item-row.completed .chk-box { opacity: 0.8; }
 .item-row.menu-open { z-index: 50; position: relative; }
 
 /* 彩色圆点 */
@@ -1156,7 +1162,6 @@ onBeforeUnmount(() => {
   background: white; border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
   z-index: 200; min-width: 170px; padding: 6px 0;
-  opacity: 1; /* 不受父级半透明影响 */
 }
 .menu-color-row {
   display: flex; justify-content: center; gap: 6px; padding: 8px 14px;
