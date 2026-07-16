@@ -3,6 +3,20 @@
     <CommonHeader title="待办事项" />
 
     <div class="todo-container">
+      <!-- ============ 管理员工具栏 ============ -->
+      <div class="admin-toolbar">
+        <div class="at-left">
+          <span class="at-label">用户</span>
+          <select v-model="selectedUserId" class="at-select">
+            <option value="">全部用户</option>
+            <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+          </select>
+        </div>
+        <div class="at-right">
+          <button class="at-btn" @click="openRecycleBin">🗑️ 回收站</button>
+        </div>
+      </div>
+
       <!-- ============ 搜索栏（C · 卡片内嵌式） ============ -->
       <div class="search-bar">
         <div class="search-inner">
@@ -274,6 +288,25 @@
       </template>
     </el-dialog>
 
+    <!-- ============ 回收站弹窗 ============ -->
+    <el-dialog v-model="recycleBinVisible" title="🗑️ 回收站" width="580px" top="10vh">
+      <div v-if="deletedTodos.length === 0" class="empty-msg">回收站暂无内容</div>
+      <div v-else class="rb-list">
+        <div v-for="dt in deletedTodos" :key="dt.id" class="rb-item">
+          <div class="rb-main">
+            <span class="rb-content">{{ dt.content }}</span>
+            <span class="rb-meta">{{ dt.author_name || dt.author_id }} · {{ dt.date }}</span>
+          </div>
+          <div class="rb-actions">
+            <el-button size="small" type="primary" plain @click="onRestoreTodo(dt)">恢复</el-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="recycleBinVisible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
 
@@ -292,6 +325,7 @@ import {
   completeTodo, uncompleteTodo, uploadTodoImage,
   getTodoMessages, addTodoMessage, deleteTodoMessage,
   getTodoNotifications, clearTodoNotifications,
+  getDeletedTodos, restoreTodo,
   type TodoItem, type TodoMessage,
 } from '@/api/todo'
 import { getCurrentUserInfo, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -314,6 +348,22 @@ const imageViewerVisible = ref(false)
 const imageViewerUrl = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const fileUploadMode = ref<'form' | 'completion'>('form')
+
+// 用户筛选 + 回收站
+const selectedUserId = ref('')
+const deletedTodos = ref<TodoItem[]>([])
+const recycleBinVisible = ref(false)
+
+// 提取所有用户（用于筛选下拉）
+const allUsers = computed(() => {
+  const map = new Map<string, string>()
+  for (const t of todos.value) {
+    if (!map.has(t.author_id)) {
+      map.set(t.author_id, t.author_name || t.author_id)
+    }
+  }
+  return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
+})
 
 // emoji picker 状态
 const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: false, completion: false, message: false })
@@ -386,6 +436,7 @@ function clearSearch() {
 const groups = computed<Record<string, TodoItem[]>>(() => {
   const g: Record<string, TodoItem[]> = {}
   for (const t of todos.value) {
+    if (selectedUserId.value && t.author_id !== selectedUserId.value) continue
     if (!g[t.date]) g[t.date] = []
     g[t.date].push(t)
   }
@@ -803,6 +854,30 @@ function openFirstNotification() {
 }
 
 // ============================================================
+// 回收站
+// ============================================================
+async function openRecycleBin() {
+  try {
+    const res: any = await getDeletedTodos()
+    deletedTodos.value = res || []
+    recycleBinVisible.value = true
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加载回收站失败')
+  }
+}
+
+async function onRestoreTodo(todo: TodoItem) {
+  try {
+    await restoreTodo(todo.id)
+    ElMessage.success('已恢复')
+    deletedTodos.value = deletedTodos.value.filter(t => t.id !== todo.id)
+    await loadTodos()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '恢复失败')
+  }
+}
+
+// ============================================================
 // emoji（旧弹窗用）
 // ============================================================
 function toggleEmoji(target: string) {
@@ -839,6 +914,44 @@ onBeforeUnmount(() => {
   position: relative;
 }
 .todo-container { max-width: 768px; margin: 0 auto; }
+
+/* ============================================================
+   管理员工具栏
+   ============================================================ */
+.admin-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: white; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 8px 14px; margin-bottom: 10px;
+}
+.at-left { display: flex; align-items: center; gap: 8px; }
+.at-label { font-size: 12px; color: #6b7280; white-space: nowrap; }
+.at-select {
+  font-size: 13px; padding: 4px 8px; border: 1px solid #d1d5db;
+  border-radius: 6px; outline: none; color: #374151; background: white;
+  cursor: pointer; max-width: 140px;
+}
+.at-select:focus { border-color: #3b82f6; }
+.at-btn {
+  font-size: 13px; padding: 5px 12px; border: 1px solid #e5e7eb;
+  border-radius: 6px; background: white; color: #6b7280; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.at-btn:hover { color: #374151; background: #f9fafb; border-color: #d1d5db; }
+
+/* ============================================================
+   回收站弹窗
+   ============================================================ */
+.rb-list { max-height: 420px; overflow-y: auto; }
+.rb-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid #f3f4f6;
+}
+.rb-item:last-child { border-bottom: none; }
+.rb-main { flex: 1; min-width: 0; }
+.rb-content { font-size: 14px; color: #1f2937; word-break: break-word; display: block; }
+.rb-meta { font-size: 12px; color: #9ca3af; margin-top: 4px; display: block; }
+.rb-actions { flex-shrink: 0; }
 
 /* ============================================================
    搜索栏（C · 卡片内嵌式）

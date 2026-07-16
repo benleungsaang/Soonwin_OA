@@ -617,3 +617,53 @@ def clear_notifications():
         db.session.rollback()
         print(f"[todo] clear_notifications 失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================
+# 14. 回收站列表 GET /api/todos/deleted
+# ============================================================
+@todo_bp.route('/todos/deleted', methods=['GET'])
+@route_permission(ROUTE_TODO_MANAGE)
+def list_deleted_todos():
+    """获取已软删除的 todo 列表（仅管理员可见全部，普通用户只看自己的）"""
+    try:
+        user_id = get_user_id_from_token() or ''
+        user_role = get_user_role_from_token() or ''
+
+        q = Todo.query.filter_by(is_deleted=1)
+        if not _is_admin(user_role):
+            q = q.filter(Todo.author_id == user_id)
+        todos = q.order_by(Todo.updated_at.desc()).all()
+
+        return jsonify({
+            'success': True,
+            'data': [t.to_dict(include_unread_count=0) for t in todos]
+        })
+    except Exception as e:
+        print(f"[todo] list_deleted_todos 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================
+# 15. 恢复已删除 todo POST /api/todos/<id>/restore
+# ============================================================
+@todo_bp.route('/todos/<int:todo_id>/restore', methods=['POST'])
+@route_permission(ROUTE_TODO_MANAGE)
+def restore_todo(todo_id):
+    """恢复已软删除的 todo"""
+    try:
+        user_id = get_user_id_from_token() or ''
+        user_role = get_user_role_from_token() or ''
+        todo = Todo.query.filter_by(id=todo_id, is_deleted=1).first()
+        if not todo:
+            return jsonify({'success': False, 'message': '待恢复的任务不存在'}), 404
+        if not _can_access_todo(todo, user_role, user_id):
+            return jsonify({'success': False, 'message': '无权操作'}), 403
+
+        todo.is_deleted = 0
+        db.session.commit()
+        return jsonify({'success': True, 'data': todo.to_dict(include_unread_count=0)})
+    except Exception as e:
+        db.session.rollback()
+        print(f"[todo] restore_todo 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

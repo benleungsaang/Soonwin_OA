@@ -160,3 +160,17 @@ export function getTodoNotifications() {
 export function clearTodoNotifications(todoId?: number) {
   return request.post('/api/todos/notifications/clear', todoId ? { todo_id: todoId } : {})
 }
+
+// ============================================================
+// 回收站
+// ============================================================
+
+/** 获取已删除的 todo 列表 */
+export function getDeletedTodos() {
+  return request.get('/api/todos/deleted')
+}
+
+/** 恢复已删除的 todo */
+export function restoreTodo(id: number) {
+  return request.post(`/api/todos/${id}/restore`)
+}
