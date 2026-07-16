@@ -131,7 +131,7 @@
 
           <!-- 块 2：留言 + 行内输入 -->
           <div class="a1b-block a1b-block-msg">
-            <div class="a1b-block-title">💬 管理员留言</div>
+            <div class="a1b-block-title">💬 留言</div>
             <div v-if="detailMessages.length === 0" class="a1b-empty-msg">暂无留言</div>
             <div v-else class="a1a-messages">
               <div v-for="msg in detailMessages" :key="msg.id" class="a1-bubble" :class="msg.author_id===currentEmpId?'a1-self':'a1-other'">
@@ -140,8 +140,8 @@
                 <div class="a1-bubble-time">{{ msg.created_at }}</div>
               </div>
             </div>
-            <!-- 行内输入（仅 admin） -->
-            <div v-if="isAdmin" class="a1d-inline-input">
+            <!-- 行内输入（管理员或创建人可留言） -->
+            <div v-if="isAdmin || viewingTodo?.author_id === currentEmpId" class="a1d-inline-input">
               <input v-model="msgInput" ref="msgInputRef" type="text" class="a1d-input" placeholder="输入留言内容…" maxlength="300" @keypress.enter="sendMessage" />
               <div class="a1d-actions">
                 <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="toggleMsgEmoji"><span style="font-size:18px">😊</span></button>
@@ -188,7 +188,7 @@
         </div>
         <div class="ntc-toolbar">
           <button type="button" class="ntc-tool-btn" @click="onFormEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
-          <button type="button" class="ntc-tool-btn" @click="triggerFormImageUpload" title="添加图片"><span style="font-size:18px">🖼️</span></button>
+          <button type="button" class="ntc-tool-btn" @click="triggerImageUpload('form')" title="添加图片"><span style="font-size:18px">🖼️</span></button>
           <input v-model="formDate" type="date" class="ntc-date-input" />
           <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
         </div>
@@ -218,19 +218,18 @@
     <el-dialog v-model="completeDialogVisible" title="标记完成" width="480px" top="20vh">
       <el-alert title="完成时必须填写文字或图片（至少一项）" type="info" :closable="false" style="margin-bottom:14px" />
       <div class="complete-body">
-        <div class="input-with-emoji" style="position:relative">
-          <el-input v-model="completeForm.completion_note" type="textarea" :rows="3" placeholder="简单说明完成情况" maxlength="500" show-word-limit />
-          <button type="button" class="emoji-btn" @click="toggleEmoji('completion')">😊</button>
-          <div v-show="emojiVisible.completion" class="emoji-wrapper"><emoji-picker class="emoji-picker" @emoji-click="(e)=>completeForm.completion_note+=e.detail.emoji.unicode" /></div>
+        <textarea v-model="completeForm.completion_note" class="ntc-textarea" placeholder="简单说明完成情况…" rows="3" maxlength="500"></textarea>
+        <div class="ntc-toolbar" style="margin-top:8px">
+          <button type="button" class="ntc-tool-btn" @click="toggleEmoji('completion')" title="插入 emoji"><span style="font-size:18px">😊</span></button>
+          <button type="button" class="ntc-tool-btn" @click="triggerImageUpload('completion')" title="添加图片"><span style="font-size:18px">🖼️</span></button>
         </div>
-        <div style="margin-top:12px">
-          <el-upload :show-file-list="false" :http-request="(opt)=>handleUploadImage(opt,'completion')" :before-upload="beforeImageUpload" accept="image/*">
-            <el-button :icon="Picture" :loading="uploading">上传完成图片</el-button>
-          </el-upload>
-          <div v-if="completeForm.completion_image_url" class="uploaded-preview">
-            <img :src="resolveAssetUrl(completeForm.completion_image_url)" class="preview-thumb" @click="openImageViewer(completeForm.completion_image_url)" />
-            <el-button link type="danger" @click="completeForm.completion_image_url=''">移除</el-button>
-          </div>
+        <div v-show="emojiVisible.completion" class="ntc-emoji-pop" @click.stop>
+          <emoji-picker class="ntc-ep" @emoji-click="(e)=>completeForm.completion_note+=e.detail.emoji.unicode" />
+        </div>
+        <div v-if="completeForm.completion_image_url" class="ntc-img-bar" style="margin-top:8px">
+          <img :src="resolveAssetUrl(completeForm.completion_image_url)" class="ntc-img-thumb-real img-border" />
+          <span class="ntc-img-label">已上传</span>
+          <button class="ntc-img-remove" @click="completeForm.completion_image_url=''">✕ 移除</button>
         </div>
       </div>
       <template #footer>
@@ -276,13 +275,15 @@
 
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
+
+    <!-- 隐藏文件输入（统一用于新建/修改/标记完成上传图片） -->
+    <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onFileSelect" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Picture } from '@element-plus/icons-vue'
 import 'emoji-picker-element'
 import CommonHeader from '@/components/CommonHeader.vue'
 import {
@@ -310,6 +311,8 @@ const notificationItems = ref<any[]>([])
 const totalUnread = computed(() => notificationItems.value.reduce((s: number, n: any) => s + n.unread_count, 0))
 const imageViewerVisible = ref(false)
 const imageViewerUrl = ref('')
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const fileUploadMode = ref<'form' | 'completion'>('form')
 
 // emoji picker 状态
 const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: false, completion: false, message: false })
@@ -435,8 +438,8 @@ function closeMenu() { openMenuId.value = null }
 function onDocumentClick(e: MouseEvent) {
   const t = e.target as HTMLElement
   if (!t.closest('.menu-wrapper')) openMenuId.value = null
-  // emoji close
-  if (!t.closest('.emoji-wrapper') && !t.closest('.emoji-btn')) {
+  // emoji close（兼容新旧类名）
+  if (!t.closest('.emoji-wrapper') && !t.closest('.emoji-btn') && !t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) {
     for (const k of Object.keys(emojiVisible)) emojiVisible[k] = false
   }
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
@@ -542,27 +545,6 @@ function beforeImageUpload(file: File) {
   if (!isImage) ElMessage.error('只能上传图片')
   if (!isLt5M) ElMessage.error('图片大小不能超过 5MB')
   return isImage && isLt5M
-}
-
-async function handleUploadImage(option: any, subDir: 'todo' | 'completion' = 'todo') {
-  uploading.value = true
-  try {
-    const res: any = await uploadTodoImage(option.file, subDir)
-    const url = res?.image_url || res?.data?.image_url
-    if (url) {
-      if (subDir === 'completion') completeForm.completion_image_url = url
-      else formImageUrl.value = url
-      ElMessage.success('上传成功')
-      option.onSuccess?.(res)
-    } else {
-      throw new Error('未拿到图片 URL')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '上传失败')
-    option.onError?.(e)
-  } finally {
-    uploading.value = false
-  }
 }
 
 // ============================================================
@@ -702,27 +684,35 @@ function insertFormEmoji(event: any) {
   }
 }
 
-function triggerFormImageUpload() {
-  // 模拟文件 input 触发
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = async (e: any) => {
-    const file = e.target?.files?.[0]
-    if (!file) return
-    if (!beforeImageUpload(file)) return
-    uploading.value = true
-    try {
-      const res: any = await uploadTodoImage(file, 'todo')
-      const url = res?.image_url || res?.data?.image_url
-      if (url) { formImageUrl.value = url; ElMessage.success('上传成功') }
-    } catch (err: any) {
-      ElMessage.error(err?.message || '上传失败')
-    } finally {
-      uploading.value = false
+function triggerImageUpload(mode: 'form' | 'completion') {
+  fileUploadMode.value = mode
+  fileInputRef.value?.click()
+}
+
+async function onFileSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  if (!beforeImageUpload(file)) return
+  uploading.value = true
+  try {
+    const subDir = fileUploadMode.value === 'completion' ? 'completion' : 'todo'
+    const res: any = await uploadTodoImage(file, subDir)
+    const url = res?.image_url || res?.data?.image_url
+    if (url) {
+      if (fileUploadMode.value === 'completion') {
+        completeForm.completion_image_url = url
+      } else {
+        formImageUrl.value = url
+      }
+      ElMessage.success('上传成功')
     }
+  } catch (err: any) {
+    ElMessage.error(err?.message || '上传失败')
+  } finally {
+    uploading.value = false
+    target.value = ''
   }
-  input.click()
 }
 
 async function submitTaskForm() {

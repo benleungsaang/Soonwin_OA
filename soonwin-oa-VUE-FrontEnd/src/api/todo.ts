@@ -4,7 +4,7 @@
  * 设计要点：
  * - request 已自动解包 data 字段，直接 await 拿业务数据
  * - 用户隔离：后端按 author_id 过滤（管理员看全部）
- * - 仅管理员可调用留言相关接口
+ * - 管理员或任务创建人可添加留言，仅管理员可删除留言
  * - emoji 直接通过 JSON 传输，无需特殊处理
  */
 import request, { multipartRequest } from '@/utils/request'
@@ -137,7 +137,7 @@ export function getTodoMessages(todoId: number) {
   return request.get(`/api/todos/${todoId}/messages`)
 }
 
-/** 管理员添加留言 */
+/** 添加留言（管理员或任务创建人可调用） */
 export function addTodoMessage(todoId: number, content: string) {
   return request.post(`/api/todos/${todoId}/messages`, { content })
 }

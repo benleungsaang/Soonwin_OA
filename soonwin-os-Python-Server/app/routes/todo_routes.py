@@ -8,7 +8,7 @@ URL 前缀：/api/todos
   * 普通用户：只能看/操作 author_id == 自己 emp_id 的 todo
   * 管理员（user_role='admin'）：全部可见可操作
 - 操作级：
-  * 留言（POST/DELETE messages）：仅管理员
+  * 留言（POST/DELETE messages）：管理员或任务创建人可添加，仅管理员可删除
 
 emoji 说明：SQLite 默认 UTF-8 编码 + Python 3.12 str 原生支持 4 字节 emoji，
 所有 text 字段都允许 emoji 输入，无需特殊处理。
@@ -101,7 +101,7 @@ def _save_todo_image(file, sub_dir: str = 'todo') -> str:
         file_prefix=name_no_ext,
         ext='jpg',
     )
-    display_path = result.get('display', '')
+    display_path = result.get('paths', {}).get('display', '')
 
     # 删除原图（JPG/PNG）
     try:
@@ -450,16 +450,18 @@ def list_messages(todo_id):
 @todo_bp.route('/todos/<int:todo_id>/messages', methods=['POST'])
 @route_permission(ROUTE_TODO_MANAGE)
 def add_message(todo_id):
-    """管理员添加留言"""
+    """添加留言（管理员或创建人可添加）"""
     try:
         user_id = get_user_id_from_token() or ''
         user_role = get_user_role_from_token() or ''
-        if not _is_admin(user_role):
-            return jsonify({'success': False, 'message': '仅管理员可添加留言'}), 403
 
         todo = Todo.query.filter_by(id=todo_id, is_deleted=0).first()
         if not todo:
             return jsonify({'success': False, 'message': '任务不存在'}), 404
+
+        # 校验权限：管理员或任务创建人可留言
+        if not _is_admin(user_role) and todo.author_id != user_id:
+            return jsonify({'success': False, 'message': '仅管理员或任务创建人可添加留言'}), 403
 
         data = request.get_json(silent=True) or {}
         content = (data.get('content') or '').strip()
