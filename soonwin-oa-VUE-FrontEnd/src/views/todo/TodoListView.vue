@@ -360,6 +360,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const uploading = ref(false)
 const searchKeyword = ref('')
+const activeSearch = ref('')  // 按 Enter 后才真正生效的搜索词
 const activeTab = ref('all')
 const isAdmin = ref(false)
 const currentEmpId = ref('')
@@ -465,11 +466,13 @@ function switchTab(key: string) {
 }
 
 function onSearchEnter() {
+  activeSearch.value = searchKeyword.value.trim()
   loadTodos()
 }
 
 function clearSearch() {
   searchKeyword.value = ''
+  activeSearch.value = ''
   loadTodos()
 }
 
@@ -503,7 +506,7 @@ async function loadTodos() {
   loading.value = true
   try {
     const params: any = {}
-    if (searchKeyword.value.trim()) params.search = searchKeyword.value.trim()
+    if (activeSearch.value) params.search = activeSearch.value
     if (activeTab.value === 'pending') params.status = 'pending'
     else if (activeTab.value === 'completed') params.status = 'completed'
     const res: any = await getTodos(params)
