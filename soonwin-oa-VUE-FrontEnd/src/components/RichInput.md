@@ -157,8 +157,8 @@ const orderUploadApi: UploadApi = async (file) => {
 
 **渲染结果：**
 ```
-[😊] [自定义按钮A] [🖼️]    ← toolbar-extra 插在 emoji 和 image 之间
-      ↑ toolbar-extra 插槽
+[😊] [🖼️] [自定义按钮A]    ← toolbar-extra 插在 image 之后
+           ↑ toolbar-extra 插槽
 ```
 
 > **设计原则**：RichInput 只管理"文本输入 + emoji + 图片上传"核心功能。  

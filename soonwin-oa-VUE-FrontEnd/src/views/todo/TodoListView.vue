@@ -1204,7 +1204,7 @@ onBeforeUnmount(() => {
 .da-rail { display: flex; flex-direction: column; align-items: center; width: 16px; flex-shrink: 0; padding-top: 6px; }
 .da-rail-dot { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid white; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); flex-shrink: 0; z-index: 1; }
 .da-rail-line { width: 2px; flex: 1; background: linear-gradient(to bottom, #e5e7eb, #f3f4f6); margin-top: -2px; margin-bottom: -2px; }
-.a1b-card { padding: 0 !important; overflow: hidden; }
+.a1b-card { padding: 0 !important; overflow: hidden; flex: 1; min-width: 0; }
 .a1b-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin: 10px 4px; background: #ffffff; }
 .a1b-block:first-child { margin-top: 12px; }
 .a1b-block:last-child { margin-bottom: 12px; }

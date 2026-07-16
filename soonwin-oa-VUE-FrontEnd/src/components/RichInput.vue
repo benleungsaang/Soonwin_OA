@@ -54,9 +54,6 @@
         <span style="font-size: 16px; line-height: 1;">😊</span>
       </button>
 
-      <!-- 工具栏扩展插槽 -->
-      <slot name="toolbar-extra" />
-
       <!-- 图片上传按钮 -->
       <button
         v-if="features?.image"
@@ -67,6 +64,9 @@
       >
         <span style="font-size: 16px; line-height: 1;">🖼️</span>
       </button>
+
+      <!-- 工具栏扩展插槽 -->
+      <slot name="toolbar-extra" />
     </div>
 
     <!-- ========== Emoji 弹出层 ========== -->
