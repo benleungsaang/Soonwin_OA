@@ -236,27 +236,26 @@
     <el-dialog v-model="formVisible" :title="formMode==='edit'?'修改内容':'新建任务'" width="500px" top="10vh" @closed="onFormClosed">
       <div class="ntc-body">
         <div class="ntc-title-row">
-          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" @focus="formLastFocus='title'" @paste="(e) => onPasteImage(e, 'form')" />
+          <input v-model="formTitle" ref="formTitleRef" class="ntc-title-input" :placeholder="formMode==='edit'?'修改任务标题…':'任务标题'" maxlength="100" />
         </div>
         <div class="ntc-sep"></div>
-        <div class="ntc-content-area">
-          <textarea v-model="formContent" ref="formContentRef" class="ntc-textarea" placeholder="备注内容…支持 emoji 📝" rows="3" maxlength="500" @focus="formLastFocus='content'" @paste="(e) => onPasteImage(e, 'form')"></textarea>
-        </div>
-        <div class="ntc-toolbar">
-          <button type="button" class="ntc-tool-btn" @click="onFormEmojiClick" title="插入 emoji"><span style="font-size:18px">😊</span></button>
-          <button type="button" class="ntc-tool-btn" @click="triggerImageUpload('form')" title="添加图片"><span style="font-size:18px">🖼️</span></button>
-          <input v-model="formDate" type="date" class="ntc-date-input" />
-          <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
-        </div>
-        <div v-show="formEmojiVisible" class="ntc-emoji-pop" @click.stop>
-          <emoji-picker class="ntc-ep" @emoji-click="insertFormEmoji" />
-        </div>
-        <!-- 图片预览 -->
-        <div v-if="formImageUrl" class="ntc-img-bar">
-          <img :src="resolveAssetUrl(formImageUrl)" class="ntc-img-thumb-real img-border" />
-          <span class="ntc-img-label">已上传</span>
-          <button class="ntc-img-remove" @click="formImageUrl=''">✕ 移除</button>
-        </div>
+        <RichInput
+          v-model="formContent"
+          custom-class="todo-form-rich"
+          placeholder="备注内容…支持 emoji 📝"
+          :maxlength="500"
+          :rows="3"
+          :features="{ emoji: true, image: true, paste: true }"
+          :upload="{ api: todoUploadApi, maxSizeMB: 5 }"
+          size="default"
+          toolbar="bottom"
+          @image-uploaded="(r: any) => formImageUrl = r.url"
+        >
+          <template #toolbar-extra>
+            <input v-model="formDate" type="date" class="ntc-date-input" style="margin-left:4px" />
+            <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
+          </template>
+        </RichInput>
         <div class="ntc-color-bar">
           <span class="ntc-color-label">颜色</span>
           <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:formColor===c.value}]" :title="c.label" @click="formColor=c.value" />
@@ -274,19 +273,18 @@
     <el-dialog v-model="completeDialogVisible" title="标记完成" width="480px" top="20vh">
       <el-alert title="完成时必须填写文字或图片（至少一项）" type="info" :closable="false" style="margin-bottom:14px" />
       <div class="complete-body">
-        <textarea v-model="completeForm.completion_note" class="ntc-textarea" placeholder="简单说明完成情况…" rows="3" maxlength="500" @paste="(e) => onPasteImage(e, 'completion')"></textarea>
-        <div class="ntc-toolbar" style="margin-top:8px">
-          <button type="button" class="ntc-tool-btn" @click="toggleEmoji('completion')" title="插入 emoji"><span style="font-size:18px">😊</span></button>
-          <button type="button" class="ntc-tool-btn" @click="triggerImageUpload('completion')" title="添加图片"><span style="font-size:18px">🖼️</span></button>
-        </div>
-        <div v-show="emojiVisible.completion" class="ntc-emoji-pop" @click.stop>
-          <emoji-picker class="ntc-ep" @emoji-click="(e)=>completeForm.completion_note+=e.detail.emoji.unicode" />
-        </div>
-        <div v-if="completeForm.completion_image_url" class="ntc-img-bar" style="margin-top:8px">
-          <img :src="resolveAssetUrl(completeForm.completion_image_url)" class="ntc-img-thumb-real img-border" />
-          <span class="ntc-img-label">已上传</span>
-          <button class="ntc-img-remove" @click="completeForm.completion_image_url=''">✕ 移除</button>
-        </div>
+        <RichInput
+          v-model="completeForm.completion_note"
+          custom-class="todo-complete-rich"
+          placeholder="简单说明完成情况…"
+          :maxlength="500"
+          :rows="3"
+          :features="{ emoji: true, image: true, paste: true }"
+          :upload="{ api: completeUploadApi, maxSizeMB: 5 }"
+          size="default"
+          toolbar="bottom"
+          @image-uploaded="(r: any) => completeForm.completion_image_url = r.url"
+        />
       </div>
       <template #footer>
         <el-button @click="completeDialogVisible=false">取消</el-button>
@@ -331,9 +329,6 @@
 
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
-
-    <!-- 隐藏文件输入（统一用于新建/修改/标记完成上传图片） -->
-    <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onFileSelect" />
   </div>
 </template>
 
@@ -342,6 +337,8 @@ import { ref, computed, onMounted, reactive, nextTick, onBeforeUnmount } from 'v
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'emoji-picker-element'
 import CommonHeader from '@/components/CommonHeader.vue'
+import RichInput from '@/components/RichInput.vue'
+import type { RichInputUploadApi } from '@/components/RichInput.vue'
 import {
   getTodos, getTodo, createTodo, updateTodo, deleteTodo,
   completeTodo, uncompleteTodo, uploadTodoImage,
@@ -369,8 +366,6 @@ const notificationItems = ref<any[]>([])
 const totalUnread = computed(() => notificationItems.value.reduce((s: number, n: any) => s + n.unread_count, 0))
 const imageViewerVisible = ref(false)
 const imageViewerUrl = ref('')
-const fileInputRef = ref<HTMLInputElement | null>(null)
-const fileUploadMode = ref<'form' | 'completion'>('form')
 
 // 用户筛选 + 回收站
 const selectedUserId = ref('')
@@ -401,6 +396,18 @@ const allUsers = computed(() => {
 
 // emoji picker 状态
 const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: false, completion: false, message: false })
+
+// RichInput 上传 API
+const todoUploadApi: RichInputUploadApi = async (file) => {
+  const res: any = await uploadTodoImage(file, 'todo')
+  const url = res?.image_url || res?.data?.image_url
+  return { url: url || '' }
+}
+const completeUploadApi: RichInputUploadApi = async (file) => {
+  const res: any = await uploadTodoImage(file, 'completion')
+  const url = res?.image_url || res?.data?.image_url
+  return { url: url || '' }
+}
 
 // ============================================================
 // Tab 定义（动态计算数量）
@@ -541,7 +548,7 @@ function onDocumentClick(e: MouseEvent) {
     for (const k of Object.keys(emojiVisible)) emojiVisible[k] = false
   }
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
-  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) formEmojiVisible.value = false
+  if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) {}  // RichInput 自行管理 emoji
 }
 
 // ============================================================
@@ -729,10 +736,7 @@ const formContent = ref('')
 const formDate = ref('')
 const formColor = ref('white')
 const formImageUrl = ref('')
-const formEmojiVisible = ref(false)
-const formLastFocus = ref<'title' | 'content'>('content')
 const formTitleRef = ref<HTMLInputElement | null>(null)
-const formContentRef = ref<HTMLTextAreaElement | null>(null)
 
 function resetForm() {
   formTitle.value = ''
@@ -740,7 +744,6 @@ function resetForm() {
   formDate.value = new Date().toISOString().split('T')[0]
   formColor.value = 'white'
   formImageUrl.value = ''
-  formEmojiVisible.value = false
   formEditId.value = null
 }
 
@@ -757,95 +760,12 @@ function openEditDialog(todo: TodoItem) {
   formDate.value = todo.date
   formColor.value = todo.color
   formImageUrl.value = todo.image_url || ''
-  formEmojiVisible.value = false
   formEditId.value = todo.id
   formVisible.value = true
 }
 
 function onFormClosed() {
   // nothing needed
-}
-
-function onFormEmojiClick() { formEmojiVisible.value = !formEmojiVisible.value }
-
-function insertFormEmoji(event: any) {
-  const emoji = event.detail.emoji.unicode
-  const target = formLastFocus.value
-  const el = target === 'title' ? formTitleRef.value : formContentRef.value
-  if (el) {
-    const start = el.selectionStart ?? 0
-    const end = el.selectionEnd ?? start
-    const text = target === 'title' ? formTitle.value : formContent.value
-    const newText = text.substring(0, start) + emoji + text.substring(end)
-    if (target === 'title') formTitle.value = newText
-    else formContent.value = newText
-    nextTick(() => { el.selectionStart = el.selectionEnd = start + emoji.length; el.focus() })
-  }
-}
-
-function triggerImageUpload(mode: 'form' | 'completion') {
-  fileUploadMode.value = mode
-  fileInputRef.value?.click()
-}
-
-async function onFileSelect(e: Event) {
-  const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
-  if (!beforeImageUpload(file)) return
-  uploading.value = true
-  try {
-    const subDir = fileUploadMode.value === 'completion' ? 'completion' : 'todo'
-    const res: any = await uploadTodoImage(file, subDir)
-    const url = res?.image_url || res?.data?.image_url
-    if (url) {
-      if (fileUploadMode.value === 'completion') {
-        completeForm.completion_image_url = url
-      } else {
-        formImageUrl.value = url
-      }
-      ElMessage.success('上传成功')
-    }
-  } catch (err: any) {
-    ElMessage.error(err?.message || '上传失败')
-  } finally {
-    uploading.value = false
-    target.value = ''
-  }
-}
-
-// 粘贴图片检测：Ctrl+V 中的图片 → 自动上传
-async function onPasteImage(e: ClipboardEvent, target: 'form' | 'completion') {
-  const items = e.clipboardData?.items
-  if (!items) return
-  const files: File[] = []
-  for (let i = 0; i < items.length; i++) {
-    const f = items[i].getAsFile()
-    if (f && f.type.startsWith('image/')) files.push(f)
-  }
-  if (files.length === 0) return
-  e.preventDefault()
-  for (const file of files) {
-    if (!beforeImageUpload(file)) continue
-    uploading.value = true
-    try {
-      const subDir = target === 'completion' ? 'completion' : 'todo'
-      const res: any = await uploadTodoImage(file, subDir)
-      const url = res?.image_url || res?.data?.image_url
-      if (url) {
-        if (target === 'completion') {
-          completeForm.completion_image_url = url
-        } else {
-          formImageUrl.value = url
-        }
-        ElMessage.success('图片已粘贴上传')
-      }
-    } catch (err: any) {
-      ElMessage.error(err?.message || '图片上传失败')
-    } finally {
-      uploading.value = false
-    }
-  }
 }
 
 async function submitTaskForm() {
@@ -1350,6 +1270,55 @@ onBeforeUnmount(() => {
 .msg-author { font-weight: 500; color: #374151; }
 .msg-time { color: #9ca3af; }
 .msg-content { font-size: 14px; color: #1f2937; word-break: break-word; white-space: pre-wrap; }
+
+/* ============================================================
+   RichInput 样式覆盖——保持与原有 todo 输入框一致
+   ============================================================ */
+/* 创建/修改弹窗的 RichInput */
+:deep(.todo-form-rich .ri-textarea),
+:deep(.todo-complete-rich .ri-textarea) {
+  padding: 0; border: none; border-radius: 0;
+  font-size: 15px; color: #374151; line-height: 1.7;
+}
+:deep(.todo-form-rich .ri-textarea:focus),
+:deep(.todo-complete-rich .ri-textarea:focus) {
+  box-shadow: none;
+}
+:deep(.todo-form-rich .ri-toolbar) {
+  margin-top: 10px; padding: 10px 0 0; border: none;
+  border-top: 1px solid #f3f4f6; background: transparent; border-radius: 0;
+}
+:deep(.todo-complete-rich .ri-toolbar) {
+  margin-top: 8px; padding: 10px 0 0; border: none;
+  border-top: 1px solid #f3f4f6; background: transparent; border-radius: 0;
+}
+:deep(.todo-form-rich .ri-tool-btn),
+:deep(.todo-complete-rich .ri-tool-btn) {
+  width: 34px; height: 34px;
+}
+:deep(.todo-form-rich .ri-emoji-popup) {
+  position: absolute; bottom: 100%; left: 0; z-index: 200; margin-bottom: 4px;
+}
+:deep(.todo-form-rich .ri-preview-bar) {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  padding: 6px 10px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;
+}
+:deep(.todo-complete-rich .ri-preview-bar) {
+  margin-top: 8px;
+}
+:deep(.todo-form-rich .ri-preview-thumb),
+:deep(.todo-complete-rich .ri-preview-thumb) {
+  width: 40px; height: 30px; border-radius: 4px; object-fit: cover;
+  border: 4px solid #e5e7eb; border-radius: 6px;
+}
+:deep(.todo-form-rich .ri-preview-label),
+:deep(.todo-complete-rich .ri-preview-label) {
+  font-size: 12px; color: #6b7280; flex: 1;
+}
+:deep(.todo-form-rich .ri-preview-remove),
+:deep(.todo-complete-rich .ri-preview-remove) {
+  font-size: 12px; color: #ef4444; background: none; border: none; cursor: pointer; padding: 2px 6px;
+}
 
 /* ============================================================
    图片边框 & 灯箱
