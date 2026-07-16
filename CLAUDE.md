@@ -137,6 +137,11 @@ soonwin-os-Python-Server/
 
 新模块需要输入框（文本 + emoji + 图片上传 + 粘贴检测）时，**优先使用** `src/components/RichInput.vue`，而非重新实现。
 
+⚠️ **触发规则**：用户说"开发带输入框的模块"或类似表述时（即使未提 emoji/图片），必须主动询问：
+1. 是否使用 RichInput 通用组件？
+2. 需要启用哪些功能（emoji？图片上传？粘贴检测？）
+3. 图片存储路径是什么？
+
 ```vue
 <RichInput v-model="note" :features="{ emoji: true, image: true, paste: true }"
   :upload="{ api: myUploadApi }" />
