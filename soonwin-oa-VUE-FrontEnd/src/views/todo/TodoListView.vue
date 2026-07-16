@@ -3,24 +3,19 @@
     <CommonHeader title="待办事项" />
 
     <div class="todo-container">
-      <!-- ============ 管理员工具栏（仅管理员可见） ============ -->
-      <div v-if="isAdmin" class="admin-toolbar">
-        <span></span>
-        <div class="at-right">
-          <span class="at-label">用户</span>
-          <select v-model="selectedUserId" class="at-select">
-            <option value="">全部用户</option>
-            <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- ============ 搜索栏（C · 卡片内嵌式） ============ -->
+      <!-- ============ 搜索栏（含管理员用户筛选） ============ -->
       <div class="search-bar">
         <div class="search-inner">
           <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input v-model="searchKeyword" class="search-input" placeholder="按 Enter 搜索任务…" @keypress.enter="onSearchEnter" />
           <button v-if="searchKeyword" class="search-clear" @click="clearSearch">清除</button>
+          <div v-if="isAdmin" class="search-filter">
+            <span class="at-label">用户</span>
+            <select v-model="selectedUserId" class="at-select">
+              <option value="">全部用户</option>
+              <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -976,18 +971,15 @@ onBeforeUnmount(() => {
 /* ============================================================
    管理员工具栏
    ============================================================ */
-.admin-toolbar {
-  display: flex; align-items: center; justify-content: flex-end;
-  background: white; border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  padding: 8px 14px; margin-bottom: 10px; gap: 8px;
+.search-filter {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; margin-left: 4px;
 }
-.at-right { display: flex; align-items: center; gap: 8px; }
 .at-label { font-size: 12px; color: #6b7280; white-space: nowrap; }
 .at-select {
   font-size: 13px; padding: 4px 8px; border: 1px solid #d1d5db;
   border-radius: 6px; outline: none; color: #374151; background: white;
-  cursor: pointer; max-width: 140px;
+  cursor: pointer; max-width: 130px;
 }
 .at-select:focus { border-color: #3b82f6; }
 
@@ -1164,6 +1156,7 @@ onBeforeUnmount(() => {
   background: white; border-radius: 10px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
   z-index: 200; min-width: 170px; padding: 6px 0;
+  opacity: 1; /* 不受父级半透明影响 */
 }
 .menu-color-row {
   display: flex; justify-content: center; gap: 6px; padding: 8px 14px;
