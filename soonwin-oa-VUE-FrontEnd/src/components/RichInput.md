@@ -59,6 +59,30 @@ interface UploadResult {
 }
 ```
 
+### ⚠️ 重要：uploadApi 必须返回完整可访问 URL
+
+RichInput 的图片预览直接使用 `url` 作为 `<img src>`，因此 **必须返回浏览器可直接访问的完整路径**，而非后端内部相对路径。
+
+```typescript
+// ❌ 错误：相对路径，浏览器无法加载
+const badApi: UploadApi = async (file) => {
+  const res = await uploadImage(file)
+  return { url: res.path }  // "todo/2026/07/xxx.webp"
+}
+
+// ✅ 正确：拼接完整 URL 前缀
+const goodApi: UploadApi = async (file) => {
+  const res = await uploadImage(file)
+  const raw = res.image_url || res.data?.image_url
+  return {
+    url: '/assets/MyModule/' + raw,          // 完整可访问路径
+    thumbnailUrl: raw.includes('_display')
+      ? '/assets/MyModule/' + raw.replace('_display', '_thumbnail')
+      : '/assets/MyModule/' + raw,
+  }
+}
+```
+
 ### 各模块上传路径约定
 
 不同模块的上传路径由 `UploadApi` 的实现控制：
@@ -188,8 +212,8 @@ RichInput
 │   ├── input / textarea  ← v-model
 │   ├── toolbar（可选）
 │   │   ├── emoji button（可选）
-│   │   ├── <slot name="toolbar-extra" />
 │   │   ├── image button（可选）
+│   │   ├── <slot name="toolbar-extra" />  ️// 自定义控件插在 image 之后
 │   │   └── emoji-picker 弹出层
 │   └── image preview bar（可选）
 │       ├── 图片缩略图
@@ -216,16 +240,14 @@ RichInput
 
 ```vue
 <RichInput
+  :key="'form-' + dialogVisible"  ️// ⚠️ 弹窗内必须用 :key 保证关闭后状态重置
   v-model="note"
   placeholder="备注内容…"
-  input-type="textarea"
-  :rows="3"
-  :maxlength="500"
   :features="{ emoji: true, image: true, paste: true }"
   :upload="{ api: todoUploadApi }"
   size="default"
   toolbar="bottom"
-  @image-uploaded="url => formImageUrl = url"
+  @image-uploaded="r => formImageUrl = r.url"  ️// r 是 { url, thumbnailUrl? }
 />
 ```
 
@@ -268,19 +290,81 @@ RichInput
 
 ---
 
-## 八、样式覆盖指南
+## 九、落地注意事项（从 Todo 模块替换中总结）
 
-组件提供中性基础样式，各模块通过两种方式做视觉适配：
+### 1. 弹窗内必须加 :key
 
-### 方式 1：customClass
+RichInput 内部维护 `imagePreviewUrl` 状态。弹窗关闭再打开时，若不加 `:key` 强制重建实例，上一次的图片预览会残留。
+
+```vue
+<!-- ✅ 弹窗内用法 -->
+<RichInput :key="'form-' + dialogVisible" ... />
+```
+
+### 2. @image-uploaded 接收对象而非字符串
+
+```vue
+<!-- ✅ 正确 -->
+@image-uploaded="r => formImageUrl = r.url"
+<!-- r = { url: string, thumbnailUrl?: string } -->
+```
+
+### 3. 样式覆盖必须用 :deep()
+
+RichInput 的样式是 `<style scoped>`，父组件不能直接写 `.ri-textarea`，必须：
+
+```css
+:deep(.custom-class .ri-textarea) { ... }
+```
+
+### 4. 上传 API 必须返回完整 URL
+
+RichInput 预览直接用 `url` 作为 `<img src>`。相对路径会导致裂图。
+
+```typescript
+// ✅ 返回完整路径
+return { url: '/assets/Module/' + raw }
+```
+
+### 5. 水平布局不适用
+
+RichInput 的工具栏是垂直排列在输入框下方（`toolbar="bottom"`）。  
+如果业务需要**水平排列**的输入框（如：`[输入框] [发送按钮]`），RichInput 不适合，应保留独立实现。
+
+### 6. 工具栏固定顺序
+
+工具栏按钮顺序不可配置，固定为：
+```
+[😊] [🖼️] [toolbar-extra 插槽]
+```
+各模块的自定义控件通过 `toolbar-extra` 插槽注入，排在图片按钮之后。
+
+---
+
+## 十、样式覆盖指南
+
+组件提供中性基础样式，各模块通过两种方式做视觉适配。
+
+### 方式 1：customClass + :deep()
+
+RichInput 的样式是 scoped 的，父组件的 scoped CSS **无法直接穿透**。必须用 `:deep()`：
 
 ```vue
 <RichInput custom-class="todo-input" :upload="{ api: todoUploadApi }" />
 ```
 
 ```css
-.todo-input .ri-textarea { /* 覆盖 textarea 样式 */ }
-.todo-input .ri-toolbar { /* 覆盖工具栏样式 */ }
+/* ✅ 正确：使用 :deep() 穿透 scoped 边界 */
+:deep(.todo-input .ri-textarea) {
+  padding: 0; border: none; font-size: 15px;
+}
+:deep(.todo-input .ri-toolbar) {
+  margin-top: 10px; border-top: 1px solid #eee;
+  background: transparent; border: none;
+}
+:deep(.todo-input .ri-tool-btn) { width: 34px; height: 34px; }
+:deep(.todo-input .ri-emoji-popup) { bottom: 100%; left: 0; }
+:deep(.todo-input .ri-preview-bar) { margin-top: 8px; }
 ```
 
 ### 方式 2：CSS 变量（后续扩展）
