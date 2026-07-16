@@ -3,17 +3,15 @@
     <CommonHeader title="待办事项" />
 
     <div class="todo-container">
-      <!-- ============ 管理员工具栏 ============ -->
-      <div class="admin-toolbar">
-        <div class="at-left">
+      <!-- ============ 管理员工具栏（仅管理员可见） ============ -->
+      <div v-if="isAdmin" class="admin-toolbar">
+        <span></span>
+        <div class="at-right">
           <span class="at-label">用户</span>
           <select v-model="selectedUserId" class="at-select">
             <option value="">全部用户</option>
             <option v-for="u in allUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
-        </div>
-        <div class="at-right">
-          <button class="at-btn" @click="openRecycleBin">🗑️ 回收站</button>
         </div>
       </div>
 
@@ -45,10 +43,40 @@
           <el-skeleton :rows="3" animated />
         </div>
 
+        <!-- ====== 回收站列表 ====== -->
+        <template v-else-if="activeTab === 'deleted'">
+          <div v-if="filteredDeleted.length === 0" class="empty-state">
+            <el-empty description="回收站暂无内容" />
+          </div>
+          <div v-for="dt in filteredDeleted" :key="dt.id" class="item-row deleted-row" @click="onRestoreTodo(dt)">
+            <!-- 恢复按钮 -->
+            <span class="restore-icon" title="恢复" @click.stop="onRestoreTodo(dt)">↶</span>
+
+            <!-- 任务内容 -->
+            <div class="item-main">
+              <span class="item-text">{{ dt.content }}</span>
+            </div>
+
+            <!-- 缩略图 -->
+            <span class="thumb-area">
+              <img v-if="dt.image_url" :src="resolveAssetUrl(dt.image_url, 'thumbnail')" class="item-thumb img-border" alt="附图" @click.stop="openImageViewer(dt.image_url)" />
+              <span v-else class="thumb-placeholder"></span>
+            </span>
+
+            <!-- 右侧固定组（作者） -->
+            <span class="item-right-group">
+              <span class="author-pill">{{ dt.author_name || dt.author_id }}</span>
+              <span class="deleted-date">{{ dt.date }}</span>
+            </span>
+          </div>
+        </template>
+
+        <!-- ====== 常规空状态 ====== -->
         <div v-else-if="groupedDates.length === 0" class="empty-state">
           <el-empty :description="searchKeyword ? '没有找到匹配的任务' : '暂无任务，开始添加吧！'" />
         </div>
 
+        <!-- ====== 常规列表（活跃条目） ====== -->
         <template v-else>
           <div v-for="date in groupedDates" :key="date">
             <div class="date-divider">{{ formatDateLabel(date) }}</div>
@@ -288,25 +316,6 @@
       </template>
     </el-dialog>
 
-    <!-- ============ 回收站弹窗 ============ -->
-    <el-dialog v-model="recycleBinVisible" title="🗑️ 回收站" width="580px" top="10vh">
-      <div v-if="deletedTodos.length === 0" class="empty-msg">回收站暂无内容</div>
-      <div v-else class="rb-list">
-        <div v-for="dt in deletedTodos" :key="dt.id" class="rb-item">
-          <div class="rb-main">
-            <span class="rb-content">{{ dt.content }}</span>
-            <span class="rb-meta">{{ dt.author_name || dt.author_id }} · {{ dt.date }}</span>
-          </div>
-          <div class="rb-actions">
-            <el-button size="small" type="primary" plain @click="onRestoreTodo(dt)">恢复</el-button>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="recycleBinVisible=false">关闭</el-button>
-      </template>
-    </el-dialog>
-
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
 
@@ -352,12 +361,23 @@ const fileUploadMode = ref<'form' | 'completion'>('form')
 // 用户筛选 + 回收站
 const selectedUserId = ref('')
 const deletedTodos = ref<TodoItem[]>([])
-const recycleBinVisible = ref(false)
+const deletedCount = ref(0)
 
-// 提取所有用户（用于筛选下拉）
+// 用户筛选后的回收站条目
+const filteredDeleted = computed(() => {
+  if (!selectedUserId.value) return deletedTodos.value
+  return deletedTodos.value.filter(t => t.author_id === selectedUserId.value)
+})
+
+// 提取所有用户（用于筛选下拉，同时从活跃条目和回收站中提取）
 const allUsers = computed(() => {
   const map = new Map<string, string>()
   for (const t of todos.value) {
+    if (!map.has(t.author_id)) {
+      map.set(t.author_id, t.author_name || t.author_id)
+    }
+  }
+  for (const t of deletedTodos.value) {
     if (!map.has(t.author_id)) {
       map.set(t.author_id, t.author_name || t.author_id)
     }
@@ -372,10 +392,11 @@ const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: f
 // Tab 定义（动态计算数量）
 // ============================================================
 const tabDefs = computed(() => [
-  { key: 'all',       label: '全部',   count: todos.value.length },
-  { key: 'pending',   label: '待完成', count: todos.value.filter(t => t.status === 'pending').length },
-  { key: 'completed', label: '已完成', count: todos.value.filter(t => t.status === 'completed').length },
-  { key: 'urgent',    label: '紧急',   count: todos.value.filter(t => t.color === 'red').length },
+  { key: 'all',       label: '全部',     count: todos.value.length },
+  { key: 'pending',   label: '待完成',   count: todos.value.filter(t => t.status === 'pending').length },
+  { key: 'completed', label: '已完成',   count: todos.value.filter(t => t.status === 'completed').length },
+  { key: 'urgent',    label: '紧急',     count: todos.value.filter(t => t.color === 'red').length },
+  { key: 'deleted',   label: '🗑️ 回收站', count: deletedCount.value },
 ])
 
 // ============================================================
@@ -418,7 +439,11 @@ function openImageViewer(url: string) {
 // ============================================================
 function switchTab(key: string) {
   activeTab.value = key
-  loadTodos()
+  if (key === 'deleted') {
+    loadDeletedTodos()
+  } else {
+    loadTodos()
+  }
 }
 
 function onSearchEnter() {
@@ -856,13 +881,16 @@ function openFirstNotification() {
 // ============================================================
 // 回收站
 // ============================================================
-async function openRecycleBin() {
+async function loadDeletedTodos() {
+  loading.value = true
   try {
     const res: any = await getDeletedTodos()
     deletedTodos.value = res || []
-    recycleBinVisible.value = true
+    deletedCount.value = deletedTodos.value.length
   } catch (e: any) {
     ElMessage.error(e?.message || '加载回收站失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -871,7 +899,7 @@ async function onRestoreTodo(todo: TodoItem) {
     await restoreTodo(todo.id)
     ElMessage.success('已恢复')
     deletedTodos.value = deletedTodos.value.filter(t => t.id !== todo.id)
-    await loadTodos()
+    deletedCount.value = deletedTodos.value.length
   } catch (e: any) {
     ElMessage.error(e?.message || '恢复失败')
   }
@@ -919,12 +947,12 @@ onBeforeUnmount(() => {
    管理员工具栏
    ============================================================ */
 .admin-toolbar {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: flex-end;
   background: white; border-radius: 10px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  padding: 8px 14px; margin-bottom: 10px;
+  padding: 8px 14px; margin-bottom: 10px; gap: 8px;
 }
-.at-left { display: flex; align-items: center; gap: 8px; }
+.at-right { display: flex; align-items: center; gap: 8px; }
 .at-label { font-size: 12px; color: #6b7280; white-space: nowrap; }
 .at-select {
   font-size: 13px; padding: 4px 8px; border: 1px solid #d1d5db;
@@ -932,26 +960,20 @@ onBeforeUnmount(() => {
   cursor: pointer; max-width: 140px;
 }
 .at-select:focus { border-color: #3b82f6; }
-.at-btn {
-  font-size: 13px; padding: 5px 12px; border: 1px solid #e5e7eb;
-  border-radius: 6px; background: white; color: #6b7280; cursor: pointer;
-  transition: all 0.15s; white-space: nowrap;
-}
-.at-btn:hover { color: #374151; background: #f9fafb; border-color: #d1d5db; }
 
 /* ============================================================
-   回收站弹窗
+   回收站条目样式
    ============================================================ */
-.rb-list { max-height: 420px; overflow-y: auto; }
-.rb-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 0; border-bottom: 1px solid #f3f4f6;
+.deleted-row { opacity: 0.75; }
+.deleted-row:hover { opacity: 1; }
+.restore-icon {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #e5e7eb; color: #6b7280; font-size: 13px; font-weight: 600;
+  flex-shrink: 0; cursor: pointer; transition: all 0.15s;
 }
-.rb-item:last-child { border-bottom: none; }
-.rb-main { flex: 1; min-width: 0; }
-.rb-content { font-size: 14px; color: #1f2937; word-break: break-word; display: block; }
-.rb-meta { font-size: 12px; color: #9ca3af; margin-top: 4px; display: block; }
-.rb-actions { flex-shrink: 0; }
+.restore-icon:hover { background: #3b82f6; color: white; }
+.deleted-date { font-size: 12px; color: #9ca3af; white-space: nowrap; }
 
 /* ============================================================
    搜索栏（C · 卡片内嵌式）
