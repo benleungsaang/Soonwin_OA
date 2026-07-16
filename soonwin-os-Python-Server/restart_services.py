@@ -275,40 +275,65 @@ def sync_structure():
 
 
 # ======================== 主流程 ========================
+def _open_log():
+    """打开日志文件供 stdout 重定向"""
+    log_path = os.path.join(SCRIPT_DIR, "restart_output.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log = open(log_path, "a", encoding="utf-8", buffering=1)  # line-buffered
+    # 写入分隔标记
+    log.write(f"\n{'='*60}\n")
+    log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] OA 系统重启脚本 — 启动\n")
+    log.write(f"后端目录: {SCRIPT_DIR}\n")
+    log.write(f"{'='*60}\n")
+    log.flush()
+    return log, log_path
+
+
 def main():
-    print("=" * 50)
-    print("  OA 系统重启脚本")
-    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  后端目录: {SCRIPT_DIR}")
-    print("=" * 50)
+    # 重定向 stdout → 日志文件（所有 print() 自动写入，不再依赖父进程传句柄）
+    log, log_path = _open_log()
+    old_stdout = sys.stdout
+    sys.stdout = log
 
-    # 1. 停服务
-    print("\n[1/3] 停止服务...")
-    svc_map = stop_services()
-
-    # 2. 检查 + 按需同步数据库结构（仅在有差异时备份）
-    print("\n[2/3] 检查数据库结构...")
     try:
-        is_same, diffs = compare_schemas()
-        if is_same:
-            print("[DB] 库结构一致，无需同步，跳过备份")
-        else:
-            print(f"[DB] 检测到 {len(diffs)} 处差异:")
-            for d in diffs:
-                print(f"  - {d}")
-            print("[DB] 先备份再同步...")
-            backup_databases()
-            sync_structure()
-    except Exception as e:
-        print(f"数据库处理异常: {e}")
+        print("\n[1/3] 停止服务...")
+        svc_map = stop_services()
 
-    # 3. 启服务
-    print("\n[3/3] 启动服务...")
-    start_services(svc_map)
+        print("\n[2/3] 检查数据库结构...")
+        while True:  # 把后续逻辑包进来，保证 finally 可以恢复 stdout
+            try:
+                is_same, diffs = compare_schemas()
+                if is_same:
+                    print("[DB] 库结构一致，无需同步，跳过备份")
+                    break
 
-    print("\n" + "=" * 50)
-    print("  重启完成")
-    print("=" * 50)
+                print(f"[DB] 检测到 {len(diffs)} 处差异:")
+                for d in diffs:
+                    print(f"  - {d}")
+                print("[DB] 先备份再同步...")
+                sys.stdout.flush()
+                backup_databases()
+                sync_structure()
+                break
+            except Exception as e:
+                print(f"数据库处理异常: {e}")
+                import traceback
+                traceback.print_exc()
+                break
+
+        print("\n[3/3] 启动服务...")
+        sys.stdout.flush()
+        start_services(svc_map)
+
+        print(f"\n{'='*50}")
+        print("  重启完成")
+        print(f"{'='*50}")
+    finally:
+        sys.stdout.flush()
+        sys.stdout = old_stdout
+        log.close()
+
+    print(f"→ 详细日志已写入: {log_path}")
 
 
 if __name__ == "__main__":

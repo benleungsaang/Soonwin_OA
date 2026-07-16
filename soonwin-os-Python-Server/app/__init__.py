@@ -217,25 +217,33 @@ def create_app(port=5000):
                 os.path.dirname(__file__), '..', 'restart_services.py'))
             script_dir = os.path.dirname(script)
 
-            # 输出重定向到日志文件，避免 Windows 服务无控制台导致 print() 异常
             log_path = os.path.join(script_dir, 'restart_output.log')
             try:
-                with open(log_path, 'a', encoding='utf-8') as log:
-                    log.write(f"\n{'='*60}\n")
-                    log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 远程重启触发\n")
-                    log.write(f"{'='*60}\n")
-                    log.flush()
+                # 父进程仅留一个快速标记（子进程启动后自己写详细日志）
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f"\n{'='*60}\n")
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 远程重启触发\n")
+                    f.write(f"{'='*60}\n\n")
 
-                    proc = subprocess.Popen(
-                        [sys.executable, script],
-                        cwd=script_dir,
-                        stdin=subprocess.DEVNULL,
-                        stdout=log,
-                        stderr=subprocess.STDOUT,
-                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
-                    )
-                    log.write(f"子进程 PID: {proc.pid}\n")
-                    log.flush()
+                # 完全脱离父进程启动子进程（restart_services.py 自己管理日志文件）
+                # DETACHED_PROCESS = 不继承控制台，不受父进程作业对象影响
+                # CREATE_NEW_PROCESS_GROUP = 新进程组，防止被 Ctrl+C/服务关闭波及
+                flags = 0
+                if sys.platform == 'win32':
+                    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                proc = subprocess.Popen(
+                    [sys.executable, '-u', script],  # -u 无缓冲，即时刷入日志
+                    cwd=script_dir,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=flags,
+                    close_fds=True,
+                )
+
+                # 父进程在日志追加 PID 标记（子进程启动后会接力写日志）
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f"[Parent] 子进程 PID: {proc.pid} 已投递\n")
 
                 print(f"[Restart] 重启脚本已启动, PID={proc.pid}, 日志: {log_path}")
                 return {"success": True, "msg": "重启命令已提交，约15秒后完成",
