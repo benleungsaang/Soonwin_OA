@@ -259,14 +259,15 @@
           @image-uploaded="(r: any) => formImageUrl = r.url"
         >
           <template #toolbar-extra>
+            <div style="position:relative;display:inline-flex">
+              <div class="ntc-color-chip" :class="'bg-'+formColor" style="cursor:pointer" @click.stop="formColorVisible=!formColorVisible"></div>
+              <div v-show="formColorVisible" class="ntc-color-pop" @click.stop>
+                <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:formColor===c.value}]" :title="c.label" @click="formColor=c.value; formColorVisible=false" />
+              </div>
+            </div>
             <input v-model="formDate" type="date" class="ntc-date-input" style="margin-left:4px" />
-            <div class="ntc-color-chip" :class="'bg-'+formColor"></div>
           </template>
         </RichInput>
-        <div class="ntc-color-bar">
-          <span class="ntc-color-label">颜色</span>
-          <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:formColor===c.value}]" :title="c.label" @click="formColor=c.value" />
-        </div>
       </div>
       <template #footer>
         <el-button @click="formVisible=false">取消</el-button>
@@ -565,6 +566,7 @@ function onDocumentClick(e: MouseEvent) {
   }
   if (!t.closest('.a1d-emoji-popup') && !t.closest('.a1d-action-btn')) msgEmojiVisible.value = false
   if (!t.closest('.ntc-emoji-pop') && !t.closest('.ntc-tool-btn')) {}  // RichInput 自行管理 emoji
+  if (!t.closest('.ntc-color-pop') && !t.closest('.ntc-color-chip')) formColorVisible.value = false
 }
 
 // ============================================================
@@ -784,6 +786,7 @@ const formDate = ref('')
 const formColor = ref('white')
 const formImageUrl = ref('')
 const formTitleRef = ref<HTMLInputElement | null>(null)
+const formColorVisible = ref(false)
 
 function resetForm() {
   formTitle.value = ''
@@ -1197,14 +1200,14 @@ onBeforeUnmount(() => {
 /* ============================================================
    左轨时间线（详情弹窗复用）
    ============================================================ */
-.da-outer { display: flex; gap: 16px; padding: 4px 0; min-height: 120px; }
-.da-rail { display: flex; flex-direction: column; align-items: center; width: 20px; flex-shrink: 0; padding-top: 6px; }
-.da-rail-dot { width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; border: 2px solid white; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); flex-shrink: 0; z-index: 1; }
+.da-outer { display: flex; gap: 10px; padding: 4px 0; min-height: 120px; }
+.da-rail { display: flex; flex-direction: column; align-items: center; width: 16px; flex-shrink: 0; padding-top: 6px; }
+.da-rail-dot { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid white; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); flex-shrink: 0; z-index: 1; }
 .da-rail-line { width: 2px; flex: 1; background: linear-gradient(to bottom, #e5e7eb, #f3f4f6); margin-top: -2px; margin-bottom: -2px; }
 .a1b-card { padding: 0 !important; overflow: hidden; }
-.a1b-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin: 12px 14px; background: #ffffff; }
-.a1b-block:first-child { margin-top: 14px; }
-.a1b-block:last-child { margin-bottom: 14px; }
+.a1b-block { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin: 10px 4px; background: #ffffff; }
+.a1b-block:first-child { margin-top: 12px; }
+.a1b-block:last-child { margin-bottom: 12px; }
 .a1b-block-msg { border-color: #dbeafe; background: #f8faff; }
 .a1b-block-supp { border-color: #fde68a; background: #fffcf5; }
 .a1b-block-title { font-size: 13px; font-weight: 600; color: #6b7280; margin-bottom: 10px; }
@@ -1292,6 +1295,15 @@ onBeforeUnmount(() => {
 .ntc-img-remove { font-size: 12px; color: #ef4444; background: none; border: none; cursor: pointer; padding: 2px 6px; white-space:nowrap; }
 .ntc-color-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
 .ntc-color-label { font-size: 12px; color: #9ca3af; margin-right: 4px; }
+
+/* 颜色弹窗 */
+.ntc-color-pop {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 8px 10px;
+  background: white; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  z-index: 200; white-space: nowrap;
+}
 
 /* color-dot-btn 通用 */
 .color-dot-btn { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; transition: transform 0.15s; border: 2px solid transparent; padding: 0; display:inline-block; }
