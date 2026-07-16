@@ -66,19 +66,19 @@
                 <span v-else class="thumb-placeholder"></span>
               </span>
 
-              <!-- 作者 -->
-              <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
-
-              <!-- 未读红点 -->
-              <span v-if="todo.unread_count > 0" class="unread-dot" :title="`${todo.unread_count} 条新留言`" @click.stop="openMessagesDialog(todo.id)">{{ todo.unread_count }}</span>
-
-              <!-- 三点菜单 -->
-              <div class="menu-wrapper" @click.stop>
-                <button class="menu-trigger" :class="{ open: openMenuId === todo.id }" @click="toggleMenu(todo.id)">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
-                </button>
-                <transition name="menu-fade">
-                  <div v-show="openMenuId === todo.id" class="task-menu-dropdown" @click.stop>
+              <!-- 右侧固定组（作者 + 未读红点 + 三点菜单 → 居右） -->
+              <span class="item-right-group">
+                <!-- 作者 -->
+                <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
+                <!-- 未读红点 -->
+                <span v-if="todo.unread_count > 0" class="unread-dot" :title="`${todo.unread_count} 条新留言`" @click.stop="openMessagesDialog(todo.id)">{{ todo.unread_count }}</span>
+                <!-- 三点菜单 -->
+                <div class="menu-wrapper" @click.stop>
+                  <button class="menu-trigger" :class="{ open: openMenuId === todo.id }" @click="toggleMenu(todo.id)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>
+                  </button>
+                  <transition name="menu-fade">
+                    <div v-show="openMenuId === todo.id" class="task-menu-dropdown" @click.stop>
                     <div class="menu-color-row">
                       <button v-for="c in colorOptions" :key="c.value" class="color-dot-btn" :class="['bg-'+c.value,{active:todo.color===c.value}]" :title="c.label" @click="onChangeColor(todo, c.value)" />
                     </div>
@@ -94,7 +94,8 @@
                   </div>
                 </transition>
               </div>
-            </div>
+            </span>
+          </div>
           </div>
         </template>
       </div>
@@ -961,6 +962,12 @@ onBeforeUnmount(() => {
 .item-main { flex: 0 0 60%; min-width: 0; }
 .item-text { font-size: 15px; color: #1f2937; line-height: 1.5; word-break: break-word; }
 .item-text.done { text-decoration: line-through; color: #9ca3af; }
+
+/* 右侧固定组（作者/红点/菜单 → 居右） */
+.item-right-group {
+  display: flex; align-items: center; gap: 10px;
+  margin-left: auto; flex-shrink: 0;
+}
 
 /* 缩略图 */
 .item-thumb { width: 48px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; background: #f3f4f6; }
