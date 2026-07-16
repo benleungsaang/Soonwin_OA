@@ -1190,7 +1190,7 @@
                 <div><span class="label">序号</span> <span class="val name" id="detailIndex">—</span></div>
                 <div><span class="label">名称</span> <span class="val" id="detailName">—</span></div>
                 <div><span class="label">尺寸</span> <span class="val" id="detailSize">—</span></div>
-                <div><span class="label">坐标</span> <span class="val" id="detailPos">—</span></div>
+                <div><span class="label">坐标 X, Y, Z</span> <span class="val" id="detailPos">—</span></div>
             </div>
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
@@ -2883,7 +2883,7 @@
                     </div>
                     <div class="cargo-row2">
                         <span class="cargo-size" title="长×宽×高">${c.sx}×${c.sz}×${c.sy}</span>
-                        <span class="cargo-pos">(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})</span>
+                        <span class="cargo-pos" title="左下后角坐标（X=长, Y=高, Z=宽）">(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})</span>
                     </div>
                     <div class="cargo-actions">
                         <span class="cargo-edit" data-index="${idx}" title="编辑货物">✏️</span>
@@ -3119,10 +3119,15 @@
             cargo.sz = sz;
             cargo.color = color;
 
-            // 如果尺寸变化，重新布局
+            // 如果尺寸变化，保持位置不变，仅做边界 clamp
             if (oldSx !== sx || oldSy !== sy || oldSz !== sz) {
-                // 重新布局所有货物
-                autoLayout(state.cargos);
+                const { l, w, h } = state.container;
+                if (cargo.px + cargo.sx > l) cargo.px = l - cargo.sx;
+                if (cargo.py + cargo.sy > h) cargo.py = h - cargo.sy;
+                if (cargo.pz + cargo.sz > w) cargo.pz = w - cargo.sz;
+                if (cargo.px < 0) cargo.px = 0;
+                if (cargo.py < 0) cargo.py = 0;
+                if (cargo.pz < 0) cargo.pz = 0;
             }
 
             closeEditModal();
@@ -3480,6 +3485,36 @@
                     if (newPz + c.sz > w) newPz = w - c.sz;
                     if (newPz < c.pz) {
                         c.pz = newPz;
+                        moved = true;
+                    }
+                }
+            }
+
+            // ── Phase 3: Y 方向跌落（所有货物落到地面或下方货物顶部） ──
+            moved = true;
+            iter = 0;
+            while (moved && iter < MAX_ITER) {
+                moved = false;
+                iter++;
+                const order = cargos.map((c, i) => i)
+                    .sort((a, b) => (cargos[b].py) - (cargos[a].py));
+                for (const idx of order) {
+                    const c = cargos[idx];
+                    let maxBlockY = 0;
+                    for (let j = 0; j < cargos.length; j++) {
+                        if (j === idx) continue;
+                        const o = cargos[j];
+                        const xOverlap = c.px < o.px + o.sx && c.px + c.sx > o.px;
+                        const zOverlap = c.pz < o.pz + o.sz && c.pz + c.sz > o.pz;
+                        const isBelow = (o.py + o.sy) <= c.py;
+                        if (xOverlap && zOverlap && isBelow) {
+                            maxBlockY = Math.max(maxBlockY, o.py + o.sy);
+                        }
+                    }
+                    let newPy = Math.max(maxBlockY, 0);
+                    if (newPy + c.sy > h) newPy = h - c.sy;
+                    if (newPy < c.py) {
+                        c.py = newPy;
                         moved = true;
                     }
                 }
@@ -4471,6 +4506,21 @@
             loadCargosFromText(text);
         });
 
+        // 阻止 cargoInput 的 keydown 事件冒泡到文档快捷键监听器
+        cargoInput.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+        });
+
+        // 同样阻止编辑弹窗内输入框的 keydown 冒泡
+        [editName, editSize, editColor].forEach(el => {
+            el.addEventListener('keydown', (e) => {
+                // 只阻止操作快捷键，保留 Enter/Escape 的弹窗逻辑
+                if (['Delete', 'Backspace', 'r', 'R', 'z', 'Z', 'y', 'Y', 's', 'S'].includes(e.key)) {
+                    e.stopPropagation();
+                }
+            });
+        });
+
         $('#closeImportBtn').addEventListener('click', () => {
             $('#importCargoPanel').style.display = 'none';
         });
@@ -4782,6 +4832,11 @@
         // ============================================================
         document.addEventListener('keydown', (e) => {
             if (editModal.classList.contains('active')) return;
+
+            // 焦点在输入控件中时不触发操作快捷键
+            const target = e.target;
+            const tag = target ? target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
             // Escape：取消选中
             if (e.key === 'Escape') {
