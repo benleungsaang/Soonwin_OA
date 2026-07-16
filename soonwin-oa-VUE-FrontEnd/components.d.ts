@@ -76,6 +76,7 @@ declare module 'vue' {
     JsonImportExport: typeof import('./src/components/JsonImportExport.vue')['default']
     LazyImage: typeof import('./src/components/LazyImage.vue')['default']
     QuotationTempPreview: typeof import('./src/components/QuotationTempPreview.vue')['default']
+    RichInput: typeof import('./src/components/RichInput.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     TaskCard: typeof import('./src/components/TaskCard.vue')['default']

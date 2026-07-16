@@ -1,0 +1,268 @@
+# RichInput 可组合输入框组件 — 设计规范
+
+## 设计目标
+
+各模块输入框（文本 + emoji + 图片上传 + 粘贴检测）统一为一个可组合组件，
+通过 props 选配功能，各模块仅需注入上传函数和样式覆盖。
+
+---
+
+## 一、Props（输入参数）
+
+```typescript
+interface RichInputProps {
+  // ========== v-model ==========
+  modelValue: string
+
+  // ========== 文本配置 ==========
+  placeholder?: string          // 占位文字，默认 ''
+  maxlength?: number            // 最大字符数，默认不限制
+  rows?: number                 // textarea 行数，默认 3
+  inputType?: 'input' | 'textarea'  // 输入框类型，默认 'textarea'
+  readonly?: boolean            // 只读
+  disabled?: boolean            // 禁用
+
+  // ========== 功能选配 ==========
+  features?: {
+    emoji?: boolean     // 是否启用 emoji 按钮，默认 false
+    image?: boolean     // 是否启用图片上传按钮，默认 false
+    paste?: boolean     // 是否检测粘贴图片，默认 false
+  }
+
+  // ========== 图片上传配置（features.image 或 features.paste 为 true 时必填） ==========
+  upload?: {
+    api: UploadApi              // 上传函数（各模块注入，控制存储路径）
+    maxSizeMB?: number          // 单文件大小限制，默认 5
+    accept?: string             // 接受文件类型，默认 'image/*'
+  }
+
+  // ========== 样式适配 ==========
+  size?: 'small' | 'default'    // 尺寸，默认 'default'
+  toolbar?: 'none' | 'bottom'   // 工具栏位置，默认 'bottom'
+  customClass?: string          // 附加 CSS class（业务层覆盖用）
+}
+```
+
+---
+
+## 二、标准化返回类型
+
+```typescript
+/** 上传函数签名——由各业务模块实现，控制存储路径 */
+type UploadApi = (file: File) => Promise<UploadResult>
+
+/** 上传结果——所有模块统一返回格式 */
+interface UploadResult {
+  url: string              // 图片访问 URL（必需）
+  thumbnailUrl?: string    // 缩略图 URL（可选，用于列表预览）
+  path?: string            // 文件存储相对路径（可选，调试用）
+}
+```
+
+### 各模块上传路径约定
+
+不同模块的上传路径由 `UploadApi` 的实现控制：
+
+```typescript
+// Todo 模块 — 存储到 assets/TodoMedia/{sub_dir}/
+const todoUploadApi: UploadApi = async (file) => {
+  const res = await uploadTodoImage(file, 'todo')
+  return {
+    url: res.image_url,                      // todo/2026/07/xxx_display.webp
+    thumbnailUrl: res.image_url?.replace(     // todo/2026/07/xxx_thumbnail.webp
+      '_display.webp', '_thumbnail.webp'
+    ),
+  }
+}
+
+// 标记完成
+const completeUploadApi: UploadApi = async (file) => {
+  const res = await uploadTodoImage(file, 'completion')
+  return { url: res.image_url }
+}
+
+// Blog 模块 — 存储到 assets/PostsMedia/{date}/
+const blogUploadApi: UploadApi = async (file) => {
+  const res = await uploadSingleFile(file)
+  return {
+    url: res.display_path,      // PostsMedia/2026/07/xxx_display.webp
+    thumbnailUrl: res.thumbnail_path,
+  }
+}
+
+// 订单模块 — 存储到 assets/OrderFiles/{order_id}/
+const orderUploadApi: UploadApi = async (file) => {
+  const res = await uploadOrderFile(file, orderId)
+  return { url: res.path }
+}
+
+// 存储路径映射表（仅参考，实际由 UploadApi 决定）：
+// ─────────────────────────────────
+// Todo       → assets/TodoMedia/{sub_dir}/
+// Blog       → assets/PostsMedia/{date}/
+// Order      → assets/OrderFiles/{order_id}/
+// Machine    → assets/MachinePhoto/{date}/
+// Inquiry    → assets/InquiryFiles/{communication_id}/
+```
+
+---
+
+## 三、Events（输出参数）
+
+```typescript
+// v-model
+@update:modelValue(value: string)
+
+// Emoji
+@emoji-select(emoji: string)     // emoji 被选中时的 unicode
+
+// Image
+@image-uploaded(result: {        // 图片上传成功（url 已拿到）
+  url: string
+  thumbnailUrl?: string
+})
+@image-error(error: Error)       // 图片上传失败
+
+// Paste
+@paste-image(file: File)         // 检测到粘贴图片（父组件可接管处理）
+```
+
+---
+
+## 四、Slots
+
+```vue
+<!-- 工具栏扩展区：在 emoji/image 图标之间插入自定义按钮 -->
+<slot name="toolbar-extra" />
+
+<!-- 图片预览条下方扩展 -->
+<slot name="preview-extra" />
+```
+
+---
+
+## 五、Expose（父组件可调用的方法）
+
+```typescript
+interface RichInputExpose {
+  focus(): void
+  blur(): void
+  reset(): void                          // 清空文本和图片
+  triggerImageUpload(): void             // 手动触发文件选择
+}
+```
+
+---
+
+## 六、内部架构
+
+```
+RichInput
+├── template
+│   ├── input / textarea  ← v-model
+│   ├── toolbar（可选）
+│   │   ├── emoji button（可选）
+│   │   ├── <slot name="toolbar-extra" />
+│   │   ├── image button（可选）
+│   │   └── emoji-picker 弹出层
+│   └── image preview bar（可选）
+│       ├── 图片缩略图
+│       ├── "已上传" 标签
+│       ├── 移除按钮
+│       └── <slot name="preview-extra" />
+│
+├── script
+│   ├── emoji: emoji-picker-element + 光标插入 + 外部点击关闭
+│   ├── image: file input → uploadApi → preview bar
+│   ├── paste: @paste → clipboardData.items → getAsFile → uploadApi
+│   └── expose: focus, blur, reset, triggerImageUpload
+│
+└── style（scoped + 可覆盖）
+    ├── 基础样式（尺寸、间距、颜色中性）
+    └── customClass 支持业务覆盖
+```
+
+---
+
+## 七、使用示例
+
+### 示例 1：Todo 创建任务（全配）
+
+```vue
+<RichInput
+  v-model="note"
+  placeholder="备注内容…"
+  input-type="textarea"
+  :rows="3"
+  :maxlength="500"
+  :features="{ emoji: true, image: true, paste: true }"
+  :upload="{ api: todoUploadApi }"
+  size="default"
+  toolbar="bottom"
+  @image-uploaded="url => formImageUrl = url"
+/>
+```
+
+### 示例 2：评论区（仅 emoji）
+
+```vue
+<RichInput
+  v-model="comment"
+  placeholder="写评论…"
+  input-type="input"
+  :features="{ emoji: true }"
+  size="small"
+/>
+```
+
+### 示例 3：订单备注（仅粘贴图片）
+
+```vue
+<RichInput
+  v-model="remark"
+  placeholder="备注（支持 Ctrl+V 粘贴图片）"
+  input-type="textarea"
+  :features="{ paste: true }"
+  :upload="{ api: orderUploadApi }"
+  size="default"
+/>
+```
+
+### 示例 4：Blog 发布（两阶段上传）
+
+```vue
+<RichInput
+  v-model="content"
+  placeholder="分享你的想法…"
+  :features="{ emoji: true, image: true, paste: true }"
+  :upload="{ api: blogUploadApi }"
+  @image-uploaded="cacheUploadResult"
+/>
+```
+
+---
+
+## 八、样式覆盖指南
+
+组件提供中性基础样式，各模块通过两种方式做视觉适配：
+
+### 方式 1：customClass
+
+```vue
+<RichInput custom-class="todo-input" :upload="{ api: todoUploadApi }" />
+```
+
+```css
+.todo-input .ri-textarea { /* 覆盖 textarea 样式 */ }
+.todo-input .ri-toolbar { /* 覆盖工具栏样式 */ }
+```
+
+### 方式 2：CSS 变量（后续扩展）
+
+预留 CSS 变量体系，未来可按需引入：
+```
+--ri-bg: #f3f4f6
+--ri-border-color: #d1d5db
+--ri-border-radius: 10px
+--ri-toolbar-bg: transparent
+```
