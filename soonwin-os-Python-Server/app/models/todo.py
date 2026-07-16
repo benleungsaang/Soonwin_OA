@@ -67,7 +67,8 @@ class TodoMessage(db.Model):
     todo_id = db.Column(db.Integer, db.ForeignKey('todo.id'), nullable=False, index=True)
     author_id = db.Column(db.String(20), nullable=False, default='', comment="留言人 emp_id（通常为管理员）")
     author_name = db.Column(db.String(50), nullable=False, default='管理员', comment="留言人姓名")
-    content = db.Column(db.Text, nullable=False, default='', comment="留言内容（纯文字，支持 emoji）")
+    content = db.Column(db.Text, nullable=False, default='', comment="留言内容（支持 emoji）")
+    image_url = db.Column(db.String(500), nullable=True, comment="留言附图")
     is_deleted = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
@@ -78,6 +79,7 @@ class TodoMessage(db.Model):
             'author_id': self.author_id,
             'author_name': self.author_name,
             'content': self.content,
+            'image_url': self.image_url or '',
             'is_deleted': bool(self.is_deleted),
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
         }

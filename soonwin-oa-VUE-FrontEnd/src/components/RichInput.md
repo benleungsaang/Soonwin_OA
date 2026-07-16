@@ -139,6 +139,32 @@ const orderUploadApi: UploadApi = async (file) => {
 <slot name="preview-extra" />
 ```
 
+### toolbar-extra 插槽使用示例
+
+各模块可在工具栏中插入自定义控件（与 RichInput 的 emoji/image 按钮并列）。
+
+**Todo 创建任务 — 插入日期选择和颜色指示：**
+
+```vue
+<RichInput v-model="note" :features="{ emoji: true, image: true }"
+  :upload="{ api: todoUploadApi }">
+  <template #toolbar-extra>
+    <input v-model="date" type="date" class="my-date-input" />
+    <div class="my-color-chip"></div>
+  </template>
+</RichInput>
+```
+
+**渲染结果：**
+```
+[😊] [自定义按钮A] [🖼️]    ← toolbar-extra 插在 emoji 和 image 之间
+      ↑ toolbar-extra 插槽
+```
+
+> **设计原则**：RichInput 只管理"文本输入 + emoji + 图片上传"核心功能。  
+> 各模块的自定义工具栏项（日期选择、颜色选择、标签等）通过 `toolbar-extra` 插槽注入，  
+> 两者互不干扰。
+
 ---
 
 ## 五、Expose（父组件可调用的方法）

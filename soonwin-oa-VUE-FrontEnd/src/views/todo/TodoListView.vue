@@ -193,6 +193,9 @@
               <div v-for="msg in detailMessages" :key="msg.id" class="a1-bubble" :class="msg.author_id===currentEmpId?'a1-self':'a1-other'">
                 <div class="a1-bubble-author">{{ msg.author_name || msg.author_id }}</div>
                 <div class="a1-bubble-text">{{ msg.content }}</div>
+                <div v-if="msg.image_url" class="a1-bubble-img">
+                  <img :src="resolveAssetUrl(msg.image_url)" class="d-thumb img-border" style="cursor:pointer" @click.stop="openImageViewer(msg.image_url)" />
+                </div>
                 <div class="a1-bubble-time">{{ msg.created_at }}</div>
               </div>
             </div>
@@ -202,9 +205,13 @@
               <div class="a1d-actions">
                 <button type="button" class="a1d-action-btn" title="插入 emoji" @click.stop="toggleMsgEmoji"><span style="font-size:18px">😊</span></button>
                 <button type="button" class="a1d-action-btn" title="上传图片" @click="handleMsgImageUpload"><span style="font-size:18px">🖼️</span></button>
-                <button class="a1d-send-btn" :disabled="!msgInput.trim()" @click="sendMessage">
+                <button class="a1d-send-btn" :disabled="!msgInput.trim() && !msgImageUrl" @click="sendMessage">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                 </button>
+              </div>
+              <div v-if="msgImageUrl" class="a1d-msg-img">
+                <img :src="msgImageUrl" class="a1d-msg-img-thumb" />
+                <button class="a1d-msg-img-remove" @click="msgImageUrl=''">✕</button>
               </div>
               <div v-show="msgEmojiVisible" class="a1d-emoji-popup" @click.stop>
                 <emoji-picker class="a1d-emoji-picker" @emoji-click="insertMsgEmoji" />
@@ -212,11 +219,10 @@
             </div>
           </div>
 
-          <!-- 块 3：完成情况（已删除条目不显示） -->
-          <div v-if="!viewingTodo?.is_deleted" class="a1b-block a1b-block-supp">
+          <!-- 块 3：完成情况（仅已完成且未删除时显示） -->
+          <div v-if="viewingTodo?.status === 'completed' && !viewingTodo?.is_deleted" class="a1b-block a1b-block-supp">
             <div class="a1b-block-title">✅ 完成情况</div>
-            <div v-if="viewingTodo?.status === 'completed'" class="a1b-supp-text">{{ viewingTodo.completion_note || '未填写完成说明' }}</div>
-            <div v-else class="a1b-supp-text a1b-supp-empty">任务尚未完成，暂无补充信息</div>
+            <div class="a1b-supp-text">{{ viewingTodo.completion_note || '未填写完成说明' }}</div>
             <div v-if="viewingTodo?.completion_image_url" class="a1b-supp-img">
               <img :src="resolveAssetUrl(viewingTodo.completion_image_url)" class="d-thumb da-thumb img-border" style="object-fit:cover" @click.stop="openImageViewer(viewingTodo!.completion_image_url!)" />
             </div>
@@ -240,6 +246,7 @@
         </div>
         <div class="ntc-sep"></div>
         <RichInput
+          :key="'form-' + (formEditId || 'new') + '-' + formVisible"
           v-model="formContent"
           custom-class="todo-form-rich"
           placeholder="备注内容…支持 emoji 📝"
@@ -274,6 +281,7 @@
       <el-alert title="完成时必须填写文字或图片（至少一项）" type="info" :closable="false" style="margin-bottom:14px" />
       <div class="complete-body">
         <RichInput
+          :key="'complete-' + completeDialogVisible"
           v-model="completeForm.completion_note"
           custom-class="todo-complete-rich"
           placeholder="简单说明完成情况…"
@@ -397,16 +405,24 @@ const allUsers = computed(() => {
 // emoji picker 状态
 const emojiVisible = reactive<Record<string, boolean>>({ content: false, note: false, completion: false, message: false })
 
-// RichInput 上传 API
+// RichInput 上传 API（返回完整可访问路径）
+function resolveMediaUrl(rawUrl: string): { url: string; thumbnailUrl: string } {
+  const prefix = '/assets/TodoMedia/'
+  const url = prefix + rawUrl
+  const thumbnailUrl = rawUrl.includes('_display.webp')
+    ? prefix + rawUrl.replace('_display.webp', '_thumbnail.webp')
+    : url
+  return { url, thumbnailUrl }
+}
 const todoUploadApi: RichInputUploadApi = async (file) => {
   const res: any = await uploadTodoImage(file, 'todo')
-  const url = res?.image_url || res?.data?.image_url
-  return { url: url || '' }
+  const raw = res?.image_url || res?.data?.image_url
+  return raw ? resolveMediaUrl(raw) : { url: '' }
 }
 const completeUploadApi: RichInputUploadApi = async (file) => {
   const res: any = await uploadTodoImage(file, 'completion')
-  const url = res?.image_url || res?.data?.image_url
-  return { url: url || '' }
+  const raw = res?.image_url || res?.data?.image_url
+  return raw ? resolveMediaUrl(raw) : { url: '' }
 }
 
 // ============================================================
@@ -692,6 +708,8 @@ function switchViewToEdit() {
 const msgInput = ref('')
 const msgInputRef = ref<HTMLInputElement | null>(null)
 const msgEmojiVisible = ref(false)
+const msgImageUrl = ref('')
+const msgFileInputRef = ref<HTMLInputElement | null>(null)
 
 function toggleMsgEmoji() { msgEmojiVisible.value = !msgEmojiVisible.value }
 
@@ -709,20 +727,32 @@ function insertMsgEmoji(event: any) {
 }
 
 async function sendMessage() {
-  if (!msgInput.value.trim() || !viewingTodo.value) return
+  if ((!msgInput.value.trim() && !msgImageUrl.value) || !viewingTodo.value) return
   try {
-    await addTodoMessage(viewingTodo.value.id, msgInput.value.trim())
-    // 重新加载留言
+    await addTodoMessage(viewingTodo.value.id, msgInput.value.trim(), msgImageUrl.value || undefined)
     const res: any = await getTodo(viewingTodo.value.id)
     if (res?.messages) detailMessages.value = res.messages
     msgInput.value = ''
+    msgImageUrl.value = ''
   } catch (e: any) {
     ElMessage.error(e?.message || '发送失败')
   }
 }
 
 function handleMsgImageUpload() {
-  ElMessage.info('图片上传功能已在主流程中支持（留言图片后续可扩展）')
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = async (e: any) => {
+    const file = e.target?.files?.[0]
+    if (!file || !beforeImageUpload(file)) return
+    try {
+      const res: any = await uploadTodoImage(file, 'todo')
+      const url = res?.image_url || res?.data?.image_url
+      if (url) { msgImageUrl.value = '/assets/TodoMedia/' + url; ElMessage.success('图片已上传') }
+    } catch (err: any) { ElMessage.error(err?.message || '上传失败') }
+  }
+  input.click()
 }
 
 // ============================================================
@@ -1187,6 +1217,8 @@ onBeforeUnmount(() => {
 .a1-self .a1-bubble-author { color: #6b7280; }
 .a1-bubble-text { font-size: 14px; color: #1f2937; line-height: 1.6; word-break: break-word; }
 .a1-bubble-time { font-size: 11px; color: #9ca3af; margin-top: 4px; text-align: right; }
+.a1-bubble-img { margin-top: 6px; }
+.a1-bubble-img img { max-width: 160px; max-height: 100px; border-radius: 6px; }
 
 /* 行内输入 */
 .a1d-inline-input { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; position: relative; }
@@ -1201,6 +1233,9 @@ onBeforeUnmount(() => {
 .a1d-send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
 .a1d-emoji-popup { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 200; }
 .a1d-emoji-picker { height: 220px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); --num-columns:8; --border-radius:10px; }
+.a1d-msg-img { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 8px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb; }
+.a1d-msg-img-thumb { width: 36px; height: 27px; border-radius: 4px; object-fit: cover; }
+.a1d-msg-img-remove { font-size: 12px; color: #ef4444; background: none; border: none; cursor: pointer; padding: 2px 4px; }
 
 /* 补充块 */
 .a1b-supp-text { font-size: 14px; color: #374151; line-height: 1.6; word-break: break-word; }

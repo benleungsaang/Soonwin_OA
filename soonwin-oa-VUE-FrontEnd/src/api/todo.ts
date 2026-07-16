@@ -38,6 +38,7 @@ export interface TodoMessage {
   author_id: string
   author_name: string
   content: string
+  image_url: string
   is_deleted: boolean
   created_at: string
 }
@@ -138,8 +139,8 @@ export function getTodoMessages(todoId: number) {
 }
 
 /** 添加留言（管理员或任务创建人可调用） */
-export function addTodoMessage(todoId: number, content: string) {
-  return request.post(`/api/todos/${todoId}/messages`, { content })
+export function addTodoMessage(todoId: number, content: string, image_url?: string) {
+  return request.post(`/api/todos/${todoId}/messages`, { content, image_url })
 }
 
 /** 管理员删除留言 */

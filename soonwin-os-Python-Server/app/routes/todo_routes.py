@@ -468,7 +468,7 @@ def add_message(todo_id):
 
         data = request.get_json(silent=True) or {}
         content = (data.get('content') or '').strip()
-        if not content:
+        if not content and not data.get('image_url'):
             return jsonify({'success': False, 'message': '留言内容不能为空'}), 400
 
         msg = TodoMessage(
@@ -476,6 +476,7 @@ def add_message(todo_id):
             author_id=user_id,
             author_name=_resolve_user_name(user_id, fallback='管理员'),
             content=content,
+            image_url=data.get('image_url') or None,
         )
         db.session.add(msg)
         db.session.commit()
