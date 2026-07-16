@@ -133,6 +133,22 @@ soonwin-os-Python-Server/
 - 实现前端功能可新建布局，未经要求不修改原有布局/样式
 - 创建变量/方法/函数前，先确认当前文件无重复定义
 
+### 输入框组件标准（RichInput）
+
+新模块需要输入框（文本 + emoji + 图片上传 + 粘贴检测）时，**优先使用** `src/components/RichInput.vue`，而非重新实现。
+
+```vue
+<RichInput v-model="note" :features="{ emoji: true, image: true, paste: true }"
+  :upload="{ api: myUploadApi }" />
+```
+
+- `features: { emoji?, image?, paste? }` — 选配功能
+- `upload: { api: (file) => Promise<{url, thumbnailUrl?}>, maxSizeMB?, accept? }` — 上传函数由各模块注入（控制存储路径）
+- `size: 'small' | 'default'`、`toolbar: 'none' | 'bottom'`、`customClass`
+- Events: `@image-uploaded`, `@emoji-select`, `@paste-image`, `@image-error`
+- Expose: `focus, blur, reset, triggerImageUpload, getImageUrl`
+- 完整文档见 `src/components/RichInput.md`
+
 ### 新增功能模块时的权限配置
 
 ⚠️ 新增路由权限需同步修改 3 个文件（代码中搜索 `同步修改清单` 找具体位置）：
