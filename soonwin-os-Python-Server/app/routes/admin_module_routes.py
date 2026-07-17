@@ -1,6 +1,9 @@
-"""管理员模块可见性相关路由
+"""模块可见性相关路由
 
-仅管理员可调用，用于临时隐藏/恢复主页上的功能模块菜单项。
+- GET  /api/admin/module-visibility        — 任何已登录用户可读
+- POST /api/admin/module-visibility/batch  — 仅管理员可写
+
+用于临时隐藏/恢复主页上的功能模块菜单项（全局生效）。
 模块可见性配置存储在 module_visibility 表中。
 """
 from flask import Blueprint, request, jsonify
@@ -36,16 +39,23 @@ def _require_admin():
 
 @admin_module_bp.route('/module-visibility', methods=['GET'])
 def get_module_visibility():
-    """获取所有已配置的模块可见性（仅 admin）
+    """获取所有已配置的模块可见性（任何已登录用户可读）
 
     返回数据库中所有有记录的模块的 hidden 状态。
     数据库里没有记录的模块默认显示（前端在前端处理），
     所以这里只返回已有记录项。
+
+    注意：GET 仅需登录（全员读），POST 批量修改才需 admin。
     """
     try:
-        ok, err = _require_admin()
-        if not ok:
-            return err
+        # 只需登录即可读取（非 admin 用户也需要知道哪些模块被隐藏）
+        user_role = get_user_role_from_token()
+        if not user_role:
+            return jsonify({
+                "code": 401,
+                "msg": "未登录或登录已过期",
+                "data": None
+            }), 401
 
         records = ModuleVisibility.query.all()
         # 这里返回 camelCase key + 隐藏状态值

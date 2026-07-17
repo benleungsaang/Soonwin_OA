@@ -319,9 +319,9 @@ const moduleGroups = ref<Array<{ key: string; title: string; modules: Array<{ ca
   { key: 'other',    title: '其它功能', modules: [] },
 ]);
 
-/** 进入主页时从后端拉一次"已被隐藏的模块"列表 */
+/** 进入主页时从后端拉一次"已被隐藏的模块"列表（所有已登录用户都需加载） */
 async function loadModuleVisibility() {
-  if (!hasToken.value || userRole.value !== 'admin') return;
+  if (!hasToken.value) return;
   try {
     const request = (await import('@/utils/request')).default;
     const data: any = await request.get('/api/admin/module-visibility');
@@ -553,7 +553,7 @@ onMounted(async () => {
   // 设置权限已加载状态，以确保菜单项正确显示
   permissionsLoaded.value = true;
 
-  // 加载模块可见性配置（admin only；未登录或非 admin 不发请求）
+  // 加载模块可见性配置（所有已登录用户都需要读取被隐藏的模块列表）
   await loadModuleVisibility();
 });
 
