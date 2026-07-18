@@ -51,23 +51,33 @@
         <el-table-column prop="author_name" label="作者" min-width="100" />
         <el-table-column prop="created_at" label="创建时间" min-width="160" />
         <el-table-column prop="updated_at" label="更新时间" min-width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" :icon="Edit" @click="openEditor(row)">
-              编辑
-            </el-button>
-            <el-button size="small" :icon="DocumentCopy" @click="openSaveAsDialog(row)">
-              复制一份
-            </el-button>
-            <el-button
-              v-if="row.is_owner || isAdmin"
-              size="small"
-              type="danger"
-              :icon="Delete"
-              @click="handleDelete(row)"
-            >
-              删除
-            </el-button>
+            <el-dropdown trigger="click" @command="(cmd) => handleTableCommand(cmd, row)">
+              <el-button size="small" :icon="MoreFilled" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit" :icon="Edit" style="color: #409eff">
+                    编辑排布
+                  </el-dropdown-item>
+                  <el-dropdown-item command="rename" :icon="EditPen" style="color: #e6a23c">
+                    修改方案名
+                  </el-dropdown-item>
+                  <el-dropdown-item command="copy" :icon="DocumentCopy">
+                    复制一份
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    v-if="row.is_owner || isAdmin"
+                    command="delete"
+                    :icon="Delete"
+                    divided
+                    style="color: #f56c6c"
+                  >
+                    删除
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -132,6 +142,27 @@
         <el-button type="primary" :loading="savingAs" @click="handleSaveAs">创建并打开</el-button>
       </template>
     </el-dialog>
+
+    <!-- 修改方案名弹窗 -->
+    <el-dialog v-model="renameDialogVisible" title="修改方案名" width="440px" :close-on-click-modal="false">
+      <el-form :model="renameForm" label-width="80px" @submit.prevent>
+        <el-form-item label="原方案名">
+          <span>{{ renameForm.oldName }}</span>
+        </el-form-item>
+        <el-form-item label="新方案名" required>
+          <el-input
+            v-model="renameForm.newName"
+            maxlength="100"
+            show-word-limit
+            @keyup.enter="handleRename"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="renameDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="renaming" @click="handleRename">确认修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -139,13 +170,14 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Refresh, Edit, Delete, DocumentCopy, Search
+  Plus, Refresh, Edit, Delete, DocumentCopy, Search, MoreFilled, EditPen
 } from '@element-plus/icons-vue'
 import CommonHeader from '@/components/CommonHeader.vue'
 import {
   listContainerLayouts,
   getContainerLayout,
   createContainerLayout,
+  updateContainerLayout,
   deleteContainerLayout,
   type ContainerLayout,
 } from '@/api/container'
@@ -272,6 +304,66 @@ async function handleSaveAs() {
     console.error('saveAs error:', e)
   } finally {
     savingAs.value = false
+  }
+}
+
+// ========== 下拉菜单命令分发 ==========
+function handleTableCommand(cmd: string, row: ContainerLayout) {
+  switch (cmd) {
+    case 'edit':
+      openEditor(row)
+      break
+    case 'rename':
+      openRenameDialog(row)
+      break
+    case 'copy':
+      openSaveAsDialog(row)
+      break
+    case 'delete':
+      handleDelete(row)
+      break
+  }
+}
+
+// ========== 修改方案名 ==========
+const renameDialogVisible = ref(false)
+const renaming = ref(false)
+const renameForm = ref({
+  id: 0,
+  oldName: '',
+  newName: '',
+})
+
+function openRenameDialog(row: ContainerLayout) {
+  renameForm.value = {
+    id: row.id,
+    oldName: row.name,
+    newName: row.name,
+  }
+  renameDialogVisible.value = true
+}
+
+async function handleRename() {
+  const newName = renameForm.value.newName.trim()
+  if (!newName) {
+    ElMessage.warning('请输入新方案名')
+    return
+  }
+  if (newName === renameForm.value.oldName) {
+    ElMessage.info('方案名未变更')
+    renameDialogVisible.value = false
+    return
+  }
+  renaming.value = true
+  try {
+    await updateContainerLayout(renameForm.value.id, { name: newName })
+    ElMessage.success('方案名已修改')
+    renameDialogVisible.value = false
+    fetchList()
+  } catch (e: any) {
+    console.error('rename error:', e)
+  } finally {
+    renaming.value = false
   }
 }
 
