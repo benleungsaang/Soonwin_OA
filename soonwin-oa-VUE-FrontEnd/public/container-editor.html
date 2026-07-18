@@ -3119,8 +3119,11 @@
             cargo.sz = sz;
             cargo.color = color;
 
-            // 如果尺寸变化，保持位置不变，仅做边界 clamp
+            // 如果尺寸变化，以当前视觉中心为基准等量缩放，保持视觉位置不变
             if (oldSx !== sx || oldSy !== sy || oldSz !== sz) {
+                cargo.px += (oldSx - sx) / 2;
+                cargo.py += (oldSy - sy) / 2;
+                cargo.pz += (oldSz - sz) / 2;
                 const { l, w, h } = state.container;
                 if (cargo.px + cargo.sx > l) cargo.px = l - cargo.sx;
                 if (cargo.py + cargo.sy > h) cargo.py = h - cargo.sy;
@@ -4559,15 +4562,37 @@
                     if (!state.cargos.length) { alert('当前没有货物'); return; }
                     const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
                     const text = lines.join('\n');
-                    const oldVal = cargoInput.value;
-                    cargoInput.value = text;
-                    cargoInput.select();
-                    document.execCommand('copy');
-                    cargoInput.value = oldVal;
-                    alert('✅ 已复制到剪贴板');
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            alert('✅ 已复制到剪贴板');
+                        }).catch(() => {
+                            alert('复制失败，请手动复制');
+                        });
+                    } else {
+                        fallbackCopy(text);
+                    }
                 }
             });
         });
+
+        // 回退方案：临时创建可见 textarea 执行 document.execCommand('copy')
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                alert('✅ 已复制到剪贴板');
+            } catch {
+                alert('复制失败，请手动复制');
+            }
+            document.body.removeChild(ta);
+        }
 
         document.addEventListener('click', () => {
             if (cargoActionMenu.style.display !== 'none') {
