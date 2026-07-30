@@ -37,9 +37,13 @@ class Todo(db.Model):
         cascade='all, delete-orphan',
         order_by='TodoMessage.created_at.asc()'
     )
+    visibilities = db.relationship(
+        'TodoVisibility', backref='todo', lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
 
-    def to_dict(self, include_unread_count: int = 0):
-        return {
+    def to_dict(self, include_unread_count: int = 0, include_visibilities: bool = False):
+        data = {
             'id': self.id,
             'author_id': self.author_id,
             'author_name': self.author_name,
@@ -54,9 +58,13 @@ class Todo(db.Model):
             'completed_at': self.completed_at.strftime('%Y-%m-%d %H:%M:%S') if self.completed_at else None,
             'is_deleted': bool(self.is_deleted),
             'unread_count': include_unread_count,
+            'shared_count': self.visibilities.count(),
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
         }
+        if include_visibilities:
+            data['visible_to'] = [v.user_id for v in self.visibilities]
+        return data
 
 
 class TodoMessage(db.Model):

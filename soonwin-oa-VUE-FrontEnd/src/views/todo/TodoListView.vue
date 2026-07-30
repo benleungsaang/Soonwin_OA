@@ -125,6 +125,8 @@
               <span class="item-right-group">
                 <!-- 作者 -->
                 <span class="author-pill">{{ todo.author_name || todo.author_id }}</span>
+                <!-- 共享徽标 -->
+                <span v-if="isAdmin && todo.shared_count && todo.shared_count > 0" class="shared-badge" :title="`已设置可见性（${todo.shared_count} 人）`" @click.stop="openVisibilityDialog(todo)">👥</span>
                 <!-- 未读红点 -->
                 <span v-if="todo.unread_count > 0" class="unread-dot" :title="`${todo.unread_count} 条新留言`" @click.stop="openMessagesDialog(todo.id)">{{ todo.unread_count }}</span>
                 <!-- 三点菜单 -->
@@ -141,6 +143,10 @@
                     <button class="menu-btn" @click="openEditDialog(todo); closeMenu()">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                       <span>修改内容</span>
+                    </button>
+                    <button v-if="isAdmin" class="menu-btn" @click="openVisibilityDialog(todo); closeMenu()">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      <span>可见性</span>
                     </button>
                     <button v-if="canModify(todo)" class="menu-btn danger" @click="onDelete(todo); closeMenu()">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -336,6 +342,32 @@
       </template>
     </el-dialog>
 
+    <!-- ============ 可见性设置弹窗（仅管理员） ============ -->
+    <el-dialog v-model="visibilityDialogVisible" title="设置可见性" width="480px" top="10vh" @closed="visibilitySelected=[]">
+      <div class="visibility-dialog-inner">
+        <p class="vis-hint">选择可查看此任务的员工。留空则仅<b>创建人</b>和<b>管理员</b>可见。</p>
+        <el-select
+          v-model="visibilitySelected"
+          multiple
+          filterable
+          placeholder="搜索并选择员工…"
+          style="width:100%"
+          :loading="visibilitySaving"
+        >
+          <el-option
+            v-for="e in allEmployees"
+            :key="e.emp_id"
+            :label="`${e.name}（${e.emp_id}）`"
+            :value="e.emp_id"
+          />
+        </el-select>
+      </div>
+      <template #footer>
+        <el-button @click="visibilityDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="visibilitySaving" @click="confirmVisibility">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- ============ 图片灯箱（滚轮缩放 + 拖动 + 点击空白关闭） ============ -->
     <el-image-viewer v-if="imageViewerVisible" hide-on-click-modal :url-list="[resolveAssetUrl(imageViewerUrl)]" @close="imageViewerVisible=false" />
   </div>
@@ -354,6 +386,7 @@ import {
   getTodoMessages, addTodoMessage, deleteTodoMessage,
   getTodoNotifications, clearTodoNotifications,
   getDeletedTodos, restoreTodo, permanentDeleteTodo,
+  updateTodoVisibility, getActiveEmployees,
   type TodoItem, type TodoMessage,
 } from '@/api/todo'
 import { getCurrentUserInfo, getCurrentUserEmpId } from '@/utils/authUtils'
@@ -380,6 +413,13 @@ const imageViewerUrl = ref('')
 const selectedUserId = ref('')
 const deletedTodos = ref<TodoItem[]>([])
 const deletedCount = ref(0)
+
+// 可见性设置弹窗（仅管理员）
+const visibilityDialogVisible = ref(false)
+const visibilityTodoId = ref<number | null>(null)
+const visibilitySelected = ref<string[]>([])
+const visibilitySaving = ref(false)
+const allEmployees = ref<Array<{ emp_id: string; name: string }>>([])
 
 // 用户筛选后的回收站条目
 const filteredDeleted = computed(() => {
@@ -658,6 +698,43 @@ async function onUncomplete(todo: TodoItem) {
     ElMessage.success('已撤销')
     await loadTodos()
   } catch { /* cancel */ }
+}
+
+// ============================================================
+// 可见性设置（仅管理员）
+// ============================================================
+async function openVisibilityDialog(todo: TodoItem) {
+  visibilityTodoId.value = todo.id
+  // 加载已激活员工列表（首次打开时）
+  if (allEmployees.value.length === 0) {
+    try {
+      const res: any = await getActiveEmployees()
+      allEmployees.value = Array.isArray(res) ? res : []
+    } catch { /* silent */ }
+  }
+  // 从详情接口获取当前 visible_to
+  try {
+    const detail: any = await getTodo(todo.id)
+    visibilitySelected.value = detail?.visible_to || []
+  } catch {
+    visibilitySelected.value = []
+  }
+  visibilityDialogVisible.value = true
+}
+
+async function confirmVisibility() {
+  if (!visibilityTodoId.value) return
+  visibilitySaving.value = true
+  try {
+    await updateTodoVisibility(visibilityTodoId.value, visibilitySelected.value)
+    ElMessage.success('可见性已更新')
+    visibilityDialogVisible.value = false
+    await loadTodos()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '保存失败')
+  } finally {
+    visibilitySaving.value = false
+  }
 }
 
 // ============================================================
@@ -1397,6 +1474,18 @@ onBeforeUnmount(() => {
 .thumb-area { flex-shrink: 0; width: 56px; display: flex; align-items: center; justify-content: center; }
 .thumb-placeholder { width: 56px; height: 44px; display: block; }
 .item-thumb { display: block; }
+
+/* 共享徽标（管理员可见） */
+.shared-badge {
+  margin-left: 4px; font-size: 14px; cursor: help;
+  opacity: 0.65; transition: opacity .15s; flex-shrink: 0;
+}
+.shared-badge:hover { opacity: 1; }
+
+/* 可见性设置弹窗 */
+.visibility-dialog-inner { padding: 4px 0; }
+.vis-hint { font-size: 13px; color: #6b7280; margin: 0 0 12px; line-height: 1.6; }
+.vis-hint b { color: #374151; font-weight: 600; }
 
 </style>
 

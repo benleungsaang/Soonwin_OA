@@ -27,6 +27,8 @@ export interface TodoItem {
   completed_at: string | null
   is_deleted: boolean
   unread_count: number
+  shared_count?: number         // 被共享给多少员工（列表接口返回）
+  visible_to?: string[]         // 共享员工 emp_id 列表（仅详情接口返回）
   created_at: string
   updated_at: string
   messages?: TodoMessage[]       // 仅详情接口返回
@@ -179,4 +181,18 @@ export function restoreTodo(id: number) {
 /** 永久删除 todo（仅管理员） */
 export function permanentDeleteTodo(id: number) {
   return request.delete(`/api/todos/${id}/permanent`)
+}
+
+// ============================================================
+// 可见性（仅管理员可设置）
+// ============================================================
+
+/** 设置 todo 可见性（仅管理员），user_ids 为空数组 = 仅创建人+管理员可见 */
+export function updateTodoVisibility(id: number, user_ids: string[]) {
+  return request.put(`/api/todos/${id}/visibility`, { user_ids })
+}
+
+/** 获取已激活员工列表（仅用于可见性设置下拉） */
+export function getActiveEmployees() {
+  return request.get<Array<{ emp_id: string; name: string }>>('/api/admin/all-employees?status=active')
 }

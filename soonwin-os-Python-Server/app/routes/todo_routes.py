@@ -35,6 +35,7 @@ def _resolve_user_name(user_id: str, fallback: str = '') -> str:
         return fallback or user_id
 from app.constants.simple_permission_constants import ROUTE_TODO_MANAGE
 from app.models.todo import Todo, TodoMessage, TodoMessageRead
+from app.models.todo_visibility import TodoVisibility
 from app.models.employee import Employee
 from app.utils.upload_utils import save_uploaded_file, process_image_with_variants
 
@@ -62,11 +63,20 @@ def _is_admin(user_role: str) -> bool:
 def _build_todo_query(user_role: str, user_id: str):
     """根据用户身份构建 todo 列表查询
     - 管理员：看全部未软删
-    - 普通用户：仅看自己创建的
+    - 普通用户：仅看自己创建的 + 被共享的可见条目
     """
     q = Todo.query.filter_by(is_deleted=0)
     if not _is_admin(user_role):
-        q = q.filter(Todo.author_id == user_id)
+        own_ids = db.select(Todo.id).where(Todo.author_id == user_id)
+        shared_ids = db.select(TodoVisibility.todo_id).where(
+            TodoVisibility.user_id == user_id
+        )
+        q = q.filter(
+            db.or_(
+                Todo.id.in_(own_ids),
+                Todo.id.in_(shared_ids)
+            )
+        )
     return q
 
 
@@ -74,7 +84,13 @@ def _can_access_todo(todo: Todo, user_role: str, user_id: str) -> bool:
     """校验当前用户对单条 todo 是否有权访问"""
     if _is_admin(user_role):
         return True
-    return todo.author_id == user_id
+    if todo.author_id == user_id:
+        return True
+    # 检查是否有被共享可见性
+    vis = TodoVisibility.query.filter_by(
+        todo_id=todo.id, user_id=user_id
+    ).first()
+    return vis is not None
 
 
 def _save_todo_image(file, sub_dir: str = 'todo') -> str:
@@ -258,7 +274,7 @@ def get_todo(todo_id):
         return jsonify({
             'success': True,
             'data': {
-                **todo.to_dict(include_unread_count=unread),
+                **todo.to_dict(include_unread_count=unread, include_visibilities=True),
                 'messages': [m.to_dict() for m in messages],
             }
         })
@@ -701,4 +717,53 @@ def permanent_delete_todo(todo_id):
     except Exception as e:
         db.session.rollback()
         print(f"[todo] permanent_delete_todo 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================
+# 17. 设置可见性 PUT /api/todos/<id>/visibility（仅 admin）
+# ============================================================
+@todo_bp.route('/todos/<int:todo_id>/visibility', methods=['PUT'])
+@route_permission(ROUTE_TODO_MANAGE)
+def update_todo_visibility(todo_id):
+    """设置 todo 可见性（仅管理员可操作）
+
+    将指定 todo 共享给选中的员工（按 emp_id）。
+    清空旧记录后批量写入新记录，空数组 = 仅创建人 + 管理员可见。
+
+    Request body:
+        { "user_ids": ["E001", "E002"] }
+    """
+    try:
+        user_role = get_user_role_from_token() or ''
+        if not _is_admin(user_role):
+            return jsonify({'success': False, 'message': '仅管理员可设置可见性'}), 403
+
+        todo = Todo.query.filter_by(id=todo_id).first()
+        if not todo:
+            return jsonify({'success': False, 'message': '任务不存在'}), 404
+
+        data = request.get_json(silent=True) or {}
+        user_ids = data.get('user_ids', [])
+
+        # 校验：必须是数组
+        if not isinstance(user_ids, list):
+            return jsonify({'success': False, 'message': 'user_ids 必须是数组'}), 400
+        user_ids = [u.strip() for u in user_ids if isinstance(u, str) and u.strip()]
+
+        # 清空旧记录 + 批量插入新记录
+        TodoVisibility.query.filter_by(todo_id=todo_id).delete()
+        for uid in user_ids:
+            db.session.add(TodoVisibility(todo_id=todo_id, user_id=uid))
+
+        todo.updated_at = datetime.now()
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'data': {'visible_to': user_ids}
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"[todo] update_visibility 失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

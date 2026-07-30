@@ -810,7 +810,9 @@ def get_all_roles():
 @task_bp.route('/admin/all-employees', methods=['GET'])
 @route_permission(ROUTE_TASK_TRACK_MANAGE)
 def get_all_employees():
-    """获取所有 Employee 列表（仅管理员可见，用于可见性下拉）
+    """获取 Employee 列表（仅管理员可见，用于可见性下拉）
+
+    支持 ?status=active 过滤已激活员工，不传则返回全部。
 
     返回字段：emp_id, name（最小化数据）
     """
@@ -819,7 +821,11 @@ def get_all_employees():
         if not _is_admin(user_role):
             return jsonify({'success': False, 'message': '仅管理员可访问'}), 403
         from app.models.employee import Employee
-        emps = Employee.query.order_by(Employee.emp_id.asc()).all()
+        status_filter = (request.args.get('status') or '').strip()
+        query = Employee.query.order_by(Employee.emp_id.asc())
+        if status_filter:
+            query = query.filter(Employee.status == status_filter)
+        emps = query.all()
         return jsonify({
             'success': True,
             'data': [{'emp_id': e.emp_id, 'name': e.name} for e in emps]

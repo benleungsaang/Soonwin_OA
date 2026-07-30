@@ -182,6 +182,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const emojiBtnRef = ref<HTMLElement | null>(null)
 
 const emojiVisible = ref(false)
+const lastActiveElement = ref<HTMLElement | null>(null)  // 打开 emoji 面板前有焦点的元素
 const imagePreviewUrl = ref('')
 
 // 当前已上传的图片 URL（供 reset / 父组件查询）
@@ -209,21 +210,52 @@ function toggleEmoji() {
 
 function insertEmoji(event: any) {
   const emoji: string = event.detail.emoji.unicode
-  const el = inputRef.value
-  if (el) {
-    const start = el.selectionStart ?? text.value.length
-    const end = el.selectionEnd ?? start
+  const ownEl = inputRef.value
+  // 使用全局 focusin 追踪到的最后一个输入框（比点击 emoji 按钮时再保存更可靠，
+  // 因为 mousedown 阶段按钮已夺走焦点，click 时 document.activeElement 已不准）
+  const active = lastActiveElement.value as HTMLInputElement | HTMLTextAreaElement | null
+
+  // 检测焦点是否在外部输入框（供多输入框场景使用，如标题栏 + 内容栏）
+  const isExternalInput = active && active !== ownEl
+    && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+    && !active.closest('.rich-input')
+
+  if (isExternalInput && active) {
+    // 外部输入框有焦点 → 插入到那里（触发 input 事件同步 v-model）
+    const start = active.selectionStart ?? active.value.length
+    const end = active.selectionEnd ?? start
+    const newVal = active.value.substring(0, start) + emoji + active.value.substring(end)
+    active.value = newVal
+    // 触发 InputEvent 以同步 Vue 3 v-model（InputEvent 包含 inputType/data 元信息更可靠）
+    active.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: emoji }))
+    emit('emoji-select', emoji)
+    nextTick(() => {
+      active!.selectionStart = active!.selectionEnd = start + emoji.length
+      active!.focus()
+    })
+  } else if (ownEl) {
+    // 自己的输入框有焦点 → 插入到自己的 v-model（原行为）
+    const start = ownEl.selectionStart ?? text.value.length
+    const end = ownEl.selectionEnd ?? start
     text.value = text.value.substring(0, start) + emoji + text.value.substring(end)
     emit('emoji-select', emoji)
     nextTick(() => {
-      el.selectionStart = el.selectionEnd = start + emoji.length
-      el.focus()
+      ownEl.selectionStart = ownEl.selectionEnd = start + emoji.length
+      ownEl.focus()
     })
   } else {
     text.value += emoji
     emit('emoji-select', emoji)
   }
   emojiVisible.value = false
+}
+
+/** 全局 focusin 追踪：实时记录最后一个获得焦点的输入框 */
+function onFocusIn(e: FocusEvent) {
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    lastActiveElement.value = target
+  }
 }
 
 // ============================================================
@@ -325,10 +357,12 @@ function onDocumentClick(e: MouseEvent) {
 }
 
 onMounted(() => {
+  document.addEventListener('focusin', onFocusIn)
   document.addEventListener('click', onDocumentClick)
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('focusin', onFocusIn)
   document.removeEventListener('click', onDocumentClick)
 })
 

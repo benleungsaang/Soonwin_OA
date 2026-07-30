@@ -80,6 +80,7 @@ def create_app(port=5000):
         from .models.task_history import TaskHistory
         # 待办事项模块（todo）
         from .models.todo import Todo, TodoMessage, TodoMessageRead
+        from .models.todo_visibility import TodoVisibility
         # 模块可见性配置（管理员可在主页隐藏某些模块菜单项）
         from .models.module_visibility import ModuleVisibility
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
