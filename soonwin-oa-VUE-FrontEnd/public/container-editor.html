@@ -1086,10 +1086,10 @@
             <div class="section">
                 <div class="section-title">🚛 货柜选择</div>
                 <select id="containerTypeSelect" style="width:100%;padding:6px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:6px;font-size:13px;">
-                    <option value="20尺普柜" data-l="5890" data-w="2350" data-h="2390">20尺普柜 (5890×2350×2390)</option>
-                    <option value="40尺普柜" data-l="12030" data-w="2350" data-h="2390">40尺普柜 (12030×2350×2390)</option>
-                    <option value="40尺高柜" data-l="12030" data-w="2350" data-h="2690" selected>40尺高柜 (12030×2350×2690)</option>
-                    <option value="45尺高柜" data-l="13580" data-w="2350" data-h="2690">45尺高柜 (13580×2350×2690)</option>
+                    <option value="20尺普柜" data-l="5890" data-w="2350" data-h="2390" data-wt="26000" data-dw="2340" data-dh="2280">20尺普柜 (5890×2350×2390) 限重 26000kg 门洞 2340×2280</option>
+                    <option value="40尺普柜" data-l="12030" data-w="2350" data-h="2390" data-wt="26500" data-dw="2340" data-dh="2280">40尺普柜 (12030×2350×2390) 限重 26500kg 门洞 2340×2280</option>
+                    <option value="40尺高柜" data-l="12030" data-w="2350" data-h="2690" data-wt="26500" data-dw="2340" data-dh="2580" selected>40尺高柜 (12030×2350×2690) 限重 26500kg 门洞 2340×2580</option>
+                    <option value="45尺高柜" data-l="13580" data-w="2350" data-h="2690" data-wt="25500" data-dw="2340" data-dh="2580">45尺高柜 (13580×2350×2690) 限重 25500kg 门洞 2340×2580</option>
                     <option value="custom">自定义…</option>
                 </select>
                 <div class="custom-container" id="customContainer" style="display:none;margin-top:6px;">
@@ -1114,8 +1114,11 @@
                 <div class="stats">
                     <div class="stat-row"><span class="lbl">📦 已用体积</span><span class="val" id="usedVolume">0 mm³</span></div>
                     <div class="stat-row"><span class="lbl">🧊 总体积</span><span class="val" id="totalVolume">0 mm³</span></div>
+                    <div class="stat-row"><span class="lbl">🚪 门洞尺寸</span><span class="val" id="doorSize">2340 × 2580 mm</span></div>
                     <div class="stat-row"><span class="lbl">📊 利用率</span><span class="val" id="utilRate">0%</span></div>
                     <div class="stat-row"><span class="lbl">🔢 货物数量</span><span class="val" id="statCount">0</span></div>
+                    <div class="stat-row"><span class="lbl">⚖️ 货物总重</span><span class="val" id="totalWeight">0 kg</span></div>
+                    <div class="stat-row"><span class="lbl">⛓️ 货柜限重</span><span class="val" id="containerWeightLimit">0 kg</span></div>
                     <div class="stat-divider"><span>智能排布参考</span></div>
                     <div class="stat-row"><span class="lbl">🎯 紧密度 <em class="hint up">高更优</em></span><span class="val up" id="tightnessStat">-</span></div>
                     <div class="stat-row"><span class="lbl">🕳️ 空隙率 <em class="hint down">低更优</em></span><span class="val down" id="voidRateStat">-</span></div>
@@ -1134,7 +1137,7 @@
             <div id="importCargoPanel" style="display:none;padding:8px;background:#0d1b33;border-radius:6px;margin-top:4px;">
                 <textarea id="cargoInput"
                     style="width:100%;height:120px;max-height:120px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:6px;color:#e0e0e0;padding:8px;font-size:12px;resize:none;font-family:Consolas,monospace;line-height:1.6;"
-                    placeholder="每行一个：名称, 长*宽*高 (mm)"></textarea>
+                    placeholder="每行一个：名称, 长*宽*高 (mm), 重量kg（可选）"></textarea>
                 <div style="display:flex;gap:6px;margin-top:6px;">
                     <button class="btn btn-primary" id="loadCargoBtn" style="font-size:12px;padding:4px 12px;">📥 添加货物</button>
                     <button class="btn" id="closeImportBtn" style="font-size:12px;padding:4px 12px;">关闭</button>
@@ -1183,6 +1186,8 @@
             <div id="viewport-info">
                 <div><span class="label">货柜</span> <span class="val" id="infoContainer">40尺高柜</span></div>
                 <div><span class="label">尺寸</span> <span class="val" id="infoSize">12030 × 2350 × 2390 mm</span></div>
+                <div><span class="label">门洞</span> <span class="val" id="infoDoor">2340 × 2580 mm</span></div>
+                <div><span class="label">限重</span> <span class="val" id="infoWeightLimit">26500 kg</span></div>
                 <div><span class="label">货物数量</span> <span class="val" id="infoCargoCount">0</span></div>
             </div>
             <!-- 选中货物详情框 -->
@@ -1190,7 +1195,9 @@
                 <div><span class="label">序号</span> <span class="val name" id="detailIndex">—</span></div>
                 <div><span class="label">名称</span> <span class="val" id="detailName">—</span></div>
                 <div><span class="label">尺寸</span> <span class="val" id="detailSize">—</span></div>
+                <div><span class="label">重量</span> <span class="val" id="detailWeight">—</span></div>
                 <div><span class="label">坐标 X, Y, Z</span> <span class="val" id="detailPos">—</span></div>
+                <div id="detailDoorWarn" style="color:#ff6b6b;display:none;font-size:12px;"></div>
             </div>
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
@@ -1246,6 +1253,10 @@
             <div class="field">
                 <label>尺寸 (长 × 宽 × 高 mm)</label>
                 <input type="text" id="editSize" placeholder="例如: 1390*840*1550" />
+            </div>
+            <div class="field">
+                <label>重量 (kg, 可选)</label>
+                <input type="number" id="editWeight" min="0" step="0.1" placeholder="0" style="width:100%;padding:8px 12px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:8px;color:#fff;font-size:14px;" />
             </div>
             <div class="field">
                 <label>颜色</label>
@@ -1308,7 +1319,7 @@
         //  状态管理
         // ============================================================
         const state = {
-            container: { name: '40尺高柜', l: 12030, w: 2350, h: 2690 },
+            container: { name: '40尺高柜', l: 12030, w: 2350, h: 2690, wt: 26500, dw: 2340, dh: 2580 },
             cargos: [], // { id, name, sx, sy, sz, px, py, pz, color }
             cargoMeshes: [], // 与 cargos 同步
             selectedCargo: null,             // 主选中（最近点击的，用于详情框/列表滚动）
@@ -1402,16 +1413,22 @@
         const totalVolume = $('#totalVolume');
         const utilRate = $('#utilRate');
         const statCount = $('#statCount');
+        const totalWeight = $('#totalWeight');
+        const containerWeightLimit = $('#containerWeightLimit');
+        const doorSize = $('#doorSize');
         const tightnessStat = $('#tightnessStat');
         const maxFrontStat = $('#maxFrontStat');
         const voidRateStat = $('#voidRateStat');
         const comYStat = $('#comYStat');
         const infoContainer = $('#infoContainer');
         const infoSize = $('#infoSize');
+        const infoWeightLimit = $('#infoWeightLimit');
+        const infoDoor = $('#infoDoor');
         const infoCargoCount = $('#infoCargoCount');
         const detailName = $('#detailName');
         const detailIndex = $('#detailIndex');
         const detailSize = $('#detailSize');
+        const detailWeight = $('#detailWeight');
         const detailPos = $('#detailPos');
         const hintEl = $('#hint');
         const exportBtn = $('#exportBtn');
@@ -1491,6 +1508,7 @@
         const editModal = $('#editModal');
         const editName = $('#editName');
         const editSize = $('#editSize');
+        const editWeight = $('#editWeight');
         const editColor = $('#editColor');
         const editSaveBtn = $('#editSaveBtn');
         const editCancelBtn = $('#editCancelBtn');
@@ -1666,6 +1684,8 @@
 
             infoContainer.textContent = state.container.name;
             infoSize.textContent = `${l} × ${w} × ${h} mm`;
+            infoDoor.textContent = (state.container.dw || 0) + ' × ' + (state.container.dh || 0) + ' mm';
+            infoWeightLimit.textContent = (state.container.wt || 0) + ' kg';
         }
 
         // ============================================================
@@ -2866,6 +2886,24 @@
         // ============================================================
         //  UI 渲染
         // ============================================================
+
+        // 门洞超限检查：货物包装尺寸能否通过柜门
+        function checkDoorFit(cargo, container) {
+            const { dw, dh } = container;
+            if (!dw || !dh) return { pass: true };
+            const narrowW = Math.min(cargo.sx, cargo.sz);
+            const tooWide = narrowW > dw;
+            const tooTall = cargo.sy > dh;
+            return {
+                pass: !tooWide && !tooTall,
+                tooWide,
+                tooTall,
+                narrowW,
+                limitW: dw,
+                limitH: dh,
+            };
+        }
+
         function renderCargoList() {
             const list = cargoListEl;
             list.innerHTML = '';
@@ -2875,8 +2913,14 @@
                 if (isSelected(idx)) {
                     div.classList.add('selected');
                 }
+                const doorCheck = checkDoorFit(c, state.container);
+                const doorWarn = !doorCheck.pass;
+                const warnParts = [];
+                if (doorCheck.tooWide) warnParts.push('宽');
+                if (doorCheck.tooTall) warnParts.push('高');
                 div.innerHTML = `
                     <div class="cargo-row1">
+                        ${doorWarn ? `<span class="cargo-door-warn" title="⚠️ 超出柜门限制（宽${doorCheck.narrowW}mm > 门洞宽${doorCheck.limitW}mm${doorCheck.tooTall ? ` 或 高${c.sy}mm > 门洞高${doorCheck.limitH}mm` : ''}）" style="color:#ff6b6b;cursor:help;font-size:14px;">🚪</span>` : ''}
                         <span class="color-dot" style="background:${c.color}"></span>
                         <span class="cargo-index">#${idx + 1}</span>
                         <span class="cargo-name">${c.name}</span>
@@ -2884,6 +2928,8 @@
                     <div class="cargo-row2">
                         <span class="cargo-size" title="长×宽×高">${c.sx}×${c.sz}×${c.sy}</span>
                         <span class="cargo-pos" title="左下后角坐标（X=长, Y=高, Z=宽）">(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})</span>
+                        ${c.weight ? `<span class="cargo-weight" style="color:#ffaa44;font-size:11px;">${c.weight}kg</span>` : ''}
+                        ${doorWarn ? `<span class="cargo-door-tag" style="color:#ff6b6b;font-size:11px;font-weight:600;">⚠️超门洞${doorCheck.tooWide && doorCheck.tooTall ? '(宽+高)' : doorCheck.tooWide ? '(宽)' : '(高)'}</span>` : ''}
                     </div>
                     <div class="cargo-actions">
                         <span class="cargo-edit" data-index="${idx}" title="编辑货物">✏️</span>
@@ -2994,7 +3040,22 @@
                     detailIndex.textContent = `#${state.selectedCargo + 1}`;
                     detailName.textContent = c.name;
                     detailSize.textContent = `${c.sx} × ${c.sz} × ${c.sy} mm`;
+                    detailWeight.textContent = (c.weight || 0) + ' kg';
                     detailPos.textContent = `(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})`;
+                    // 门洞超限提示
+                    const doorChk = checkDoorFit(c, state.container);
+                    const doorWarnEl = document.getElementById('detailDoorWarn');
+                    if (doorWarnEl) {
+                        if (!doorChk.pass) {
+                            const parts = [];
+                            if (doorChk.tooWide) parts.push(`宽${doorChk.narrowW}mm > 门洞宽${doorChk.limitW}mm`);
+                            if (doorChk.tooTall) parts.push(`高${c.sy}mm > 门洞高${doorChk.limitH}mm`);
+                            doorWarnEl.textContent = '🚪 ' + parts.join('，');
+                            doorWarnEl.style.display = '';
+                        } else {
+                            doorWarnEl.style.display = 'none';
+                        }
+                    }
                 }
                 // 多选时在名称后加计数标记
                 if (selCount > 1) {
@@ -3029,14 +3090,21 @@
             const { l, w, h } = state.container;
             const totalVol = l * w * h;
             let usedVol = 0;
+            let totalWeightKg = 0;
             state.cargos.forEach(c => {
                 usedVol += c.sx * c.sy * c.sz;
+                totalWeightKg += (c.weight || 0);
             });
             const rate = totalVol > 0 ? (usedVol / totalVol * 100) : 0;
             usedVolume.textContent = formatVolume(usedVol);
             totalVolume.textContent = formatVolume(totalVol);
             utilRate.textContent = rate.toFixed(1) + '%';
             statCount.textContent = state.cargos.length;
+            totalWeight.textContent = totalWeightKg.toFixed(1) + ' kg';
+            containerWeightLimit.textContent = (state.container.wt || 0) + ' kg';
+            doorSize.textContent = (state.container.dw || 0) + ' × ' + (state.container.dh || 0) + ' mm';
+            if (infoWeightLimit) infoWeightLimit.textContent = (state.container.wt || 0) + ' kg';
+            if (infoDoor) infoDoor.textContent = (state.container.dw || 0) + ' × ' + (state.container.dh || 0) + ' mm';
 
             // 扩展指标（当前 3D 视图的实际状态）
             if (state.cargos.length > 0) {
@@ -3082,6 +3150,7 @@
             editName.value = cargo.name;
             // sx=长, sz=宽, sy=高 → 按用户语义 长*宽*高
             editSize.value = `${cargo.sx}*${cargo.sz}*${cargo.sy}`;
+            editWeight.value = cargo.weight || '';
             editColor.value = cargo.color;
             editModal.classList.add('active');
         }
@@ -3107,6 +3176,8 @@
             const sz = sizes[1];
             const sy = sizes[2];
             const color = editColor.value;
+            const weightInput = parseFloat(editWeight.value);
+            const newWeight = !isNaN(weightInput) && weightInput > 0 ? weightInput : 0;
 
             const cargo = state.cargos[idx];
             const oldSx = cargo.sx,
@@ -3117,6 +3188,7 @@
             cargo.sx = sx;
             cargo.sy = sy;
             cargo.sz = sz;
+            cargo.weight = newWeight;
             cargo.color = color;
 
             // 如果尺寸变化，以当前视觉中心为基准等量缩放，保持视觉位置不变
@@ -3171,7 +3243,9 @@
                     continue;
                 }
                 const name = parts[0].trim();
-                const sizeStr = parts[1].trim();
+                let sizeStr = parts[1].trim();
+                // 去掉尺寸后的 mm 后缀（支持 "1700*1700*1390mm" 或 "1700*1700*1390 mm"）
+                sizeStr = sizeStr.replace(/\s*mm$/i, '');
                 const sizes = sizeStr.split('*').map(s => parseFloat(s.trim()));
                 if (sizes.length !== 3 || sizes.some(isNaN)) {
                     errors.push(`第 ${lineNo} 行尺寸格式错误（需为 长*宽*高）: "${line}"`);
@@ -3188,12 +3262,23 @@
                     failedLines.push(line);
                     continue;
                 }
+                // 解析重量（可选第 3 段，如 "100kg"）
+                let weight = 0;
+                if (parts.length >= 3) {
+                    let weightStr = parts.slice(2).join(',').trim();
+                    weightStr = weightStr.replace(/kg$/i, '').trim();
+                    const parsed = parseFloat(weightStr);
+                    if (!isNaN(parsed) && parsed > 0) {
+                        weight = parsed;
+                    }
+                }
                 newCargos.push({
                     id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     name: name || `货物${state.cargos.length + 1}`,
                     sx,
                     sy,
                     sz,
+                    weight,
                     px: 0,
                     py: 0,
                     pz: 0,
@@ -3210,7 +3295,7 @@
             }
 
             if (!newCargos.length) {
-                alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm)');
+                alert('未解析到任何有效货物，请检查格式：名称, 长*宽*高 (mm), 重量kg（可选）');
                 return false;
             }
 
@@ -3879,8 +3964,8 @@
             customH.value = h;
         }
 
-        function setContainer(name, l, w, h) {
-            state.container = { name, l, w, h };
+        function setContainer(name, l, w, h, wt, dw, dh) {
+            state.container = { name, l, w, h, wt: wt || 0, dw: dw || w, dh: dh || h };
             if (state.cargos.length) {
                 // 切换货柜时保持货物已有位置不变，仅重绘场景
                 rebuildCargoMeshes();
@@ -4056,6 +4141,7 @@
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
+                    weight: c.weight || 0,
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
@@ -4113,6 +4199,7 @@
                             name: c.name,
                             sx: c.sx, sy: c.sy, sz: c.sz,
                             px: c.px, py: c.py, pz: c.pz,
+                            weight: c.weight || 0,
                             color: c.color || '#e94560',
                         }));
                         state.allowOverflow = !!data.allowOverflow;
@@ -4151,7 +4238,7 @@
 
                         // 同步 textarea
                         cargoInput.value = data.cargos.map(c =>
-                            `${c.name}, ${c.sx}*${c.sz}*${c.sy}`
+                            `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`
                         ).join('\n');
 
                         // 恢复 3D
@@ -4197,6 +4284,7 @@
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
+                    weight: c.weight || 0,
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
@@ -4284,6 +4372,7 @@
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
+                    weight: c.weight || 0,
                     color: c.color,
                 })),
                 allowOverflow: state.allowOverflow,
@@ -4307,6 +4396,7 @@
                 name: c.name,
                 sx: c.sx, sy: c.sy, sz: c.sz,
                 px: c.px, py: c.py, pz: c.pz,
+                weight: c.weight || 0,
                 color: c.color || '#e94560',
             }));
             state.allowOverflow = !!data.allowOverflow;
@@ -4435,8 +4525,11 @@
             const l = parseFloat(sel.dataset.l);
             const w = parseFloat(sel.dataset.w);
             const h = parseFloat(sel.dataset.h);
+            const wt = parseFloat(sel.dataset.wt) || 0;
+            const dw = parseFloat(sel.dataset.dw) || 0;
+            const dh = parseFloat(sel.dataset.dh) || 0;
             if (l && w && h) {
-                setContainer(sel.value, l, w, h);
+                setContainer(sel.value, l, w, h, wt, dw, dh);
                 customL.value = l;
                 customW.value = w;
                 customH.value = h;
@@ -4456,7 +4549,7 @@
             const w = parseFloat(customW.value);
             const h = parseFloat(customH.value);
             if (l > 0 && w > 0 && h > 0) {
-                setContainer('自定义', l, w, h);
+                setContainer('自定义', l, w, h, 0, 0, 0);
             } else {
                 alert('请输入有效的正数尺寸 (mm)');
             }
@@ -4560,7 +4653,7 @@
                     resetLayout();
                 } else if (action === 'copyAll') {
                     if (!state.cargos.length) { alert('当前没有货物'); return; }
-                    const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}`);
+                    const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`);
                     const text = lines.join('\n');
                     if (navigator.clipboard && navigator.clipboard.writeText) {
                         navigator.clipboard.writeText(text).then(() => {
@@ -4720,8 +4813,11 @@
                 const l = parseFloat(sel.dataset.l);
                 const w = parseFloat(sel.dataset.w);
                 const h = parseFloat(sel.dataset.h);
+                const wt = parseFloat(sel.dataset.wt) || 0;
+                const dw = parseFloat(sel.dataset.dw) || 0;
+                const dh = parseFloat(sel.dataset.dh) || 0;
                 if (l && w && h) {
-                    state.container = { name, l, w, h };
+                    state.container = { name, l, w, h, wt, dw: dw || w, dh: dh || h };
                     customL.value = l;
                     customW.value = w;
                     customH.value = h;
@@ -4754,7 +4850,7 @@
 
                     // 同步 textarea
                     cargoInput.value = data.cargos.map(c =>
-                        `${c.name}, ${c.sx}*${c.sz}*${c.sy}`
+                        `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`
                     ).join('\n');
 
                     rebuildCargoMeshes();
