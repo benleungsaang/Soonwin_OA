@@ -82,6 +82,7 @@ declare module 'vue' {
     TaskCard: typeof import('./src/components/TaskCard.vue')['default']
     TaskCommentSection: typeof import('./src/components/TaskCommentSection.vue')['default']
     TaskNotificationBar: typeof import('./src/components/TaskNotificationBar.vue')['default']
+    VersionHistoryDialog: typeof import('./src/components/VersionHistoryDialog.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

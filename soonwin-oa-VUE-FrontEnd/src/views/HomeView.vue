@@ -8,6 +8,9 @@
       </div>
     </el-dialog>
 
+    <!-- 版本记录弹窗 -->
+    <VersionHistoryDialog v-model:visible="showVersionDialog" />
+
     <!-- 模块管理弹窗（admin only）：勾选要隐藏的模块，保存后全员下次刷新生效 -->
     <el-dialog v-model="showModuleManageDialog" title="模块管理（勾选即隐藏）" width="900px" align-center @opened="onModuleDialogOpened">
       <div v-if="loadingModuleList" style="text-align: center; padding: 40px;">
@@ -39,7 +42,7 @@
       <el-header class="header">
         <h1>{{ appTitle }}</h1>
         <div class="header-actions">
-          <span v-if="hasToken && userRole === 'admin' && appVersion" class="version-badge" :title="'后端服务版本，与开发端一致即已更新'">v{{ appVersion }}</span>
+          <span v-if="hasToken && userRole === 'admin' && appVersion" class="version-badge" :title="'点击查看版本记录'" @click="showVersionDialog = true">v{{ appVersion }}</span>
           <el-button
             class="restart-btn"
             type="warning"
@@ -239,6 +242,7 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
+import VersionHistoryDialog from '@/components/VersionHistoryDialog.vue';
 // 导入权限工具函数
 import {
   hasToken as checkHasToken,
@@ -262,6 +266,8 @@ const activeMenu = ref('1');
 const hasToken = ref(false);
 // 服务版本号（后端 /api/version 返回，重启按钮左侧展示）
 const appVersion = ref('');
+// 版本记录弹窗
+const showVersionDialog = ref(false);
 async function loadAppVersion() {
   try {
     const res = await fetch('/api/version');
@@ -647,6 +653,7 @@ const logout = async () => {
   font-size: 12px;
   border-radius: 6px;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .qr-btn {

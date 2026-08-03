@@ -208,6 +208,26 @@ def create_app(port=5000):
         from app.constants.app_version import APP_VERSION
         return {"version": APP_VERSION}
 
+    @app.route('/api/version/history', methods=['GET'])
+    def version_history():
+        """版本历史分页列表（最新在前），供前端弹窗展示"""
+        import json
+        page = max(1, request.args.get('page', 1, type=int))
+        per_page = max(1, min(request.args.get('per_page', 10, type=int), 50))
+        hist_path = os.path.join(os.path.dirname(__file__), 'constants', 'version_history.json')
+        try:
+            with open(hist_path, encoding='utf-8') as f:
+                records = json.load(f) or []
+        except Exception:
+            records = []
+        start = (page - 1) * per_page
+        return {
+            "list": records[start:start + per_page],
+            "total": len(records),
+            "page": page,
+            "per_page": per_page,
+        }
+
     # ========== 管理端点：远程重启服务 ==========
     # 仅在非开发端口启用（5001 留给本地调试用，不需要重启能力）
     if port != 5001:

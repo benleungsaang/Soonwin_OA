@@ -2,7 +2,7 @@
   <div class="common-header">
     <el-page-header :content="title" @back="goBack">
       <template #extra>
-        <span v-if="isAdmin && appVersion" class="version-badge" :title="'后端服务版本，与开发端一致即已更新'">v{{ appVersion }}</span>
+        <span v-if="isAdmin && appVersion" class="version-badge" :title="'点击查看版本记录'" @click="showVersionDialog = true">v{{ appVersion }}</span>
         <el-button v-if="isAdmin" type="warning" @click="handleRestart" :loading="restarting">
           <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
         </el-button>
@@ -22,6 +22,9 @@
         <p style="margin-top: 10px; color: #666; font-size: 13px;">扫描二维码访问网站首页</p>
       </div>
     </el-dialog>
+
+    <!-- 版本记录弹窗 -->
+    <VersionHistoryDialog v-model:visible="showVersionDialog" />
   </div>
 </template>
 
@@ -31,6 +34,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { SwitchButton, Grid, RefreshRight } from '@element-plus/icons-vue';
 import QRCode from 'qrcode';
+import VersionHistoryDialog from './VersionHistoryDialog.vue';
 import {
   getCurrentUserEmpId,
   getCurrentUserName,
@@ -69,6 +73,8 @@ const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
 const isAdmin = computed(() => currentUserRole.value === 'admin');
 // 服务版本号（后端 /api/version 返回，重启按钮左侧展示）
 const appVersion = ref('');
+// 版本记录弹窗
+const showVersionDialog = ref(false);
 async function loadAppVersion() {
   try {
     const res = await fetch('/api/version');
@@ -226,6 +232,7 @@ onUnmounted(() => {
   border-radius: 6px;
   white-space: nowrap;
   vertical-align: middle;
+  cursor: pointer;
 }
 
 /* 移动端适配 */

@@ -128,6 +128,12 @@ soonwin-os-Python-Server/
 - 日期变化时序号从 1 重新开始（如 `2026.08.03-2` → 次日 `2026.08.04-1`）
 - 前端"重启服务"按钮左侧显示该版本号，用于确认生产与开发端一致
 
+版本记录（每次修改代码后同步追加一条）：
+- 位置：`soonwin-os-Python-Server/app/constants/version_history.json`（最新在前）
+- 每条记录：`{"version": 版本号, "date": 日期, "git": 本次代码提交的 short hash, "summary": 本次修改简述}`
+- 完整流程：改代码 → 更新 `APP_VERSION` → `git commit` 代码（message 写简述）→ `git rev-parse --short HEAD` 取 hash → 追加版本记录 → 再 `git commit` 记录文件
+- 前端点击版本号徽标弹出历史列表（每页 10 条，点"继续加载"加载更多）
+
 ### 前端请求封装
 `request.ts` 自动解包响应为 `res.data`。使用 `response = await request` 时需注意这点。DELETE/PUT 请求成功后可能返回 undefined/空对象（无 data 字段）。
 
