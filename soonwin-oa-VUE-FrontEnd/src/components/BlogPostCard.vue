@@ -81,7 +81,7 @@
       </div>
       <!-- 媒体缩略网格 -->
       <div v-else class="media-grid" :class="post.media.length === 1 ? 'media-grid-single' : ''">
-        <div v-for="(media, index) in post.media" :key="media.id"
+        <div v-for="(media, index) in gridMedia" :key="media.id"
              class="media-item" @click="handleMediaClick(media, index)">
           <LazyImage v-if="media.media_type === 'image'"
                :src="getMediaUrl(media.thumbnail_path || media.file_path)"
@@ -99,8 +99,18 @@
           <span v-if="media.media_type === 'video'" class="video-badge">
             <el-icon :size="11"><VideoCamera /></el-icon>视频
           </span>
+          <!-- 超过9张时，第9张位置叠加剩余数量蒙板 -->
+          <div v-if="!gridExpanded && index === 8 && hiddenMediaCount > 0" class="media-more-overlay"
+               @click.stop="gridExpanded = true">
+            <span class="media-more-count">+{{ hiddenMediaCount }}</span>
+            <span class="media-more-text">点击展开</span>
+          </div>
         </div>
       </div>
+      <!-- 展开剩余照片后的收起按钮 -->
+      <button v-if="expandedIdx === null && gridExpanded && hiddenMediaCount > 0" class="media-collapse-btn" @click="gridExpanded = false">
+        <el-icon :size="12"><ArrowUp /></el-icon>收起
+      </button>
     </div>
 
     <!-- 功能条（草稿不显示） -->
@@ -158,13 +168,22 @@
             <div v-if="h.content" class="post-content-inner"><p>{{ h.content }}</p></div>
             <div v-if="h.media_snapshot" class="post-media-wrapper">
               <div class="media-grid" :class="parseMediaSnapshot(h.media_snapshot).length === 1 ? 'media-grid-single' : ''">
-                <div v-for="(m, mi) in parseMediaSnapshot(h.media_snapshot)" :key="mi" class="media-item"
+                <div v-for="(m, mi) in getHistoryGridMedia(h)" :key="mi" class="media-item"
                      @click="handleHistoryMediaClick(m, parseMediaSnapshot(h.media_snapshot), mi)">
                   <img v-if="m.media_type === 'image'" :src="getMediaUrl(m.thumbnail_path || m.file_path)" alt="" loading="lazy" />
                   <video v-else-if="m.compress_status !== 'pending'" :src="getMediaUrl(m.file_path)" preload="metadata" :poster="getMediaUrl(m.thumbnail_path)" />
                   <div v-else class="media-placeholder"><el-icon :size="20"><VideoCamera /></el-icon><span>转码中</span></div>
+                  <div v-if="!historyGridExpanded.has(h.id) && mi === 8 && getHistoryHiddenCount(h) > 0" class="media-more-overlay"
+                       @click.stop="historyGridExpanded.add(h.id)">
+                    <span class="media-more-count">+{{ getHistoryHiddenCount(h) }}</span>
+                    <span class="media-more-text">点击展开</span>
+                  </div>
                 </div>
               </div>
+              <button v-if="historyGridExpanded.has(h.id) && getHistoryHiddenCount(h) > 0" class="media-collapse-btn"
+                      @click="historyGridExpanded.delete(h.id)">
+                <el-icon :size="12"><ArrowUp /></el-icon>收起
+              </button>
             </div>
           </div>
         </div>
@@ -294,6 +313,28 @@ const isAdmin = computed(() => getCurrentUserRole() === 'admin')
 const currentUserId = computed(() => getCurrentUserEmpId() || '')
 const canEdit = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
 const canDelete = computed(() => isAdmin.value || props.post.author_id === currentUserId.value)
+
+// ===== 缩略网格展开（超过9张时第9张叠加 +N 蒙板，点击展开剩余照片） =====
+const gridExpanded = ref(false)
+const hiddenMediaCount = computed(() => Math.max(0, (props.post.media?.length || 0) - 9))
+const gridMedia = computed(() => {
+  const medias = props.post.media || []
+  if (gridExpanded.value || medias.length <= 9) return medias
+  return medias.slice(0, 9)
+})
+// 切换博文时重置展开状态
+watch(() => props.post.id, () => { gridExpanded.value = false })
+
+// 编辑历史网格：按版本 id 记录展开状态
+const historyGridExpanded = ref(new Set<number>())
+function getHistoryGridMedia(h: BlogEditHistory) {
+  const medias = parseMediaSnapshot(h.media_snapshot)
+  if (historyGridExpanded.value.has(h.id)) return medias
+  return medias.length > 9 ? medias.slice(0, 9) : medias
+}
+function getHistoryHiddenCount(h: BlogEditHistory) {
+  return Math.max(0, parseMediaSnapshot(h.media_snapshot).length - 9)
+}
 
 function handleMediaClick(media: any, index: number) {
   // 视频转码中/待处理时点击给出明确提示，而非静默忽略
@@ -641,6 +682,25 @@ defineExpose({ loadHistory })
   padding: 2px 6px; border-radius: 4px;
   display: flex; align-items: center; gap: 3px; pointer-events: none;
 }
+/* 超过9张时叠加在第9张上的剩余数量蒙板 */
+.media-more-overlay {
+  position: absolute; inset: 0; z-index: 2;
+  background: rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; color: #fff; cursor: pointer;
+  transition: background 0.2s;
+}
+.media-more-overlay:hover { background: rgba(0,0,0,0.7); }
+.media-more-count { font-size: 24px; font-weight: 600; line-height: 1.2; }
+.media-more-text { font-size: 11px; opacity: 0.85; }
+/* 展开剩余照片后的收起按钮 */
+.media-collapse-btn {
+  margin-top: 10px; width: 100%; padding: 8px 0;
+  background: #f3f4f6; color: #6b7280; border: none; border-radius: 8px;
+  font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+}
+.media-collapse-btn:hover { background: #e5e7eb; color: #374151; }
 
 /* ===== 展开模式 ===== */
 .expanded-view {
