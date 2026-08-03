@@ -2,6 +2,7 @@
   <div class="common-header">
     <el-page-header :content="title" @back="goBack">
       <template #extra>
+        <span v-if="isAdmin && appVersion" class="version-badge" :title="'后端服务版本，与开发端一致即已更新'">v{{ appVersion }}</span>
         <el-button v-if="isAdmin" type="warning" @click="handleRestart" :loading="restarting">
           <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
         </el-button>
@@ -66,6 +67,15 @@ const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 // 管理员判断
 const isAdmin = computed(() => currentUserRole.value === 'admin');
+// 服务版本号（后端 /api/version 返回，重启按钮左侧展示）
+const appVersion = ref('');
+async function loadAppVersion() {
+  try {
+    const res = await fetch('/api/version');
+    const data = await res.json();
+    if (data?.version) appVersion.value = data.version;
+  } catch { /* ignore */ }
+}
 // 重启服务
 const restarting = ref(false);
 async function handleRestart() {
@@ -177,6 +187,7 @@ const logout = async () => {
 // 组件挂载时获取用户信息
 onMounted(() => {
   getUserInfo();
+  loadAppVersion();
 
   // 监听storage事件，以便在其他标签页登录/登出时更新信息
   window.addEventListener('storage', handleStorageChange);
@@ -201,6 +212,20 @@ onUnmounted(() => {
 .el-button {
   display: inline-flex !important;
   align-items: center !important;
+}
+/* 版本号徽标（重启服务按钮左侧）：低饱和浅蓝底 + 蓝色字，灰底上清晰可见 */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  padding: 4px 10px;
+  background: rgba(59, 130, 246, 0.08);
+  color: #3b82f6;
+  font-size: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* 移动端适配 */
@@ -231,6 +256,9 @@ onUnmounted(() => {
   }
   .el-icon {
     margin-right: 0;
+  }
+  .version-badge {
+    display: none;
   }
 }
 </style>

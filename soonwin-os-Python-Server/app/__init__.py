@@ -200,6 +200,14 @@ def create_app(port=5000):
         from .routes.blog_routes import set_app_instance as set_blog_app_instance
         set_blog_app_instance(app)
 
+    # ========== 版本号接口 ==========
+    # 开发/生产环境均返回，前端用于确认当前版本与开发端是否一致
+    @app.route('/api/version', methods=['GET'])
+    def app_version():
+        """返回后端服务版本号（日期+当日序号，如 2026.08.03-1）"""
+        from app.constants.app_version import APP_VERSION
+        return {"version": APP_VERSION}
+
     # ========== 管理端点：远程重启服务 ==========
     # 仅在非开发端口启用（5001 留给本地调试用，不需要重启能力）
     if port != 5001:

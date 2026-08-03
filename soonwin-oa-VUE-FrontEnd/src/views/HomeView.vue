@@ -39,6 +39,7 @@
       <el-header class="header">
         <h1>{{ appTitle }}</h1>
         <div class="header-actions">
+          <span v-if="hasToken && userRole === 'admin' && appVersion" class="version-badge" :title="'后端服务版本，与开发端一致即已更新'">v{{ appVersion }}</span>
           <el-button
             class="restart-btn"
             type="warning"
@@ -259,6 +260,15 @@ const appTitle = ref(import.meta.env.VITE_APP_TITLE);
 const activeMenu = ref('1');
 // 是否已登录（存在token）
 const hasToken = ref(false);
+// 服务版本号（后端 /api/version 返回，重启按钮左侧展示）
+const appVersion = ref('');
+async function loadAppVersion() {
+  try {
+    const res = await fetch('/api/version');
+    const data = await res.json();
+    if (data?.version) appVersion.value = data.version;
+  } catch { /* ignore */ }
+}
 const restarting = ref(false);
 async function handleRestart() {
   try {
@@ -508,6 +518,7 @@ const toggleCollapse = (column: 'resource' | 'order' | 'other') => {
 
 // 页面挂载时检查登录状态和加载权限
 onMounted(async () => {
+  loadAppVersion();
   hasToken.value = checkHasToken();
   if (hasToken.value) {
     try {
@@ -625,6 +636,17 @@ const logout = async () => {
   gap: 10px;
   align-items: center;
   flex-shrink: 0;
+}
+/* 版本号徽标（重启服务按钮左侧） */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .qr-btn {
@@ -871,6 +893,9 @@ const logout = async () => {
     padding: 4px 6px;
   }
   .btn-text {
+    display: none;
+  }
+  .version-badge {
     display: none;
   }
   .el-menu-item {
