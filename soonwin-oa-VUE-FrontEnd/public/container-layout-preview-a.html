@@ -102,6 +102,9 @@ const hexRgba = (hex, a) => {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 };
+// 带圈数字（序号显示）
+const CIRC_NUM = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+const circNum = n => CIRC_NUM[n - 1] || n;
 
 // ============================================================
 //  投影：自动适配整柜完整显示
@@ -130,7 +133,7 @@ const topPts = CARGOS.map(c => {
 // ============================================================
 function labelInfo(i) {
   const c = CARGOS[i]; const st = STACK[i];
-  const nameTxt = (st.stacked ? '▲' : st.suspended ? '⚠' : '') + c.name;
+  const nameTxt = (st.stacked ? '▲' : st.suspended ? '⚠' : '') + circNum(i + 1) + c.name;
   const dimTxt = c.sx + '×' + c.sz + '×' + c.sy;
   const stateTxt = st.stacked ? '叠放于' + st.on.map(j => CARGOS[j].name).join('、') + '上' : (st.suspended ? '悬空' + c.py + 'mm需支撑' : '');
   // 宽度按三行文字的实际测量值取最大，确保文字不超出白底框
@@ -213,20 +216,25 @@ function draw() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(`装柜参考图 一 【 ${planName} 】( ${CONTAINER.name} ${l}x${w}x${h}mm )`, 26, 34);
 
-  // 右下角门方向指示（圆角底色 + 阴影突显）
+  // 门方向指示：放置于真正的货柜门端（z=0 短边）外侧，与门面同旋转角度（-30°）
+  const doorAng = -30 * Math.PI / 180;
+  const [dmx, dmy] = proj(l / 2, 0, 0);
+  const dOff = 52 + h * 0.01;
   ctx.save();
+  ctx.translate(dmx + Math.cos(doorAng) * dOff, dmy + Math.sin(doorAng) * dOff);
+  ctx.rotate(doorAng);
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
   const doorTxt = '货柜门方向→';
   const doorW = ctx.measureText(doorTxt).width;
-  const dBx = W - doorW - 42, dBy = H - 60, dBw = doorW + 28, dBh = 32;
+  const dBw = doorW + 28, dBh = 32;
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
   ctx.fillStyle = 'rgba(43,108,176,0.13)';
-  ctx.beginPath(); ctx.roundRect(dBx, dBy, dBw, dBh, 16); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.fill();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.roundRect(dBx, dBy, dBw, dBh, 16); ctx.stroke();
-  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(doorTxt, dBx + 14, dBy + dBh / 2 + 1);
+  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.stroke();
+  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(doorTxt, 0, 1);
   ctx.restore();
 
   // 地面网格
@@ -296,6 +304,28 @@ function draw() {
       ctx.fillText(info.stateTxt, L.x + 8, L.y + 48);
     }
     ctx.restore();
+  }
+
+  // 左下角俯视图（平面布置，只标序号）
+  const vw = 470, vh = 96;
+  const vx = 24, vy = H - vh - 52;
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('俯视图（平面布置）', vx, vy - 8);
+  ctx.fillStyle = '#f7f9fc'; ctx.fillRect(vx, vy, vw, vh);
+  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.2; ctx.strokeRect(vx, vy, vw, vh);
+  const vSX = vw / l, vSY = vh / w;
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i]; const st = STACK[i];
+    const rx = vx + c.px * vSX, ry = vy + c.pz * vSY, rw = c.sx * vSX, rh = c.sz * vSY;
+    if (rw < 2 || rh < 2) continue;
+    ctx.fillStyle = hexRgba(c.color, 0.5); ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.4)');
+    ctx.lineWidth = st.stacked ? 1.4 : 0.7;
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${Math.max(7, Math.min(rw * 0.85, rh * 1.1, 12))}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, rx + rw / 2, ry + rh / 2 + 0.5);
   }
 
   // 图例

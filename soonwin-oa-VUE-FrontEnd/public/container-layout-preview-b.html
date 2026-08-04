@@ -129,6 +129,44 @@ const topPts = CARGOS.map(c => {
   return { poly: [p0, p1, p2, p3], center: proj(c.px + c.sx / 2, c.py + c.sy, c.pz + c.sz / 2) };
 });
 
+// 编号徽标错开布局：初始在各自货物顶面中心，重叠时互相推开（限制偏移半径 70px），无碰撞才回拉锚点
+const BADGE_R = 18;   // 碰撞半径（含 hover 放大）
+const badges = CARGOS.map((c, i) => {
+  const [bx, by] = topPts[i].center;
+  return { i, x: bx, y: by, ax: bx, ay: by };
+});
+for (let iter = 0; iter < 90; iter++) {
+  let moved = false;
+  for (let a = 0; a < badges.length; a++) for (let b = a + 1; b < badges.length; b++) {
+    const A = badges[a], B = badges[b];
+    const dx = B.x - A.x, dy = B.y - A.y;
+    const dist = Math.hypot(dx, dy);
+    const minD = BADGE_R * 2 + 2;
+    if (dist > 0.001 && dist < minD) {
+      moved = true;
+      const push = (minD - dist) / 2;
+      const ux = dx / dist, uy = dy / dist;
+      // 货物小的多让位（按体积权重）
+      const volA = CARGOS[A.i].sx * CARGOS[A.i].sy * CARGOS[A.i].sz;
+      const volB = CARGOS[B.i].sx * CARGOS[B.i].sy * CARGOS[B.i].sz;
+      const wA = volB / (volA + volB);
+      A.x -= ux * push * wA; A.y -= uy * push * wA;
+      B.x += ux * push * (1 - wA); B.y += uy * push * (1 - wA);
+    }
+  }
+  for (const Bd of badges) {
+    let collides = false;
+    for (const O of badges) {
+      if (O !== Bd && Math.hypot(O.x - Bd.x, O.y - Bd.y) < BADGE_R * 2 + 2) { collides = true; break; }
+    }
+    if (!collides) { Bd.x += (Bd.ax - Bd.x) * 0.15; Bd.y += (Bd.ay - Bd.y) * 0.15; }
+    // 限幅：离锚点不超过 70px
+    const dx = Bd.x - Bd.ax, dy = Bd.y - Bd.ay, d = Math.hypot(dx, dy);
+    if (d > 70) { Bd.x = Bd.ax + dx / d * 70; Bd.y = Bd.ay + dy / d * 70; }
+  }
+  if (!moved) break;
+}
+
 // ============================================================
 //  绘制
 // ============================================================
@@ -151,20 +189,25 @@ function draw() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(`装柜参考图 一 【 ${planName} 】( ${CONTAINER.name} ${l}x${w}x${h}mm )`, 26, 34);
 
-  // 右下角门方向指示（圆角底色 + 阴影突显）
+  // 门方向指示：放置于真正的货柜门端（z=0 短边）外侧，与门面同旋转角度（-30°）
+  const doorAng = -30 * Math.PI / 180;
+  const [dmx, dmy] = proj(l / 2, 0, 0);
+  const dOff = 52 + h * 0.01;
   ctx.save();
+  ctx.translate(dmx + Math.cos(doorAng) * dOff, dmy + Math.sin(doorAng) * dOff);
+  ctx.rotate(doorAng);
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
   const doorTxt = '货柜门方向→';
   const doorW = ctx.measureText(doorTxt).width;
-  const dBx = W - doorW - 42, dBy = H - 60, dBw = doorW + 28, dBh = 32;
+  const dBw = doorW + 28, dBh = 32;
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
   ctx.fillStyle = 'rgba(43,108,176,0.13)';
-  ctx.beginPath(); ctx.roundRect(dBx, dBy, dBw, dBh, 16); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.fill();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.roundRect(dBx, dBy, dBw, dBh, 16); ctx.stroke();
-  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(doorTxt, dBx + 14, dBy + dBh / 2 + 1);
+  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.stroke();
+  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(doorTxt, 0, 1);
   ctx.restore();
 
   // 地面网格
@@ -207,11 +250,11 @@ function draw() {
          st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.55)'), edgeW + 0.6, st.suspended ? [4,3] : null);
   }
 
-  // 编号徽标置顶：在所有货物绘制完成后统一绘制，保证不被货物遮挡
+  // 编号徽标置顶：在所有货物绘制完成后统一绘制（错开布局位置），保证不被货物遮挡
   for (let i = 0; i < CARGOS.length; i++) {
     const st = STACK[i];
     const isHover = hoverIdx === i;
-    const [bx, by] = topPts[i].center;
+    const bx = badges[i].x, by = badges[i].y;
     const r = isHover ? 17 : 14;
     ctx.save();
     ctx.beginPath(); ctx.arc(bx, by, r + 2, 0, Math.PI * 2);
@@ -247,50 +290,96 @@ function draw() {
     const st = STACK[i];
     const isHover = hoverIdx === i;
     const y = headY + 12 + i * rowH;
+    const yc = y + rowH / 2;               // 行垂直中心（内容整体居中）
     if (isHover) {
       ctx.fillStyle = 'rgba(233,69,96,0.10)';
-      ctx.fillRect(LIST_X - 4, y - rowH + 12, 596, rowH);
+      ctx.fillRect(LIST_X - 4, y, 596, rowH - 2);
     }
-    // 行分隔浅框线
+    // 行分隔浅框线（贴行底）
     ctx.strokeStyle = 'rgba(0,0,0,0.10)'; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.moveTo(LIST_X, y + 20); ctx.lineTo(LIST_X + 592, y + 20); ctx.stroke();
-    // 序号徽标（置顶颜色规则与图上一致）
+    ctx.beginPath(); ctx.moveTo(LIST_X, y + rowH - 2); ctx.lineTo(LIST_X + 592, y + rowH - 2); ctx.stroke();
+    // 序号徽标（置顶颜色规则与图上一致，垂直居中）
     ctx.save();
-    ctx.beginPath(); ctx.arc(numCx, y - 2, 13, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(numCx, yc, 13, 0, Math.PI * 2);
     ctx.fillStyle = st.stacked ? '#ffebee' : (st.suspended ? '#fff8e1' : '#f0f4f8'); ctx.fill();
     ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#8aa0b8'); ctx.lineWidth = 1.6; ctx.stroke();
     ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(i + 1, numCx, y - 1);
+    ctx.fillText(i + 1, numCx, yc);
     ctx.restore();
-    // 名称（列宽 268px，超长截断）
+    // 名称（列宽 268px，超长截断，基线按居中调整）
     ctx.fillStyle = '#1a1a1a'; ctx.font = '18px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, cols[0], y);
+    ctx.fillText(c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, cols[0], yc + 6);
     // 尺寸
     ctx.fillStyle = '#555'; ctx.font = '16px Consolas,monospace';
-    ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[1], y);
+    ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[1], yc + 6);
     // 状态
     ctx.font = '18px sans-serif';
-    if (st.stacked) { ctx.fillStyle = '#c62828'; ctx.fillText('▲叠放', cols[2], y); }
-    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[2], y); }
-    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[2], y); }
+    if (st.stacked) { ctx.fillStyle = '#c62828'; ctx.fillText('▲叠放', cols[2], yc + 6); }
+    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[2], yc + 6); }
+    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[2], yc + 6); }
   });
 
-  // 堆叠/悬空详情：置于货物表格下方
-  let detailY = tblY + tblH + 30;
-  ctx.font = '15px "Segoe UI","PingFang SC",sans-serif';
+  // 堆叠/悬空详情：置于货物表格下方，货物名称加圆角底色便于读取
+  let detailY = tblY + tblH + 34;
+  ctx.font = 'bold 15px "Segoe UI","PingFang SC",sans-serif';
+  ctx.textBaseline = 'middle';
   CARGOS.forEach((c, i) => {
     const st = STACK[i];
+    let segX = 0;
+    const drawSeg = (txt, color) => {           // 普通文字段
+      ctx.fillStyle = color;
+      ctx.fillText(txt, LIST_X + segX, detailY);
+      segX += ctx.measureText(txt).width;
+    };
+    const drawPill = (txt, color) => {          // 名称胶囊（圆角底色）
+      const w = ctx.measureText(txt).width;
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(LIST_X + segX, detailY - 13, w + 12, 22, 10); ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillText(txt, LIST_X + segX + 6, detailY);
+      segX += w + 20;
+    };
     if (st.stacked) {
-      ctx.fillStyle = '#c62828';
-      ctx.fillText(`${circNum(i + 1)}号 ${c.name} ▲叠放于 ${st.on.map(j => `${circNum(j + 1)}号 ${CARGOS[j].name}`).join('、')} 上`, LIST_X, detailY);
-      detailY += 26;
+      drawSeg(circNum(i + 1) + '号 ', '#c62828');
+      drawPill(c.name, 'rgba(198,40,40,0.13)');
+      drawSeg(' ▲叠放于 ', '#c62828');
+      st.on.forEach((j, k) => {
+        if (k > 0) drawSeg('、', '#c62828');
+        drawSeg(circNum(j + 1) + '号 ', '#c62828');
+        drawPill(CARGOS[j].name, 'rgba(198,40,40,0.13)');
+      });
+      drawSeg(' 上', '#c62828');
+      detailY += 30;
     } else if (st.suspended) {
-      ctx.fillStyle = '#b26a00';
-      ctx.fillText(`${circNum(i + 1)}号 ${c.name} ⚠ 悬空${c.py}mm 需支撑`, LIST_X, detailY);
-      detailY += 26;
+      drawSeg(circNum(i + 1) + '号 ', '#b26a00');
+      drawPill(c.name, 'rgba(178,106,0,0.14)');
+      drawSeg(` ⚠ 悬空${c.py}mm 需支撑`, '#b26a00');
+      detailY += 30;
     }
   });
+
+  // 左下角俯视图（平面布置，只标序号）
+  const vw = 500, vh = 100;
+  const vx = 24, vy = H - vh - 44;
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('俯视图（平面布置）', vx, vy - 8);
+  ctx.fillStyle = '#f7f9fc'; ctx.fillRect(vx, vy, vw, vh);
+  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.2; ctx.strokeRect(vx, vy, vw, vh);
+  const vSX = vw / l, vSY = vh / w;
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i]; const st = STACK[i];
+    const rx = vx + c.px * vSX, ry = vy + c.pz * vSY, rw = c.sx * vSX, rh = c.sz * vSY;
+    if (rw < 2 || rh < 2) continue;
+    ctx.fillStyle = hexRgba(c.color, 0.5); ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.4)');
+    ctx.lineWidth = st.stacked ? 1.4 : 0.7;
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${Math.max(7, Math.min(rw * 0.85, rh * 1.1, 12))}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, rx + rw / 2, ry + rh / 2 + 0.5);
+  }
 }
 
 // 悬停联动：徽标 <-> 清单行
@@ -300,7 +389,7 @@ cv.addEventListener('mousemove', (e) => {
   const my = (e.clientY - rect.top) * (H / rect.height);
   let hit = -1;
   for (let i = 0; i < CARGOS.length; i++) {
-    const [bx, by] = topPts[i].center;
+    const bx = badges[i].x, by = badges[i].y;
     if ((mx - bx) ** 2 + (my - by) ** 2 <= 24 ** 2) { hit = i; break; }
   }
   if (hit === -1) {
