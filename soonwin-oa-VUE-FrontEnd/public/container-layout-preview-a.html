@@ -214,25 +214,26 @@ function draw() {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 18px "Segoe UI","PingFang SC",sans-serif';
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`装柜参考图 一 【 ${planName} 】( ${CONTAINER.name} ${l}x${w}x${h}mm )`, 26, 34);
+  ctx.fillText(`方案：${planName} · 货柜：${CONTAINER.name} ${l}×${w}×${h}mm · ${CARGOS.length} 件货`, 26, 34);
 
-  // 门方向指示：取门面中心（z=0 短边），沿屏幕正上方动态外推至柜体轮廓外，
-  // 文字旋转 30° 与门面边平行，箭头朝门端方位
-  const [dmx, dmy] = proj(l / 2, h / 2, 0);   // 门面中心
+  // 门方向指示：货柜门位于 x=l 端（x=max, y=0, z=w/2）。
+  // 指示牌放门外侧（x 超出 max 一点）：从门面中心沿门外方向（x 正方向投影 = 屏幕 30° 右下）外推至柜体轮廓外
+  const doorDir = 30 * Math.PI / 180;
+  const [dmx, dmy] = proj(l, h / 2, w / 2);   // 门面中心（x=max, y=h/2, z=w/2）
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(...proj(...corners[0]));
   for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
   ctx.closePath();
   let dOff = 40;
-  while (dOff < 420 && ctx.isPointInPath(dmx, dmy - dOff)) dOff += 12;   // 直到离开柜体投影
+  while (dOff < 420 && ctx.isPointInPath(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff)) dOff += 10;
   dOff += 26;
   ctx.restore();
+  // 水平放置，箭头 ← 指向门端（门在指示牌左侧）
   ctx.save();
-  ctx.translate(dmx, dmy - dOff);
-  ctx.rotate(30 * Math.PI / 180);   // 与门面长边（柜体长边）同角度
+  ctx.translate(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff);
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
-  const doorTxt = '货柜门方向→';
+  const doorTxt = '← 货柜门方向';
   const doorW = ctx.measureText(doorTxt).width;
   const dBw = doorW + 28, dBh = 32;
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
