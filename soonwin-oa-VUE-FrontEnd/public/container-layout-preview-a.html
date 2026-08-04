@@ -106,9 +106,10 @@ const hexRgba = (hex, a) => {
 const CIRC_NUM = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
 const circNum = n => CIRC_NUM[n - 1] || n;
 
-// 装柜图序号：以原点为基准，按 x 0→max、z 0→max、y 0→max 排序货物并重新编号（不沿用方案内序号）
+// 装柜图序号：以原点为基准，右边优先——先按 z（柜宽方向，z 小=屏幕右侧）0→max，
+// 再按 x 0→max、y 0→max 排序货物并重新编号（避免左右相邻货物因 x 微差导致顺序相反）
 const SORT_INDEX = CARGOS.map((c, i) => i)
-  .sort((a, b) => (CARGOS[a].px - CARGOS[b].px) || (CARGOS[a].pz - CARGOS[b].pz) || (CARGOS[a].py - CARGOS[b].py));
+  .sort((a, b) => (CARGOS[a].pz - CARGOS[b].pz) || (CARGOS[a].px - CARGOS[b].px) || (CARGOS[a].py - CARGOS[b].py));
 const dispPos = new Array(CARGOS.length);   // 原索引 → 显示序号位置（0-based）
 SORT_INDEX.forEach((orig, pos) => { dispPos[orig] = pos; });
 
