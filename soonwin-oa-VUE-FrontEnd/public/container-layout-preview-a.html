@@ -212,28 +212,52 @@ const quad = (pts, fill, stroke, lw, dash) => {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 18px "Segoe UI","PingFang SC",sans-serif';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`方案：${planName} · 货柜：${CONTAINER.name} ${l}×${w}×${h}mm · ${CARGOS.length} 件货`, 26, 34);
+  // 标题：内容片段（方案名/货柜信息/件数）加圆角底色胶囊便于观察
+  ctx.font = 'bold 18px "Segoe UI","PingFang SC",sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  let tx = 26;
+  const ty = 25;
+  const drawSeg = (txt, color) => {
+    ctx.fillStyle = color;
+    ctx.fillText(txt, tx, ty);
+    tx += ctx.measureText(txt).width;
+  };
+  const drawPill = (txt) => {
+    const w = ctx.measureText(txt).width;
+    ctx.fillStyle = 'rgba(43,108,176,0.14)';
+    ctx.beginPath(); ctx.roundRect(tx, ty - 15, w + 14, 26, 13); ctx.fill();
+    ctx.fillStyle = '#1a3a5c';
+    ctx.fillText(txt, tx + 7, ty);
+    tx += w + 21;
+  };
+  drawSeg('方案：', '#1a3a5c');
+  drawPill(planName);
+  drawSeg(' · 货柜：', '#1a3a5c');
+  drawPill(`${CONTAINER.name} ${l}×${w}×${h}mm`);
+  drawSeg(' · ', '#1a3a5c');
+  drawPill(`${CARGOS.length}件货`);
 
-  // 门方向指示：货柜门位于 x=l 端（x=max, y=0, z=w/2）。
-  // 指示牌放门外侧（x 超出 max 一点）：从门面中心沿门外方向（x 正方向投影 = 屏幕 30° 右下）外推至柜体轮廓外
+  // 门方向指示：门位于 x=l 端（x=max, y=0, z=w/2）。
+  // 指示牌从门面中心（x=max, y=h/2, z=w/2）沿 x 正方向（屏幕 30°）外推"适当距离"，
+  // 旋转 30° 沿 x 轴方向放置，箭头 → 在末尾指向门端方向
   const doorDir = 30 * Math.PI / 180;
-  const [dmx, dmy] = proj(l, h / 2, w / 2);   // 门面中心（x=max, y=h/2, z=w/2）
+  const [dmx, dmy] = proj(l, h / 2, w / 2);
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(...proj(...corners[0]));
   for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
   ctx.closePath();
-  let dOff = 40;
-  while (dOff < 420 && ctx.isPointInPath(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff)) dOff += 10;
-  dOff += 26;
+  let dOff = 36;   // 适当距离
+  while (dOff < 420 && ctx.isPointInPath(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff)) dOff += 8;
+  dOff += 14;
   ctx.restore();
-  // 水平放置，箭头 ← 指向门端（门在指示牌左侧）
+  const dtx = dmx + Math.cos(doorDir) * dOff;
+  const dty = dmy + Math.sin(doorDir) * dOff;
   ctx.save();
-  ctx.translate(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff);
+  ctx.translate(dtx, dty);
+  ctx.rotate(doorDir);   // 30°
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
-  const doorTxt = '← 货柜门方向';
+  const doorTxt = '货柜门方向→';
   const doorW = ctx.measureText(doorTxt).width;
   const dBw = doorW + 28, dBh = 32;
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
@@ -318,9 +342,9 @@ function draw() {
   // 左下角俯视图（平面布置，带圈序号；重叠时按层错开并加 -1/-2 层标）
   const vw = 470, vh = 96;
   const vx = 24, vy = H - vh - 52;
-  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 18px "Segoe UI","PingFang SC",sans-serif';
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText('俯视图（平面布置）', vx, vy - 8);
+  ctx.fillText('俯视图（平面布置）', vx, vy - 10);
   ctx.fillStyle = '#f7f9fc'; ctx.fillRect(vx, vy, vw, vh);
   ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.2; ctx.strokeRect(vx, vy, vw, vh);
   const vSX = vw / l, vSY = vh / w;
@@ -333,7 +357,8 @@ function draw() {
     ctx.lineWidth = st.stacked ? 1.4 : 0.7;
     ctx.strokeRect(rx, ry, rw, rh);
   }
-  // 序号标注：带圈数字；中心重叠的货物按底面高度（py）分组排序，加层数后缀并垂直错开
+  // 序号标注：带圈数字；重叠货物按底面高度（py）分组加层数后缀；
+  // 字号加大 1.5 倍（上限 16px），全局矩形迭代避让保证无重叠
   const marks = CARGOS.map((c, i) => ({
     i, py: c.py,
     cx: vx + (c.px + c.sx / 2) * vSX,
@@ -349,7 +374,7 @@ function draw() {
       changed = false;
       for (let j = i + 1; j < marks.length; j++) {
         if (used.has(j) || g.includes(j)) continue;
-        if (g.some(m => Math.abs(marks[m].cx - marks[j].cx) < 19 && Math.abs(marks[m].cy - marks[j].cy) < 16)) {
+        if (g.some(m => Math.abs(marks[m].cx - marks[j].cx) < 22 && Math.abs(marks[m].cy - marks[j].cy) < 18)) {
           g.push(j); changed = true;
         }
       }
@@ -357,17 +382,63 @@ function draw() {
     g.forEach(m => used.add(m));
     groups.push(g);
   }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const notes = [];
   for (const g of groups) {
     g.sort((a, b) => marks[a].py - marks[b].py);   // 下层在前
     const n = g.length;
     g.forEach((m, k) => {
       const txt = circNum(marks[m].i + 1) + (n > 1 ? '-' + (k + 1) : '');
-      const fs = Math.max(7, Math.min(marks[m].rw * 0.75, marks[m].rh * 1.1, 11));
-      ctx.fillStyle = '#1a1a1a';
+      const fs = Math.max(10, Math.min(marks[m].rw * 0.7, marks[m].rh * 1.0, 16));
       ctx.font = `bold ${fs}px sans-serif`;
-      ctx.fillText(txt, marks[m].cx, marks[m].cy + (n > 1 ? (k - (n - 1) / 2) * (fs + 3) : 0));
+      const tw = ctx.measureText(txt).width;
+      notes.push({
+        txt, fs,
+        w: tw + 2, h: fs + 4,
+        x: marks[m].cx - tw / 2, y: marks[m].cy - (fs + 4) / 2,
+        ax: marks[m].cx, ay: marks[m].cy,   // 锚点 = 货物矩形中心
+      });
     });
+  }
+  const rectOverlap = (A, B) =>
+    Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x) > 0 &&
+    Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y) > 0;
+  for (let iter = 0; iter < 50; iter++) {
+    let moved = false;
+    for (let a = 0; a < notes.length; a++) for (let b = a + 1; b < notes.length; b++) {
+      const A = notes[a], B = notes[b];
+      const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+      const oy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+      if (ox > 0 && oy > 0) {
+        moved = true;
+        const wA = (B.w * B.h) / (A.w * A.h + B.w * B.h);   // 小的多让位
+        if (ox < oy) {
+          const dir = A.x < B.x ? -1 : 1;
+          A.x += dir * ox * wA; B.x += -dir * ox * (1 - wA);
+        } else {
+          const dir = A.y < B.y ? -1 : 1;
+          A.y += dir * oy * wA; B.y += -dir * oy * (1 - wA);
+        }
+      }
+    }
+    for (const N of notes) {
+      let collides = false;
+      for (const O of notes) {
+        if (O !== N && rectOverlap(N, O)) { collides = true; break; }
+      }
+      if (!collides) {   // 不重叠才回拉锚点
+        N.x += (N.ax - N.w / 2 - N.x) * 0.2;
+        N.y += (N.ay - N.h / 2 - N.y) * 0.2;
+      }
+      N.x = Math.max(vx, Math.min(vx + vw - N.w, N.x));
+      N.y = Math.max(vy, Math.min(vy + vh - N.h, N.y));
+    }
+    if (!moved) break;
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const N of notes) {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = `bold ${N.fs}px sans-serif`;
+    ctx.fillText(N.txt, N.x + N.w / 2, N.y + N.h / 2);
   }
 
   // 图例
