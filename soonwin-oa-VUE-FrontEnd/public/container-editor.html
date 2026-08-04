@@ -1170,12 +1170,16 @@
 
             <div class="panel-actions panel-actions-rows">
                 <div class="panel-actions-row">
-                    <button class="btn" id="saveBtn" title="保存到云端" style="background:#1a5c2a;border-color:#2a8a3e;color:#c0ffc0;">💾 保存</button>
-                    <button class="btn" id="saveAsBtn" title="复制为新方案" style="background:#1a3a5c;border-color:#2a5a8a;color:#c0e0ff;">📋 另存为</button>
+                    <button class="btn" id="saveBtn" title="保存到云端" style="background:#1a5c2a;border-color:#2a8a3e;color:#c0ffc0;">💾 保存方案</button>
+                    <button class="btn" id="saveAsBtn" title="复制为新方案" style="background:#1a3a5c;border-color:#2a5a8a;color:#c0e0ff;">📋 另存为方案</button>
                 </div>
                 <div class="panel-actions-row">
-                    <button class="btn" id="exportBtn" title="下载到本地" style="background:#5a4a1a;border-color:#8a7a2a;color:#ffe0c0;">📤 导出</button>
-                    <button class="btn" id="importBtn" title="从本地文件加载" style="background:#4a1a5a;border-color:#7a2a8a;color:#e0c0ff;">📥 导入</button>
+                    <button class="btn" id="exportBtn" title="下载布局JSON到本地" style="background:#5a4a1a;border-color:#8a7a2a;color:#ffe0c0;">📤 导出本地文件</button>
+                    <button class="btn" id="importBtn" title="从本地JSON文件加载布局" style="background:#4a1a5a;border-color:#7a2a8a;color:#e0c0ff;">📥 导入本地文件</button>
+                </div>
+                <div class="panel-actions-row">
+                    <button class="btn" id="previewABtn" title="生成等轴测装柜图（货物上直接标注名称尺寸，自动避让）" style="background:#1a5c4a;border-color:#2a8a6e;color:#c0ffe0;">🖼 生成装柜图 - A</button>
+                    <button class="btn" id="previewBBtn" title="生成等轴测装柜图（编号徽标+货物清单）" style="background:#1a4a5c;border-color:#2a6a8a;color:#c0e0ff;">🖼 生成装柜图 - B</button>
                 </div>
             </div>
         </div>
@@ -1433,6 +1437,8 @@
         const importBtn = $('#importBtn');
         const saveBtn = $('#saveBtn');
         const saveAsBtn = $('#saveAsBtn');
+        const previewABtn = $('#previewABtn');
+        const previewBBtn = $('#previewBBtn');
         const vpDeselectBtn = $('#vpDeselectBtn');
         const vpRotateBtn = $('#vpRotateBtn');
         const vpDropBtn = $('#vpDropBtn');
@@ -4623,6 +4629,26 @@
         importBtn.addEventListener('click', importLayout);
         saveBtn.addEventListener('click', saveToCloud);
         saveAsBtn.addEventListener('click', saveAsNew);
+
+        // 生成装柜图：保存当前布局到 localStorage 后打开对应预览页
+        // A = 货物上直标名称尺寸（自动避让）；B = 编号徽标 + 货物清单
+        function openLayoutPreview(kind) {
+            try {
+                const data = buildLayoutData();
+                const key = kind === 'A' ? 'container_layout_preview_a' : 'container_layout_preview_b';
+                localStorage.setItem(key, JSON.stringify({
+                    name: currentLayoutMeta ? currentLayoutMeta.name : '未命名方案',
+                    data,
+                }));
+                const url = kind === 'A' ? 'container-layout-preview-a.html' : 'container-layout-preview-b.html';
+                window.open(url, '_blank');
+            } catch (e) {
+                console.error('openLayoutPreview failed:', e);
+                alert('生成装柜图失败：' + e.message);
+            }
+        }
+        previewABtn.addEventListener('click', () => openLayoutPreview('A'));
+        previewBBtn.addEventListener('click', () => openLayoutPreview('B'));
         // ============================================================
         //  货物列表操作下拉菜单（清空 / 重置布局 / 复制当前货物）
         // ============================================================

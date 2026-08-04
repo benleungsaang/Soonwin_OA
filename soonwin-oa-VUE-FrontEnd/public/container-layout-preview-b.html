@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>装柜图 - B（编号清单）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', 'PingFang SC', sans-serif; padding: 20px 30px 50px; }
+  h1 { font-size: 19px; color: #ffd93d; margin-bottom: 6px; }
+  .sub { font-size: 13px; color: #8899aa; margin-bottom: 16px; line-height: 1.8; }
+  .card { background: #16213e; border: 1px solid #2a2a5e; border-radius: 12px; padding: 16px 20px; }
+  canvas { display: block; background: #fff; border-radius: 6px; max-width: 100%; height: auto; cursor: crosshair; }
+  .legend { font-size: 12px; color: #ccc; margin: 10px 0 0; display: flex; gap: 20px; flex-wrap: wrap; }
+  .legend b { font-weight: 600; }
+  .actions { margin-top: 12px; display: flex; gap: 10px; }
+  .btn { background: #0f3460; color: #ccc; border: none; padding: 6px 18px; border-radius: 16px; font-size: 13px; cursor: pointer; }
+  .btn:hover { background: #1a4a7a; color: #fff; }
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-primary:hover { background: #ff6b81; }
+</style>
+</head>
+<body>
+<h1>📦 装柜图 - B（等轴测 · 编号徽标 + 货物清单）</h1>
+<div class="sub" id="subInfo">加载数据中…</div>
+
+<div class="card">
+  <canvas id="cv" width="1500" height="1000"></canvas>
+  <div class="legend">
+    <span><b style="color:#c62828">●</b> 编号徽标</span>
+    <span><b style="color:#c62828">▲叠放</b> = 堆叠　<b style="color:#b26a00">⚠悬空</b> = 悬空</span>
+    <span>🖱 悬停徽标或清单行 → 双向高亮</span>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="dl()">⬇ 下载图片</button>
+    <button class="btn" onclick="goBack()">← 返回编辑器</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  数据加载：优先取编辑器存下的当前布局，否则内置演示数据（id=3）
+// ============================================================
+const DEMO_CONTAINER = { name: '40尺高柜', l: 12030, w: 2350, h: 2690 };
+const DEMO_CARGOS = [
+  { name: 'ESS250B主机222', sx: 1390, sy: 1550, sz: 840,  px: 7370, py: 0,   pz: 0,    color: '#e94560' },
+  { name: 'ESS250B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 630, pz: 1050, color: '#ff6b6b' },
+  { name: 'ESS450B主机',    sx: 1590, sy: 1570, sz: 1040, px: 5520, py: 0,   pz: 1310, color: '#ffa94d' },
+  { name: 'ESS450B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 330, pz: 1050, color: '#ffd93d' },
+  { name: 'SZ750W主机',     sx: 2170, sy: 1570, sz: 1350, px: 0,    py: 0,   pz: 950,  color: '#6bcb77' },
+  { name: 'SZ750W尾架',     sx: 3430, sy: 330,  sz: 1100, px: 8600, py: 0,   pz: 1250, color: '#4d96ff' },
+  { name: '东鹏制氮机',     sx: 1500, sy: 2250, sz: 1310, px: 4220, py: 0,   pz: 0,    color: '#845ef7' },
+  { name: '东鹏空压机',     sx: 1000, sy: 1250, sz: 1300, px: 5720, py: 0,   pz: 0,    color: '#cc5de8' },
+  { name: '升奥注芯机',     sx: 2580, sy: 1510, sz: 950,  px: 0,    py: 0,   pz: 0,    color: '#20c997' },
+  { name: '顺意达包馅机',   sx: 1300, sy: 1750, sz: 1000, px: 4220, py: 0,   pz: 1310, color: '#ff922b' },
+  { name: '顺意达打饼机',   sx: 650,  sy: 1480, sz: 1050, px: 6720, py: 0,   pz: 0,    color: '#339af0' },
+  { name: '顺意达立式排盘机', sx: 1640, sy: 1950, sz: 1730, px: 2580, py: 0, pz: 0,  color: '#f06595' },
+];
+
+let CONTAINER, CARGOS, planName;
+try {
+  const raw = localStorage.getItem('container_layout_preview_b');
+  if (raw) {
+    const saved = JSON.parse(raw);
+    const d = saved.data;
+    if (d && d.container && Array.isArray(d.cargos)) {
+      CONTAINER = { name: d.container.name || '货柜', l: d.container.l, w: d.container.w, h: d.container.h };
+      CARGOS = d.cargos.map(c => ({
+        name: c.name, sx: c.sx, sy: c.sy, sz: c.sz,
+        px: c.px, py: c.py, pz: c.pz, color: c.color || '#e94560',
+      }));
+      planName = saved.name || '';
+    }
+  }
+} catch (e) { console.warn('[preview-b] 读取布局数据失败，使用演示数据:', e); }
+if (!CONTAINER) { CONTAINER = DEMO_CONTAINER; CARGOS = DEMO_CARGOS; planName = '（演示数据 id=3）'; }
+document.getElementById('subInfo').innerHTML =
+  `方案：<b>${planName}</b> · 货柜：${CONTAINER.name} ${CONTAINER.l}×${CONTAINER.w}×${CONTAINER.h}mm · ${CARGOS.length} 件货`;
+
+// ============================================================
+//  堆叠 / 悬空检测
+// ============================================================
+function detectStacking(cargos) {
+  return cargos.map((a, i) => {
+    const st = { stacked: false, suspended: false, on: [] };
+    if (a.py > 1) {
+      for (let j = 0; j < cargos.length; j++) {
+        if (i === j) continue;
+        const b = cargos[j];
+        if (Math.abs(a.py - (b.py + b.sy)) > 1) continue;
+        const ox = Math.max(0, Math.min(a.px + a.sx, b.px + b.sx) - Math.max(a.px, b.px));
+        const oz = Math.max(0, Math.min(a.pz + a.sz, b.pz + b.sz) - Math.max(a.pz, b.pz));
+        if (ox > 1 && oz > 1) { st.stacked = true; st.on.push(j); }
+      }
+      if (!st.stacked) st.suspended = true;
+    }
+    return st;
+  });
+}
+const STACK = detectStacking(CARGOS);
+const hexRgba = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
+
+// ============================================================
+//  投影：左侧柜体 + 右侧清单
+// ============================================================
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const cos30 = 0.8660, sin30 = 0.5;
+const LIST_W = 400, LIST_X = W - LIST_W + 10;
+const { l, w, h } = CONTAINER;
+const corners = [[0,0,0],[l,0,0],[l,0,w],[0,0,w],[0,h,0],[l,h,0],[l,h,w],[0,h,w]];
+const raw = corners.map(([x, y, z]) => [(x - z) * cos30, (x + z) * sin30 - y]);
+const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
+const S = Math.min((W - LIST_W - 110) / (Math.max(...xs) - Math.min(...xs)),
+                   (H - 110) / (Math.max(...ys) - Math.min(...ys)));
+const ox = (W - LIST_W) / 2 - (Math.min(...xs) + Math.max(...xs)) / 2 * S;
+const oy = (H - 90) / 2 + 45 - (Math.min(...ys) + Math.max(...ys)) / 2 * S;
+const proj = (x, y, z) => [ox + (x - z) * cos30 * S, oy + (x + z) * sin30 * S - y * S];
+const topPts = CARGOS.map(c => {
+  const p0 = proj(c.px, c.py + c.sy, c.pz), p1 = proj(c.px + c.sx, c.py + c.sy, c.pz),
+        p2 = proj(c.px + c.sx, c.py + c.sy, c.pz + c.sz), p3 = proj(c.px, c.py + c.sy, c.pz + c.sz);
+  return { poly: [p0, p1, p2, p3], center: proj(c.px + c.sx / 2, c.py + c.sy, c.pz + c.sz / 2) };
+});
+
+// ============================================================
+//  绘制
+// ============================================================
+let hoverIdx = -1;
+const rowH = 27, headY = 64;
+const quad = (pts, fill, stroke, lw, dash) => {
+  ctx.save();
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(...pts[0]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(...pts[i]);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+};
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 18px "Segoe UI","PingFang SC",sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(`货柜装柜图（等轴测·编号清单）— ${planName}（${CONTAINER.name} ${l}×${w}×${h}mm）`, 26, 34);
+  ctx.fillStyle = '#888'; ctx.font = '12px sans-serif';
+  ctx.fillText('门端 →', W - 120, 34);
+
+  // 地面网格
+  const gxStep = l > 8000 ? 1000 : 500, gzStep = w > 2000 ? 500 : 250;
+  ctx.save(); ctx.strokeStyle = 'rgba(120,140,170,0.3)'; ctx.lineWidth = 0.6;
+  for (let gx = 0; gx <= l; gx += gxStep) { ctx.beginPath(); ctx.moveTo(...proj(gx, 0, 0)); ctx.lineTo(...proj(gx, 0, w)); ctx.stroke(); }
+  for (let gz = 0; gz <= w; gz += gzStep) { ctx.beginPath(); ctx.moveTo(...proj(0, 0, gz)); ctx.lineTo(...proj(l, 0, gz)); ctx.stroke(); }
+  ctx.restore();
+
+  // 柜体
+  quad([proj(0,0,0), proj(l,0,0), proj(l,0,w), proj(0,0,w)], 'rgba(43,108,176,0.07)', 'rgba(43,108,176,0.9)', 2.5);
+  ctx.save(); ctx.strokeStyle = 'rgba(43,108,176,0.45)'; ctx.lineWidth = 1.1; ctx.setLineDash([6, 5]);
+  for (const [a, b] of [[0,4],[1,5],[2,6],[3,7],[4,5],[5,6],[6,7],[7,4]]) {
+    ctx.beginPath(); ctx.moveTo(...proj(...corners[a])); ctx.lineTo(...proj(...corners[b])); ctx.stroke();
+  }
+  ctx.restore();
+
+  // 底部投影 + 悬空垂落线
+  CARGOS.forEach((c, i) => {
+    quad([proj(c.px,0,c.pz), proj(c.px+c.sx,0,c.pz), proj(c.px+c.sx,0,c.pz+c.sz), proj(c.px,0,c.pz+c.sz)], 'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.22)', 0.8);
+    if (STACK[i].suspended) {
+      ctx.save(); ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(...proj(c.px+c.sx/2, 0, c.pz+c.sz/2)); ctx.lineTo(...proj(c.px+c.sx/2, c.py, c.pz+c.sz/2)); ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  // 货物
+  const order = CARGOS.map((c, i) => i).sort((a, b) => (CARGOS[a].px + CARGOS[a].py + CARGOS[a].pz) - (CARGOS[b].px + CARGOS[b].py + CARGOS[b].pz));
+  for (const i of order) {
+    const c = CARGOS[i]; const st = STACK[i];
+    const isHover = hoverIdx === i;
+    const [x0, y0, z0] = [c.px, c.py, c.pz];
+    const p = (dx, dy, dz) => proj(x0 + dx, y0 + dy, z0 + dz);
+    const alpha = isHover ? 1 : 0.66;
+    const edgeW = st.stacked ? 2.5 : 1.1;
+    quad([p(c.sx,0,0), p(c.sx,0,c.sz), p(c.sx,c.sy,c.sz), p(c.sx,c.sy,0)], hexRgba(c.color, 0.5 * alpha), 'rgba(0,0,0,0.45)', edgeW);
+    quad([p(0,0,c.sz), p(c.sx,0,c.sz), p(c.sx,c.sy,c.sz), p(0,c.sy,c.sz)], hexRgba(c.color, 0.72 * alpha), 'rgba(0,0,0,0.45)', edgeW);
+    quad([p(0,c.sy,0), p(c.sx,c.sy,0), p(c.sx,c.sy,c.sz), p(0,c.sy,c.sz)], hexRgba(c.color, 0.95 * alpha),
+         st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.55)'), edgeW + 0.6, st.suspended ? [4,3] : null);
+
+    // 编号徽标
+    const [bx, by] = topPts[i].center;
+    const r = isHover ? 17 : 14;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(bx, by, r + 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+    ctx.strokeStyle = isHover ? '#e94560' : (st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#2b6cb0'));
+    ctx.lineWidth = isHover ? 3 : 2; ctx.stroke();
+    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${r + 4}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, bx, by + 1);
+    ctx.restore();
+  }
+
+  // 侧边清单
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 14px "Segoe UI","PingFang SC",sans-serif';
+  ctx.fillText('货物清单', LIST_X, 36);
+  ctx.strokeStyle = '#8aa0b8'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(LIST_X, 44); ctx.lineTo(LIST_X + 360, 44); ctx.stroke();
+  const cols = [LIST_X + 34, LIST_X + 148, LIST_X + 236, LIST_X + 310];
+  ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+  ctx.fillText('序号', cols[0] - 12, headY - 6);
+  ctx.fillText('名称', cols[1], headY - 6);
+  ctx.fillText('尺寸(mm)', cols[2], headY - 6);
+  ctx.fillText('状态', cols[3], headY - 6);
+
+  CARGOS.forEach((c, i) => {
+    const st = STACK[i];
+    const isHover = hoverIdx === i;
+    const y = headY + 10 + i * rowH;
+    if (isHover) {
+      ctx.fillStyle = 'rgba(233,69,96,0.10)';
+      ctx.fillRect(LIST_X - 4, y - 14, 372, rowH - 2);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(LIST_X, y + 13); ctx.lineTo(LIST_X + 368, y + 13); ctx.stroke();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(LIST_X + 17, y - 1, 9, 0, Math.PI * 2);
+    ctx.fillStyle = st.stacked ? '#ffebee' : (st.suspended ? '#fff8e1' : '#f0f4f8'); ctx.fill();
+    ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#8aa0b8'); ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, LIST_X + 17, y);
+    ctx.restore();
+    ctx.fillStyle = '#1a1a1a'; ctx.font = '12px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(c.name.length > 7 ? c.name.slice(0, 7) + '…' : c.name, cols[1], y);
+    ctx.fillStyle = '#555'; ctx.font = '11px Consolas,monospace';
+    ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[2], y);
+    ctx.font = '12px sans-serif';
+    if (st.stacked) { ctx.fillStyle = '#c62828'; ctx.fillText('▲叠放', cols[3], y); }
+    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[3], y); }
+    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[3], y); }
+  });
+
+  // 底部说明（堆叠/悬空详情）
+  let detailY = H - 30;
+  ctx.fillStyle = '#888'; ctx.font = '11px "Segoe UI","PingFang SC",sans-serif';
+  CARGOS.forEach((c, i) => {
+    const st = STACK[i];
+    if (st.stacked) {
+      ctx.fillStyle = '#c62828';
+      ctx.fillText(`${i + 1}号 ▲叠放于 ${st.on.map(j => CARGOS[j].name).join('、')} 上`, LIST_X, detailY);
+      detailY -= 15;
+    } else if (st.suspended) {
+      ctx.fillStyle = '#b26a00';
+      ctx.fillText(`${i + 1}号 ⚠ 悬空${c.py}mm 需支撑`, LIST_X, detailY);
+      detailY -= 15;
+    }
+  });
+}
+
+// 悬停联动：徽标 <-> 清单行
+cv.addEventListener('mousemove', (e) => {
+  const rect = cv.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top) * (H / rect.height);
+  let hit = -1;
+  for (let i = 0; i < CARGOS.length; i++) {
+    const [bx, by] = topPts[i].center;
+    if ((mx - bx) ** 2 + (my - by) ** 2 <= 24 ** 2) { hit = i; break; }
+  }
+  if (hit === -1) {
+    const row = Math.floor((my - headY - 10) / rowH);
+    if (row >= 0 && row < CARGOS.length && mx >= LIST_X - 10 && mx <= LIST_X + 370) hit = row;
+  }
+  if (hit !== hoverIdx) { hoverIdx = hit; draw(); }
+});
+cv.addEventListener('mouseleave', () => { if (hoverIdx !== -1) { hoverIdx = -1; draw(); } });
+
+function dl() {
+  hoverIdx = -1; draw();
+  const a = document.createElement('a');
+  a.href = cv.toDataURL('image/png');
+  a.download = `装柜图B_${CONTAINER.name}_${new Date().toISOString().slice(0, 10)}.png`;
+  a.click();
+}
+function goBack() { if (window.history.length > 1) window.history.back(); }
+
+draw();
+</script>
+</body>
+</html>
