@@ -189,13 +189,21 @@ function draw() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(`装柜参考图 一 【 ${planName} 】( ${CONTAINER.name} ${l}x${w}x${h}mm )`, 26, 34);
 
-  // 门方向指示：放置于真正的货柜门端（z=0 短边）外侧，与门面同旋转角度（-30°）
-  const doorAng = -30 * Math.PI / 180;
-  const [dmx, dmy] = proj(l / 2, 0, 0);
-  const dOff = 52 + h * 0.01;
+  // 门方向指示：取门面中心（z=0 短边），沿屏幕正上方动态外推至柜体轮廓外，
+  // 文字旋转 30° 与门面边平行，箭头朝门端方位
+  const [dmx, dmy] = proj(l / 2, h / 2, 0);   // 门面中心
   ctx.save();
-  ctx.translate(dmx + Math.cos(doorAng) * dOff, dmy + Math.sin(doorAng) * dOff);
-  ctx.rotate(doorAng);
+  ctx.beginPath();
+  ctx.moveTo(...proj(...corners[0]));
+  for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
+  ctx.closePath();
+  let dOff = 40;
+  while (dOff < 420 && ctx.isPointInPath(dmx, dmy - dOff)) dOff += 12;   // 直到离开柜体投影
+  dOff += 26;
+  ctx.restore();
+  ctx.save();
+  ctx.translate(dmx, dmy - dOff);
+  ctx.rotate(30 * Math.PI / 180);   // 与门面长边（柜体长边）同角度
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
   const doorTxt = '货柜门方向→';
   const doorW = ctx.measureText(doorTxt).width;
@@ -359,7 +367,7 @@ function draw() {
     }
   });
 
-  // 左下角俯视图（平面布置，只标序号）
+  // 左下角俯视图（平面布置，带圈序号；重叠时按层错开并加 -1/-2 层标）
   const vw = 500, vh = 100;
   const vx = 24, vy = H - vh - 44;
   ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
@@ -376,9 +384,42 @@ function draw() {
     ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.4)');
     ctx.lineWidth = st.stacked ? 1.4 : 0.7;
     ctx.strokeRect(rx, ry, rw, rh);
-    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${Math.max(7, Math.min(rw * 0.85, rh * 1.1, 12))}px sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(i + 1, rx + rw / 2, ry + rh / 2 + 0.5);
+  }
+  // 序号标注：带圈数字；中心重叠的货物按底面高度（py）分组排序，加层数后缀并垂直错开
+  const marks = CARGOS.map((c, i) => ({
+    i, py: c.py,
+    cx: vx + (c.px + c.sx / 2) * vSX,
+    cy: vy + (c.pz + c.sz / 2) * vSY,
+    rw: c.sx * vSX, rh: c.sz * vSY,
+  }));
+  const used = new Set(), groups = [];
+  for (let i = 0; i < marks.length; i++) {
+    if (used.has(i)) continue;
+    const g = [i];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let j = i + 1; j < marks.length; j++) {
+        if (used.has(j) || g.includes(j)) continue;
+        if (g.some(m => Math.abs(marks[m].cx - marks[j].cx) < 19 && Math.abs(marks[m].cy - marks[j].cy) < 16)) {
+          g.push(j); changed = true;
+        }
+      }
+    }
+    g.forEach(m => used.add(m));
+    groups.push(g);
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const g of groups) {
+    g.sort((a, b) => marks[a].py - marks[b].py);   // 下层在前
+    const n = g.length;
+    g.forEach((m, k) => {
+      const txt = circNum(marks[m].i + 1) + (n > 1 ? '-' + (k + 1) : '');
+      const fs = Math.max(7, Math.min(marks[m].rw * 0.75, marks[m].rh * 1.1, 11));
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.fillText(txt, marks[m].cx, marks[m].cy + (n > 1 ? (k - (n - 1) / 2) * (fs + 3) : 0));
+    });
   }
 }
 
