@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>装柜图方案对比预览（id=3 真实数据）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', 'PingFang SC', sans-serif; padding: 24px 30px 60px; }
+  h1 { font-size: 20px; color: #ffd93d; margin-bottom: 6px; }
+  .sub { font-size: 13px; color: #8899aa; margin-bottom: 24px; line-height: 1.7; }
+  .card { background: #16213e; border: 1px solid #2a2a5e; border-radius: 12px; padding: 18px 20px; margin-bottom: 28px; }
+  .card h2 { font-size: 16px; color: #a8d8ea; margin-bottom: 4px; }
+  .card .tag { display:inline-block; font-size: 11px; padding: 2px 10px; border-radius: 10px; margin-left: 8px; vertical-align: 2px; }
+  .tag.rec { background: rgba(107,203,119,.15); color: #6bcb77; border: 1px solid rgba(107,203,119,.4); }
+  .tag.info { background: rgba(77,150,255,.15); color: #4d96ff; border: 1px solid rgba(77,150,255,.4); }
+  .card .note { font-size: 12px; color: #8899aa; margin: 6px 0 10px; line-height: 1.6; }
+  .card .legend { font-size: 12px; color: #ccc; margin: 8px 0 0; display:flex; gap:18px; flex-wrap:wrap; }
+  .card .legend b { font-weight: 600; }
+  canvas { display: block; background: #fff; border-radius: 6px; max-width: 100%; height: auto; }
+  .dl { margin-top: 8px; background: #0f3460; color: #ccc; border: none; padding: 5px 16px; border-radius: 14px; font-size: 12px; cursor: pointer; }
+  .dl:hover { background: #1a4a7a; color: #fff; }
+</style>
+</head>
+<body>
+<h1>📦 装柜图方案对比预览</h1>
+<div class="sub">数据源：<b>id=3「权限测试-由Ben创建」</b> · 40尺高柜 12030×2350×2690mm · 12 件货<br>
+已检测：<span style="color:#ff6b6b">ESS250B尾架 叠放于 ESS450B尾架 上（2层）</span>；<span style="color:#ffaa44">ESS450B尾架 悬空 330mm（数据中无直接支撑面，图纸上以 ⚠ 警示）</span><br>
+字号均为自动适配（按货物矩形大小），堆叠/悬空均按真实检测逻辑绘制。右键画布可直接另存 PNG。</div>
+
+<!-- ============ 方案 A ============ -->
+<div class="card">
+  <h2>方案 A：三视图工程图 <span class="tag rec">推荐</span></h2>
+  <div class="note">俯视（平面布置）+ 正面（长×高，可看堆叠/悬空）+ 侧面 三图并排 · 白底工程图风格 · 每件货标名称+该视图尺寸 · 堆叠粗框▲标注，悬空虚线⚠警示 · 可 PNG 下载 + A4 打印</div>
+  <canvas id="cvA" width="1900" height="1420"></canvas>
+  <div class="legend"><span><b style="color:#c62828">■ 粗红框</b> = 堆叠货物（▲名后标注"叠放于XX上"）</span><span><b style="color:#b26a00">┅ 橙色虚线框</b> = 悬空货物（⚠ 需支撑）</span><span><b style="color:#333">── 蓝色尺寸线</b> = 柜体总尺寸标注</span></div>
+  <button class="dl" onclick="dl('cvA')">⬇ 下载方案A PNG</button>
+</div>
+
+<!-- ============ 方案 B ============ -->
+<div class="card">
+  <h2>方案 B：俯视图为主 + 堆叠剖面 <span class="tag info">精简版</span></h2>
+  <div class="note">一张大俯视图（工人主要看平面摆放），堆叠货物名称后标「⤴叠放于XX上」；下方附堆叠/悬空区域的正视剖面放大图，可看清层数与悬空情况</div>
+  <canvas id="cvB" width="1500" height="1000"></canvas>
+  <div class="legend"><span><b style="color:#c62828">▲</b> = 堆叠标记</span><span><b style="color:#ffaa44">⚠</b> = 悬空警示</span></div>
+  <button class="dl" onclick="dl('cvB')">⬇ 下载方案B PNG</button>
+</div>
+
+<!-- ============ 方案 C ============ -->
+<div class="card">
+  <h2>方案 C：等轴测渲染图 <span class="tag info">直观立体</span></h2>
+  <div class="note">单张 2.5D 立体图，三面可见；文字标签浮于货物上方——<b>可真实看到文字互相遮挡问题</b>（12 件货时尤为明显），尺寸无法精确表达</div>
+  <canvas id="cvC" width="1400" height="850"></canvas>
+  <div class="legend"><span><b style="color:#c62828">▲</b> = 堆叠货物</span><span><b style="color:#ffaa44">⚠</b> = 悬空货物</span></div>
+  <button class="dl" onclick="dl('cvC')">⬇ 下载方案C PNG</button>
+</div>
+
+<script>
+// ============================================================
+//  id=3 真实数据（与 dev 库 container_layout id=3 一致）
+// ============================================================
+const CONTAINER = { name: '40尺高柜', l: 12030, w: 2350, h: 2690 };
+const CARGOS = [
+  { name: 'ESS250B主机222', sx: 1390, sy: 1550, sz: 840, px: 7370, py: 0, pz: 0,    color: '#e94560' },
+  { name: 'ESS250B尾架',    sx: 2500, sy: 300,  sz: 640, px: 7110, py: 630, pz: 1050, color: '#ff6b6b' },
+  { name: 'ESS450B主机',    sx: 1590, sy: 1570, sz: 1040, px: 5520, py: 0, pz: 1310, color: '#ffa94d' },
+  { name: 'ESS450B尾架',    sx: 2500, sy: 300,  sz: 640, px: 7110, py: 330, pz: 1050, color: '#ffd93d' },
+  { name: 'SZ750W主机',     sx: 2170, sy: 1570, sz: 1350, px: 0, py: 0, pz: 950,   color: '#6bcb77' },
+  { name: 'SZ750W尾架',     sx: 3430, sy: 330,  sz: 1100, px: 8600, py: 0, pz: 1250, color: '#4d96ff' },
+  { name: '东鹏制氮机',     sx: 1500, sy: 2250, sz: 1310, px: 4220, py: 0, pz: 0,    color: '#845ef7' },
+  { name: '东鹏空压机',     sx: 1000, sy: 1250, sz: 1300, px: 5720, py: 0, pz: 0,    color: '#cc5de8' },
+  { name: '升奥注芯机',     sx: 2580, sy: 1510, sz: 950,  px: 0, py: 0, pz: 0,    color: '#20c997' },
+  { name: '顺意达包馅机',   sx: 1300, sy: 1750, sz: 1000, px: 4220, py: 0, pz: 1310, color: '#ff922b' },
+  { name: '顺意达打饼机',   sx: 650, sy: 1480, sz: 1050, px: 6720, py: 0, pz: 0,    color: '#339af0' },
+  { name: '顺意达立式排盘机', sx: 1640, sy: 1950, sz: 1730, px: 2580, py: 0, pz: 0,  color: '#f06595' },
+];
+
+// ============================================================
+//  堆叠 / 悬空 检测（与正式功能同算法）
+//  py>0 且底面矩形与某货物顶面接触（2D 投影重叠）→ 叠放
+//  py>0 且无任何支撑 → 悬空
+// ============================================================
+function detectStacking(cargos) {
+  return cargos.map((a, i) => {
+    const st = { stacked: false, suspended: false, on: [], level: 1 };
+    if (a.py > 1) {
+      for (let j = 0; j < cargos.length; j++) {
+        if (i === j) continue;
+        const b = cargos[j];
+        if (Math.abs(a.py - (b.py + b.sy)) > 1) continue;   // 顶面接触检测
+        const ox = Math.max(0, Math.min(a.px + a.sx, b.px + b.sx) - Math.max(a.px, b.px));
+        const oz = Math.max(0, Math.min(a.pz + a.sz, b.pz + b.sz) - Math.max(a.pz, b.pz));
+        if (ox > 1 && oz > 1) { st.stacked = true; st.on.push(j); }
+      }
+      if (!st.stacked) st.suspended = true;
+    }
+    return st;
+  });
+}
+const STACK = detectStacking(CARGOS);
+
+function hexRgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+// 名称截断（按像素宽度预算）
+function truncate(ctx, text, maxW, font) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+// 自适应字号：在 maxW×maxH 内放下多行文字
+function fitFonts(ctx, lines, maxW, maxH, baseW) {
+  // lines: [{text, weight}]  weight 比例权重
+  const totalW = lines.reduce((s, l) => s + l.weight, 0);
+  let size = Math.min(maxH / (totalW * 1.05), baseW);
+  let i = 0;
+  for (const l of lines) {          // 宽度约束取最紧
+    ctx.font = `bold ${size * l.weight}px sans-serif`;
+    size = Math.min(size, maxW / Math.max(1, ctx.measureText(l.text).width) * l.weight);
+    i++;
+  }
+  size = Math.max(7, Math.floor(size));
+  let y = 0;
+  return lines.map(l => {
+    const fs = size * l.weight;
+    y += fs * 1.08;
+    ctx.font = `bold ${fs}px "Segoe UI","PingFang SC",sans-serif`;
+    const txt = truncate(ctx, l.text, maxW - 4, `${fs}px sans-serif`);
+    return { text: txt, font: fs, y: y };
+  });
+}
+function drawCargoBox(ctx, x, y, w, h, cargo, st, dimText, viewLabel) {
+  if (w < 8 || h < 8) return;
+  ctx.save();
+  ctx.fillStyle = hexRgba(cargo.color, 0.45);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : 'rgba(0,0,0,0.55)');
+  ctx.lineWidth = st.stacked ? 2.5 : 1.1;
+  ctx.setLineDash(st.suspended ? [5, 4] : []);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+
+  const lines = [
+    { text: (st.stacked ? '▲' : st.suspended ? '⚠' : '') + cargo.name, weight: 1.4 },
+    { text: dimText, weight: 1.0 },
+  ];
+  if (st.stacked) lines.push({ text: '叠放于' + st.on.map(j => CARGOS[j].name).join('、') + '上', weight: 0.75 });
+  if (st.suspended) lines.push({ text: '悬空' + (cargo.py) + 'mm 需支撑', weight: 0.75 });
+
+  ctx.clip();  // 文字不出界
+  const placed = fitFonts(ctx, lines, w, h, 15);
+  let ty = y + (h - placed[placed.length - 1].y) / 2;
+  for (const p of placed) {
+    ctx.font = `bold ${p.font}px "Segoe UI","PingFang SC",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeText(p.text, x + w / 2, ty + p.y);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillText(p.text, x + w / 2, ty + p.y);
+  }
+  ctx.restore();
+  if (viewLabel) {   // 无法容纳时在矩形外补注
+    ctx.save();
+    ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#c62828';
+    ctx.fillText(st.stacked ? '▲' + viewLabel : '', x, y - 5);
+    ctx.restore();
+  }
+}
+// 尺寸线（水平或垂直）
+function dimLine(ctx, x1, y1, x2, y2, label, isVertical) {
+  ctx.save();
+  ctx.strokeStyle = '#2b6cb0'; ctx.fillStyle = '#2b6cb0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  const r = 4;
+  for (const [ax, ay] of [[x1, y1], [x2, y2]]) {
+    ctx.beginPath();
+    if (isVertical) { ctx.moveTo(ax - r, ay); ctx.lineTo(ax, ay - (y1 < y2 ? r : -r)); ctx.lineTo(ax + r, ay); }
+    else { ctx.moveTo(ax, ay - r); ctx.lineTo(ax + (x1 < x2 ? r : -r), ay); ctx.lineTo(ax, ay + r); }
+    ctx.fill();
+  }
+  ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 3;
+  ctx.strokeText(label, (x1 + x2) / 2, isVertical ? (y1 + y2) / 2 : y1 + (y1 < y2 ? 13 : -13));
+  ctx.fillText(label, (x1 + x2) / 2, isVertical ? (y1 + y2) / 2 : y1 + (y1 < y2 ? 13 : -13));
+  ctx.restore();
+}
+function viewFrame(ctx, x, y, w, h, title) {
+  ctx.fillStyle = '#f7f9fc'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(title, x, y - 10);
+}
+
+// ============================================================
+//  方案 A：三视图
+// ============================================================
+function renderPlanA() {
+  const cv = document.getElementById('cvA');
+  const ctx = cv.getContext('2d');
+  const { l, w, h } = CONTAINER;
+  const S = 0.1245;                       // 统一比例（mm→px）
+  const pad = 120;
+  const topW = l * S, topH = w * S;
+  const frW = l * S, frH = h * S;
+  const sdW = w * S, sdH = h * S;
+  const x0 = 90, yTop = 90, yFr = yTop + topH + 90, ySd = yFr + frH + 90;
+
+  // ── 俯视图（XZ：长×宽）──
+  const tx = x0, ty = yTop;
+  viewFrame(ctx, tx, ty, topW, topH, '俯视图（长×宽）  ← 门端');
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i];
+    drawCargoBox(ctx, tx + c.px * S, ty + c.pz * S, c.sx * S, c.sz * S, c, STACK[i], `${c.sx}×${c.sz}`, '');
+  }
+  dimLine(ctx, tx, ty + topH + 20, tx + topW, ty + topH + 20, `总长 ${l}mm`, false);
+  dimLine(ctx, tx + topW + 20, ty, tx + topW + 20, ty + topH, `总宽 ${w}mm`, true);
+
+  // ── 正面图（XY：长×高，门端视角）──
+  const fx = x0, fy = yFr;
+  viewFrame(ctx, fx, fy, frW, frH, '正面图（长×高，门端视角）→ 显示堆叠与悬空');
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i];
+    drawCargoBox(ctx, fx + c.px * S, fy + (h - c.py - c.sy) * S, c.sx * S, c.sy * S, c, STACK[i], `${c.sx}×${c.sy}`, c.name);
+  }
+  dimLine(ctx, fx, fy + frH + 20, fx + frW, fy + frH + 20, `总长 ${l}mm`, false);
+  dimLine(ctx, fx + frW + 20, fy, fx + frW + 20, fy + frH, `总高 ${h}mm`, true);
+
+  // ── 侧面图（ZY：宽×高）──
+  const sx0 = x0, sy0 = ySd;
+  viewFrame(ctx, sx0, sy0, sdW, sdH, '侧面图（宽×高）');
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i];
+    drawCargoBox(ctx, sx0 + c.pz * S, sy0 + (h - c.py - c.sy) * S, c.sz * S, c.sy * S, c, STACK[i], `${c.sz}×${c.sy}`, c.name);
+  }
+  dimLine(ctx, sx0, sy0 + sdH + 20, sx0 + sdW, sy0 + sdH + 20, `总宽 ${w}mm`, false);
+  dimLine(ctx, sx0 + sdW + 20, sy0, sx0 + sdW + 20, sy0 + sdH, `总高 ${h}mm`, true);
+
+  // 右下角信息块
+  ctx.fillStyle = '#f0f4f8'; ctx.strokeStyle = '#2a2a5e';
+  ctx.beginPath(); ctx.roundRect(cv.width - 300, cv.height - 120, 270, 90, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#333'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('货柜：' + CONTAINER.name, cv.width - 280, cv.height - 88);
+  ctx.fillText('货物：12 件 · 利用率按实际计算', cv.width - 280, cv.height - 64);
+  ctx.fillStyle = '#b26a00'; ctx.fillText('⚠ 虚线 = 悬空需支撑', cv.width - 280, cv.height - 42);
+}
+
+// ============================================================
+//  方案 B：俯视图 + 堆叠剖面
+// ============================================================
+function renderPlanB() {
+  const cv = document.getElementById('cvB');
+  const ctx = cv.getContext('2d');
+  const { l, w, h } = CONTAINER;
+  const S = 0.107;                        // 俯视图比例
+  const tx = 100, ty = 60, topW = l * S, topH = w * S;
+  viewFrame(ctx, tx, ty, topW, topH, '俯视图（长×宽）—— 堆放平面位置');
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i];
+    drawCargoBox(ctx, tx + c.px * S, ty + c.pz * S, c.sx * S, c.sz * S, c, STACK[i], `${c.sx}×${c.sz}`, '');
+  }
+  dimLine(ctx, tx, ty + topH + 18, tx + topW, ty + topH + 18, `总长 ${l}mm`, false);
+  dimLine(ctx, tx + topW + 18, ty, tx + topW + 18, ty + topH, `总宽 ${w}mm`, true);
+
+  // ── 堆叠/悬空区域正视剖面（x 5000~10000, y 0~1000, z 900~1800 附近）──
+  const px0 = 5050, px1 = 10000, py0 = 0, py1 = 1000;
+  const S2 = 0.3;
+  const ax = 500, ay = 640, aw = (px1 - px0) * S2, ah = (py1 - py0) * S2;
+  viewFrame(ctx, ax, ay, aw, ah, '堆叠区域正视剖面（x=5050~10000, y=0~1000mm）放大查看');
+  for (let i = 0; i < CARGOS.length; i++) {
+    const c = CARGOS[i];
+    if (c.px + c.sx < px0 || c.px > px1) continue;      // x 相交
+    if (c.py + c.sy < py0 || c.py > py1) continue;      // y 相交
+    const bx = ax + Math.max(px0, c.px) * S2 - px0 * S2;
+    const bw = c.sx * S2;
+    const bh = c.sy * S2;
+    const by = ay + (py1 - Math.min(py1, c.py + c.sy)) * S2;
+    drawCargoBox(ctx, bx, by, bw, bh, c, STACK[i], `${c.sx}×${c.sy}`, c.name);
+  }
+  ctx.save();
+  ctx.strokeStyle = '#888'; ctx.setLineDash([4, 4]);
+  ctx.strokeRect(ax, ay, aw, ah); ctx.restore();
+  dimLine(ctx, ax, ay + ah + 18, ax + aw, ay + ah + 18, `剖面宽 ${px1 - px0}mm`, false);
+}
+
+// ============================================================
+//  方案 C：等轴测
+// ============================================================
+function renderPlanC() {
+  const cv = document.getElementById('cvC');
+  const ctx = cv.getContext('2d');
+  const { l, w, h } = CONTAINER;
+  const cos30 = 0.8660, sin30 = 0.5;
+  const S = 0.075;
+  const cx0 = cv.width / 2 - 80, cy0 = cv.height / 2 + 250;
+  const proj = (x, y, z) => [cx0 + (x - z) * cos30 * S, cy0 + (x + z) * sin30 * S - y * S];
+
+  // 柜体线框（三根主轴 + 顶面）
+  ctx.strokeStyle = 'rgba(43,108,176,0.9)'; ctx.lineWidth = 2;
+  const corners = [
+    [0, 0, 0], [l, 0, 0], [l, 0, w], [0, 0, w],
+    [0, h, 0], [l, h, 0], [l, h, w], [0, h, w],
+  ].map(p => proj(...p));
+  const edgeIdx = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+  ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(43,108,176,0.45)';
+  for (const [a, b] of edgeIdx) { ctx.beginPath(); ctx.moveTo(...corners[a]); ctx.lineTo(...corners[b]); ctx.stroke(); }
+  ctx.restore();
+
+  // 货物：painter 排序（远→近），画 顶/前右/前左 三面
+  const order = CARGOS.map((c, i) => i).sort((a, b) => (CARGOS[a].px + CARGOS[a].py + CARGOS[a].pz) - (CARGOS[b].px + CARGOS[b].py + CARGOS[b].pz));
+  const drawQuad = (pts, fill, stroke, lw, dash) => {
+    ctx.save();
+    ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = lw;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath(); ctx.moveTo(...pts[0]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(...pts[i]);
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  };
+  for (const i of order) {
+    const c = CARGOS[i]; const st = STACK[i];
+    const [x0, y0, z0] = [c.px, c.py, c.pz];
+    const p = (dx, dy, dz) => proj(x0 + dx, y0 + dy, z0 + dz);
+    const col = c.color;
+    // 前右面（X+方向）见光度 0.75，前左面（Z+方向）0.55，顶面 1.0
+    drawQuad([p(c.sx, 0, 0), p(c.sx, 0, c.sz), p(c.sx, c.sy, c.sz), p(c.sx, c.sy, 0)], hexRgba(col, 0.55), 'rgba(0,0,0,0.5)', 1);
+    drawQuad([p(0, 0, c.sz), p(c.sx, 0, c.sz), p(c.sx, c.sy, c.sz), p(0, c.sy, c.sz)], hexRgba(col, 0.75), 'rgba(0,0,0,0.5)', 1);
+    drawQuad([p(0, c.sy, 0), p(c.sx, c.sy, 0), p(c.sx, c.sy, c.sz), p(0, c.sy, c.sz)], hexRgba(col, 0.95), st.stacked ? '#c62828' : 'rgba(0,0,0,0.6)', st.stacked ? 2.5 : 1.2, st.suspended ? [4, 3] : null);
+    // 标签
+    const [lx, ly] = proj(x0 + c.sx / 2, y0 + c.sy + 140, z0 + c.sz / 2);
+    const lines = [(st.stacked ? '▲' : st.suspended ? '⚠' : '') + c.name, `${c.sx}×${c.sz}×${c.sy}`];
+    ctx.font = 'bold 12px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let k = 0; k < lines.length; k++) {
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.strokeText(lines[k], lx, ly + k * 15);
+      ctx.fillStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#1a1a1a');
+      ctx.fillText(lines[k], lx, ly + k * 15);
+    }
+  }
+}
+
+function dl(id) {
+  const a = document.createElement('a');
+  a.href = document.getElementById(id).toDataURL('image/png');
+  a.download = id + '.png';
+  a.click();
+}
+renderPlanA(); renderPlanB(); renderPlanC();
+</script>
+</body>
+</html>

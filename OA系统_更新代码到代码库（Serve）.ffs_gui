@@ -2,7 +2,7 @@
 <FreeFileSync XmlType="GUI" XmlFormat="23">
     <Notes>Soonwin_OA 项目同步配置 - 包含 Vue 前端和 Python 后端</Notes>
     <Compare>
-        <Variant>TimeAndSize</Variant>
+        <Variant>Content</Variant>
         <Symlinks>Exclude</Symlinks>
         <IgnoreTimeShift/>
     </Compare>
@@ -117,5 +117,5 @@
     <PostSyncCommand Condition="Completion"/>
     <LogFolder/>
     <EmailNotification Condition="Always"/>
-    <GridViewType>Action</GridViewType>
+    <GridViewType>Difference</GridViewType>
 </FreeFileSync>
