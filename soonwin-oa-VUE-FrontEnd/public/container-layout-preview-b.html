@@ -464,20 +464,27 @@ function draw() {
   }
 
   // ── 门方向指示（最后绘制，置顶不被柜体/货物遮挡）──
-  // 门在 x=l 端（x=max, y=0, z=w/2）。标签中心取用户坐标 (l+470, 0, w/2)（即 12500,0,1175 的通用形式），
-  // 沿门外方向（x 正方向投影 = 屏幕 30°）自适应外推，直到整个旋转标签的 4 角都在柜体轮廓外（真正"柜门外"）
-  const doorAng = 30 * Math.PI / 180;
+  // 门在 x=l 端（x=max, y=0, z=w/2）。标签中心取用户坐标 (l+520, 0, w/2)（即 12500+50,0,1175 的通用形式），
+  // 旋转角度动态取柜体长边（x 方向）在屏幕上的实际角度，与货柜摆放角度严格一致；
+  // 沿门外方向自适应外推，直到整个旋转标签的 4 角都在柜体轮廓外（真正"柜门外"）
+  const [doorP0x, doorP0y] = proj(0, 0, 0);
+  const [doorP1x, doorP1y] = proj(l, 0, 0);
+  const doorAng = Math.atan2(doorP1y - doorP0y, doorP1x - doorP0x);   // 柜体长边（x 方向）屏幕角度
   ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
-  const doorTxt = '货柜门方向→';
-  const doorW2 = ctx.measureText(doorTxt).width;
-  const dBw2 = doorW2 + 28, dBh2 = 32, hw2 = dBw2 / 2, hh2 = dBh2 / 2;
+  const doorTxt1 = '货柜门方向';
+  const doorTxt2 = '▶';   // 向右实心三角，比 → 醒目
+  const doorW1 = ctx.measureText(doorTxt1).width;
+  ctx.font = 'bold 17px sans-serif';
+  const doorW2 = ctx.measureText(doorTxt2).width;
+  const doorW = doorW1 + doorW2 + 3;
+  const dBw2 = doorW + 28, dBh2 = 34, hw2 = dBw2 / 2, hh2 = dBh2 / 2;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(...proj(...corners[0]));
   for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
   ctx.closePath();
   const inHull = (x, y) => ctx.isPointInPath(x, y);
-  const [bmx, bmy] = proj(l + 470, 0, w / 2);   // 门底边中点外 470mm（用户坐标 12500,0,1175）
+  const [bmx, bmy] = proj(l + 520, 0, w / 2);   // 门底边中点外 520mm（x 在原坐标基础上再 +50）
   const cosA = Math.cos(doorAng), sinA = Math.sin(doorAng);
   let dOff2 = 0, dtx2 = bmx, dty2 = bmy;
   const cornersOut = () => {
@@ -494,15 +501,19 @@ function draw() {
   ctx.restore();
   ctx.save();
   ctx.translate(dtx2, dty2);
-  ctx.rotate(doorAng);   // 30°
+  ctx.rotate(doorAng);   // 与货柜摆放角度一致
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
   ctx.fillStyle = 'rgba(43,108,176,0.13)';
   ctx.beginPath(); ctx.roundRect(-dBw2 / 2, -dBh2 / 2, dBw2, dBh2, 16); ctx.fill();
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.roundRect(-dBw2 / 2, -dBh2 / 2, dBw2, dBh2, 16); ctx.stroke();
-  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(doorTxt, 0, 1);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#2b6cb0';
+  ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+  ctx.fillText(doorTxt1, -dBw2 / 2 + 14, 1);
+  ctx.font = 'bold 17px sans-serif';
+  ctx.fillText(doorTxt2, -dBw2 / 2 + 14 + doorW1 + 3, 1);
   ctx.restore();
 }
 
