@@ -314,9 +314,12 @@ function draw() {
     // 尺寸
     ctx.fillStyle = '#555'; ctx.font = '16px Consolas,monospace';
     ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[1], yc + 6);
-    // 状态
+    // 状态（叠放标注支撑物带圈序号：▲ 叠于④ 上）
     ctx.font = '18px sans-serif';
-    if (st.stacked) { ctx.fillStyle = '#c62828'; ctx.fillText('▲叠放', cols[2], yc + 6); }
+    if (st.stacked) {
+      ctx.fillStyle = '#c62828';
+      ctx.fillText('▲ 叠于' + st.on.map(j => circNum(j + 1)).join('、') + ' 上', cols[2], yc + 6);
+    }
     else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[2], yc + 6); }
     else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[2], yc + 6); }
   });
