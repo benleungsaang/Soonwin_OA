@@ -106,10 +106,20 @@ const hexRgba = (hex, a) => {
 const CIRC_NUM = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
 const circNum = n => CIRC_NUM[n - 1] || n;
 
-// 装柜图序号：以原点为基准，右边优先——先按 z（柜宽方向，z 小=屏幕右侧）0→max，
-// 再按 x 0→max、y 0→max 排序货物并重新编号（避免左右相邻货物因 x 微差导致顺序相反）
+// 装柜图序号：以原点为基准，排优先 + 排内右边优先。
+// 排 = x 方向相近（差 ≤500mm）的货物归为同一排，排按 x 增序；排内按 z 0→max（z 小=屏幕右侧先编号）、y 0→max。
+// 效果：左右相邻货物按"右1左2右3左4"顺序编号，而不是右边整列编完再编左边
+const ROW_TOL = 500;   // 同排判定容差（mm）
+const xSorted = CARGOS.map((c, i) => i).sort((a, b) => CARGOS[a].px - CARGOS[b].px);
+const rowOf = new Array(CARGOS.length);
+let rowNo = 0, lastRowX = -Infinity;
+for (const i of xSorted) {
+  if (CARGOS[i].px - lastRowX > ROW_TOL) rowNo++;
+  rowOf[i] = rowNo;
+  lastRowX = CARGOS[i].px;
+}
 const SORT_INDEX = CARGOS.map((c, i) => i)
-  .sort((a, b) => (CARGOS[a].pz - CARGOS[b].pz) || (CARGOS[a].px - CARGOS[b].px) || (CARGOS[a].py - CARGOS[b].py));
+  .sort((a, b) => rowOf[a] - rowOf[b] || CARGOS[a].pz - CARGOS[b].pz || CARGOS[a].py - CARGOS[b].py);
 const dispPos = new Array(CARGOS.length);   // 原索引 → 显示序号位置（0-based）
 SORT_INDEX.forEach((orig, pos) => { dispPos[orig] = pos; });
 
