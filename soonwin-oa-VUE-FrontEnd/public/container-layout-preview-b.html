@@ -210,38 +210,6 @@ function draw() {
   drawSeg(' · ', '#1a3a5c');
   drawPill(`${CARGOS.length}件货`);
 
-  // 门方向指示：门位于 x=l 端（x=max, y=0, z=w/2）。
-  // 指示牌从门面中心（x=max, y=h/2, z=w/2）沿 x 正方向（屏幕 30°）外推"适当距离"，
-  // 旋转 30° 沿 x 轴方向放置，箭头 → 在末尾指向门端方向
-  const doorDir = 30 * Math.PI / 180;
-  const [dmx, dmy] = proj(l, h / 2, w / 2);
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(...proj(...corners[0]));
-  for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
-  ctx.closePath();
-  let dOff = 36;   // 适当距离
-  while (dOff < 420 && ctx.isPointInPath(dmx + Math.cos(doorDir) * dOff, dmy + Math.sin(doorDir) * dOff)) dOff += 8;
-  dOff += 14;
-  ctx.restore();
-  const dtx = dmx + Math.cos(doorDir) * dOff;
-  const dty = dmy + Math.sin(doorDir) * dOff;
-  ctx.save();
-  ctx.translate(dtx, dty);
-  ctx.rotate(doorDir);   // 30°
-  ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
-  const doorTxt = '货柜门方向→';
-  const doorW = ctx.measureText(doorTxt).width;
-  const dBw = doorW + 28, dBh = 32;
-  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
-  ctx.fillStyle = 'rgba(43,108,176,0.13)';
-  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.fill();
-  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.roundRect(-dBw / 2, -dBh / 2, dBw, dBh, 16); ctx.stroke();
-  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(doorTxt, 0, 1);
-  ctx.restore();
 
   // 地面网格
   const gxStep = l > 8000 ? 1000 : 500, gzStep = w > 2000 ? 500 : 250;
@@ -494,6 +462,48 @@ function draw() {
     ctx.font = `bold ${N.fs}px sans-serif`;
     ctx.fillText(N.txt, N.x + N.w / 2, N.y + N.h / 2);
   }
+
+  // ── 门方向指示（最后绘制，置顶不被柜体/货物遮挡）──
+  // 门在 x=l 端（x=max, y=0, z=w/2）。标签中心取用户坐标 (l+470, 0, w/2)（即 12500,0,1175 的通用形式），
+  // 沿门外方向（x 正方向投影 = 屏幕 30°）自适应外推，直到整个旋转标签的 4 角都在柜体轮廓外（真正"柜门外"）
+  const doorAng = 30 * Math.PI / 180;
+  ctx.font = 'bold 13px "Segoe UI","PingFang SC",sans-serif';
+  const doorTxt = '货柜门方向→';
+  const doorW2 = ctx.measureText(doorTxt).width;
+  const dBw2 = doorW2 + 28, dBh2 = 32, hw2 = dBw2 / 2, hh2 = dBh2 / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(...proj(...corners[0]));
+  for (let k = 1; k < corners.length; k++) ctx.lineTo(...proj(...corners[k]));
+  ctx.closePath();
+  const inHull = (x, y) => ctx.isPointInPath(x, y);
+  const [bmx, bmy] = proj(l + 470, 0, w / 2);   // 门底边中点外 470mm（用户坐标 12500,0,1175）
+  const cosA = Math.cos(doorAng), sinA = Math.sin(doorAng);
+  let dOff2 = 0, dtx2 = bmx, dty2 = bmy;
+  const cornersOut = () => {
+    for (const [lx, ly] of [[-hw2, -hh2], [hw2, -hh2], [hw2, hh2], [-hw2, hh2]]) {
+      if (inHull(dtx2 + lx * cosA - ly * sinA, dty2 + lx * sinA + ly * cosA)) return false;
+    }
+    return true;
+  };
+  while (dOff2 < 260 && !cornersOut()) {
+    dOff2 += 10;
+    dtx2 = bmx + Math.cos(doorAng) * dOff2;
+    dty2 = bmy + Math.sin(doorAng) * dOff2;
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.translate(dtx2, dty2);
+  ctx.rotate(doorAng);   // 30°
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = 'rgba(43,108,176,0.13)';
+  ctx.beginPath(); ctx.roundRect(-dBw2 / 2, -dBh2 / 2, dBw2, dBh2, 16); ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.roundRect(-dBw2 / 2, -dBh2 / 2, dBw2, dBh2, 16); ctx.stroke();
+  ctx.fillStyle = '#2b6cb0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(doorTxt, 0, 1);
+  ctx.restore();
 }
 
 // 悬停联动：徽标 <-> 清单行
