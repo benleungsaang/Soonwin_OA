@@ -60,7 +60,7 @@ class Inquiry(db.Model):
             self.email or '',
             self.packaging_product or '',
             self.machine_type or '',
-            self.creator.name or '',
+            self.creator.name if self.creator else '',
         ]
         # 过滤空值并连接成搜索字段
         self.search_field = ' '.join(filter(None, search_values))

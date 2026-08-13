@@ -254,7 +254,7 @@ def create_inquiry():
             packaging_product=data.get('packaging_product'),
             machine_type=data.get('machine_type'),
             creator_id=current_user.emp_id,
-            follower_id=data.get('follower_id')
+            follower_id=data.get('follower_id') or None
         )
         new_inquiry.update_search_field()
         db.session.add(new_inquiry)
