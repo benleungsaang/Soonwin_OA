@@ -1,5 +1,11 @@
 [
   {
+    "version": "2026.08.04-14",
+    "date": "2026-08-13",
+    "git": "9ce0106",
+    "summary": "fix: 询盘创建时 creator 查无员工导致 NoneType.name 崩溃，update_search_field 加空值防护；follower_id 空字符串转 NULL"
+  },
+  {
     "version": "2026.08.04-13",
     "date": "2026-08-04",
     "git": "e9ae79d",
