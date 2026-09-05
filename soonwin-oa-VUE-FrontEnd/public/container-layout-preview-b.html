@@ -58,6 +58,7 @@
   .manifest .num { text-align:center; font-weight:800; font-size:12pt; }
   .manifest .zone { text-align:center; font-weight:700; }
   .manifest .dim { white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; }
+  .manifest .wgt { text-align:center; white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; font-weight:600; color:#173e63; }
   .status-stacked { color:#b42318; font-weight:700; }
   .status-suspended { color:#9a6700; font-weight:700; }
   .status-floor { color:#667085; }
@@ -109,18 +110,18 @@
 // ============================================================
 const DEMO_CONTAINER = { name: '40尺高柜', l: 12030, w: 2350, h: 2690 };
 const DEMO_CARGOS = [
-  { name: 'ESS250B主机222', sx: 1390, sy: 1550, sz: 840,  px: 7370, py: 0,   pz: 0,    color: '#e94560' },
-  { name: 'ESS250B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 630, pz: 1050, color: '#ff6b6b' },
-  { name: 'ESS450B主机',    sx: 1590, sy: 1570, sz: 1040, px: 5520, py: 0,   pz: 1310, color: '#ffa94d' },
-  { name: 'ESS450B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 330, pz: 1050, color: '#ffd93d' },
-  { name: 'SZ750W主机',     sx: 2170, sy: 1570, sz: 1350, px: 0,    py: 0,   pz: 950,  color: '#6bcb77' },
-  { name: 'SZ750W尾架',     sx: 3430, sy: 330,  sz: 1100, px: 8600, py: 0,   pz: 1250, color: '#4d96ff' },
-  { name: '东鹏制氮机',     sx: 1500, sy: 2250, sz: 1310, px: 4220, py: 0,   pz: 0,    color: '#845ef7' },
-  { name: '东鹏空压机',     sx: 1000, sy: 1250, sz: 1300, px: 5720, py: 0,   pz: 0,    color: '#cc5de8' },
-  { name: '升奥注芯机',     sx: 2580, sy: 1510, sz: 950,  px: 0,    py: 0,   pz: 0,    color: '#20c997' },
-  { name: '顺意达包馅机',   sx: 1300, sy: 1750, sz: 1000, px: 4220, py: 0,   pz: 1310, color: '#ff922b' },
-  { name: '顺意达打饼机',   sx: 650,  sy: 1480, sz: 1050, px: 6720, py: 0,   pz: 0,    color: '#339af0' },
-  { name: '顺意达立式排盘机', sx: 1640, sy: 1950, sz: 1730, px: 2580, py: 0, pz: 0,  color: '#f06595' },
+  { name: 'ESS250B主机222', sx: 1390, sy: 1550, sz: 840,  px: 7370, py: 0,   pz: 0,    weight: 3200, color: '#e94560' },
+  { name: 'ESS250B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 630, pz: 1050, weight: 450,  color: '#ff6b6b' },
+  { name: 'ESS450B主机',    sx: 1590, sy: 1570, sz: 1040, px: 5520, py: 0,   pz: 1310, weight: 3850, color: '#ffa94d' },
+  { name: 'ESS450B尾架',    sx: 2500, sy: 300,  sz: 640,  px: 7110, py: 330, pz: 1050, weight: 520,  color: '#ffd93d' },
+  { name: 'SZ750W主机',     sx: 2170, sy: 1570, sz: 1350, px: 0,    py: 0,   pz: 950,  weight: 5200, color: '#6bcb77' },
+  { name: 'SZ750W尾架',     sx: 3430, sy: 330,  sz: 1100, px: 8600, py: 0,   pz: 1250, weight: 780,  color: '#4d96ff' },
+  { name: '东鹏制氮机',     sx: 1500, sy: 2250, sz: 1310, px: 4220, py: 0,   pz: 0,    weight: 2100, color: '#845ef7' },
+  { name: '东鹏空压机',     sx: 1000, sy: 1250, sz: 1300, px: 5720, py: 0,   pz: 0,    weight: 1300, color: '#cc5de8' },
+  { name: '升奥注芯机',     sx: 2580, sy: 1510, sz: 950,  px: 0,    py: 0,   pz: 0,    weight: 3600, color: '#20c997' },
+  { name: '顺意达包馅机',   sx: 1300, sy: 1750, sz: 1000, px: 4220, py: 0,   pz: 1310, weight: 1450, color: '#ff922b' },
+  { name: '顺意达打饼机',   sx: 650,  sy: 1480, sz: 1050, px: 6720, py: 0,   pz: 0,    weight: 980,  color: '#339af0' },
+  { name: '顺意达立式排盘机', sx: 1640, sy: 1950, sz: 1730, px: 2580, py: 0, pz: 0,  weight: 2300, color: '#f06595' },
 ];
 
 let CONTAINER, CARGOS, planName;
@@ -133,7 +134,9 @@ try {
       CONTAINER = { name: d.container.name || '货柜', l: d.container.l, w: d.container.w, h: d.container.h };
       CARGOS = d.cargos.map(c => ({
         name: c.name, sx: c.sx, sy: c.sy, sz: c.sz,
-        px: c.px, py: c.py, pz: c.pz, color: c.color || '#e94560',
+        px: c.px, py: c.py, pz: c.pz,
+        weight: (c.weight === undefined || c.weight === null || c.weight === '') ? null : Number(c.weight),
+        color: c.color || '#e94560',
       }));
       planName = saved.name || '';
     }
@@ -142,6 +145,12 @@ try {
 if (!CONTAINER) { CONTAINER = DEMO_CONTAINER; CARGOS = DEMO_CARGOS; planName = '（演示数据 id=3）'; }
 document.getElementById('subInfo').innerHTML =
   `方案：<b>${planName}</b> · 货柜：${CONTAINER.name} ${CONTAINER.l}×${CONTAINER.w}×${CONTAINER.h}mm · ${CARGOS.length} 件货`;
+
+// 重量显示：无值/为0 → "—"；整数千分位
+const fmtWeight = w => {
+  if (w === null || w === undefined || !isFinite(w) || w <= 0) return '—';
+  return Number.isInteger(w) ? w.toLocaleString('en-US') : String(w);
+};
 
 // ============================================================
 //  堆叠 / 悬空检测
@@ -353,7 +362,7 @@ function draw() {
     ctx.restore();
   }
 
-  // 侧边清单（放大 1.5 倍：行高 40、字号 16-18px；序号列压缩、名称列加宽；浅框线 + 表格外框）
+  // 侧边清单（放大 1.5 倍：行高 40、字号 14-18px；序号列压缩；列：名称/尺寸/重量/状态）
   ctx.fillStyle = '#1a3a5c'; ctx.font = 'bold 16px "Segoe UI","PingFang SC",sans-serif';
   ctx.fillText('货物清单', LIST_X, 38);
   // 表格外框（浅色）
@@ -363,12 +372,13 @@ function draw() {
   ctx.strokeRect(tblX, tblY, tblW, tblH);
   // 表头
   const numCx = LIST_X + 30;                 // 序号列（压缩：仅徽标宽）
-  const cols = [LIST_X + 62, LIST_X + 330, LIST_X + 480];
+  const cols = [LIST_X + 62, LIST_X + 270, LIST_X + 400, LIST_X + 488];
   ctx.fillStyle = '#888'; ctx.font = '15px sans-serif';
   ctx.fillText('序号', numCx - 12, headY - 12);
   ctx.fillText('货物名称', cols[0], headY - 12);
   ctx.fillText('尺寸(mm)', cols[1], headY - 12);
-  ctx.fillText('状态', cols[2], headY - 12);
+  ctx.fillText('重量(kg)', cols[2], headY - 12);
+  ctx.fillText('状态', cols[3], headY - 12);
   ctx.strokeStyle = '#8aa0b8'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(LIST_X - 4, headY - 4); ctx.lineTo(LIST_X + 596, headY - 4); ctx.stroke();
 
@@ -395,20 +405,23 @@ function draw() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(pos + 1, numCx, yc);
     ctx.restore();
-    // 名称（列宽 268px，超长截断，基线按居中调整）
-    ctx.fillStyle = '#1a1a1a'; ctx.font = '18px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
+    // 名称（列宽 208px，超长截断，基线按居中调整）
+    ctx.fillStyle = '#1a1a1a'; ctx.font = '16px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
     ctx.fillText(c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, cols[0], yc + 6);
-    // 尺寸
-    ctx.fillStyle = '#555'; ctx.font = '16px Consolas,monospace';
+    // 尺寸（长×宽×高 以 mm 计）
+    ctx.fillStyle = '#555'; ctx.font = '15px Consolas,monospace';
     ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[1], yc + 6);
+    // 重量（kg，无值/为0 显示 —）
+    ctx.font = '15px Consolas,monospace';
+    ctx.fillText(fmtWeight(c.weight), cols[2], yc + 6);
     // 状态（叠放标注支撑物带圈序号：▲ 叠于④ 上）
-    ctx.font = '18px sans-serif';
+    ctx.font = '14px sans-serif';
     if (st.stacked) {
       ctx.fillStyle = '#c62828';
-      ctx.fillText('▲ 叠于' + st.on.map(j => circNum(dispPos[j] + 1)).join('、') + ' 上', cols[2], yc + 6);
+      ctx.fillText('▲ 叠于' + st.on.map(j => circNum(dispPos[j] + 1)).join('、') + ' 上', cols[3], yc + 6);
     }
-    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[2], yc + 6); }
-    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[2], yc + 6); }
+    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[3], yc + 6); }
+    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[3], yc + 6); }
   });
 
   // 堆叠/悬空详情：置于货物表格下方，货物名称加圆角底色便于读取
@@ -1211,15 +1224,15 @@ function buildPrintDocument() {
       const sheet=makeSheet(title,'清单',`${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　共 ${zoneItems.length} 件`);
       const wrap=document.createElement('div');wrap.className='manifest-wrap';
       const table=document.createElement('table');table.className='manifest';
-      table.innerHTML='<colgroup><col style="width:8%"><col style="width:36%"><col style="width:22%"><col style="width:34%"></colgroup>'+
-        '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸（长×宽×高 mm）</th><th>放置状态 / 承托关系</th></tr></thead>';
+      table.innerHTML='<colgroup><col style="width:8%"><col style="width:32%"><col style="width:18%"><col style="width:9%"><col style="width:33%"></colgroup>'+
+        '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸（长×宽×高 mm）</th><th>重量（kg）</th><th>放置状态 / 承托关系</th></tr></thead>';
       const tbody=document.createElement('tbody');
       for(const i of slice){
         const c=CARGOS[i],st=STACK[i],tr=document.createElement('tr');
-        const values=[dispPos[i]+1,c.name,`${c.sx}×${c.sz}×${c.sy}`,statusText(i)];
+        const values=[dispPos[i]+1,c.name,`${c.sx}×${c.sz}×${c.sy}`,fmtWeight(c.weight),statusText(i)];
         values.forEach((v,k)=>{const td=document.createElement('td');td.textContent=v;
-          if(k===0)td.className='num';if(k===2)td.className='dim';
-          if(k===3)td.className=st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor');tr.append(td);});
+          if(k===0)td.className='num';if(k===2)td.className='dim';if(k===3)td.className='wgt';
+          if(k===4)td.className=st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor');tr.append(td);});
         tbody.append(tr);
       }
       table.append(tbody);wrap.append(table);sheet.append(wrap);root.append(sheet);
