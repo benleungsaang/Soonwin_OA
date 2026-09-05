@@ -10,3 +10,8 @@ yarn build:prod
 
 
 然后在服务器页面中执行“重启服务”功能，会自动把最新的soonwin_oa_deb.db数据结构更新到soonwin_oa.db中
+
+
+
+
+版本记录信息是写在 E:\Soonwin_OA\soonwin-os-Python-Server\app\constants\version_history.json

@@ -363,7 +363,7 @@ def get_image_group(uuid):
             }), 400
 
         # 获取图片组文件夹路径
-        file_path = display_file.file_path
+        file_path = display_file.normalized_file_path
         group_path = os.path.join(current_app.root_path, '..', file_path)
 
         if not os.path.exists(group_path):
@@ -502,7 +502,7 @@ def delete_display_file(file_id):
         display_file = DisplayFile.query.get_or_404(file_id)
 
         # 删除物理文件或文件夹
-        file_path = os.path.join(current_app.root_path, '..', display_file.file_path)
+        file_path = os.path.join(current_app.root_path, '..', display_file.normalized_file_path)
         if os.path.exists(file_path):
             if os.path.isfile(file_path):
                 # 如果是单个文件，直接删除

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>装柜图 - B（编号清单）</title>
+<title>v8 · 装柜图 - A4横向分页打印版</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', 'PingFang SC', sans-serif; padding: 20px 30px 50px; }
@@ -18,9 +18,73 @@
   .btn:hover { background: #1a4a7a; color: #fff; }
   .btn-primary { background: #e94560; color: #fff; }
   .btn-primary:hover { background: #ff6b81; }
+
+  /* A4 横向打印版：页面尺寸与纸张一致，屏幕上按纸张比例预览 */
+  body > h1, body > .sub, body > .card { display: none; }
+  body { background: #e8edf3; color: #16213e; padding: 72px 18px 36px; }
+  .print-toolbar {
+    position: fixed; z-index: 20; left: 0; right: 0; top: 0; height: 56px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: #16213e; box-shadow: 0 2px 10px rgba(0,0,0,.28);
+  }
+  .print-toolbar .hint { color: #cbd5e1; font-size: 13px; margin-right: 16px; }
+  #printRoot { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .sheet {
+    width: 297mm; height: 210mm; padding: 8mm 9mm 7mm;
+    background: #fff; color: #172033; position: relative; overflow: hidden;
+    box-shadow: 0 5px 22px rgba(24,39,75,.18); page-break-after: always;
+  }
+  .sheet:last-child { page-break-after: auto; }
+  .page-title { display: flex; align-items: flex-start; justify-content: space-between; min-height: 13mm; border-bottom: .45mm solid #244d78; padding-bottom: 2.5mm; }
+  .page-title h2 { font-size: 16pt; color: #163a5d; line-height: 1.2; }
+  .page-title .meta { margin-top: 1.2mm; font-size: 9.5pt; color: #536477; }
+  .page-title .page-kind { font-size: 10pt; font-weight: 700; color: #244d78; border: .35mm solid #8eabc7; border-radius: 4mm; padding: 1.3mm 3mm; white-space: nowrap; }
+  .canvas-frame { margin-top: 3mm; border: .3mm solid #b8c8d9; border-radius: 2mm; overflow: hidden; background: #fff; }
+  .canvas-frame canvas { width: 100%; height: auto; border-radius: 0; cursor: default; }
+  .overview-iso { height: 101mm; }
+  .overview-top { height: 50mm; margin-top: 2.5mm; }
+  .zone-iso { height: 165mm; }
+  .zone-top { height: 35mm; margin-top: 2.5mm; }
+  .canvas-frame canvas.stretch { width: 100%; height: 100%; }
+  .legend-print { display: flex; gap: 8mm; align-items: center; height: 8mm; font-size: 9pt; color: #394b5e; }
+  .legend-print b { font-size: 10pt; }
+  .dot { display:inline-block; width:3.4mm; height:3.4mm; border-radius:50%; vertical-align:-.5mm; border:.35mm solid; background:#fff; margin-right:1mm; }
+  .manifest-wrap { margin-top: 4mm; }
+  .manifest { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10.5pt; }
+  .manifest th { background: #e8f0f7; color: #173e63; padding: 2.6mm 2mm; border: .3mm solid #9db1c4; text-align: left; }
+  .manifest td { padding: 2.1mm 2mm; line-height: 1.2; border: .25mm solid #bdc9d4; vertical-align: middle; overflow-wrap: anywhere; }
+  .manifest tr { break-inside: avoid; page-break-inside: avoid; }
+  .manifest tbody tr:nth-child(even) { background: #f6f8fa; }
+  .manifest .num { text-align:center; font-weight:800; font-size:12pt; }
+  .manifest .zone { text-align:center; font-weight:700; }
+  .manifest .dim { white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; }
+  .status-stacked { color:#b42318; font-weight:700; }
+  .status-suspended { color:#9a6700; font-weight:700; }
+  .status-floor { color:#667085; }
+  .page-footer { position:absolute; left:9mm; right:9mm; bottom:3mm; display:flex; justify-content:space-between; color:#64748b; font-size:8.5pt; }
+  .print-note { margin-top: 3mm; border-left: 1.3mm solid #d97706; background:#fff8e6; padding:2mm 3mm; font-size:9.5pt; color:#704700; }
+
+  @media (max-width: 1200px) {
+    .sheet { transform-origin: top center; }
+    #printRoot { overflow-x: auto; align-items: flex-start; }
+  }
+  @page { size: A4 landscape; margin: 0; }
+  @media print {
+    html, body { width: 297mm; margin: 0; padding: 0; background: #fff; }
+    .print-toolbar { display: none !important; }
+    #printRoot { display:block; }
+    .sheet { margin:0; box-shadow:none; break-after:page; page-break-after:always; }
+    .sheet:last-child { break-after:auto; page-break-after:auto; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
 </style>
 </head>
 <body>
+<div class="print-toolbar">
+  <span class="hint">A4 横向分页打印版 · 打印比例请选择“实际大小 / 100%”</span>
+  <button class="btn btn-primary" onclick="window.print()">🖨 打印 / 另存为 PDF</button>
+  <button class="btn" onclick="goBack()">← 返回编辑器</button>
+</div>
 <h1>📦 装柜图 - B（等轴测 · 编号徽标 + 货物清单）</h1>
 <div class="sub" id="subInfo">加载数据中…</div>
 
@@ -36,6 +100,8 @@
     <button class="btn" onclick="goBack()">← 返回编辑器</button>
   </div>
 </div>
+
+<main id="printRoot" aria-label="A4横向装柜打印文件"></main>
 
 <script>
 // ============================================================
@@ -569,7 +635,608 @@ function dl() {
 }
 function goBack() { if (window.history.length > 1) window.history.back(); }
 
+// ============================================================
+//  A4 横向分页打印文件
+//  第1页总览；随后按柜长四等分输出分区放大页；最后每16件一页输出完整清单。
+// ============================================================
+const PRINT_ZONE_COUNT = 4;
+const PRINT_ROWS_PER_PAGE = 14;
+const PRINT_ZONE_NAMES = ['A', 'B', 'C', 'D'];
+const zoneOf = i => Math.min(PRINT_ZONE_COUNT - 1,
+  Math.max(0, Math.floor(((CARGOS[i].px + CARGOS[i].sx / 2) / l) * PRINT_ZONE_COUNT)));
+const statusColor = i => STACK[i].stacked ? '#b42318' : (STACK[i].suspended ? '#9a6700' : '#245f92');
+const statusText = i => {
+  const st = STACK[i];
+  if (st.stacked) return '▲ 叠放于 ' + st.on.map(j => '#' + (dispPos[j] + 1)).join('、') + ' 上';
+  if (st.suspended) return `⚠ 悬空 ${CARGOS[i].py} mm，需确认支撑`;
+  return '地面放置';
+};
+
+function makeSheet(title, kind, meta) {
+  const sheet = document.createElement('section');
+  sheet.className = 'sheet';
+  const head = document.createElement('header');
+  head.className = 'page-title';
+  const left = document.createElement('div');
+  const h2 = document.createElement('h2');
+  h2.textContent = title;
+  const sub = document.createElement('div');
+  sub.className = 'meta';
+  sub.textContent = meta;
+  left.append(h2, sub);
+  const badge = document.createElement('div');
+  badge.className = 'page-kind';
+  badge.textContent = kind;
+  head.append(left, badge);
+  sheet.append(head);
+  return sheet;
+}
+
+function addCanvas(sheet, className, width, height, aria) {
+  const frame = document.createElement('div');
+  frame.className = `canvas-frame ${className}`;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'stretch';
+  canvas.width = width; canvas.height = height;
+  canvas.setAttribute('aria-label', aria);
+  frame.append(canvas); sheet.append(frame);
+  return canvas;
+}
+
+function pQuad(g, pts, fill, stroke = 'rgba(25,45,65,.55)', lw = 1.2, dash = []) {
+  g.save(); g.fillStyle = fill; g.strokeStyle = stroke; g.lineWidth = lw; g.setLineDash(dash);
+  g.beginPath(); g.moveTo(...pts[0]);
+  for (let i = 1; i < pts.length; i++) g.lineTo(...pts[i]);
+  g.closePath(); g.fill(); g.stroke(); g.restore();
+}
+
+function readableTextColor(hex) {
+  const v=parseInt((hex || '#ffffff').slice(1),16);
+  const lum=.299*((v>>16)&255)+.587*((v>>8)&255)+.114*(v&255);
+  return lum < 145 ? '#ffffff' : '#172033';
+}
+
+function drawPrintBadge(g, x, y, n, color, r = 17, cargoFill = null) {
+  g.save();
+  g.beginPath(); g.arc(x, y, r + 3, 0, Math.PI * 2);
+  g.fillStyle = '#fff'; g.fill();
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+  g.fillStyle = cargoFill || '#fff'; g.fill(); g.strokeStyle = color; g.lineWidth = cargoFill ? 2 : 3; g.stroke();
+  g.fillStyle = cargoFill ? readableTextColor(cargoFill) : '#111827';
+  g.font = `800 ${n >= 10 ? 17 : 19}px Arial,sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, x, y + 1);
+  g.restore();
+}
+
+function coveredFromTop(i, indices) {
+  const a=CARGOS[i],cx=a.px+a.sx/2,cz=a.pz+a.sz/2,top=a.py+a.sy;
+  return indices.some(j=>{
+    if(j===i) return false;
+    const b=CARGOS[j];
+    return b.py+b.sy>top+1 && cx>b.px+1 && cx<b.px+b.sx-1 && cz>b.pz+1 && cz<b.pz+b.sz-1;
+  });
+}
+
+function chooseOverviewLabels(indices) {
+  // 总览仅保留无遮挡的大件。再按俯视中心做一次稀疏化，避免重新形成数字墙。
+  const candidates=indices.filter(i=>{
+    const c=CARGOS[i];
+    return !coveredFromTop(i,indices) && Math.min(c.sx,c.sz)>=520 && c.sx*c.sz>=650000;
+  }).sort((a,b)=>CARGOS[b].sx*CARGOS[b].sz-CARGOS[a].sx*CARGOS[a].sz);
+  const chosen=[];
+  for(const i of candidates){
+    const c=CARGOS[i],cx=c.px+c.sx/2,cz=c.pz+c.sz/2;
+    if(chosen.every(j=>{
+      const d=CARGOS[j],dx=(cx-(d.px+d.sx/2))/l,dz=(cz-(d.pz+d.sz/2))/w;
+      return Math.hypot(dx*2.2,dz)>.095;
+    })) chosen.push(i);
+    if(chosen.length>=14) break;
+  }
+  return chosen;
+}
+
+function polyArea(poly) {
+  let a=0;for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];a+=p[0]*q[1]-q[0]*p[1];}
+  return Math.abs(a)/2;
+}
+function pointInPoly(pt,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const a=poly[i],b=poly[j];
+    if(((a[1]>pt[1])!==(b[1]>pt[1])) && pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1]+1e-9)+a[0]) inside=!inside;
+  }
+  return inside;
+}
+function pointSegDistance(p,a,b){
+  const vx=b[0]-a[0],vy=b[1]-a[1],wx=p[0]-a[0],wy=p[1]-a[1];
+  const t=Math.max(0,Math.min(1,(wx*vx+wy*vy)/(vx*vx+vy*vy+1e-9)));
+  return Math.hypot(p[0]-(a[0]+t*vx),p[1]-(a[1]+t*vy));
+}
+function polyClearance(pt,poly){
+  if(!pointInPoly(pt,poly)) return -1;
+  let d=Infinity;for(let i=0;i<poly.length;i++)d=Math.min(d,pointSegDistance(pt,poly[i],poly[(i+1)%poly.length]));
+  return d;
+}
+function quadSamples(poly){
+  const out=[];
+  for(const u of [.22,.38,.5,.62,.78]) for(const v of [.22,.38,.5,.62,.78]){
+    const top=[poly[0][0]*(1-u)+poly[1][0]*u,poly[0][1]*(1-u)+poly[1][1]*u];
+    const bot=[poly[3][0]*(1-u)+poly[2][0]*u,poly[3][1]*(1-u)+poly[2][1]*u];
+    out.push([top[0]*(1-v)+bot[0]*v,top[1]*(1-v)+bot[1]*v]);
+  }
+  return out;
+}
+function orient(a,b,c){return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);}
+function onSegment(a,b,p){return p[0]>=Math.min(a[0],b[0])-1e-6&&p[0]<=Math.max(a[0],b[0])+1e-6&&p[1]>=Math.min(a[1],b[1])-1e-6&&p[1]<=Math.max(a[1],b[1])+1e-6;}
+function segmentsCross(a,b,c,d){
+  const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b),e=1e-6;
+  if(((o1>e&&o2<-e)||(o1<-e&&o2>e))&&((o3>e&&o4<-e)||(o3<-e&&o4>e)))return true;
+  if(Math.abs(o1)<=e&&onSegment(a,b,c))return true;if(Math.abs(o2)<=e&&onSegment(a,b,d))return true;
+  if(Math.abs(o3)<=e&&onSegment(c,d,a))return true;if(Math.abs(o4)<=e&&onSegment(c,d,b))return true;
+  return false;
+}
+
+function drawIsoPrint(canvas, xStart, xEnd, indices, detail, showZones, overviewLabelIndices = null) {
+  const g = canvas.getContext('2d');
+  const CW = canvas.width, CH = canvas.height;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, CW, CH);
+
+  // 分区边界上的跨区大件完整显示，避免裁掉货箱的一部分。
+  let viewStart = xStart, viewEnd = xEnd;
+  for (const i of indices) {
+    viewStart = Math.min(viewStart, CARGOS[i].px);
+    viewEnd = Math.max(viewEnd, CARGOS[i].px + CARGOS[i].sx);
+  }
+  const span = Math.max(1, viewEnd - viewStart);
+  const c30 = .8660254, s30 = .5;
+  const cornersP = [[0,0,0],[span,0,0],[span,0,w],[0,0,w],[0,h,0],[span,h,0],[span,h,w],[0,h,w]];
+  const rawP = cornersP.map(([x,y,z]) => [(x-z)*c30, (x+z)*s30-y]);
+  const rxs = rawP.map(p=>p[0]), rys = rawP.map(p=>p[1]);
+  const geomLeft = detail ? 205 : 70, geomRight = detail ? CW-205 : CW-75;
+  const geomTop = detail ? 35 : 30, geomBottom = detail ? CH-105 : CH-55;
+  const ps = Math.min((geomRight-geomLeft)/(Math.max(...rxs)-Math.min(...rxs)),
+                      (geomBottom-geomTop)/(Math.max(...rys)-Math.min(...rys)));
+  const pox = (geomLeft+geomRight)/2 - (Math.min(...rxs)+Math.max(...rxs))/2*ps;
+  const poy = (geomTop+geomBottom)/2 - (Math.min(...rys)+Math.max(...rys))/2*ps;
+  const pp = (x,y,z) => [pox + ((x-viewStart)-z)*c30*ps, poy + ((x-viewStart)+z)*s30*ps-y*ps];
+
+  // 柜体地面与轮廓。
+  pQuad(g, [pp(viewStart,0,0),pp(viewEnd,0,0),pp(viewEnd,0,w),pp(viewStart,0,w)],
+        'rgba(36,95,146,.055)', '#245f92', 2.3);
+  const wc = [[viewStart,0,0],[viewEnd,0,0],[viewEnd,0,w],[viewStart,0,w],
+              [viewStart,h,0],[viewEnd,h,0],[viewEnd,h,w],[viewStart,h,w]];
+  g.save(); g.strokeStyle='rgba(36,95,146,.50)'; g.lineWidth=1.5; g.setLineDash([8,6]);
+  for (const [a,b] of [[0,4],[1,5],[2,6],[3,7],[4,5],[5,6],[6,7],[7,4]]) {
+    g.beginPath(); g.moveTo(...pp(...wc[a])); g.lineTo(...pp(...wc[b])); g.stroke();
+  }
+  g.restore();
+
+  if (showZones) {
+    // 总览地面使用浅色分区底纹；边界只画在地面，不再竖起贯穿柜体的虚线平面。
+    const floorTints=['rgba(37,99,235,.055)','rgba(16,185,129,.055)','rgba(245,158,11,.055)','rgba(139,92,246,.055)'];
+    for (let z = 0; z < PRINT_ZONE_COUNT; z++) {
+      const xa=l*z/PRINT_ZONE_COUNT, xb=l*(z+1)/PRINT_ZONE_COUNT;
+      pQuad(g,[pp(xa,0,0),pp(xb,0,0),pp(xb,0,w),pp(xa,0,w)],floorTints[z],'rgba(0,0,0,0)',0);
+    }
+    for (let z = 1; z < PRINT_ZONE_COUNT; z++) {
+      const xx = l*z/PRINT_ZONE_COUNT;
+      g.save(); g.strokeStyle='#315f88'; g.lineWidth=3.2; g.setLineDash([12,8]);
+      g.beginPath(); g.moveTo(...pp(xx,0,0)); g.lineTo(...pp(xx,0,w)); g.stroke();
+      const a=pp(xx,0,0),b=pp(xx,0,w);
+      for(const [pt,label] of [[a,PRINT_ZONE_NAMES[z-1]+'|'+PRINT_ZONE_NAMES[z]],[b,PRINT_ZONE_NAMES[z-1]+'|'+PRINT_ZONE_NAMES[z]]]){
+        g.setLineDash([]);g.fillStyle='rgba(255,255,255,.92)';g.fillRect(pt[0]-27,pt[1]-12,54,22);
+        g.fillStyle='#315f88';g.font='800 14px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(label,pt[0],pt[1]);
+      }
+      g.restore();
+    }
+    for (let z = 0; z < PRINT_ZONE_COUNT; z++) {
+      const xx = l*(z+.5)/PRINT_ZONE_COUNT;
+      const [zx,zy] = pp(xx,0,w);
+      g.fillStyle='#163a5d'; g.font='800 23px Arial,sans-serif'; g.textAlign='center';
+      g.fillText(`${PRINT_ZONE_NAMES[z]}区`, zx, zy+31);
+    }
+  }
+
+  // 底部投影、悬空线与货物箱体。
+  for (const i of indices) {
+    const c=CARGOS[i];
+    pQuad(g,[pp(c.px,0,c.pz),pp(c.px+c.sx,0,c.pz),pp(c.px+c.sx,0,c.pz+c.sz),pp(c.px,0,c.pz+c.sz)],
+      'rgba(0,0,0,.07)','rgba(0,0,0,.16)',.8);
+    if (STACK[i].suspended) {
+      g.save(); g.strokeStyle='#d97706'; g.lineWidth=2; g.setLineDash([6,5]);
+      g.beginPath(); g.moveTo(...pp(c.px+c.sx/2,0,c.pz+c.sz/2));
+      g.lineTo(...pp(c.px+c.sx/2,c.py,c.pz+c.sz/2)); g.stroke(); g.restore();
+    }
+  }
+  const paintOrder=[...indices].sort((a,b)=>(CARGOS[a].px+CARGOS[a].py+CARGOS[a].pz)-(CARGOS[b].px+CARGOS[b].py+CARGOS[b].pz));
+  for (const i of paintOrder) {
+    const c=CARGOS[i], st=STACK[i], p=(dx,dy,dz)=>pp(c.px+dx,c.py+dy,c.pz+dz);
+    const edge=statusColor(i), lw=st.stacked||st.suspended?2.8:1.25;
+    pQuad(g,[p(c.sx,0,0),p(c.sx,0,c.sz),p(c.sx,c.sy,c.sz),p(c.sx,c.sy,0)],hexRgba(c.color,.38),'rgba(0,0,0,.44)',lw);
+    pQuad(g,[p(0,0,c.sz),p(c.sx,0,c.sz),p(c.sx,c.sy,c.sz),p(0,c.sy,c.sz)],hexRgba(c.color,.55),'rgba(0,0,0,.44)',lw);
+    pQuad(g,[p(0,c.sy,0),p(c.sx,c.sy,0),p(c.sx,c.sy,c.sz),p(0,c.sy,c.sz)],hexRgba(c.color,.78),edge,lw,st.suspended?[6,4]:[]);
+  }
+
+  // 为每件货物建立当前视角下的三个可见候选面：顶面、X向立面、Z向立面。
+  const faceMap=new Map();
+  for(const i of indices){
+    const c=CARGOS[i],p=(dx,dy,dz)=>pp(c.px+dx,c.py+dy,c.pz+dz);
+    faceMap.set(i,[
+      {name:'top',pref:36,poly:[p(0,c.sy,0),p(c.sx,c.sy,0),p(c.sx,c.sy,c.sz),p(0,c.sy,c.sz)]},
+      {name:'front',pref:24,poly:[p(0,0,c.sz),p(c.sx,0,c.sz),p(c.sx,c.sy,c.sz),p(0,c.sy,c.sz)]},
+      {name:'side',pref:18,poly:[p(c.sx,0,0),p(c.sx,0,c.sz),p(c.sx,c.sy,c.sz),p(c.sx,c.sy,0)]}
+    ]);
+  }
+  const paintPos=new Map(paintOrder.map((i,k)=>[i,k]));
+  const pointOccluded=(i,pt)=>paintOrder.slice((paintPos.get(i)||0)+1)
+    .some(j=>faceMap.get(j).some(f=>pointInPoly(pt,f.poly)));
+  const plans=indices.map(i=>{
+    const directOptions=[],anchorOptions=[];
+    for(const face of faceMap.get(i)){
+      const area=polyArea(face.poly);
+      for(const pt of quadSamples(face.poly)){
+        const clearance=polyClearance(pt,face.poly);
+        if(clearance<3||pointOccluded(i,pt))continue;
+        const score=clearance*14+area/280+face.pref;
+        anchorOptions.push({p:pt,score,face:face.name});
+        if(clearance>=22&&area>=2100)directOptions.push({p:pt,score,face:face.name});
+      }
+    }
+    directOptions.sort((a,b)=>b.score-a.score);anchorOptions.sort((a,b)=>b.score-a.score);
+    return {i,directOptions,anchorOptions,anchor:(anchorOptions[0]||{p:pp(CARGOS[i].px+CARGOS[i].sx/2,CARGOS[i].py+CARGOS[i].sy,CARGOS[i].pz+CARGOS[i].sz/2)}).p};
+  });
+  if (!detail) {
+    // 总览只承担分区和整体空间关系说明，不显示任何货物编号。
+  } else {
+    // 逐件尝试顶面和两个立面；优先选择净空最大的位置，而不是把“顶面被压住”等同于必须引线。
+    const direct=[];
+    const ranked=[...plans].sort((a,b)=>(b.directOptions[0]?.score||-1)-(a.directOptions[0]?.score||-1));
+    for(const plan of ranked){
+      const choice=plan.directOptions.find(o=>direct.every(d=>Math.hypot(d.p[0]-o.p[0],d.p[1]-o.p[1])>=49));
+      if(choice)direct.push({i:plan.i,p:choice.p,face:choice.face,score:choice.score});
+    }
+    const directSet=new Set(direct.map(a=>a.i));
+
+    // C模式只合并无分叉、单承托、足迹接近的连续链；共享底座不代表同一垛。
+    const planMap=new Map(plans.map(a=>[a.i,a]));
+    const children=new Map(indices.map(i=>[i,[]]));
+    for(const i of indices)for(const j of STACK[i].on)if(children.has(j))children.get(j).push(i);
+    const below=new Map(),above=new Map();
+    for(const i of indices){
+      const on=STACK[i].on;
+      if(on.length!==1||!children.has(on[0])||children.get(on[0]).length!==1)continue;
+      const j=on[0],a=CARGOS[i],b=CARGOS[j];
+      const ox=Math.max(0,Math.min(a.px+a.sx,b.px+b.sx)-Math.max(a.px,b.px));
+      const oz=Math.max(0,Math.min(a.pz+a.sz,b.pz+b.sz)-Math.max(a.pz,b.pz));
+      if(ox*oz/Math.max(a.sx*a.sz,b.sx*b.sz)<.8)continue;
+      below.set(i,j);above.set(j,i);
+    }
+    const grouped=new Set(),units=[];
+    for(const i of indices){
+      if(above.has(i))continue;
+      const chain=[];let j=i;
+      while(j!==undefined){chain.push(j);j=below.get(j);}
+      // 至少三层，至少两件原本需要引线。组内直接编号也统一移入层序卡。
+      if(chain.length>=3&&chain.filter(k=>!directSet.has(k)).length>=2){
+        chain.forEach(k=>grouped.add(k));units.push({ids:chain,group:true});
+      }
+    }
+    for(let k=direct.length-1;k>=0;k--)if(grouped.has(direct[k].i))direct.splice(k,1);
+    for(const i of indices)if(!grouped.has(i)&&!directSet.has(i))units.push({ids:[i],group:false});
+    const stroke=(path,color,width)=>{g.save();g.strokeStyle=color;g.lineWidth=width;g.lineJoin='round';g.lineCap='round';g.beginPath();g.moveTo(...path[0]);for(const p of path.slice(1))g.lineTo(...p);g.stroke();g.restore();};
+    // 只计算穿入投影内部的长度；接触边界不再等于整条线无效。
+    const segmentHits=(a,b,excluded)=>{
+      const length=Math.hypot(b[0]-a[0],b[1]-a[1]),steps=Math.max(2,Math.ceil(length/7));
+      let inside=0;
+      for(let k=1;k<steps;k++){
+        const p=[a[0]+(b[0]-a[0])*k/steps,a[1]+(b[1]-a[1])*k/steps];
+        if(indices.some(i=>!excluded.has(i)&&faceMap.get(i).some(f=>polyClearance(p,f.poly)>2)))inside++;
+      }
+      return inside*length/steps;
+    };
+    const candidates=(u,side)=>{
+      const dir=side==='L'?-1:1,opts=[];
+      if(u.group){
+        // 括号覆盖链的共同侧边，单条中性引线指向整组，不伪装成某件货物的锚点。
+        const boxes=u.ids.map(i=>CARGOS[i]);
+        const x=side==='L'?Math.min(...boxes.map(c=>c.px)):Math.max(...boxes.map(c=>c.px+c.sx));
+        const z=Math.max(...boxes.map(c=>c.pz+c.sz));
+        const top=pp(x,Math.max(...boxes.map(c=>c.py+c.sy)),z);
+        const bot=pp(x,Math.min(...boxes.map(c=>c.py)),z);
+        const bx=top[0]+dir*12;
+        opts.push({p:[bx,(top[1]+bot[1])/2],bracket:[[top[0],top[1]],[bx,top[1]],[bx,bot[1]],[bot[0],bot[1]]]});
+      }else{
+        const i=u.ids[0];
+        for(const f of faceMap.get(i))for(let k=0;k<4;k++)for(const t of [.15,.35,.5,.65,.85]){
+          const a=f.poly[k],b=f.poly[(k+1)%4],p=[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];
+          if(!pointOccluded(i,p))opts.push({p});
+        }
+      }
+      if(!opts.length){
+        const c=CARGOS[u.ids[0]];
+        // 无可见面时仍定位真实顶面；用虚线表达被遮挡的连接段。
+        opts.push({p:pp(c.px+c.sx/2,c.py+c.sy,c.pz+c.sz/2),hidden:true});
+      }
+      return opts;
+    };
+    const usedPaths=[];
+    for(const u of units){
+      u.height=u.group?16+u.ids.length*46:44;
+      u.options={};
+      for(const side of ['L','R']){
+        const edge=side==='L'?190:CW-190,excluded=new Set(u.ids);
+        const opts=candidates(u,side);
+        for(const o of opts)o.cost=segmentHits(o.p,[edge,o.p[1]],excluded)*100000+Math.abs(o.p[0]-edge);
+        opts.sort((a,b)=>a.cost-b.cost);u.options[side]=opts.slice(0,12);
+      }
+      const L=u.options.L[0],R=u.options.R[0];
+      u.side=!L?'R':!R?'L':L.cost<=R.cost?'L':'R';
+      u.anchor=u.options[u.side][0];
+      // 完全遮挡时明确标为定位待确认，不输出假锚点。
+      if(!u.anchor){u.unresolved=true;u.side='L';u.anchor={p:planMap.get(u.ids[0]).anchor};}
+    }
+    // 布局与路由联合求解：允许交换外围标签，不在绘制中途固定顺序。
+    const orders={L:units.filter(u=>u.side==='L'),R:units.filter(u=>u.side==='R')};
+    for(const side of ['L','R'])orders[side].sort((a,b)=>a.anchor.p[1]-b.anchor.p[1]);
+    const solve=()=>{
+      const paths=[],results=[];
+      for(const side of ['L','R']){
+        const arr=orders[side],total=arr.reduce((n,u)=>n+u.height,0);
+        const gap=arr.length>1?Math.max(8,Math.min(35,(CH-90-total)/(arr.length-1))):0;
+        let y=40;
+        for(const u of arr){u.y=Math.max(y,u.anchor.p[1]-u.height/2);y=u.y+u.height+gap;}
+        let ceiling=CH-45;
+        for(const u of [...arr].reverse()){u.y=Math.min(u.y,ceiling-u.height);ceiling=u.y-gap;u.overflow=u.y<20;}
+      }
+      for(const u of [...orders.L,...orders.R]){
+        if(u.overflow)continue;
+      const side=u.side,dir=side==='L'?-1:1,edge=side==='L'?180:CW-180,cy=u.y+u.height/2;
+      let best=null;
+      const excluded=new Set(u.ids);
+      const assess=(o,path)=>{
+        let score=0;
+        for(let k=0;k<path.length-1;k++){
+          score+=segmentHits(path[k],path[k+1],excluded)*10000+Math.hypot(path[k+1][0]-path[k][0],path[k+1][1]-path[k][1]);
+
+          for(const prev of paths)for(let j=0;j<prev.length-1;j++)if(segmentsCross(path[k],path[k+1],prev[j],prev[j+1]))score+=2e6;
+        }
+        if(o.bracket)for(let k=1;k<o.bracket.length;k++)score+=segmentHits(o.bracket[k-1],o.bracket[k],excluded)*10000;
+        if(!best||score<best.score)best={...o,path,score};
+      };
+      const endX=u.group?edge:(side==='L'?123:CW-123);
+      for(const o of u.options[side]){
+        for(const t of [.25,.5,.75])assess(o,[o.p,[o.p[0]+(edge-o.p[0])*t,cy],[endX,cy]]);
+        // 货物附近短斜线散开，沿外侧通道绕行后接到标签实际边缘。
+        for(const dy of [-140,-70,0,70,140]){
+          const exit=[o.p[0]+dir*40,Math.max(25,Math.min(CH-40,o.p[1]+dy))];
+          const rail=side==='L'?195:CW-195;
+          assess(o,[o.p,exit,[rail,exit[1]],[rail,cy],[endX,cy]]);
+        }
+      }
+        if(best){results.push({u,best,y:u.y});paths.push(best.path);if(best.bracket)paths.push(best.bracket);}
+      }
+      let score=units.filter(u=>u.overflow).length*1e12;
+      for(const r of results)score+=r.best.score;
+      // 最终出口与编号同序；对长距离贴近也处罚，而非只检测交叉。
+      for(let i=0;i<results.length;i++)for(let j=i+1;j<results.length;j++){
+        const a=results[i],b=results[j];
+        if(a.u.side===b.u.side&&(a.best.p[1]-b.best.p[1])*(a.y+a.u.height/2-b.y-b.u.height/2)<0)score+=3e6;
+        const A=a.best.path,B=b.best.path;
+        for(let k=1;k<A.length;k++)for(let t=1;t<B.length;t++){
+          const d=Math.min(pointSegDistance(A[k],B[t-1],B[t]),pointSegDistance(B[t],A[k-1],A[k]));
+          if(d<12)score+=(12-d)*1000;
+        }
+      }
+      return {results,score};
+    };
+    let solution=solve();
+    // 有限轮两两交换，卡片和圆号共同参与；不针对某个货物编号写死规则。
+    for(let pass=0;pass<3;pass++){
+      let improved=false;
+      for(const side of ['L','R']){
+        const arr=orders[side];
+        for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){
+          [arr[i],arr[j]]=[arr[j],arr[i]];
+          const trial=solve();
+          if(trial.score+1<solution.score){solution=trial;improved=true;}
+          else [arr[i],arr[j]]=[arr[j],arr[i]];
+        }
+      }
+      if(!improved)break;
+    }
+    solution=solve();
+    const obstacles=[];
+    for(const {u,best,y} of solution.results){
+      u.y=y;
+      const side=u.side,cy=y+u.height/2,excluded=new Set(u.ids);
+      obstacles.push(best.path);if(best.bracket)obstacles.push(best.bracket);
+      const color=u.group?'#52677c':CARGOS[u.ids[0]].color;
+      // 不再以遮挡为由删除连接。不可避免的遮挡段使用虚线，真实锚点不挪动。
+      const drawConnection=path=>{
+        stroke(path,'#fff',7);
+        for(let k=1;k<path.length;k++){
+          g.save();g.setLineDash(segmentHits(path[k-1],path[k],excluded)>3?[7,5]:[]);
+          stroke([path[k-1],path[k]],color,2.6);g.restore();
+        }
+      };
+      if(best){
+        if(best.bracket)drawConnection(best.bracket);
+        drawConnection(best.path);usedPaths.push(best.path);
+        if(!u.group){g.beginPath();g.arc(...best.p,3,0,Math.PI*2);g.fillStyle=color;g.fill();}
+      }
+      const x=side==='L'?28:CW-176;
+      if(u.group){
+        g.fillStyle='#f5f8fb';g.strokeStyle='#a4b5c6';g.lineWidth=1.5;
+        g.beginPath();g.roundRect(x,u.y,148,u.height,10);g.fill();g.stroke();
+        u.ids.forEach((i,k)=>{
+          drawPrintBadge(g,x+74,u.y+31+k*46,dispPos[i]+1,CARGOS[i].color,18,CARGOS[i].color);
+        });
+      }else{
+        drawPrintBadge(g,x+74,cy,dispPos[u.ids[0]]+1,color,18,color);
+      }
+    }
+    if(units.some(u=>u.overflow)){g.fillStyle='#9a6700';g.font='18px sans-serif';g.textAlign='center';g.fillText('空间不足，以下编号见本区清单：'+units.filter(u=>u.overflow).flatMap(u=>u.ids.map(i=>'#'+(dispPos[i]+1))).join('、'),CW/2,CH-20);}
+    canvas.dataset.annotationSummary=JSON.stringify({groups:units.filter(u=>u.group).map(u=>u.ids.map(i=>dispPos[i]+1)),direct:direct.length,external:units.filter(u=>!u.overflow).length,leaders:usedPaths.length,overflow:units.filter(u=>u.overflow).length});
+    // 引线和组括号确定后，重新选择面内位置；整个圆圈必须避开遮挡与连接。
+    const settled=[];
+    for(const m of direct){
+      const valid=planMap.get(m.i).directOptions.filter(o=>{
+        if(!Array.from({length:12},(_,k)=>[o.p[0]+22*Math.cos(k*Math.PI/6),o.p[1]+22*Math.sin(k*Math.PI/6)]).every(p=>!pointOccluded(m.i,p)))return false;
+        return settled.every(d=>Math.hypot(d.p[0]-o.p[0],d.p[1]-o.p[1])>=49);
+      });
+      const clearance=p=>Math.min(1000,...obstacles.flatMap(path=>path.slice(1).map((q,k)=>pointSegDistance(p,path[k],q))));
+      valid.sort((a,b)=>{
+        const da=clearance(a.p),db=clearance(b.p);
+        return (db>=30?1:0)-(da>=30?1:0)||Math.min(db,60)-Math.min(da,60)||b.score-a.score;
+      });
+      if(valid.length)m.p=valid[0].p;
+      settled.push(m);
+      drawPrintBadge(g,m.p[0],m.p[1],dispPos[m.i]+1,CARGOS[m.i].color,18,CARGOS[m.i].color);
+    }
+  }
+
+  // 方向及相邻分区：由本页名义分区确定，不受跨区货物扩展视野影响。
+  g.save();g.fillStyle='#163a5d';g.font='800 20px "Segoe UI","PingFang SC",sans-serif';
+  g.textBaseline='alphabetic';
+  const hp=pp(viewStart,0,w),dp=pp(viewEnd,0,0);
+  const hx=Math.max(12,hp[0]-55),hy=Math.min(CH-(detail?40:12),hp[1]+28);
+  const dx=Math.min(CW-12,dp[0]+105),dy=Math.min(CH-(detail?40:12),dp[1]+34);
+  g.textAlign='left';g.fillText(detail?'◀ 柜头方向':'柜头',hx,hy);
+  g.textAlign='right';g.fillText('柜门方向 ▶',dx,dy);
+  if(detail){
+    const z=Math.max(0,Math.min(PRINT_ZONE_COUNT-1,Math.round(xStart/l*PRINT_ZONE_COUNT)));
+    g.font='600 16px "Segoe UI","PingFang SC",sans-serif';g.fillStyle='#52677c';
+    if(z>0){g.textAlign='left';g.fillText('接 '+PRINT_ZONE_NAMES[z-1]+' 区',hx,hy+24);}
+    if(z<PRINT_ZONE_COUNT-1){g.textAlign='right';g.fillText('接 '+PRINT_ZONE_NAMES[z+1]+' 区',dx,dy+24);}
+  }
+  g.restore();
+}
+
+function drawTopPrint(canvas, xStart, xEnd, indices, showZones, labelIndices = null) {
+  const g=canvas.getContext('2d'), CW=canvas.width, CH=canvas.height;
+  g.fillStyle='#fff';g.fillRect(0,0,CW,CH);
+  const span=Math.max(1,xEnd-xStart),scale=Math.min((CW-44)/span,(CH-14)/w);
+  const drawW=span*scale,drawH=w*scale,ml=(CW-drawW)/2,mt=(CH-drawH)/2;
+  const sx=scale,sz=scale,xp=x=>ml+(x-xStart)*sx,zp=z=>mt+z*sz;
+  g.fillStyle='#f7fafc';g.fillRect(ml,mt,drawW,drawH);
+  if(showZones){
+    const tints=['rgba(37,99,235,.07)','rgba(16,185,129,.07)','rgba(245,158,11,.07)','rgba(139,92,246,.07)'];
+    for(let z=0;z<PRINT_ZONE_COUNT;z++){
+      const xa=xp(l*z/PRINT_ZONE_COUNT),xb=xp(l*(z+1)/PRINT_ZONE_COUNT);
+      g.fillStyle=tints[z];g.fillRect(xa,mt,xb-xa,drawH);
+    }
+  }
+  const order=[...indices].sort((a,b)=>CARGOS[a].py-CARGOS[b].py);
+  for(const i of order){
+    const c=CARGOS[i],rx=xp(c.px),ry=zp(c.pz),rw=c.sx*sx,rh=c.sz*sz;
+    g.fillStyle=hexRgba(c.color,.62);g.fillRect(rx,ry,rw,rh);
+    g.strokeStyle=statusColor(i);g.lineWidth=STACK[i].stacked||STACK[i].suspended?3:1.4;g.strokeRect(rx,ry,rw,rh);
+  }
+  if(showZones){
+    for(let z=1;z<PRINT_ZONE_COUNT;z++){
+      const xx=xp(l*z/PRINT_ZONE_COUNT);g.save();g.strokeStyle='#315f88';g.lineWidth=3;g.setLineDash([11,7]);
+      g.beginPath();g.moveTo(xx,mt);g.lineTo(xx,mt+drawH);g.stroke();g.restore();
+    }
+    for(let z=0;z<PRINT_ZONE_COUNT;z++){
+      const xa=xp(l*z/PRINT_ZONE_COUNT),xb=xp(l*(z+1)/PRINT_ZONE_COUNT);
+      // 宽高各缩小5%，居中留边；白色不透明度38%，保留底层货物轮廓。
+      g.fillStyle='rgba(255,255,255,.38)';
+      g.fillRect(xa+(xb-xa)*.025,mt+drawH*.025,(xb-xa)*.95,drawH*.95);
+      g.fillStyle='#163a5d';g.font='800 22px Arial';g.textAlign='center';g.textBaseline='middle';
+      g.fillText(PRINT_ZONE_NAMES[z]+'区',(xa+xb)/2,mt+drawH/2);
+    }
+  }
+  g.strokeStyle='#245f92';g.lineWidth=3;g.strokeRect(ml,mt,drawW,drawH);
+  const levelAt=i=>order.filter(j=>Math.abs((CARGOS[j].px+CARGOS[j].sx/2)-(CARGOS[i].px+CARGOS[i].sx/2))<120 &&
+    Math.abs((CARGOS[j].pz+CARGOS[j].sz/2)-(CARGOS[i].pz+CARGOS[i].sz/2))<120 && CARGOS[j].py<CARGOS[i].py).length;
+  const labelSet=new Set(labelIndices || indices);
+  for(const i of order){
+    if(!labelSet.has(i)) continue;
+    const c=CARGOS[i],cx=xp(c.px+c.sx/2),cy=zp(c.pz+c.sz/2)+levelAt(i)*22;
+    drawPrintBadge(g,cx,cy,dispPos[i]+1,CARGOS[i].color,indices.length>24?14:17,CARGOS[i].color);
+  }
+  g.fillStyle='#163a5d';g.font='800 18px "Segoe UI","PingFang SC",sans-serif';g.textBaseline='middle';
+  g.textAlign='left';g.fillText('柜头',ml+8,mt+drawH/2);
+  g.textAlign='right';g.fillText('柜门 ▶',ml+drawW-8,mt+drawH/2);
+}
+
+function addLegend(sheet) {
+  const d=document.createElement('div');d.className='legend-print';
+  d.innerHTML='<span><i class="dot" style="border-color:#245f92"></i>编号圆圈与货物同色</span>'+
+    '<span><b style="color:#b42318">▲ 红边：叠放</b></span>'+
+    '<span><b style="color:#9a6700">⚠ 橙边：悬空/需确认支撑</b></span>'+
+    '<span>组引线连接整垛；虚线段表示遮挡</span>';
+  sheet.append(d);
+}
+function addOverviewLegend(sheet){
+  const d=document.createElement('div');d.className='legend-print';
+  d.innerHTML='<span><b style="color:#315f88">虚线：A/B/C/D分区边界</b></span>'+
+    '<span><b style="color:#b42318">▲ 红边：叠放</b></span>'+
+    '<span><b style="color:#9a6700">⚠ 橙边：悬空/需确认支撑</b></span>'+
+    '<span>装柜方向：柜头 → 柜门</span>';
+  sheet.append(d);
+}
+
+function buildPrintDocument() {
+  const root=document.getElementById('printRoot');root.innerHTML='';
+  const meta=`方案：${planName || '未命名方案'}　|　${CONTAINER.name} ${l}×${w}×${h} mm　|　共 ${CARGOS.length} 件`;
+
+  const overview=makeSheet('装柜总览图','总览',meta);
+  const oc=addCanvas(overview,'overview-iso',1600,630,'装柜三维总览图');
+  drawIsoPrint(oc,0,l,CARGOS.map((_,i)=>i),false,true,[]);
+  const otc=addCanvas(overview,'overview-top',1600,293,'按真实比例绘制的装柜俯视总览图');
+  drawTopPrint(otc,0,l,CARGOS.map((_,i)=>i),true,[]);
+  addOverviewLegend(overview);
+  const note=document.createElement('div');note.className='print-note';
+  note.textContent='总览不显示货物编号，只用于确认整柜空间关系和A/B/C/D分区；完整编号请查看对应分区操作图。';
+  overview.append(note);root.append(overview);
+
+  for(let z=0;z<PRINT_ZONE_COUNT;z++){
+    const zs=l*z/PRINT_ZONE_COUNT,ze=l*(z+1)/PRINT_ZONE_COUNT;
+    const inds=SORT_INDEX.filter(i=>zoneOf(i)===z);
+    if(!inds.length) continue;
+    const sheet=makeSheet(`${PRINT_ZONE_NAMES[z]}区装柜放大图`,'分区操作图',
+      `${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　${inds.length} 件`);
+    const ic=addCanvas(sheet,'zone-iso',1600,965,`${PRINT_ZONE_NAMES[z]}区三维放大图`);
+    drawIsoPrint(ic,zs,ze,inds,true,false);
+    addLegend(sheet);root.append(sheet);
+  }
+
+  // 清单按分区组织；每个分区另起页面，区内继续使用全局编号并按编号升序。
+  for(let z=0;z<PRINT_ZONE_COUNT;z++){
+    const zoneItems=SORT_INDEX.filter(i=>zoneOf(i)===z),zs=l*z/PRINT_ZONE_COUNT,ze=l*(z+1)/PRINT_ZONE_COUNT;
+    for(let start=0;start<zoneItems.length;start+=PRINT_ROWS_PER_PAGE){
+      const slice=zoneItems.slice(start,start+PRINT_ROWS_PER_PAGE),continued=start>0;
+      const title=`${PRINT_ZONE_NAMES[z]}区货物清单${continued?'（续）':''}`;
+      const sheet=makeSheet(title,'清单',`${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　共 ${zoneItems.length} 件`);
+      const wrap=document.createElement('div');wrap.className='manifest-wrap';
+      const table=document.createElement('table');table.className='manifest';
+      table.innerHTML='<colgroup><col style="width:8%"><col style="width:36%"><col style="width:22%"><col style="width:34%"></colgroup>'+
+        '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸（长×宽×高 mm）</th><th>放置状态 / 承托关系</th></tr></thead>';
+      const tbody=document.createElement('tbody');
+      for(const i of slice){
+        const c=CARGOS[i],st=STACK[i],tr=document.createElement('tr');
+        const values=[dispPos[i]+1,c.name,`${c.sx}×${c.sz}×${c.sy}`,statusText(i)];
+        values.forEach((v,k)=>{const td=document.createElement('td');td.textContent=v;
+          if(k===0)td.className='num';if(k===2)td.className='dim';
+          if(k===3)td.className=st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor');tr.append(td);});
+        tbody.append(tr);
+      }
+      table.append(tbody);wrap.append(table);sheet.append(wrap);root.append(sheet);
+    }
+  }
+
+  const pages=[...root.querySelectorAll('.sheet')],total=pages.length;
+  pages.forEach((sheet,i)=>{
+    const foot=document.createElement('footer');foot.className='page-footer';
+    const left=document.createElement('span');left.textContent=`${planName || '装柜方案'} · A4横向现场打印版`;
+    const right=document.createElement('span');right.textContent=`第 ${i+1} / ${total} 页`;
+    foot.append(left,right);sheet.append(foot);
+  });
+}
+
 draw();
+buildPrintDocument();
 </script>
 </body>
 </html>
