@@ -1,5 +1,11 @@
 [
   {
+    "version": "2026.09.05-2",
+    "date": "2026-09-05",
+    "git": "6c69b55",
+    "summary": "refactor: 重构生成装柜图-B（container-layout-preview-b.html，改为 JS 动态生成画布 + A4 横向分页打印版渲染逻辑）"
+  },
+  {
     "version": "2026.09.05-1",
     "date": "2026-09-05",
     "git": "5c77446",
