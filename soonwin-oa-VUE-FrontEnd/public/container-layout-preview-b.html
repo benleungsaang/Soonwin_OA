@@ -51,7 +51,7 @@
   .dot { display:inline-block; width:3.4mm; height:3.4mm; border-radius:50%; vertical-align:-.5mm; border:.35mm solid; background:#fff; margin-right:1mm; }
   .manifest-wrap { margin-top: 4mm; }
   .manifest { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10.5pt; }
-  .manifest th { background: #e8f0f7; color: #173e63; padding: 2.6mm 2mm; border: .3mm solid #9db1c4; text-align: left; }
+  .manifest th { background: #e8f0f7; color: #173e63; padding: 2.6mm 2mm; border: .3mm solid #9db1c4; text-align: center; }
   .manifest td { padding: 2.1mm 2mm; line-height: 1.2; border: .25mm solid #bdc9d4; vertical-align: middle; overflow-wrap: anywhere; }
   .manifest tr { break-inside: avoid; page-break-inside: avoid; }
   .manifest tbody tr:nth-child(even) { background: #f6f8fa; }
@@ -59,6 +59,8 @@
   .manifest .zone { text-align:center; font-weight:700; }
   .manifest .dim { white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; }
   .manifest .wgt { text-align:center; white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; font-weight:600; color:#173e63; }
+  /* 内容对齐：编号/重量居中（num/wgt）；名称/尺寸/放置状态靠左空两格，不贴左 */
+  .manifest tbody td:nth-child(2), .manifest tbody td:nth-child(3), .manifest tbody td:nth-child(5) { padding-left: 2em; }
   .status-stacked { color:#b42318; font-weight:700; }
   .status-suspended { color:#9a6700; font-weight:700; }
   .status-floor { color:#667085; }
@@ -370,15 +372,20 @@ function draw() {
   const tblW = 608, tblH = headY + 10 + CARGOS.length * rowH + 10 - tblY;
   ctx.strokeStyle = 'rgba(138,160,184,0.55)'; ctx.lineWidth = 1;
   ctx.strokeRect(tblX, tblY, tblW, tblH);
-  // 表头
+  // 表头（全部居中于所在列中心轴）
   const numCx = LIST_X + 30;                 // 序号列（压缩：仅徽标宽）
-  const cols = [LIST_X + 62, LIST_X + 270, LIST_X + 400, LIST_X + 488];
+  const colNameCx = LIST_X + 184, colDimCx = LIST_X + 373, colWgtCx = LIST_X + 474, colStCx = LIST_X + 554;
   ctx.fillStyle = '#888'; ctx.font = '15px sans-serif';
-  ctx.fillText('序号', numCx - 12, headY - 12);
-  ctx.fillText('货物名称', cols[0], headY - 12);
-  ctx.fillText('尺寸(mm)', cols[1], headY - 12);
-  ctx.fillText('重量(kg)', cols[2], headY - 12);
-  ctx.fillText('状态', cols[3], headY - 12);
+  ctx.textAlign = 'center';
+  ctx.fillText('序号', numCx, headY - 12);
+  ctx.fillText('货物名称', colNameCx, headY - 12);
+  ctx.fillText('尺寸(mm)', colDimCx, headY - 12);
+  ctx.fillText('重量(kg)', colWgtCx, headY - 12);
+  ctx.fillText('状态', colStCx, headY - 12);
+  // 行内容左对齐列：空两格（2×字号）起始，避免贴左
+  const nameX0 = LIST_X + 94;                // 62 + 16×2（名称字号16）
+  const dimX0 = LIST_X + 336;                // 306 + 15×2（尺寸字号15，实际字号14 取整对齐）
+  const stX0 = LIST_X + 534;                 // 508 + 13×2（状态字号13）
   ctx.strokeStyle = '#8aa0b8'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(LIST_X - 4, headY - 4); ctx.lineTo(LIST_X + 596, headY - 4); ctx.stroke();
 
@@ -405,23 +412,24 @@ function draw() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(pos + 1, numCx, yc);
     ctx.restore();
-    // 名称（列宽 208px，超长截断，基线按居中调整）
+    // 名称（空两格；超 12 字截断）
     ctx.fillStyle = '#1a1a1a'; ctx.font = '16px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, cols[0], yc + 6);
-    // 尺寸（长×宽×高 以 mm 计）
-    ctx.fillStyle = '#555'; ctx.font = '15px Consolas,monospace';
-    ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, cols[1], yc + 6);
-    // 重量（kg，无值/为0 显示 —）
-    ctx.font = '15px Consolas,monospace';
-    ctx.fillText(fmtWeight(c.weight), cols[2], yc + 6);
-    // 状态（叠放标注支撑物带圈序号：▲ 叠于④ 上）
-    ctx.font = '14px sans-serif';
-    if (st.stacked) {
-      ctx.fillStyle = '#c62828';
-      ctx.fillText('▲ 叠于' + st.on.map(j => circNum(dispPos[j] + 1)).join('、') + ' 上', cols[3], yc + 6);
-    }
-    else if (st.suspended) { ctx.fillStyle = '#b26a00'; ctx.fillText('⚠悬空', cols[3], yc + 6); }
-    else { ctx.fillStyle = '#999'; ctx.fillText('—', cols[3], yc + 6); }
+    ctx.fillText(c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name, nameX0, yc + 6);
+    // 尺寸（空两格；长×宽×高 以 mm 计）
+    ctx.fillStyle = '#555'; ctx.font = '14px Consolas,monospace';
+    ctx.fillText(c.sx + '×' + c.sz + '×' + c.sy, dimX0, yc + 6);
+    // 重量（居中；无值/为0 显示 —）
+    ctx.textAlign = 'center';
+    ctx.fillText(fmtWeight(c.weight), colWgtCx, yc + 6);
+    // 状态（左空两格；文字超右界时自动收窄字号兜底）
+    ctx.textAlign = 'left';
+    let stText = '—', stColor = '#999', stSize = 14;
+    if (st.stacked) { stText = '▲ 叠于' + st.on.map(j => circNum(dispPos[j] + 1)).join('、') + ' 上'; stColor = '#c62828'; }
+    else if (st.suspended) { stText = '⚠悬空'; stColor = '#b26a00'; }
+    ctx.fillStyle = stColor;
+    ctx.font = stSize + 'px sans-serif';
+    while (stSize > 11 && ctx.measureText(stText).width > LIST_X + 598 - stX0) { stSize -= 0.5; ctx.font = stSize + 'px sans-serif'; }
+    ctx.fillText(stText, stX0, yc + 6);
   });
 
   // 堆叠/悬空详情：置于货物表格下方，货物名称加圆角底色便于读取
