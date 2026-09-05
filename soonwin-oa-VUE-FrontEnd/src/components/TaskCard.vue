@@ -129,14 +129,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'toggle-complete'): void
-  (e: 'edit'): void
-  (e: 'delete'): void
-  (e: 'like'): void
-  (e: 'add-comment', payload: { task: any; content: string }): void
-  (e: 'visibility'): void
-  (e: 'background', payload: { task: any; color: string }): void
-  (e: 'history'): void
+  'toggle-complete': [task: any]
+  'edit': [task: any]
+  'delete': [task: any]
+  'like': [task: any]
+  'add-comment': [payload: { task: any; content: string }]
+  'visibility': [task: any]
+  'background': [payload: { task: any; color: string }]
+  'history': [task: any]
 }>()
 
 const showComments = ref(false)
