@@ -1,5 +1,11 @@
 [
   {
+    "version": "2026.09.05-1",
+    "date": "2026-09-05",
+    "git": "5c77446",
+    "summary": "fix: TaskCard defineEmits 补齐 payload 类型声明（history/visibility/edit/delete/toggle-complete/like 均带 task），修复 vue-tsc 构建 yarn build:prod 报 12 个 TS 类型错误"
+  },
+  {
     "version": "2026.08.04-14",
     "date": "2026-08-13",
     "git": "9ce0106",
