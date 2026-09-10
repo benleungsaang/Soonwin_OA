@@ -163,7 +163,7 @@ const DEMO_CARGOS = [
 
 let CONTAINER, CARGOS, planName;
 try {
-  const raw = localStorage.getItem('container_layout_preview_b');
+  const raw = localStorage.getItem('container_layout_preview_a');
   if (raw) {
     const saved = JSON.parse(raw);
     const d = saved.data;
@@ -179,7 +179,7 @@ try {
       planName = saved.name || '';
     }
   }
-} catch (e) { console.warn('[preview-b] 读取布局数据失败，使用演示数据:', e); }
+} catch (e) { console.warn('[preview-a] 读取布局数据失败，使用演示数据:', e); }
 if (!CONTAINER) { CONTAINER = DEMO_CONTAINER; CARGOS = DEMO_CARGOS; planName = '（演示数据 id=3）'; }
 document.getElementById('subInfo').innerHTML =
   `方案：<b>${planName}</b> · 货柜：${CONTAINER.name} ${CONTAINER.l}×${CONTAINER.w}×${CONTAINER.h}mm · ${CARGOS.length} 件货`;

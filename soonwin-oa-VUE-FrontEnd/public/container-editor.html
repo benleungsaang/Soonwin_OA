@@ -1145,6 +1145,34 @@
             height: 100%;
         }
 
+        /* 临时 3D 性能观测面板：仅用于本轮性能验收。 */
+        #perf-monitor {
+            position: absolute;
+            left: 20px;
+            bottom: 58px;
+            z-index: 12;
+            min-width: 190px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.72);
+            border: 1px solid rgba(79, 195, 247, 0.28);
+            color: #aab7c4;
+            font: 11px/1.55 Consolas, monospace;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #perf-monitor .perf-title {
+            color: #4fc3f7;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+        #perf-monitor .perf-val {
+            color: #fff;
+            font-weight: 700;
+        }
+        #perf-monitor .perf-good { color: #81c784; }
+        #perf-monitor .perf-warn { color: #ffb74d; }
+
         /* 左下角提示 */
         #hint {
             position: absolute;
@@ -1205,6 +1233,18 @@
                 <small>3D 可视化</small>
             </h1>
 
+            <!-- 全局布局许可：始终可见，不随货柜选择折叠。 -->
+            <div class="section" id="layoutPermissionSection" style="padding:8px 10px;">
+                <label class="overflow-toggle" id="overflowToggleLabel" title="勾选后允许货物超出货柜边界" style="margin-top:0;">
+                    <input type="checkbox" id="allowOverflow" />
+                    <span>⚠️ 允许货物超出货柜</span>
+                </label>
+                <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红）" style="margin-top:6px;">
+                    <input type="checkbox" id="allowIntersection" />
+                    <span>🔀 允许货物交叉</span>
+                </label>
+            </div>
+
             <!-- 货柜选择：默认收缩 -->
             <div class="section container-section collapsed" id="containerSection">
                 <div class="section-title collapsible-title collapsed" id="containerTitle" title="点击展开/收缩">
@@ -1226,14 +1266,6 @@
                         <input type="number" id="customH" value="2690" placeholder="高" />
                         <button id="applyCustom" disabled>应用</button>
                     </div>
-                    <label class="overflow-toggle" id="overflowToggleLabel" title="勾选后允许货物超出货柜边界">
-                        <input type="checkbox" id="allowOverflow" />
-                        <span>⚠️ 允许超出边界</span>
-                    </label>
-                    <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红）">
-                        <input type="checkbox" id="allowIntersection" />
-                        <span>🔀 允许交叉</span>
-                    </label>
                 </div>
             </div>
 
@@ -1325,6 +1357,13 @@
             </div>
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
+            <div id="perf-monitor">
+                <div class="perf-title">⚙ 3D PERF · 临时验收</div>
+                <div>FPS <span class="perf-val" id="perfFps">—</span> · Frame <span class="perf-val" id="perfFrameMs">—</span> ms</div>
+                <div>Draw <span class="perf-val" id="perfDrawCalls">—</span> · Tri <span class="perf-val" id="perfTriangles">—</span></div>
+                <div>Collision/s <span class="perf-val" id="perfCollisionRate">—</span> · Avg <span class="perf-val" id="perfCollisionMs">—</span> ms</div>
+                <div>Collision total <span class="perf-val" id="perfCollisionTotal">0</span></div>
+            </div>
             <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
             <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
             <div id="cargoContextMenu" style="display:none;">
@@ -1681,7 +1720,7 @@
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1751,8 +1790,8 @@
         const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
         dirLight.position.set(5000, 12000, 8000);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
         dirLight.shadow.camera.near = 1000;
         dirLight.shadow.camera.far = 30000;
         dirLight.shadow.camera.left = -10000;
@@ -1870,6 +1909,77 @@
         const dragMouseNDC = new THREE.Vector2();
         let isShiftDown = false;
 
+        // 3D 性能优化：碰撞/出界检测只在场景状态实际变化后执行。
+        // 静止画面不再每帧重复 O(n²) 检测。
+        let collisionDirty = true;
+        function markCollisionDirty() {
+            collisionDirty = true;
+        }
+
+        // 临时性能观测：低频刷新 UI，避免监控本身制造明显开销。
+        const perfFps = document.getElementById('perfFps');
+        const perfFrameMs = document.getElementById('perfFrameMs');
+        const perfDrawCalls = document.getElementById('perfDrawCalls');
+        const perfTriangles = document.getElementById('perfTriangles');
+        const perfCollisionRate = document.getElementById('perfCollisionRate');
+        const perfCollisionMs = document.getElementById('perfCollisionMs');
+        const perfCollisionTotal = document.getElementById('perfCollisionTotal');
+
+        let perfWindowStart = performance.now();
+        let perfFrames = 0;
+        let perfFrameTimeSum = 0;
+        let perfLastFrameTs = performance.now();
+        let collisionCheckTotal = 0;
+        let collisionCheckTotalMs = 0;
+        let collisionCheckWindowStart = performance.now();
+        let collisionCheckWindowBase = 0;
+        let collisionCheckWindowMsBase = 0;
+
+        function updatePerfMonitor(now) {
+            const dt = now - perfLastFrameTs;
+            perfLastFrameTs = now;
+            perfFrames++;
+            if (dt > 0 && dt < 1000) perfFrameTimeSum += dt;
+
+            const windowMs = now - perfWindowStart;
+            if (windowMs < 500) return;
+
+            const fps = perfFrames * 1000 / windowMs;
+            const frameMs = perfFrames > 0 ? perfFrameTimeSum / perfFrames : 0;
+
+            if (perfFps) {
+                perfFps.textContent = fps.toFixed(0);
+                perfFps.className = 'perf-val ' + (fps >= 55 ? 'perf-good' : fps >= 40 ? 'perf-warn' : '');
+            }
+            if (perfFrameMs) perfFrameMs.textContent = frameMs.toFixed(1);
+
+            // renderer.info 是 Three.js 自带运行时统计，不修改库。
+            if (perfDrawCalls) perfDrawCalls.textContent = String(renderer.info.render.calls || 0);
+            if (perfTriangles) perfTriangles.textContent = Number(renderer.info.render.triangles || 0).toLocaleString();
+
+            const collisionWindowMs = now - collisionCheckWindowStart;
+            const collisionDelta = collisionCheckTotal - collisionCheckWindowBase;
+            const collisionMsDelta = collisionCheckTotalMs - collisionCheckWindowMsBase;
+            const collisionPerSec = collisionWindowMs > 0 ? collisionDelta * 1000 / collisionWindowMs : 0;
+            const collisionAvgMs = collisionDelta > 0 ? collisionMsDelta / collisionDelta : 0;
+            if (perfCollisionRate) {
+                perfCollisionRate.textContent = collisionPerSec.toFixed(1);
+                perfCollisionRate.className = 'perf-val ' + (collisionPerSec <= 0.1 ? 'perf-good' : 'perf-warn');
+            }
+            if (perfCollisionMs) {
+                perfCollisionMs.textContent = collisionAvgMs.toFixed(2);
+                perfCollisionMs.className = 'perf-val ' + (collisionAvgMs <= 2 ? 'perf-good' : collisionAvgMs <= 6 ? 'perf-warn' : '');
+            }
+            if (perfCollisionTotal) perfCollisionTotal.textContent = String(collisionCheckTotal);
+
+            perfWindowStart = now;
+            perfFrames = 0;
+            perfFrameTimeSum = 0;
+            collisionCheckWindowStart = now;
+            collisionCheckWindowBase = collisionCheckTotal;
+            collisionCheckWindowMsBase = collisionCheckTotalMs;
+        }
+
         function rebuildCargoMeshes() {
             while (cargoGroup.children.length) {
                 const child = cargoGroup.children[0];
@@ -1934,7 +2044,7 @@
 
                 // ---- 异常高亮子节点（持续检测用） ----
                 // 半透明红色覆盖体 + 红色粗线框，初始不可见。
-                // 由 animate() 中的 checkOverlapsAndOutOfBounds() 每帧
+                // 由 dirty-driven 检测在货物/柜体状态变化后
                 // 根据出界/交叉状态切换 visible。
                 const overGeo = new THREE.BoxGeometry(sx, sy, sz);
                 const overMat = new THREE.MeshBasicMaterial({
@@ -1962,6 +2072,8 @@
             });
 
             // 自定义拖动：dragObjects 在 mousedown 时直接 raycaster 拾取
+            resetDragCollisionCache();
+            markCollisionDirty();
             updateSelectionHighlight();
             renderCargoList();
             updateStats();
@@ -2156,6 +2268,7 @@
                     }
 
                     dragState.active = true;
+                    resetDragCollisionCache();
                     dragState.mesh = mesh;
                     dragState.cargoIdx = hitIdx;
                     dragState.startMeshPos.copy(mesh.position);
@@ -2205,6 +2318,7 @@
                     const cargo = state.cargos[repIdx];
                     if (mesh && cargo) {
                         dragState.active = true;
+                        resetDragCollisionCache();
                         dragState.mesh = mesh;
                         dragState.cargoIdx = repIdx;
                         dragState.startMeshPos.copy(mesh.position);
@@ -2367,8 +2481,10 @@
                 if (m) m.position.set(px + c.sx / 2, py + c.sy / 2, pz + c.sz / 2);
             }
 
-            // 高频 mousemove 期间用 rAF 合帧，避免每帧都 innerHTML + 容积求和
-            scheduleStatsUpdate();
+            markCollisionDirty();
+
+            // 高频 pointermove 期间只轻量更新坐标 DOM。
+            scheduleDragUiUpdate(movingIdxs);
         }
 
         function onCanvasMouseUp(event) {
@@ -2381,13 +2497,13 @@
             if (state.interactionMode === 'direct') {
                 // 即点即拖模式：拖动结束 → 恢复镜头，保留高亮显示
                 controls.enabled = true;
-                updateSelectionHighlight();
-                renderCargoList();
-            } else {
-                // 点击选中模式：保留选中高亮
-                updateSelectionHighlight();
             }
+            // 拖动结束后才做一次完整 UI / 统计刷新。
+            updateSelectionHighlight();
+            renderCargoList();
             updateStats();
+            resetDragCollisionCache();
+            markCollisionDirty(); // pointerup 后做一次完整检测，作为最终一致性校验
             saveState();
         }
 
@@ -2818,10 +2934,118 @@
             return missing <= maxOverhangMM * (sx + sz);
         }
 
+        // 综合候选点评分（实验方案）
+        // 候选生成方式与原算法完全一致，只改变“多个合法候选中选哪一个”。
+        // 分值越高越优：推进深度、贴壁/贴货、支撑质量、紧凑包围；
+        // 对窄缝和包围空间增长施加惩罚。
+        function scorePackingCandidate(c, placed, container) {
+            const EPS = 1e-6;
+            const clamp01 = v => Math.max(0, Math.min(1, v));
+
+            // 1) 推进深度：px 越小，越深入柜尾。
+            const depth = 1 - clamp01(c.px / Math.max(container.l, 1));
+
+            // 2) 贴柜壁 / 地面：只奖励真正接触，不奖励靠近但未接触。
+            let wallContacts = 0;
+            if (Math.abs(c.px) <= EPS) wallContacts++;
+            if (Math.abs(c.pz) <= EPS) wallContacts++;
+            if (Math.abs((c.pz + c.sz) - container.w) <= EPS) wallContacts++;
+            if (Math.abs(c.py) <= EPS) wallContacts++;
+            const wallFit = Math.min(1, wallContacts / 3);
+
+            // 3) 与已放货物的面接触面积。
+            let contactArea = 0;
+            for (const o of placed) {
+                const overlapX = Math.max(0, Math.min(c.px + c.sx, o.px + o.sx) - Math.max(c.px, o.px));
+                const overlapY = Math.max(0, Math.min(c.py + c.sy, o.py + o.sy) - Math.max(c.py, o.py));
+                const overlapZ = Math.max(0, Math.min(c.pz + c.sz, o.pz + o.sz) - Math.max(c.pz, o.pz));
+
+                if (Math.abs((c.px + c.sx) - o.px) <= EPS || Math.abs(c.px - (o.px + o.sx)) <= EPS) {
+                    contactArea += overlapY * overlapZ;
+                }
+                if (Math.abs((c.py + c.sy) - o.py) <= EPS || Math.abs(c.py - (o.py + o.sy)) <= EPS) {
+                    contactArea += overlapX * overlapZ;
+                }
+                if (Math.abs((c.pz + c.sz) - o.pz) <= EPS || Math.abs(c.pz - (o.pz + o.sz)) <= EPS) {
+                    contactArea += overlapX * overlapY;
+                }
+            }
+            const cargoSurfaceArea = 2 * (c.sx * c.sy + c.sx * c.sz + c.sy * c.sz);
+            const contactFit = cargoSurfaceArea > 0 ? clamp01(contactArea / (cargoSurfaceArea * 0.35)) : 0;
+
+            // 4) 支撑质量：地面视为满支撑；堆叠时估算底面支撑覆盖。
+            let supportQuality = c.py === 0 ? 1 : 0;
+            if (c.py > 0) {
+                const baseArea = c.sx * c.sz;
+                let supportArea = 0;
+                for (const o of placed) {
+                    if (Math.abs((o.py + o.sy) - c.py) > EPS) continue;
+                    const ox = Math.max(0, Math.min(c.px + c.sx, o.px + o.sx) - Math.max(c.px, o.px));
+                    const oz = Math.max(0, Math.min(c.pz + c.sz, o.pz + o.sz) - Math.max(c.pz, o.pz));
+                    supportArea += ox * oz;
+                }
+                supportQuality = baseArea > 0 ? clamp01(supportArea / baseArea) : 0;
+            }
+
+            // 5) 新增包围空间：希望当前候选尽量少扩大整体占用盒。
+            let oldMaxX = 0, oldMaxY = 0, oldMaxZ = 0;
+            for (const o of placed) {
+                oldMaxX = Math.max(oldMaxX, o.px + o.sx);
+                oldMaxY = Math.max(oldMaxY, o.py + o.sy);
+                oldMaxZ = Math.max(oldMaxZ, o.pz + o.sz);
+            }
+            const oldBoxV = oldMaxX * oldMaxY * oldMaxZ;
+            const newMaxX = Math.max(oldMaxX, c.px + c.sx);
+            const newMaxY = Math.max(oldMaxY, c.py + c.sy);
+            const newMaxZ = Math.max(oldMaxZ, c.pz + c.sz);
+            const newBoxV = newMaxX * newMaxY * newMaxZ;
+            const cargoV = Math.max(c.sx * c.sy * c.sz, 1);
+            const boxGrowthPenalty = placed.length
+                ? clamp01(Math.max(0, newBoxV - oldBoxV) / (cargoV * 4))
+                : 0;
+
+            // 6) 窄缝：仅检查 X/Z 方向、且另一轴投影有交叠的邻接面。
+            // 小于阈值但又不真正贴合时视为难利用缝隙。
+            const gapThreshold = Math.min(300, Math.max(80, Math.min(c.sx, c.sz) * 0.20));
+            let narrowGapPenalty = 0;
+            const addGapPenalty = gap => {
+                if (gap > EPS && gap < gapThreshold) {
+                    narrowGapPenalty = Math.max(narrowGapPenalty, 1 - gap / gapThreshold);
+                }
+            };
+
+            addGapPenalty(c.px);
+            addGapPenalty(container.l - (c.px + c.sx));
+            addGapPenalty(c.pz);
+            addGapPenalty(container.w - (c.pz + c.sz));
+
+            for (const o of placed) {
+                const yOverlap = c.py < o.py + o.sy && c.py + c.sy > o.py;
+                const zOverlap = c.pz < o.pz + o.sz && c.pz + c.sz > o.pz;
+                const xOverlap = c.px < o.px + o.sx && c.px + c.sx > o.px;
+                if (yOverlap && zOverlap) {
+                    addGapPenalty(Math.abs(o.px - (c.px + c.sx)));
+                    addGapPenalty(Math.abs(c.px - (o.px + o.sx)));
+                }
+                if (yOverlap && xOverlap) {
+                    addGapPenalty(Math.abs(o.pz - (c.pz + c.sz)));
+                    addGapPenalty(Math.abs(c.pz - (o.pz + o.sz)));
+                }
+            }
+
+            // 第一版实验权重：推进仍是主目标，但不再“一票决定”。
+            return depth * 45
+                 + wallFit * 10
+                 + contactFit * 22
+                 + supportQuality * 13
+                 - boxGrowthPenalty * 7
+                 - narrowGapPenalty * 9;
+        }
+
         // 单件货物的进入（核心）
         //   枚举 4/8 标准入口 + 已放货物 Z 边界侧向入口 → 选 min(px)，px 相同时 min(pz)
         //   返回 null = 完全放不下
-        function placeOneCargo(cargo, placed, container, allowStacking, allowFlatStacking, maxOverhangMM) {
+        function placeOneCargo(cargo, placed, container, allowStacking, allowFlatStacking, maxOverhangMM, scoringMode = 'legacy') {
             const orientations = tetrisOrientations(cargo);
             const isFlatCargo = classifyCargoForPacking(cargo, container) === 'flatStack';
             // 顶角可用性：全局堆叠开启 OR (扁型开关开启 && 当前货物是扁型)
@@ -2901,8 +3125,33 @@
             }
 
             if (candidates.length === 0) return null;
-            // 优选：min(px) 最深入尾部；px 相同时 min(pz) 优先右下（贴 Z=0 原点）；
-            //      仍相同则 pz+sz 更接近 w（紧贴 Z=w 正面）
+
+            if (scoringMode === 'scored') {
+                // 实验方案：候选生成完全相同，仅最终选择改为综合评分。
+                let best = candidates[0];
+                let bestScore = scorePackingCandidate(best, placed, container);
+                for (let i = 1; i < candidates.length; i++) {
+                    const candidate = candidates[i];
+                    const score = scorePackingCandidate(candidate, placed, container);
+                    if (score > bestScore + 1e-9) {
+                        best = candidate;
+                        bestScore = score;
+                    } else if (Math.abs(score - bestScore) <= 1e-9) {
+                        // 完全同分时沿用旧规则，保证确定性。
+                        if (candidate.px < best.px ||
+                            (candidate.px === best.px && candidate.pz < best.pz) ||
+                            (candidate.px === best.px && candidate.pz === best.pz &&
+                             (container.w - (candidate.pz + candidate.sz)) < (container.w - (best.pz + best.sz)))) {
+                            best = candidate;
+                            bestScore = score;
+                        }
+                    }
+                }
+                return best;
+            }
+
+            // 原算法：min(px) 最深入尾部；px 相同时 min(pz) 优先右下；
+            // 仍相同则 pz+sz 更接近 w。
             candidates.sort((a, b) => {
                 if (a.px !== b.px) return a.px - b.px;
                 if (a.pz !== b.pz) return a.pz - b.pz;
@@ -2929,10 +3178,10 @@
         }
 
         // 单次运行（确定性，按 sortedCargos 顺序放置）
-        function singleRun(sortedCargos, container, allowStacking, allowFlatStacking, maxOverhangMM) {
+        function singleRun(sortedCargos, container, allowStacking, allowFlatStacking, maxOverhangMM, scoringMode = 'legacy') {
             const placed = [];
             for (const cargo of sortedCargos) {
-                const result = placeOneCargo(cargo, placed, container, allowStacking, allowFlatStacking, maxOverhangMM);
+                const result = placeOneCargo(cargo, placed, container, allowStacking, allowFlatStacking, maxOverhangMM, scoringMode);
                 if (result === null) {
                     placed.push(placeOverflowAtEntrance(cargo, container, placed));
                 } else {
@@ -2979,23 +3228,59 @@
         ];
 
         function tetrisLayoutV1(cargos, opts) {
-            const { container, allowStacking = false, allowFlatStacking = false, maxOverhangMM = 0, defaultOnly = false } = opts;
+            const {
+                container,
+                allowStacking = false,
+                allowFlatStacking = false,
+                maxOverhangMM = 0,
+                defaultOnly = false,
+                comparisonMode = false,
+            } = opts;
+
+            // A/B 实验路径：同一默认排序、同一候选生成，只比较候选选择器。
+            if (comparisonMode) {
+                const sorted = sortByClassifyQueue(cargos, container, 0);
+                const variants = [
+                    { scoringMode: 'legacy', label: '方案 1 · 原算法' },
+                    { scoringMode: 'scored', label: '方案 2 · 综合评分实验' },
+                ];
+                return variants.map(v => {
+                    const t0 = performance.now();
+                    const placed = singleRun(
+                        sorted,
+                        container,
+                        allowStacking,
+                        allowFlatStacking,
+                        maxOverhangMM,
+                        v.scoringMode
+                    );
+                    const t1 = performance.now();
+                    return {
+                        placed,
+                        eval: evaluateLayoutExtended(placed, container),
+                        timeMs: t1 - t0,
+                        sortKey: v.label,
+                        scoringMode: v.scoringMode,
+                    };
+                });
+            }
+
+            // 其它既有调用保持原逻辑。
             const results = [];
             const routesToRun = defaultOnly ? SORT_ROUTES.filter(sr => sr.route === 0) : SORT_ROUTES;
-
             for (const sr of routesToRun) {
                 const sorted = sortByClassifyQueue(cargos, container, sr.route);
                 const t0 = performance.now();
-                const placed = singleRun(sorted, container, allowStacking, allowFlatStacking, maxOverhangMM);
+                const placed = singleRun(sorted, container, allowStacking, allowFlatStacking, maxOverhangMM, 'legacy');
                 const t1 = performance.now();
                 results.push({
                     placed,
                     eval: evaluateLayoutExtended(placed, container),
                     timeMs: t1 - t0,
                     sortKey: sr.label,
+                    scoringMode: 'legacy',
                 });
             }
-
             return results;
         }
 
@@ -3287,16 +3572,27 @@
             }
         }
 
-        // rAF 节流的 UI 更新：高频 mousemove 期间合并多次调用，每帧最多执行一次，
-        // 避免反复触发 layout / reflow，消除"快速交叉时短暂卡顿"。
-        let _statsRafPending = false;
-        function scheduleStatsUpdate() {
-            if (_statsRafPending) return;
-            _statsRafPending = true;
+        // 拖动期间只更新发生变化的坐标文本，不重建整个货物列表，也不重算静态统计。
+        // 完整 renderCargoList()/updateStats() 在 pointerup 时统一执行。
+        let _dragUiRafPending = false;
+        let _dragUiPendingIdxs = [];
+        function scheduleDragUiUpdate(movingIdxs) {
+            _dragUiPendingIdxs = Array.from(movingIdxs || []);
+            if (_dragUiRafPending) return;
+            _dragUiRafPending = true;
             requestAnimationFrame(() => {
-                _statsRafPending = false;
-                renderCargoList();
-                updateStats();
+                _dragUiRafPending = false;
+                for (const idx of _dragUiPendingIdxs) {
+                    const c = state.cargos[idx];
+                    if (!c) continue;
+                    const item = cargoListEl.querySelector(`.cargo-item[data-index="${idx}"]`);
+                    const posEl = item ? item.querySelector('.cargo-pos') : null;
+                    if (posEl) posEl.textContent = `(${Math.round(c.px)}, ${Math.round(c.py)}, ${Math.round(c.pz)})`;
+                }
+                const active = state.cargos[state.selectedCargo];
+                if (active && detailPos) {
+                    detailPos.textContent = `(${Math.round(active.px)}, ${Math.round(active.py)}, ${Math.round(active.pz)})`;
+                }
             });
         }
 
@@ -3832,7 +4128,7 @@
         //  智能排布（极值点 / 随机贪心）— 分片计算 + 多方案预演
         // ============================================================
 
-        // 分片调度：每帧最多执行 CHUNK 次迭代，让出主线程避免 UI 卡顿
+        // 在下一帧启动计算，避免参数弹窗关闭与计算阻塞发生在同一绘制帧
         async function runPackingWithProgress(algoName, cargos, _iter, allowIntersection, allowStacking, allowFlatStacking, maxOverhangMM) {
             const container = state.container;
             packParamConfirmBtn.disabled = true;
@@ -3846,6 +4142,7 @@
                 allowFlatStacking,
                 maxOverhangMM,
                 defaultOnly: true,
+                comparisonMode: true,
             });
             const totalMs = performance.now() - t0;
             packParamConfirmBtn.disabled = false;
@@ -3961,66 +4258,76 @@
             return `${cargos}|s${state.allowStacking ? 1 : 0}|f${state.allowFlatStacking ? 1 : 0}|o${state.maxOverhangMM}`;
         }
 
-        // 渲染浮窗列表（3 条确定路线）
+        // 渲染浮窗列表：方案 1 = 原算法；方案 2 = 综合评分实验。
         function renderPackPanel(results, totalMs, iter) {
-            const result = results && results.length ? results[0] : null;
-            if (!result) {
-                alert('未生成可用的排布结果');
+            if (!results || results.length < 2) {
+                alert('未生成完整的双方案对比结果');
                 return;
             }
-            _lastPackResults = [result];
+
+            _lastPackResults = results.slice(0, 2);
             _lastPackTotalMs = totalMs;
             _lastPackIter = 1;
             _lastPackSignature = _currentCargosSignature();
-            _currentResults = [result];
+            _currentResults = results.slice(0, 2);
             _currentPreviewIdx = -1;
 
-            const e = result.eval;
             packPanelMeta.innerHTML = `
-                默认方案计算完成 / 耗时 <b>${totalMs.toFixed(0)}</b> ms ·
-                <span style="color:#aaa;">当前已显示计算后的排布；可切换查看原始排布。不点【应用】直接关闭会恢复原排布。</span>
+                双方案对比完成 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms ·
+                <span style="color:#aaa;">方案 1 保留原算法，方案 2 仅替换候选点最终评分。默认先显示方案 1；关闭且未应用会恢复原始排布。</span>
             `;
             packPanelList.innerHTML = '';
-            const item = document.createElement('div');
-            item.className = 'pack-panel-item';
-            item.dataset.idx = '0';
-            item.innerHTML = `
-                <div class="row1">
-                    <span style="color:#ffaa44;font-weight:bold;">利用率 ${(e.utilRate * 100).toFixed(2)}%</span>
-                    <span style="font-size:12px;color:#aaa;">默认排布方案</span>
-                </div>
-                <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
-                    <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
-                    <span style="color:#ffb74d;">📏占用深度 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
-                    <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
-                    <span style="color:#81c784;">⚖️重心高度 <b>${e.comY.toFixed(0)} mm</b></span>
-                    ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
-                    ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
-                </div>
-                <div class="row3">
-                    <button class="btn-sm pack-preview-btn" data-idx="0">原始排布</button>
-                    <button class="btn-sm btn-primary pack-apply-btn" data-idx="0">应用</button>
-                    <button class="btn-sm pack-export-btn" data-idx="0" style="margin-left:auto;" title="导出当前方案的 Markdown 报告">📋 导出方案</button>
-                </div>
-            `;
-            packPanelList.appendChild(item);
-            item.querySelector('.pack-preview-btn').addEventListener('click', (ev) => {
-                ev.stopPropagation(); handlePreviewBtn(0);
-            });
-            item.querySelector('.pack-apply-btn').addEventListener('click', (ev) => {
-                ev.stopPropagation(); handleApplyBtn(0);
-            });
-            item.querySelector('.pack-export-btn').addEventListener('click', (ev) => {
-                ev.stopPropagation(); exportLayoutReport(0);
+
+            const labels = ['方案 1 · 原算法', '方案 2 · 综合评分实验'];
+            _currentResults.forEach((result, idx) => {
+                const e = result.eval;
+                const item = document.createElement('div');
+                item.className = 'pack-panel-item';
+                item.dataset.idx = String(idx);
+                item.innerHTML = `
+                    <div class="row1">
+                        <span style="color:#ffaa44;font-weight:bold;">${labels[idx]}</span>
+                        <span style="font-size:11px;color:#777;">${result.timeMs.toFixed(0)} ms</span>
+                    </div>
+                    <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
+                        <span style="color:#ffaa44;">利用率 <b>${(e.utilRate * 100).toFixed(2)}%</b></span>
+                        <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
+                        <span style="color:#ffb74d;">📏占用深度 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
+                        <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
+                        <span style="color:#81c784;">⚖️重心高度 <b>${e.comY.toFixed(0)} mm</b></span>
+                        ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
+                        ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
+                    </div>
+                    <div class="row3">
+                        <button class="btn-sm pack-preview-btn" data-idx="${idx}">预览效果</button>
+                        <button class="btn-sm btn-primary pack-apply-btn" data-idx="${idx}">应用</button>
+                        <button class="btn-sm pack-export-btn" data-idx="${idx}" style="margin-left:auto;" title="导出当前方案的 Markdown 报告">📋 导出方案</button>
+                    </div>
+                `;
+                packPanelList.appendChild(item);
+
+                item.querySelector('.pack-preview-btn').addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    handlePreviewBtn(idx);
+                });
+                item.querySelector('.pack-apply-btn').addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    handleApplyBtn(idx);
+                });
+                item.querySelector('.pack-export-btn').addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    exportLayoutReport(idx);
+                });
             });
 
-            // 计算完成后立即展示计算后的临时排布。
-            applyPreview(result);
+            // 默认先展示方案 1（原算法）作为基准。
+            applyPreview(_currentResults[0]);
             _currentPreviewIdx = 0;
             _setPreviewingItem(0);
-            const previewBtn = item.querySelector('.pack-preview-btn');
-            if (previewBtn) previewBtn.textContent = '原始排布';
-            packPanelPreviewState.textContent = `当前显示：计算后效果（利用率 ${(e.utilRate * 100).toFixed(2)}% / 出界 ${e.overflowCount} / 完全出界 ${e.fullyOutsideCount}）`;
+            _syncPackPreviewButtons();
+            const e0 = _currentResults[0].eval;
+            packPanelPreviewState.textContent =
+                `当前显示：方案 1 · 原算法（利用率 ${(e0.utilRate * 100).toFixed(2)}% / 出界 ${e0.overflowCount} / 完全出界 ${e0.fullyOutsideCount}）`;
             showPackPanel();
         }
 
@@ -4030,25 +4337,41 @@
             });
         }
 
+        function _syncPackPreviewButtons() {
+            packPanelList.querySelectorAll('.pack-preview-btn').forEach(btn => {
+                const idx = Number(btn.dataset.idx);
+                btn.textContent = (_currentPreviewIdx === idx) ? '原始排布' : '预览效果';
+            });
+        }
+
         function handlePreviewBtn(idx) {
-            const btn = packPanelList.querySelector('.pack-preview-btn');
+            if (!_currentResults[idx]) return;
+
             if (_currentPreviewIdx === idx) {
-                // 当前显示计算后效果 → 回到计算前原始排布。
+                // 当前方案 → 原始排布
                 revertPreview();
                 _currentPreviewIdx = -1;
                 _setPreviewingItem(-1);
-                if (btn) btn.textContent = '预览效果';
+                _syncPackPreviewButtons();
                 packPanelPreviewState.textContent = '当前显示：原始排布';
                 return;
             }
 
-            // 当前显示原始排布 → 再显示计算后效果。
+            // 从另一方案切换时，必须先恢复真正的原始排布，
+            // 再以原始排布为 snapshot 应用新方案，避免 snapshot 漂移。
+            if (_currentPreviewIdx !== -1) {
+                revertPreview();
+            }
+
             applyPreview(_currentResults[idx]);
             _currentPreviewIdx = idx;
             _setPreviewingItem(idx);
-            if (btn) btn.textContent = '原始排布';
+            _syncPackPreviewButtons();
+
             const r = _currentResults[idx];
-            packPanelPreviewState.textContent = `当前显示：计算后效果（利用率 ${(r.eval.utilRate * 100).toFixed(2)}% / 出界 ${r.eval.overflowCount} / 完全出界 ${r.eval.fullyOutsideCount}）`;
+            const label = idx === 0 ? '方案 1 · 原算法' : '方案 2 · 综合评分实验';
+            packPanelPreviewState.textContent =
+                `当前显示：${label}（利用率 ${(r.eval.utilRate * 100).toFixed(2)}% / 出界 ${r.eval.overflowCount} / 完全出界 ${r.eval.fullyOutsideCount}）`;
         }
 
         function handleApplyBtn(idx) {
@@ -4073,13 +4396,14 @@
             }
             _currentPreviewIdx = -1;
             _setPreviewingItem(-1);
+            _syncPackPreviewButtons();
             packPanelPreviewState.textContent = '';
             packPanel.style.display = 'none';
             // 保留 _currentResults / _lastPackResults 供下次复用
         }
 
         // 智能排柜：货物列表 → 操作 → 智能排柜。
-        // 参数只在用户确认时写回；每次确认只计算默认路线一个方案。
+        // 参数只在用户确认时写回；每次确认对同一默认路线计算“原算法 / 综合评分实验”两个方案。
         const packPanel = $('#packPanel');
         const packPanelMeta = $('#packPanelMeta');
         const packPanelList = $('#packPanelList');
@@ -5161,10 +5485,17 @@
             animate();
         }
 
-        function animate() {
+        function animate(now = performance.now()) {
             requestAnimationFrame(animate);
             controls.update();
-            checkOverlapsAndOutOfBounds();
+            if (collisionDirty) {
+                if (dragState.active) {
+                    checkMovingOverlapsAndOutOfBounds(currentMovingIdxs());
+                } else {
+                    checkOverlapsAndOutOfBounds();
+                }
+                collisionDirty = false;
+            }
             renderer.render(scene, camera);
 
             // 更新轴指示器：与主相机同方向
@@ -5173,14 +5504,148 @@
             axesCam.position.copy(dir).multiplyScalar(-axesDist);
             axesCam.lookAt(0, 0, 0);
             axesRenderer.render(axesScene, axesCam);
+            updatePerfMonitor(now);
+        }
+
+        // 拖动碰撞基线：拖动开始时只计算一次“未移动货物之间”的异常状态。
+        // 后续每个拖动帧只计算 moving × others。
+        let dragCollisionBaseBad = null;
+        let dragCollisionBaseKey = '';
+
+        function currentMovingIdxs() {
+            if (!dragState.active || dragState.cargoIdx < 0) return [];
+            return state.selectedCargos.has(dragState.cargoIdx)
+                ? Array.from(state.selectedCargos)
+                : [dragState.cargoIdx];
+        }
+
+        function resetDragCollisionCache() {
+            dragCollisionBaseBad = null;
+            dragCollisionBaseKey = '';
+        }
+
+        function buildDragCollisionBase(movingIdxs) {
+            const cargos = state.cargos;
+            const movingSet = new Set(movingIdxs);
+            const bad = new Array(cargos.length).fill(false);
+            const { l, w, h } = state.container;
+
+            // 未移动货物自身出界。
+            for (let i = 0; i < cargos.length; i++) {
+                if (movingSet.has(i)) continue;
+                const c = cargos[i];
+                if (c.px < 0 || c.px + c.sx > l ||
+                    c.py < 0 || c.py + c.sy > h ||
+                    c.pz < 0 || c.pz + c.sz > w) {
+                    bad[i] = true;
+                }
+            }
+
+            // 未移动货物之间的交叉，在拖动期间不会变化，只算一次。
+            for (let i = 0; i < cargos.length; i++) {
+                if (movingSet.has(i)) continue;
+                const a = cargos[i];
+                for (let j = i + 1; j < cargos.length; j++) {
+                    if (movingSet.has(j)) continue;
+                    const b = cargos[j];
+                    if (a.px < b.px + b.sx && a.px + a.sx > b.px &&
+                        a.py < b.py + b.sy && a.py + a.sy > b.py &&
+                        a.pz < b.pz + b.sz && a.pz + a.sz > b.pz) {
+                        bad[i] = true;
+                        bad[j] = true;
+                    }
+                }
+            }
+
+            // 多选货物之间相对位置不变；若本来互相交叉，也保留异常状态。
+            for (let aPos = 0; aPos < movingIdxs.length; aPos++) {
+                const i = movingIdxs[aPos], a = cargos[i];
+                if (!a) continue;
+                for (let bPos = aPos + 1; bPos < movingIdxs.length; bPos++) {
+                    const j = movingIdxs[bPos], b = cargos[j];
+                    if (!b) continue;
+                    if (a.px < b.px + b.sx && a.px + a.sx > b.px &&
+                        a.py < b.py + b.sy && a.py + a.sy > b.py &&
+                        a.pz < b.pz + b.sz && a.pz + a.sz > b.pz) {
+                        bad[i] = true;
+                        bad[j] = true;
+                    }
+                }
+            }
+            return bad;
+        }
+
+        function applyBadFlagsToMeshes(bad) {
+            for (let i = 0; i < bad.length; i++) {
+                const m = dragObjects[i];
+                if (!m || !m.userData) continue;
+                const o = m.userData.outOverlay;
+                const e = m.userData.outOverlayEdges;
+                const show = !!bad[i];
+                if (o) o.visible = show;
+                if (e) e.visible = show;
+                if (m.userData.selectionOutline) {
+                    m.userData.selectionOutline.visible = isSelected(i) && !show;
+                }
+            }
+        }
+
+        function checkMovingOverlapsAndOutOfBounds(movingIdxs) {
+            const t0 = performance.now();
+            collisionCheckTotal++;
+
+            const cargos = state.cargos;
+            if (!cargos.length || !movingIdxs.length) {
+                collisionCheckTotalMs += performance.now() - t0;
+                return;
+            }
+
+            const key = movingIdxs.slice().sort((a,b)=>a-b).join(',');
+            if (!dragCollisionBaseBad || dragCollisionBaseKey !== key || dragCollisionBaseBad.length !== cargos.length) {
+                dragCollisionBaseBad = buildDragCollisionBase(movingIdxs);
+                dragCollisionBaseKey = key;
+            }
+
+            const bad = dragCollisionBaseBad.slice();
+            const movingSet = new Set(movingIdxs);
+            const { l, w, h } = state.container;
+
+            // 当前移动货物自身出界 + moving × nonmoving 交叉。
+            for (const i of movingIdxs) {
+                const a = cargos[i];
+                if (!a) continue;
+
+                if (a.px < 0 || a.px + a.sx > l ||
+                    a.py < 0 || a.py + a.sy > h ||
+                    a.pz < 0 || a.pz + a.sz > w) {
+                    bad[i] = true;
+                }
+
+                for (let j = 0; j < cargos.length; j++) {
+                    if (movingSet.has(j)) continue;
+                    const b = cargos[j];
+                    if (!b) continue;
+                    if (a.px < b.px + b.sx && a.px + a.sx > b.px &&
+                        a.py < b.py + b.sy && a.py + a.sy > b.py &&
+                        a.pz < b.pz + b.sz && a.pz + a.sz > b.pz) {
+                        bad[i] = true;
+                        bad[j] = true;
+                    }
+                }
+            }
+
+            applyBadFlagsToMeshes(bad);
+            collisionCheckTotalMs += performance.now() - t0;
         }
 
         // ============================================================
-        //  持续检测：出界 / 与其他货物交叉
-        //  - 静止、移动、旋转时均实时反映
+        //  按需检测：出界 / 与其他货物交叉
+        //  - 货物/柜体状态变化后刷新；静止时不重复计算
         //  - 通过 outOverlay/outOverlayEdges 子节点的 visible 切换
         // ============================================================
         function checkOverlapsAndOutOfBounds() {
+            const t0 = performance.now();
+            collisionCheckTotal++;
             const cargos = state.cargos;
             const n = cargos.length;
             if (n === 0) return;
@@ -5215,16 +5680,8 @@
                 }
             }
 
-            // 应用到 mesh 的 outOverlay 子节点
-            for (let i = 0; i < n; i++) {
-                const m = dragObjects[i];
-                if (!m || !m.userData) continue;
-                const o = m.userData.outOverlay;
-                const e = m.userData.outOverlayEdges;
-                const show = bad[i];
-                if (o) o.visible = show;
-                if (e) e.visible = show;
-            }
+            applyBadFlagsToMeshes(bad);
+            collisionCheckTotalMs += performance.now() - t0;
         }
 
         init();
