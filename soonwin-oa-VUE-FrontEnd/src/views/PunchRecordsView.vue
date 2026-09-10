@@ -507,12 +507,12 @@ const exportToXlsx = async () => {
           outDisplay = punchOutTime || '漏打';
         }
 
-        // 请假/出差状态：列出当天全部请假/出差单据（不分状态），格式"类型-状态"
+        // 请假/出差状态：列出当天全部请假/出差单据的状态（不分类型，如"已批准""审批中"）
         const dayOps = leaveTripDayMap.get(dayKey) || [];
         const statusText = dayOps
           .slice()
           .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
-          .map(op => `${OPERATION_TYPE_LABELS[op.operation_type] || op.operation_type}-${OPERATION_STATUS_LABELS[op.operation_status] || op.operation_status}`)
+          .map(op => OPERATION_STATUS_LABELS[op.operation_status] || op.operation_status)
           .join('、');
 
         aoa.push([emp.emp_id, emp.name, dateStr, inDisplay, outDisplay, note, statusText]);
@@ -571,9 +571,21 @@ const exportToXlsx = async () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '打卡与考勤');
 
-    // 文件名：打卡考勤_当前日期 工号
-    const currentEmpId = getCurrentEmpId();
-    const empIdSuffix = currentEmpId ? ` ${currentEmpId}` : '';
+    // 文件名中的工号：优先取搜索指定的人员（工号条件 > 姓名反查唯一工号），未指定人员时回退为当前登录用户工号
+    let fileEmpId = (searchForm.value.empId || '').trim();
+    if (!fileEmpId && searchForm.value.name?.trim()) {
+      const targetName = searchForm.value.name.trim();
+      const matchedIds = new Set(
+        allRecords.filter(record => (record.name || '').includes(targetName)).map(record => record.emp_id)
+      );
+      if (matchedIds.size === 1) {
+        fileEmpId = Array.from(matchedIds)[0];
+      }
+    }
+    if (!fileEmpId) {
+      fileEmpId = getCurrentEmpId() || '';
+    }
+    const empIdSuffix = fileEmpId ? ` ${fileEmpId}` : '';
     XLSX.writeFile(wb, `打卡考勤_${formatDate(new Date())}${empIdSuffix}.xlsx`);
 
     ElMessage.success(`导出成功：打卡 ${punchRowCount} 行，考勤 ${attendanceOps.length} 条`);
