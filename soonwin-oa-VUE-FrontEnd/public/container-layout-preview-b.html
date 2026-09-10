@@ -54,7 +54,9 @@
   .manifest th { background: #e8f0f7; color: #173e63; padding: 2.6mm 2mm; border: .3mm solid #9db1c4; text-align: center; }
   .manifest td { padding: 2.1mm 2mm; line-height: 1.2; border: .25mm solid #bdc9d4; vertical-align: middle; overflow-wrap: anywhere; }
   .manifest tr { break-inside: avoid; page-break-inside: avoid; }
-  .manifest tbody tr:nth-child(even) { background: #f6f8fa; }
+  /* 清单底色表达“同一栋”而不是简单奇偶行：同栋同色，换栋换色。 */
+  .manifest tbody tr.tower-tone-0 { background: #ffffff; }
+  .manifest tbody tr.tower-tone-1 { background: #f2f6fa; }
   .manifest .num { text-align:center; font-weight:800; font-size:12pt; }
   .manifest .zone { text-align:center; font-weight:700; }
   .manifest .dim { white-space:nowrap; font-family: Consolas, monospace; font-size:9.8pt; }
@@ -66,6 +68,57 @@
   .status-floor { color:#667085; }
   .page-footer { position:absolute; left:9mm; right:9mm; bottom:3mm; display:flex; justify-content:space-between; color:#64748b; font-size:8.5pt; }
   .print-note { margin-top: 3mm; border-left: 1.3mm solid #d97706; background:#fff8e6; padding:2mm 3mm; font-size:9.5pt; color:#704700; }
+  .test-combined { display:flex; gap:4mm; margin-top:3mm; height:165mm; }
+  /* 分区操作页使用 A4 内容区的真实剩余高度，不再受固定 165mm 上限约束。
+     底部预留页脚安全区，避免表格与页脚重叠。 */
+  .sheet.operation-sheet { display:flex; flex-direction:column; }
+  .sheet.operation-sheet .test-combined { height:auto; flex:1 1 auto; min-height:0; margin-bottom:5mm; }
+  /* 完整货物清单同样使用 A4 页面的真实剩余高度；分区标题作为表内分组行。 */
+  .sheet.full-manifest-sheet { display:flex; flex-direction:column; }
+  .sheet.full-manifest-sheet .full-manifest-content { flex:1 1 auto; min-height:0; margin-bottom:5mm; }
+  .sheet.full-manifest-sheet .manifest-wrap { margin-top:3mm; }
+  .sheet.zone-manifest-sheet { display:flex; flex-direction:column; }
+  .sheet.zone-manifest-sheet .zone-manifest-content { flex:1 1 auto; min-height:0; margin-bottom:5mm; }
+  .sheet.zone-manifest-sheet .manifest-wrap { margin-top:3mm; }
+
+  /* B方案清单统一样式：表头全居中；编号/尺寸/重量居中；名称/承托关系居左且单行。 */
+  .manifest th { text-align:center; }
+  .manifest td.num, .manifest td.dim, .manifest td.wgt {
+    text-align:center; padding-left:2mm !important;
+  }
+  .manifest td.cargo-name, .manifest td.status-cell {
+    text-align:left; padding-left:2mm !important;
+  }
+  .manifest td.cargo-name {
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .manifest td.status-cell {
+    white-space:nowrap; overflow:hidden; text-overflow:clip;
+  }
+  .manifest .zone-group-row td {
+    background:#dbe8f4; color:#173e63; font-weight:800; text-align:left;
+    padding:1.8mm 2.5mm; border:.3mm solid #9db1c4;
+  }
+  .test-combined .test-left, .test-combined .test-right { min-width:0; }
+  .test-combined .test-left { width:58%; display:flex; flex-direction:column; }
+  .test-combined .test-right { width:42%; }
+  .test-combined .test-left .canvas-frame { flex:1; margin-top:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .test-combined .test-left .canvas-frame canvas.stretch { width:100%; height:auto; max-width:100%; max-height:100%; object-fit:contain; }
+  .test-combined .test-right .manifest-wrap { margin-top:0; }
+  .test-combined .manifest { font-size:8.2pt; }
+  .test-combined .manifest th { padding:1.5mm 1mm; }
+  .test-combined .manifest td { padding:1.25mm 1mm; line-height:1.12; }
+  .test-combined .manifest .num { font-size:10pt; }
+  .test-combined .manifest .dim, .test-combined .manifest .wgt { font-size:7.7pt; }
+  .test-combined .manifest th { text-align:center; }
+  .test-combined .manifest td.num,
+  .test-combined .manifest td.dim,
+  .test-combined .manifest td.wgt { text-align:center; }
+  .test-combined .manifest td.cargo-name,
+  .test-combined .manifest td.status-cell { text-align:left; }
+  .test-combined .manifest td.cargo-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .test-combined .manifest td.status-cell { white-space:nowrap; overflow:hidden; text-overflow:clip; }
+  .test-combined .manifest tbody td:nth-child(2), .test-combined .manifest tbody td:nth-child(5) { padding-left:1mm; }
 
   @media (max-width: 1200px) {
     .sheet { transform-origin: top center; }
@@ -135,6 +188,7 @@ try {
     if (d && d.container && Array.isArray(d.cargos)) {
       CONTAINER = { name: d.container.name || '货柜', l: d.container.l, w: d.container.w, h: d.container.h };
       CARGOS = d.cargos.map(c => ({
+        no: c.no,
         name: c.name, sx: c.sx, sy: c.sy, sz: c.sz,
         px: c.px, py: c.py, pz: c.pz,
         weight: (c.weight === undefined || c.weight === null || c.weight === '') ? null : Number(c.weight),
@@ -183,22 +237,68 @@ const hexRgba = (hex, a) => {
 const CIRC_NUM = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
 const circNum = n => CIRC_NUM[n - 1] || n;
 
-// 装柜图序号：以原点为基准，排优先 + 排内右边优先。
-// 排 = x 方向相近（差 ≤500mm）的货物归为同一排，排按 x 增序；排内按 z 0→max（z 小=屏幕右侧先编号）、y 0→max、x 0→max。
-// 效果：左右相邻货物按"右1左2右3左4"顺序编号，而不是右边整列编完再编左边
-const ROW_TOL = 500;   // 同排判定容差（mm）
-const xSorted = CARGOS.map((c, i) => i).sort((a, b) => CARGOS[a].px - CARGOS[b].px);
-const rowOf = new Array(CARGOS.length);
-let rowNo = 0, lastRowX = -Infinity;
-for (const i of xSorted) {
-  if (CARGOS[i].px - lastRowX > ROW_TOL) rowNo++;
-  rowOf[i] = rowNo;
-  lastRowX = CARGOS[i].px;
+// 固定编号来自编辑器；排序只控制清单/绘制顺序，不再生成新编号。
+// 兼容旧数据：缺号、重复号或非法号时，按当前数组顺序一次性补为 1..N。
+function normalizeCargoNumbers(cargos) {
+  const used = new Set();
+  let repair = false;
+  for (const c of cargos) {
+    const n = Number(c.no);
+    if (!Number.isInteger(n) || n <= 0 || used.has(n)) { repair = true; break; }
+    used.add(n);
+  }
+  if (repair) cargos.forEach((c,i)=>{ c.no=i+1; });
+  else cargos.forEach(c=>{ c.no=Number(c.no); });
 }
-const SORT_INDEX = CARGOS.map((c, i) => i)
-  .sort((a, b) => rowOf[a] - rowOf[b] || CARGOS[a].pz - CARGOS[b].pz || CARGOS[a].py - CARGOS[b].py || CARGOS[a].px - CARGOS[b].px);
-const dispPos = new Array(CARGOS.length);   // 原索引 → 显示序号位置（0-based）
-SORT_INDEX.forEach((orig, pos) => { dispPos[orig] = pos; });
+normalizeCargoNumbers(CARGOS);
+
+// 空间显示顺序：以原点为起点，沿柜长前进；同一纵向位置由右至左（z 小→大），由下至上（y 小→大）。
+// 固定编号仅作为完全同位时的稳定 tie-break，不参与重新编号。
+const SPATIAL_INDEX = CARGOS.map((c,i)=>i).sort((a,b)=>
+  CARGOS[a].px - CARGOS[b].px ||
+  CARGOS[a].pz - CARGOS[b].pz ||
+  CARGOS[a].py - CARGOS[b].py ||
+  CARGOS[a].no - CARGOS[b].no
+);
+
+// “同一栋”识别：把直接/间接承托关系视为同一连通组。
+// 每栋内部按实际高度由下至上排列；同层再按空间位置与固定编号稳定排序。
+function buildTowerLayout(cargos, stack) {
+  const n=cargos.length,parent=Array.from({length:n},(_,i)=>i);
+  const find=x=>{ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; };
+  const unite=(a,b)=>{ a=find(a); b=find(b); if(a!==b) parent[b]=a; };
+  stack.forEach((st,i)=>st.on.forEach(j=>unite(i,j)));
+
+  const rawGroups=new Map();
+  for(let i=0;i<n;i++){
+    const r=find(i);
+    if(!rawGroups.has(r)) rawGroups.set(r,[]);
+    rawGroups.get(r).push(i);
+  }
+
+  const towers=[...rawGroups.values()].map(members=>{
+    members.sort((a,b)=>
+      cargos[a].py-cargos[b].py ||
+      cargos[a].px-cargos[b].px ||
+      cargos[a].pz-cargos[b].pz ||
+      cargos[a].no-cargos[b].no
+    );
+    return {
+      members,
+      minPx:Math.min(...members.map(i=>cargos[i].px)),
+      minPz:Math.min(...members.map(i=>cargos[i].pz)),
+      minPy:Math.min(...members.map(i=>cargos[i].py)),
+      minNo:Math.min(...members.map(i=>cargos[i].no)),
+    };
+  }).sort((a,b)=>a.minPx-b.minPx || a.minPz-b.minPz || a.minPy-b.minPy || a.minNo-b.minNo);
+
+  const towerId=Array(n).fill(-1);
+  towers.forEach((t,id)=>t.members.forEach(i=>towerId[i]=id));
+  return { towers, towerId, index:towers.flatMap(t=>t.members) };
+}
+const TOWER_LAYOUT=buildTowerLayout(CARGOS,STACK);
+const TOWER_ID=TOWER_LAYOUT.towerId;
+const TOWER_INDEX=TOWER_LAYOUT.index;
 
 // ============================================================
 //  投影：左侧柜体 + 右侧清单
@@ -346,9 +446,9 @@ function draw() {
   }
 
   // 编号徽标置顶：在所有货物绘制完成后统一绘制（错开布局位置），保证不被货物遮挡；
-  // 序号按 x→z→y 排序后的编号（pos+1）
-  for (let pos = 0; pos < SORT_INDEX.length; pos++) {
-    const i = SORT_INDEX[pos];
+  // 徽标按空间顺序绘制，但显示编辑器固定编号
+  for (let pos = 0; pos < SPATIAL_INDEX.length; pos++) {
+    const i = SPATIAL_INDEX[pos];
     const st = STACK[i];
     const isHover = hoverIdx === i;
     const bx = badges[i].x, by = badges[i].y;
@@ -360,7 +460,7 @@ function draw() {
     ctx.lineWidth = isHover ? 3 : 2; ctx.stroke();
     ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${r + 4}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(pos + 1, bx, by + 1);
+    ctx.fillText(CARGOS[i].no, bx, by + 1);
     ctx.restore();
   }
 
@@ -389,8 +489,8 @@ function draw() {
   ctx.strokeStyle = '#8aa0b8'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(LIST_X - 4, headY - 4); ctx.lineTo(LIST_X + 596, headY - 4); ctx.stroke();
 
-  // 清单行按 x→z→y 排序后的顺序渲染（序号 = 排序位置+1）
-  SORT_INDEX.forEach((i, pos) => {
+  // 清单行按 x→z→y 空间顺序渲染；编号保持编辑器固定编号
+  SPATIAL_INDEX.forEach((i, pos) => {
     const c = CARGOS[i];
     const st = STACK[i];
     const isHover = hoverIdx === i;
@@ -410,7 +510,7 @@ function draw() {
     ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#8aa0b8'); ctx.lineWidth = 1.6; ctx.stroke();
     ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(pos + 1, numCx, yc);
+    ctx.fillText(c.no, numCx, yc);
     ctx.restore();
     // 名称（空两格；超 12 字截断）
     ctx.fillStyle = '#1a1a1a'; ctx.font = '16px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
@@ -424,7 +524,7 @@ function draw() {
     // 状态（左空两格；文字超右界时自动收窄字号兜底）
     ctx.textAlign = 'left';
     let stText = '—', stColor = '#999', stSize = 14;
-    if (st.stacked) { stText = '▲ 叠于' + st.on.map(j => circNum(dispPos[j] + 1)).join('、') + ' 上'; stColor = '#c62828'; }
+    if (st.stacked) { stText = '▲ 叠于' + st.on.map(j => circNum(CARGOS[j].no)).join('、') + ' 上'; stColor = '#c62828'; }
     else if (st.suspended) { stText = '⚠悬空'; stColor = '#b26a00'; }
     ctx.fillStyle = stColor;
     ctx.font = stSize + 'px sans-serif';
@@ -436,7 +536,7 @@ function draw() {
   let detailY = tblY + tblH + 34;
   ctx.font = 'bold 15px "Segoe UI","PingFang SC",sans-serif';
   ctx.textBaseline = 'middle';
-  SORT_INDEX.forEach((i) => {
+  SPATIAL_INDEX.forEach((i) => {
     const c = CARGOS[i];
     const st = STACK[i];
     let segX = 0;
@@ -454,18 +554,18 @@ function draw() {
       segX += w + 20;
     };
     if (st.stacked) {
-      drawSeg(circNum(dispPos[i] + 1) + '号 ', '#c62828');
+      drawSeg(circNum(CARGOS[i].no) + '号 ', '#c62828');
       drawPill(c.name, 'rgba(198,40,40,0.13)');
       drawSeg(' ▲叠放于 ', '#c62828');
       st.on.forEach((j, k) => {
         if (k > 0) drawSeg('、', '#c62828');
-        drawSeg(circNum(dispPos[j] + 1) + '号 ', '#c62828');
+        drawSeg(circNum(CARGOS[j].no) + '号 ', '#c62828');
         drawPill(CARGOS[j].name, 'rgba(198,40,40,0.13)');
       });
       drawSeg(' 上', '#c62828');
       detailY += 30;
     } else if (st.suspended) {
-      drawSeg(circNum(dispPos[i] + 1) + '号 ', '#b26a00');
+      drawSeg(circNum(CARGOS[i].no) + '号 ', '#b26a00');
       drawPill(c.name, 'rgba(178,106,0,0.14)');
       drawSeg(` ⚠ 悬空${c.py}mm 需支撑`, '#b26a00');
       detailY += 30;
@@ -521,7 +621,7 @@ function draw() {
     g.sort((a, b) => marks[a].py - marks[b].py);   // 下层在前
     const n = g.length;
     g.forEach((m, k) => {
-      const txt = circNum(dispPos[marks[m].i] + 1) + (n > 1 ? '-' + (k + 1) : '');
+      const txt = circNum(CARGOS[marks[m].i].no) + (n > 1 ? '-' + (k + 1) : '');
       const fs = Math.max(10, Math.min(marks[m].rw * 0.7, marks[m].rh * 1.0, 16));
       ctx.font = `bold ${fs}px sans-serif`;
       const tw = ctx.measureText(txt).width;
@@ -641,7 +741,7 @@ cv.addEventListener('mousemove', (e) => {
   }
   if (hit === -1) {
     const row = Math.floor((my - headY - 12) / rowH);
-    if (row >= 0 && row < CARGOS.length && mx >= LIST_X - 10 && mx <= LIST_X + 600) hit = SORT_INDEX[row];   // 行号 → 原索引
+    if (row >= 0 && row < CARGOS.length && mx >= LIST_X - 10 && mx <= LIST_X + 600) hit = SPATIAL_INDEX[row];   // 行号 → 原索引
   }
   if (hit !== hoverIdx) { hoverIdx = hit; draw(); }
 });
@@ -668,7 +768,7 @@ const zoneOf = i => Math.min(PRINT_ZONE_COUNT - 1,
 const statusColor = i => STACK[i].stacked ? '#b42318' : (STACK[i].suspended ? '#9a6700' : '#245f92');
 const statusText = i => {
   const st = STACK[i];
-  if (st.stacked) return '▲ 叠放于 ' + st.on.map(j => '#' + (dispPos[j] + 1)).join('、') + ' 上';
+  if (st.stacked) return '叠于 ' + st.on.map(j => '#' + (CARGOS[j].no)).join('、') + ' 上';
   if (st.suspended) return `⚠ 悬空 ${CARGOS[i].py} mm，需确认支撑`;
   return '地面放置';
 };
@@ -1090,14 +1190,14 @@ function drawIsoPrint(canvas, xStart, xEnd, indices, detail, showZones, overview
         g.fillStyle='#f5f8fb';g.strokeStyle='#a4b5c6';g.lineWidth=1.5;
         g.beginPath();g.roundRect(x,u.y,148,u.height,10);g.fill();g.stroke();
         u.ids.forEach((i,k)=>{
-          drawPrintBadge(g,x+74,u.y+31+k*46,dispPos[i]+1,CARGOS[i].color,18,CARGOS[i].color);
+          drawPrintBadge(g,x+74,u.y+31+k*46,CARGOS[i].no,CARGOS[i].color,18,CARGOS[i].color);
         });
       }else{
-        drawPrintBadge(g,x+74,cy,dispPos[u.ids[0]]+1,color,18,color);
+        drawPrintBadge(g,x+74,cy,CARGOS[u.ids[0]].no,color,18,color);
       }
     }
-    if(units.some(u=>u.overflow)){g.fillStyle='#9a6700';g.font='18px sans-serif';g.textAlign='center';g.fillText('空间不足，以下编号见本区清单：'+units.filter(u=>u.overflow).flatMap(u=>u.ids.map(i=>'#'+(dispPos[i]+1))).join('、'),CW/2,CH-20);}
-    canvas.dataset.annotationSummary=JSON.stringify({groups:units.filter(u=>u.group).map(u=>u.ids.map(i=>dispPos[i]+1)),direct:direct.length,external:units.filter(u=>!u.overflow).length,leaders:usedPaths.length,overflow:units.filter(u=>u.overflow).length});
+    if(units.some(u=>u.overflow)){g.fillStyle='#9a6700';g.font='18px sans-serif';g.textAlign='center';g.fillText('空间不足，以下编号见本区清单：'+units.filter(u=>u.overflow).flatMap(u=>u.ids.map(i=>'#'+(CARGOS[i].no))).join('、'),CW/2,CH-20);}
+    canvas.dataset.annotationSummary=JSON.stringify({groups:units.filter(u=>u.group).map(u=>u.ids.map(i=>CARGOS[i].no)),direct:direct.length,external:units.filter(u=>!u.overflow).length,leaders:usedPaths.length,overflow:units.filter(u=>u.overflow).length});
     // 引线和组括号确定后，重新选择面内位置；整个圆圈必须避开遮挡与连接。
     const settled=[];
     for(const m of direct){
@@ -1112,7 +1212,7 @@ function drawIsoPrint(canvas, xStart, xEnd, indices, detail, showZones, overview
       });
       if(valid.length)m.p=valid[0].p;
       settled.push(m);
-      drawPrintBadge(g,m.p[0],m.p[1],dispPos[m.i]+1,CARGOS[m.i].color,18,CARGOS[m.i].color);
+      drawPrintBadge(g,m.p[0],m.p[1],CARGOS[m.i].no,CARGOS[m.i].color,18,CARGOS[m.i].color);
     }
   }
 
@@ -1174,7 +1274,7 @@ function drawTopPrint(canvas, xStart, xEnd, indices, showZones, labelIndices = n
   for(const i of order){
     if(!labelSet.has(i)) continue;
     const c=CARGOS[i],cx=xp(c.px+c.sx/2),cy=zp(c.pz+c.sz/2)+levelAt(i)*22;
-    drawPrintBadge(g,cx,cy,dispPos[i]+1,CARGOS[i].color,indices.length>24?14:17,CARGOS[i].color);
+    drawPrintBadge(g,cx,cy,CARGOS[i].no,CARGOS[i].color,indices.length>24?14:17,CARGOS[i].color);
   }
   g.fillStyle='#163a5d';g.font='800 18px "Segoe UI","PingFang SC",sans-serif';g.textBaseline='middle';
   g.textAlign='left';g.fillText('柜头',ml+8,mt+drawH/2);
@@ -1198,6 +1298,240 @@ function addOverviewLegend(sheet){
   sheet.append(d);
 }
 
+function makeManifestTable(indices, compact=false) {
+  const wrap=document.createElement('div');wrap.className='manifest-wrap';
+  const table=document.createElement('table');table.className='manifest';
+  const cols=compact
+    ? '<colgroup><col style="width:10%"><col style="width:35%"><col style="width:26%"><col style="width:12.5%"><col style="width:16.5%"></colgroup>'
+    : '<colgroup><col style="width:8%"><col style="width:32%"><col style="width:18%"><col style="width:9%"><col style="width:33%"></colgroup>';
+  table.innerHTML=cols+
+    '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸<br>（长×宽×高 mm）</th><th>重量（kg）</th><th>承托关系</th></tr></thead>';
+  const tbody=document.createElement('tbody');
+  for(const i of indices){
+    const c=CARGOS[i],st=STACK[i],tr=document.createElement('tr');
+    tr.className=`tower-tone-${Math.abs(TOWER_ID[i]) % 2}`;
+    tr.dataset.tower=String(TOWER_ID[i]);
+    const values=[c.no,c.name,`${c.sx}×${c.sz}×${c.sy}`,fmtWeight(c.weight),statusText(i)];
+    values.forEach((v,k)=>{const td=document.createElement('td');td.textContent=v;
+      if(k===0)td.className='num';
+      if(k===1){td.className='cargo-name';td.title=String(v);}
+      if(k===2)td.className='dim';
+      if(k===3)td.className='wgt';
+      if(k===4){
+        td.className='status-cell ' + (st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor'));
+        td.title=String(v);
+      }
+      tr.append(td);});
+    tbody.append(tr);
+  }
+  table.append(tbody);wrap.append(table);return wrap;
+}
+
+// 依据 A 方案右侧清单的真实 CSS 高度测算单页容量，避免固定行数造成无意义分页。
+function measureOperationRowCapacity() {
+  if(!CARGOS.length) return 1;
+
+  // 构造与真实“分区操作图”完全相同的 A4 sheet，让浏览器先完成布局，
+  // 再测量标题以下、页脚安全区以上真正留给右侧表格的高度。
+  // 这样容量不再由固定 165mm 猜测。
+  const probeSheet=makeSheet('A区装柜放大图','分区操作图',
+    '方案：容量测量　|　本区：0–0 mm　|　共 1 件');
+  probeSheet.classList.add('operation-sheet');
+  probeSheet.style.position='absolute';
+  probeSheet.style.visibility='hidden';
+  probeSheet.style.pointerEvents='none';
+  probeSheet.style.left='-10000px';
+  probeSheet.style.top='0';
+
+  const combined=document.createElement('div');
+  combined.className='test-combined';
+  const left=document.createElement('div');left.className='test-left';
+  const right=document.createElement('div');right.className='test-right';
+  right.append(makeManifestTable([TOWER_INDEX[0]],true));
+  combined.append(left,right);
+  probeSheet.append(combined);
+  document.body.append(probeSheet);
+
+  const available=combined.getBoundingClientRect().height;
+  const thead=right.querySelector('thead').getBoundingClientRect().height;
+  const row=right.querySelector('tbody tr').getBoundingClientRect().height;
+  probeSheet.remove();
+
+  if(!(available>0) || !(thead>0) || !(row>0)) return 10;
+  return Math.max(1,Math.floor((available-thead)/row));
+}
+
+// 分页时优先保持同一栋完整；只有单栋自身超过容量时才允许拆分。
+function paginateByTower(indices, capacity) {
+  const pages=[];
+  let current=[];
+  const groups=[];
+  for(const i of indices){
+    const tid=TOWER_ID[i];
+    const last=groups[groups.length-1];
+    if(!last || last.tid!==tid) groups.push({tid,items:[i]});
+    else last.items.push(i);
+  }
+  const flush=()=>{ if(current.length){ pages.push(current); current=[]; } };
+  for(const g of groups){
+    if(g.items.length<=capacity){
+      if(current.length && current.length+g.items.length>capacity) flush();
+      current.push(...g.items);
+      continue;
+    }
+    flush();
+    for(let p=0;p<g.items.length;p+=capacity) pages.push(g.items.slice(p,p+capacity));
+  }
+  flush();
+  return pages.length?pages:[[]];
+}
+
+
+
+// B方案分区货物清单：使用独立 A4 页面真实剩余高度测量单页行数。
+function measureZoneManifestRowCapacity() {
+  if(!CARGOS.length) return 1;
+  const first=TOWER_INDEX[0];
+  const z=zoneOf(first);
+  const probe=makeSheet(`${PRINT_ZONE_NAMES[z]}区货物清单`,'清单',
+    '方案：容量测量　|　本区：0–0 mm　|　共 1 件');
+  probe.classList.add('zone-manifest-sheet');
+  probe.style.position='absolute';probe.style.visibility='hidden';probe.style.pointerEvents='none';
+  probe.style.left='-10000px';probe.style.top='0';
+
+  const content=document.createElement('div');content.className='zone-manifest-content';
+  content.append(makeManifestTable([first]));
+  probe.append(content);document.body.append(probe);
+
+  const available=content.getBoundingClientRect().height;
+  const thead=content.querySelector('thead').getBoundingClientRect().height;
+  const row=content.querySelector('tbody tr').getBoundingClientRect().height;
+  probe.remove();
+
+  if(!(available>0) || !(thead>0) || !(row>0)) return 10;
+  return Math.max(1,Math.floor((available-thead)/row));
+}
+
+function makeFullManifestTable(entries) {
+  const wrap=document.createElement('div');wrap.className='manifest-wrap';
+  const table=document.createElement('table');table.className='manifest full-manifest-table';
+  table.innerHTML='<colgroup><col style="width:8%"><col style="width:32%"><col style="width:18%"><col style="width:9%"><col style="width:33%"></colgroup>'+
+    '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸<br>（长×宽×高 mm）</th><th>重量（kg）</th><th>承托关系</th></tr></thead>';
+  const tbody=document.createElement('tbody');
+  for(const e of entries){
+    if(e.type==='zone'){
+      const tr=document.createElement('tr');tr.className='zone-group-row';
+      const td=document.createElement('td');td.colSpan=5;
+      td.textContent=`${PRINT_ZONE_NAMES[e.zone]}区 · 共${e.count}件`;
+      tr.append(td);tbody.append(tr);continue;
+    }
+    const i=e.i,c=CARGOS[i],st=STACK[i],tr=document.createElement('tr');
+    tr.className=`tower-tone-${Math.abs(TOWER_ID[i]) % 2}`;
+    tr.dataset.tower=String(TOWER_ID[i]);
+    const values=[c.no,c.name,`${c.sx}×${c.sz}×${c.sy}`,fmtWeight(c.weight),statusText(i)];
+    values.forEach((v,k)=>{
+      const td=document.createElement('td');td.textContent=v;
+      if(k===0)td.className='num';
+      if(k===1){td.className='cargo-name';td.title=String(v);}
+      if(k===2)td.className='dim';
+      if(k===3)td.className='wgt';
+      if(k===4){
+        td.className='status-cell '+(st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor'));
+        td.title=String(v);
+      }
+      tr.append(td);
+    });
+    tbody.append(tr);
+  }
+  table.append(tbody);wrap.append(table);return wrap;
+}
+
+function measureFullManifestMetrics() {
+  if(!CARGOS.length) return {available:1,thead:1,row:1,zone:1};
+  const first=TOWER_INDEX[0];
+  const z=zoneOf(first);
+  const probe=makeSheet('完整货物清单（1/1）','整柜清单','容量测量');
+  probe.classList.add('full-manifest-sheet');
+  probe.style.position='absolute';probe.style.visibility='hidden';probe.style.pointerEvents='none';
+  probe.style.left='-10000px';probe.style.top='0';
+  const content=document.createElement('div');content.className='full-manifest-content';
+  content.append(makeFullManifestTable([{type:'zone',zone:z,count:1},{type:'item',i:first}]));
+  probe.append(content);document.body.append(probe);
+  const available=content.getBoundingClientRect().height;
+  const thead=content.querySelector('thead').getBoundingClientRect().height;
+  const row=content.querySelector('tbody tr:not(.zone-group-row)').getBoundingClientRect().height;
+  const zone=content.querySelector('tbody tr.zone-group-row').getBoundingClientRect().height;
+  probe.remove();
+  return {
+    available: available>0?available:1,
+    thead: thead>0?thead:1,
+    row: row>0?row:1,
+    zone: zone>0?zone:1
+  };
+}
+
+// 完整清单按真实页面高度分页：区标题不单独落页尾；跨页时重复当前区标题；
+// 同一栋在空间允许时保持完整，只有整栋本身放不下当前页/单页时才拆分。
+function paginateFullManifest() {
+  const m=measureFullManifestMetrics();
+  const bodyCapacity=Math.max(m.row,m.available-m.thead);
+  const pages=[];
+  let page=[],used=0,currentZone=null;
+  const flush=()=>{ if(page.length){pages.push(page);page=[];used=0;currentZone=null;} };
+  const addZoneHeader=(z,count)=>{
+    page.push({type:'zone',zone:z,count});used+=m.zone;currentZone=z;
+  };
+  const zoneData=[];
+  for(let z=0;z<PRINT_ZONE_COUNT;z++){
+    const items=TOWER_INDEX.filter(i=>zoneOf(i)===z);
+    if(!items.length)continue;
+    const towers=[];
+    for(const i of items){
+      const tid=TOWER_ID[i],last=towers[towers.length-1];
+      if(last&&last.tid===tid)last.items.push(i);else towers.push({tid,items:[i]});
+    }
+    zoneData.push({z,items,towers});
+  }
+
+  for(const zd of zoneData){
+    const zoneCount=zd.items.length;
+    // 新区至少要和一条货物同页；空间不够则先换页。
+    if(page.length && bodyCapacity-used < m.zone+m.row) flush();
+    if(currentZone!==zd.z) addZoneHeader(zd.z,zoneCount);
+
+    for(const tower of zd.towers){
+      let remaining=[...tower.items];
+      while(remaining.length){
+        const towerH=remaining.length*m.row;
+        const free=bodyCapacity-used;
+        if(towerH<=free){
+          remaining.forEach(i=>page.push({type:'item',i}));
+          used+=towerH;remaining=[];continue;
+        }
+
+        // 当前页已有内容且整栋可在新页完整容纳：换页，避免拆栋。
+        if(page.length && towerH<=bodyCapacity-m.zone){
+          flush();addZoneHeader(zd.z,zoneCount);continue;
+        }
+
+        // 当前页空间不足一行时换页，并重复区标题。
+        const rowsFit=Math.floor(free/m.row);
+        if(rowsFit<1){
+          flush();addZoneHeader(zd.z,zoneCount);continue;
+        }
+
+        // 单栋自身超过一页，只在此时按真实剩余高度拆分。
+        const take=Math.min(rowsFit,remaining.length);
+        remaining.slice(0,take).forEach(i=>page.push({type:'item',i}));
+        used+=take*m.row;remaining=remaining.slice(take);
+        if(remaining.length){flush();addZoneHeader(zd.z,zoneCount);}
+      }
+    }
+  }
+  flush();
+  return pages.length?pages:[[]];
+}
+
 function buildPrintDocument() {
   const root=document.getElementById('printRoot');root.innerHTML='';
   const meta=`方案：${planName || '未命名方案'}　|　${CONTAINER.name} ${l}×${w}×${h} mm　|　共 ${CARGOS.length} 件`;
@@ -1209,43 +1543,50 @@ function buildPrintDocument() {
   drawTopPrint(otc,0,l,CARGOS.map((_,i)=>i),true,[]);
   addOverviewLegend(overview);
   const note=document.createElement('div');note.className='print-note';
-  note.textContent='总览不显示货物编号，只用于确认整柜空间关系和A/B/C/D分区；完整编号请查看对应分区操作图。';
+  note.textContent='总览不显示货物编号，只用于确认整柜空间关系和A/B/C/D分区；完整编号请查看对应分区放大图和货物清单。';
   overview.append(note);root.append(overview);
 
+  // B方案：每个分区先单独显示放大图，再紧跟该区独立货物清单。
+  // 分区清单按真实页面高度分页；同栋连续、由下至上，并尽量整栋留在同页。
+  const zoneRowsPerPage=measureZoneManifestRowCapacity();
   for(let z=0;z<PRINT_ZONE_COUNT;z++){
     const zs=l*z/PRINT_ZONE_COUNT,ze=l*(z+1)/PRINT_ZONE_COUNT;
-    const inds=SORT_INDEX.filter(i=>zoneOf(i)===z);
-    if(!inds.length) continue;
-    const sheet=makeSheet(`${PRINT_ZONE_NAMES[z]}区装柜放大图`,'分区操作图',
-      `${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　${inds.length} 件`);
-    const ic=addCanvas(sheet,'zone-iso',1600,965,`${PRINT_ZONE_NAMES[z]}区三维放大图`);
-    drawIsoPrint(ic,zs,ze,inds,true,false);
-    addLegend(sheet);root.append(sheet);
+    const zoneItems=TOWER_INDEX.filter(i=>zoneOf(i)===z);
+    if(!zoneItems.length) continue;
+
+    const zoneSheet=makeSheet(`${PRINT_ZONE_NAMES[z]}区装柜放大图`,'分区操作图',
+      `${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　${zoneItems.length} 件`);
+    const ic=addCanvas(zoneSheet,'zone-iso',1600,965,`${PRINT_ZONE_NAMES[z]}区三维放大图`);
+    drawIsoPrint(ic,zs,ze,zoneItems,true,false);
+    addLegend(zoneSheet);root.append(zoneSheet);
+
+    const zonePages=paginateByTower(zoneItems,zoneRowsPerPage);
+    const zonePageCount=zonePages.length;
+    zonePages.forEach((slice,pageIndex)=>{
+      const title=zonePageCount>1
+        ? `${PRINT_ZONE_NAMES[z]}区货物清单（${pageIndex+1}/${zonePageCount}）`
+        : `${PRINT_ZONE_NAMES[z]}区货物清单`;
+      const sheet=makeSheet(title,'清单',
+        `${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　共 ${zoneItems.length} 件`);
+      sheet.classList.add('zone-manifest-sheet');
+      const content=document.createElement('div');content.className='zone-manifest-content';
+      content.append(makeManifestTable(slice));
+      sheet.append(content);root.append(sheet);
+    });
   }
 
-  // 清单按分区组织；每个分区另起页面，区内继续使用全局编号并按编号升序。
-  for(let z=0;z<PRINT_ZONE_COUNT;z++){
-    const zoneItems=SORT_INDEX.filter(i=>zoneOf(i)===z),zs=l*z/PRINT_ZONE_COUNT,ze=l*(z+1)/PRINT_ZONE_COUNT;
-    for(let start=0;start<zoneItems.length;start+=PRINT_ROWS_PER_PAGE){
-      const slice=zoneItems.slice(start,start+PRINT_ROWS_PER_PAGE),continued=start>0;
-      const title=`${PRINT_ZONE_NAMES[z]}区货物清单${continued?'（续）':''}`;
-      const sheet=makeSheet(title,'清单',`${meta}　|　本区：${Math.round(zs)}–${Math.round(ze)} mm　|　共 ${zoneItems.length} 件`);
-      const wrap=document.createElement('div');wrap.className='manifest-wrap';
-      const table=document.createElement('table');table.className='manifest';
-      table.innerHTML='<colgroup><col style="width:8%"><col style="width:32%"><col style="width:18%"><col style="width:9%"><col style="width:33%"></colgroup>'+
-        '<thead><tr><th>编号</th><th>货物名称</th><th>尺寸（长×宽×高 mm）</th><th>重量（kg）</th><th>放置状态 / 承托关系</th></tr></thead>';
-      const tbody=document.createElement('tbody');
-      for(const i of slice){
-        const c=CARGOS[i],st=STACK[i],tr=document.createElement('tr');
-        const values=[dispPos[i]+1,c.name,`${c.sx}×${c.sz}×${c.sy}`,fmtWeight(c.weight),statusText(i)];
-        values.forEach((v,k)=>{const td=document.createElement('td');td.textContent=v;
-          if(k===0)td.className='num';if(k===2)td.className='dim';if(k===3)td.className='wgt';
-          if(k===4)td.className=st.stacked?'status-stacked':(st.suspended?'status-suspended':'status-floor');tr.append(td);});
-        tbody.append(tr);
-      }
-      table.append(tbody);wrap.append(table);sheet.append(wrap);root.append(sheet);
-    }
-  }
+  // 最后附整柜完整货物清单：整表连续分页，表内以 A/B/C/D 分区标题行分组。
+  // X/Y 只统计完整货物清单自身页数；分页容量基于 A4 页面真实剩余高度。
+  const fullPages=paginateFullManifest();
+  const fullManifestPages=fullPages.length;
+  fullPages.forEach((entries,pageIndex)=>{
+    const sheet=makeSheet(`完整货物清单（${pageIndex+1}/${fullManifestPages}）`,'整柜清单',
+      `${meta}　|　按分区及承托关系整理；编号保持编辑器原编号`);
+    sheet.classList.add('full-manifest-sheet');
+    const content=document.createElement('div');content.className='full-manifest-content';
+    content.append(makeFullManifestTable(entries));
+    sheet.append(content);root.append(sheet);
+  });
 
   const pages=[...root.querySelectorAll('.sheet')],total=pages.length;
   pages.forEach((sheet,i)=>{

@@ -1128,7 +1128,7 @@
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="importCargo"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">导入货物</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div></div></div></span></div>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="importCargo"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">导入货物</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div><div class="tb-dropdown-item" data-action="renumberCargo"><span class="tb-dropdown-icon">🔢</span><span class="tb-dropdown-label">重排编号</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div></div></div></span></div>
                 <div class="cargo-list-container" id="cargoList"></div>
             </div>
 
@@ -1323,7 +1323,7 @@
         // ============================================================
         const state = {
             container: { name: '40尺高柜', l: 12030, w: 2350, h: 2690, wt: 26500, dw: 2340, dh: 2580 },
-            cargos: [], // { id, name, sx, sy, sz, px, py, pz, color }
+            cargos: [], // { id, no, name, sx, sy, sz, px, py, pz, color }
             cargoMeshes: [], // 与 cargos 同步
             selectedCargo: null,             // 主选中（最近点击的，用于详情框/列表滚动）
             selectedCargos: new Set(),      // 多选集合（Ctrl+点击增删，集体移动）
@@ -2888,6 +2888,43 @@
         }
 
         // ============================================================
+        //  固定货物编号
+        // ============================================================
+        function normalizeCargoNumbers(cargos) {
+            const used = new Set();
+            let needsRepair = false;
+            for (const c of cargos) {
+                const n = Number(c.no);
+                if (!Number.isInteger(n) || n <= 0 || used.has(n)) {
+                    needsRepair = true;
+                    break;
+                }
+                used.add(n);
+            }
+            if (needsRepair) {
+                cargos.forEach((c, idx) => { c.no = idx + 1; });
+            } else {
+                cargos.forEach(c => { c.no = Number(c.no); });
+            }
+            return needsRepair;
+        }
+
+        function getNextCargoNumber() {
+            return state.cargos.reduce((maxNo, c) => Math.max(maxNo, Number(c.no) || 0), 0) + 1;
+        }
+
+        function renumberCargos() {
+            if (!state.cargos.length) {
+                alert('当前没有货物');
+                return;
+            }
+            state.cargos.forEach((c, idx) => { c.no = idx + 1; });
+            renderCargoList();
+            saveState();
+            alert('✅ 已按当前货物列表顺序重排编号；货物位置未改变');
+        }
+
+        // ============================================================
         //  UI 渲染
         // ============================================================
 
@@ -2926,7 +2963,7 @@
                     <div class="cargo-row1">
                         ${doorWarn ? `<span class="cargo-door-warn" title="⚠️ 超出柜门限制（宽${doorCheck.narrowW}mm > 门洞宽${doorCheck.limitW}mm${doorCheck.tooTall ? ` 或 高${c.sy}mm > 门洞高${doorCheck.limitH}mm` : ''}）" style="color:#ff6b6b;cursor:help;font-size:14px;">🚪</span>` : ''}
                         <span class="color-dot" style="background:${c.color}"></span>
-                        <span class="cargo-index">#${idx + 1}</span>
+                        <span class="cargo-index">#${c.no}</span>
                         <span class="cargo-name">${c.name}</span>
                     </div>
                     <div class="cargo-row2">
@@ -3041,7 +3078,7 @@
                 const selCount = state.selectedCargos.size;
                 const c = state.cargos[state.selectedCargo];
                 if (c) {
-                    detailIndex.textContent = `#${state.selectedCargo + 1}`;
+                    detailIndex.textContent = `#${c.no}`;
                     detailName.textContent = c.name;
                     detailSize.textContent = `${c.sx} × ${c.sz} × ${c.sy} mm`;
                     detailWeight.textContent = (c.weight || 0) + ' kg';
@@ -3235,6 +3272,7 @@
             const newCargos = [];
             const errors = [];
             const failedLines = []; // 记录失败行的原始文本，用于回写输入框
+            let nextCargoNo = getNextCargoNumber();
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -3277,6 +3315,7 @@
                 }
                 newCargos.push({
                     id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    no: nextCargoNo++,
                     name: name || `货物${state.cargos.length + 1}`,
                     sx,
                     sy,
@@ -4138,9 +4177,10 @@
 
         function exportLayout() {
             const data = {
-                version: 2,
+                version: 3,
                 container: { ...state.container },
                 cargos: state.cargos.map(c => ({
+                    no: c.no,
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
@@ -4199,12 +4239,14 @@
                         state.container = { ...data.container };
                         state.cargos = data.cargos.map(c => ({
                             id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                            no: c.no,
                             name: c.name,
                             sx: c.sx, sy: c.sy, sz: c.sz,
                             px: c.px, py: c.py, pz: c.pz,
                             weight: c.weight || 0,
                             color: c.color || '#e94560',
                         }));
+                        normalizeCargoNumbers(state.cargos);
                         state.allowOverflow = !!data.allowOverflow;
                         state.allowIntersection = data.allowIntersection === true; // 兼容旧文件：未保存时默认 false（不允许交叉）
                         state.allowStacking = data.allowStacking === true;
@@ -4284,6 +4326,7 @@
                 container: { ...state.container },
                 cargos: state.cargos.map(c => ({
                     id: c.id,
+                    no: c.no,
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
@@ -4303,6 +4346,7 @@
         function applySnapshot(snap) {
             state.container = { ...snap.container };
             state.cargos = snap.cargos.map(c => ({ ...c }));
+            normalizeCargoNumbers(state.cargos);
             state.allowOverflow = snap.allowOverflow;
             state.allowIntersection = snap.allowIntersection === true; // 兼容旧快照：未保存时默认 false（不允许交叉）
             state.allowStacking = snap.allowStacking === true;
@@ -4369,9 +4413,10 @@
         // 从 state 构造 exportLayout 等价的 data 对象
         function buildLayoutData() {
             return {
-                version: 2,
+                version: 3,
                 container: { ...state.container },
                 cargos: state.cargos.map(c => ({
+                    no: c.no,
                     name: c.name,
                     sx: c.sx, sy: c.sy, sz: c.sz,
                     px: c.px, py: c.py, pz: c.pz,
@@ -4396,12 +4441,14 @@
             state.container = { ...data.container };
             state.cargos = data.cargos.map(c => ({
                 id: `cargo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                no: c.no,
                 name: c.name,
                 sx: c.sx, sy: c.sy, sz: c.sz,
                 px: c.px, py: c.py, pz: c.pz,
                 weight: c.weight || 0,
                 color: c.color || '#e94560',
             }));
+            normalizeCargoNumbers(state.cargos);
             state.allowOverflow = !!data.allowOverflow;
             state.allowIntersection = data.allowIntersection === true; // 兼容旧方案：未保存时默认 false（不允许交叉）
             state.allowStacking = data.allowStacking === true;
@@ -4674,6 +4721,8 @@
                     if (panel.style.display === 'block') cargoInput.focus();
                 } else if (action === 'resetLayout') {
                     resetLayout();
+                } else if (action === 'renumberCargo') {
+                    renumberCargos();
                 } else if (action === 'copyAll') {
                     if (!state.cargos.length) { alert('当前没有货物'); return; }
                     const lines = state.cargos.map(c => `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`);
