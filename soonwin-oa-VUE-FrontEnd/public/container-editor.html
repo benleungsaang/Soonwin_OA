@@ -3613,7 +3613,7 @@
                 item.addEventListener('click', (e) => {
                     const idx = Number(item.dataset.index);
                     if (!Number.isInteger(idx) || idx < 0 || idx >= state.cargos.length) return;
-                    if (e.ctrlKey || e.metaKey) {
+                    if (e.ctrlKey || e.metaKey || state.selectedCargos.has(idx)) {
                         toggleSelection(idx);
                     } else {
                         setOnlySelection(idx);
