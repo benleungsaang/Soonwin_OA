@@ -144,14 +144,16 @@
 
         .custom-container {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             margin-top: 8px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             align-items: center;
         }
 
         .custom-container input {
-            width: 70px;
+            flex: 1 1 0;
+            min-width: 0;
+            width: auto;
             padding: 4px 6px;
             background: #0a0a2a;
             border: 1px solid #2a2a5e;
@@ -176,9 +178,92 @@
             transition: 0.2s;
         }
 
-        .custom-container button:hover {
-            background: #1a4a7a;
-            color: #fff;
+        .custom-container button:hover:not(:disabled) {
+            background: #ffc066;
+            color: #000;
+        }
+
+        .custom-container button:disabled {
+            background: #4a4a55;
+            color: #8f8f99;
+            cursor: default;
+            opacity: 0.72;
+        }
+
+        /* 空间利用率：默认展开，可点击标题收缩。 */
+        .collapsible-title {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible-title .collapse-arrow {
+            margin-left: auto;
+            color: #7f95ad;
+            font-size: 12px;
+            transition: transform .18s ease;
+        }
+
+        .collapsible-title.collapsed .collapse-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            display: block;
+        }
+
+        .collapsible-content.collapsed {
+            display: none;
+        }
+
+        /* 货柜选择：默认收缩，标题内显示当前柜型与尺寸摘要。 */
+        .container-section .section-title { gap: 8px; }
+        .container-summary {
+            margin-left: auto;
+            color: #9fb0c3;
+            font-size: 11px;
+            font-weight: 400;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 210px;
+        }
+        .container-section:not(.collapsed) .container-summary { display: none; }
+        .container-settings-body {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .container-section.collapsed .container-settings-body { display: none; }
+
+        /* 智能排布参数弹框。 */
+        .pack-param-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .pack-param-row { display:flex; align-items:center; gap:8px; }
+        .pack-param-row .pack-param-label { flex:1; color:#bbb; font-size:13px; }
+        .pack-param-row input[type="number"] {
+            width: 90px;
+            padding: 5px 7px;
+            background: #16213e;
+            color: #e0e0e0;
+            border: 1px solid rgba(255,170,68,0.2);
+            border-radius: 5px;
+            font-size: 13px;
+        }
+
+        /* 列表除编辑/删除按钮外，整项均作为稳定的选中命中区。 */
+        .cargo-item .color-dot,
+        .cargo-item .cargo-name,
+        .cargo-item .cargo-size,
+        .cargo-item .cargo-pos,
+        .cargo-item .cargo-index,
+        .cargo-item .cargo-weight,
+        .cargo-item .cargo-door-warn,
+        .cargo-item .cargo-door-tag {
+            pointer-events: none;
         }
 
         /* 允许溢出开关 */
@@ -863,6 +948,44 @@
             color: #ffd93d;
         }
 
+        /* 货物列表操作菜单：不同底色帮助快速定位。 */
+        #cargoActionMenu .tb-dropdown-item[data-action="importCargo"] { background: rgba(64,145,255,.16); }
+        #cargoActionMenu .tb-dropdown-item[data-action="copyAll"] { background: rgba(38,190,170,.16); }
+        #cargoActionMenu .tb-dropdown-item[data-action="smartPacking"] { background: rgba(155,105,255,.18); }
+        #cargoActionMenu .tb-dropdown-item[data-action="renumberCargo"] { background: rgba(235,180,65,.17); }
+        #cargoActionMenu .tb-dropdown-item[data-action="resetLayout"] { background: rgba(205,125,55,.17); }
+        #cargoActionMenu .tb-dropdown-item[data-action="clearAll"] { background: rgba(225,75,85,.18); }
+
+        #cargoActionMenu .tb-dropdown-item[data-action="importCargo"]:hover { background: rgba(64,145,255,.30); }
+        #cargoActionMenu .tb-dropdown-item[data-action="copyAll"]:hover { background: rgba(38,190,170,.30); }
+        #cargoActionMenu .tb-dropdown-item[data-action="smartPacking"]:hover { background: rgba(155,105,255,.32); }
+        #cargoActionMenu .tb-dropdown-item[data-action="renumberCargo"]:hover { background: rgba(235,180,65,.31); }
+        #cargoActionMenu .tb-dropdown-item[data-action="resetLayout"]:hover { background: rgba(205,125,55,.31); }
+        #cargoActionMenu .tb-dropdown-item[data-action="clearAll"]:hover { background: rgba(225,75,85,.33); }
+
+        /* 货物列表操作菜单：选项内容整体居中，并加大上下留白便于点选。 */
+        #cargoActionMenu .tb-dropdown-item {
+            justify-content: center;
+            /* 右侧比左侧多留「图标(20px) + 间距(6px)」的空位，内容盒随之左移 13px：
+               抵消图标占位，让【文字】在视觉上居中（图标作装饰不参与视觉重心）。 */
+            padding: 10px 36px 10px 10px;
+            gap: 6px;
+        }
+
+        /* 选项之间留出空隙，避免各项底色块紧贴成一片。 */
+        #cargoActionMenu .tb-dropdown-item + .tb-dropdown-item {
+            margin-top: 4px;
+        }
+
+        /* 上述菜单居中时标签不再拉伸，让「图标 + 文字」作为整体居中。 */
+        #cargoActionMenu .tb-dropdown-item .tb-dropdown-label {
+            flex: 0 0 auto;
+        }
+
+        /* 当前只开放装柜图 A：B 保留 DOM 和 JS 逻辑。 */
+        #previewABtn { width:100%; flex:1 1 100%; }
+        #previewBBtn { display:none !important; }
+
         .tb-dropdown-icon {
             font-size: 16px;
             width: 20px;
@@ -1082,36 +1205,45 @@
                 <small>3D 可视化</small>
             </h1>
 
-            <!-- 货柜选择 -->
-            <div class="section">
-                <div class="section-title">🚛 货柜选择</div>
-                <select id="containerTypeSelect" style="width:100%;padding:6px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:6px;font-size:13px;">
-                    <option value="20尺普柜" data-l="5890" data-w="2350" data-h="2390" data-wt="26000" data-dw="2340" data-dh="2280">20尺普柜 (5890×2350×2390) 限重 26000kg</option>
-                    <option value="40尺普柜" data-l="12030" data-w="2350" data-h="2390" data-wt="26500" data-dw="2340" data-dh="2280">40尺普柜 (12030×2350×2390) 限重 26500kg</option>
-                    <option value="40尺高柜" data-l="12030" data-w="2350" data-h="2690" data-wt="26500" data-dw="2340" data-dh="2580" selected>40尺高柜 (12030×2350×2690) 限重 26500kg</option>
-                    <option value="45尺高柜" data-l="13580" data-w="2350" data-h="2690" data-wt="25500" data-dw="2340" data-dh="2580">45尺高柜 (13580×2350×2690) 限重 25500kg</option>
-                    <option value="custom">自定义…</option>
-                </select>
-                <div class="custom-container" id="customContainer" style="display:none;margin-top:6px;">
-                    <input type="number" id="customL" value="12030" placeholder="长" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
-                    <input type="number" id="customW" value="2350" placeholder="宽" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
-                    <input type="number" id="customH" value="2690" placeholder="高" style="width:30%;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:4px;font-size:12px;" />
-                    <button id="applyCustom" style="padding:4px 10px;margin-top:4px;background:#ffaa44;color:#000;border:none;border-radius:4px;cursor:pointer;font-size:12px;">应用</button>
+            <!-- 货柜选择：默认收缩 -->
+            <div class="section container-section collapsed" id="containerSection">
+                <div class="section-title collapsible-title collapsed" id="containerTitle" title="点击展开/收缩">
+                    <span>🚛 货柜选择</span>
+                    <span class="container-summary" id="containerSummary">40尺高柜 · 12030 × 2350 × 2690 mm</span>
+                    <span class="collapse-arrow">▼</span>
                 </div>
-                <label class="overflow-toggle" id="overflowToggleLabel" style="margin-top:6px;" title="勾选后允许货物超出货柜边界">
-                    <input type="checkbox" id="allowOverflow" />
-                    <span>⚠️ 允许超出边界</span>
-                </label>
-                <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红）">
-                    <input type="checkbox" id="allowIntersection" />
-                    <span>🔀 允许交叉</span>
-                </label>
+                <div class="container-settings-body" id="containerSettingsBody">
+                    <select id="containerTypeSelect" style="width:100%;padding:6px 8px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.2);border-radius:6px;font-size:13px;">
+                        <option value="20尺普柜" data-l="5890" data-w="2350" data-h="2390" data-wt="26000" data-dw="2340" data-dh="2280">20尺普柜 (5890×2350×2390) 限重 26000kg</option>
+                        <option value="40尺普柜" data-l="12030" data-w="2350" data-h="2390" data-wt="26500" data-dw="2340" data-dh="2280">40尺普柜 (12030×2350×2390) 限重 26500kg</option>
+                        <option value="40尺高柜" data-l="12030" data-w="2350" data-h="2690" data-wt="26500" data-dw="2340" data-dh="2580" selected>40尺高柜 (12030×2350×2690) 限重 26500kg</option>
+                        <option value="45尺高柜" data-l="13580" data-w="2350" data-h="2690" data-wt="25500" data-dw="2340" data-dh="2580">45尺高柜 (13580×2350×2690) 限重 25500kg</option>
+                        <option value="custom">自定义…</option>
+                    </select>
+                    <div class="custom-container" id="customContainer" style="display:none;margin-top:0;">
+                        <input type="number" id="customL" value="12030" placeholder="长" />
+                        <input type="number" id="customW" value="2350" placeholder="宽" />
+                        <input type="number" id="customH" value="2690" placeholder="高" />
+                        <button id="applyCustom" disabled>应用</button>
+                    </div>
+                    <label class="overflow-toggle" id="overflowToggleLabel" title="勾选后允许货物超出货柜边界">
+                        <input type="checkbox" id="allowOverflow" />
+                        <span>⚠️ 允许超出边界</span>
+                    </label>
+                    <label class="overflow-toggle" id="intersectionToggleLabel" title="勾选后允许货物相互穿插（仍会标红）">
+                        <input type="checkbox" id="allowIntersection" />
+                        <span>🔀 允许交叉</span>
+                    </label>
+                </div>
             </div>
 
-            <!-- 空间利用率 -->
+            <!-- 空间利用率：默认收缩 -->
             <div class="section">
-                <div class="section-title">📊 空间利用率</div>
-                <div class="stats">
+                <div class="section-title collapsible-title collapsed" id="utilizationTitle" title="点击展开/收缩">
+                    <span>📊 空间利用率</span>
+                    <span class="collapse-arrow">▼</span>
+                </div>
+                <div class="stats collapsible-content collapsed" id="utilizationContent">
                     <div class="stat-row"><span class="lbl">📦 已用体积</span><span class="val" id="usedVolume">0 mm³</span></div>
                     <div class="stat-row"><span class="lbl">🧊 总体积</span><span class="val" id="totalVolume">0 mm³</span></div>
                     <div class="stat-row"><span class="lbl">📊 利用率</span><span class="val" id="utilRate">0%</span></div>
@@ -1128,46 +1260,35 @@
 
             <!-- 货物列表 -->
             <div class="section flex-grow">
-                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>) <span class="section-actions"><div class="tb-dropdown" id="cargoActionDropdown"><span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span><div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;"><div class="tb-dropdown-item" data-action="importCargo"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">导入货物</span></div><div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制当前货物</span></div><div class="tb-dropdown-item" data-action="renumberCargo"><span class="tb-dropdown-icon">🔢</span><span class="tb-dropdown-label">重排编号</span></div><div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div><div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空</span></div></div></div></span></div>
-                <div class="cargo-list-container" id="cargoList"></div>
-            </div>
-
-            <!-- 导入货物弹窗（内嵌在货物列表区域下方） -->
-            <div id="importCargoPanel" style="display:none;padding:8px;background:#0d1b33;border-radius:6px;margin-top:4px;">
-                <textarea id="cargoInput"
-                    style="width:100%;height:120px;max-height:120px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:6px;color:#e0e0e0;padding:8px;font-size:12px;resize:none;font-family:Consolas,monospace;line-height:1.6;"
-                    placeholder="每行一个：名称, 长*宽*高 (mm), 重量kg（可选）"></textarea>
-                <div style="display:flex;gap:6px;margin-top:6px;">
-                    <button class="btn btn-primary" id="loadCargoBtn" style="font-size:12px;padding:4px 12px;">📥 添加货物</button>
-                    <button class="btn" id="closeImportBtn" style="font-size:12px;padding:4px 12px;">关闭</button>
-                </div>
-            </div>
-
-            <!-- 智能排布 -->
-            <div class="section">
-                <div class="section-title">🎲 智能排布</div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    <button id="packRunBtn" class="btn btn-primary">🎲 开始计算</button>
-                    <div id="packHint" style="font-size:12px;color:#888;line-height:1.5;min-height:16px;"></div>
-                    <div id="packParamsToggle" style="font-size:12px;color:#ffaa44;cursor:pointer;user-select:none;margin-top:2px;" onclick="var p=document.getElementById('packParamsBody');var t=this;if(p.style.display==='none'){p.style.display='flex';t.textContent='🔽 调整计算参数'}else{p.style.display='none';t.textContent='▶️ 调整计算参数'}">▶️ 调整计算参数</div>
-                    <div id="packParamsBody" style="display:none;flex-direction:column;gap:6px;">
-                        <label class="overflow-toggle" id="stackingToggleLabel" title="允许货物堆叠（启用顶角入口+重力下落）">
-                            <input type="checkbox" id="allowStacking" />
-                            <span>📚 接受堆叠</span>
-                        </label>
-                        <label class="overflow-toggle checked" id="flatStackingToggleLabel" title="仅对扁型低高度长条货物允许堆叠">
-                            <input type="checkbox" id="allowFlatStacking" checked />
-                            <span>📏 接受扁型货物堆叠</span>
-                        </label>
-                        <div style="display:flex;gap:6px;align-items:center;" title="跌落后底部允许凸出支撑面的最大距离">
-                            <label style="flex:1;font-size:12px;color:#aaa;">悬空突出</label>
-                            <input type="number" id="maxOverhangMM" min="0" max="100" step="1" value="0" style="flex:1;padding:4px 6px;background:#16213e;color:#e0e0e0;border:1px solid rgba(255,170,68,0.15);border-radius:4px;font-size:12px;" />
-                            <span style="font-size:11px;color:#888;">mm</span>
+                <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>)
+                    <span class="section-actions">
+                        <div class="tb-dropdown" id="cargoActionDropdown">
+                            <span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span>
+                            <div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;">
+                                <div class="tb-dropdown-item" data-action="importCargo"><span class="tb-dropdown-icon">📥</span><span class="tb-dropdown-label">导入货物</span></div>
+                                <div class="tb-dropdown-item" data-action="copyAll"><span class="tb-dropdown-icon">📋</span><span class="tb-dropdown-label">复制清单</span></div>
+                                <div class="tb-dropdown-item" data-action="smartPacking"><span class="tb-dropdown-icon">🎲</span><span class="tb-dropdown-label">智能排柜</span></div>
+                                <div class="tb-dropdown-item" data-action="renumberCargo"><span class="tb-dropdown-icon">🔢</span><span class="tb-dropdown-label">重排编号</span></div>
+                                <div class="tb-dropdown-item" data-action="resetLayout"><span class="tb-dropdown-icon">🔄</span><span class="tb-dropdown-label">重置布局</span></div>
+                                <div class="tb-dropdown-item" data-action="clearAll"><span class="tb-dropdown-icon">🗑</span><span class="tb-dropdown-label">清空列表</span></div>
+                            </div>
                         </div>
+                    </span>
+                </div>
+                <div class="cargo-list-container" id="cargoList"></div>
+
+                <div id="importCargoPanel" style="display:none;padding:8px;background:#0d1b33;border-radius:6px;margin-top:4px;">
+                    <textarea id="cargoInput"
+                        style="width:100%;height:120px;max-height:120px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:6px;color:#e0e0e0;padding:8px;font-size:12px;resize:none;font-family:Consolas,monospace;line-height:1.6;"
+                        placeholder="每行一个：名称, 长*宽*高 (mm), 重量kg（可选）"></textarea>
+                    <div style="display:flex;gap:6px;margin-top:6px;">
+                        <button class="btn btn-primary" id="loadCargoBtn" style="font-size:12px;padding:4px 12px;">📥 添加货物</button>
+                        <button class="btn" id="closeImportBtn" style="font-size:12px;padding:4px 12px;">关闭</button>
                     </div>
                 </div>
             </div>
 
+            <!-- 方案保存区 -->
             <div class="panel-actions panel-actions-rows">
                 <div class="panel-actions-row">
                     <button class="btn" id="saveBtn" title="保存到云端" style="background:#1a5c2a;border-color:#2a8a3e;color:#c0ffc0;">💾 保存方案</button>
@@ -1178,8 +1299,8 @@
                     <button class="btn" id="importBtn" title="从本地JSON文件加载布局" style="background:#4a1a5a;border-color:#7a2a8a;color:#e0c0ff;">📥 导入本地文件</button>
                 </div>
                 <div class="panel-actions-row">
-                    <button class="btn" id="previewABtn" title="生成等轴测装柜图（货物上直接标注名称尺寸，自动避让）" style="background:#1a5c4a;border-color:#2a8a6e;color:#c0ffe0;">🖼 生成装柜图 - A</button>
-                    <button class="btn" id="previewBBtn" title="生成等轴测装柜图（编号徽标+货物清单）" style="background:#1a4a5c;border-color:#2a6a8a;color:#c0e0ff;">🖼 生成装柜图 - B</button>
+                    <button class="btn" id="previewABtn" title="生成等轴测装柜图（货物上直接标注名称尺寸，自动避让）" style="background:#1a5c4a;border-color:#2a8a6e;color:#c0ffe0;width:100%;">🖼 生成装柜图 - A</button>
+                    <button class="btn" id="previewBBtn" title="生成等轴测装柜图（编号徽标+货物清单）" style="display:none;background:#1a4a5c;border-color:#2a6a8a;color:#c0e0ff;">🖼 生成装柜图 - B</button>
                 </div>
             </div>
         </div>
@@ -1283,6 +1404,33 @@
         </div>
     </div>
 
+    <!-- 智能排布参数 -->
+    <div class="modal-overlay" id="packParamModal">
+        <div class="modal" style="min-width:430px;max-width:520px;">
+            <h2>🎲 智能排柜参数</h2>
+            <div style="font-size:12px;color:#888;line-height:1.5;">按当前参数计算一个默认排布方案。</div>
+            <div class="pack-param-grid">
+                <label class="overflow-toggle" id="stackingToggleLabel" title="允许全部货物使用堆叠逻辑">
+                    <input type="checkbox" id="allowStacking" />
+                    <span>📚 接受【全部】货物堆叠</span>
+                </label>
+                <label class="overflow-toggle checked" id="flatStackingToggleLabel" title="仅对扁型低高度长条货物允许堆叠">
+                    <input type="checkbox" id="allowFlatStacking" checked />
+                    <span>📏 接受【扁型】货物堆叠</span>
+                </label>
+                <div class="pack-param-row" title="跌落后底部允许凸出支撑面的最大距离">
+                    <span class="pack-param-label">可接受的悬空突出范围</span>
+                    <input type="number" id="maxOverhangMM" min="0" max="100" step="1" value="0" />
+                    <span style="font-size:12px;color:#888;">mm</span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="packParamCancelBtn">取消</button>
+                <button class="btn btn-primary" id="packParamConfirmBtn">确认并计算</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 智能排布结果浮窗（右侧常驻） -->
     <div id="packPanel" class="pack-panel" style="display:none;">
         <div class="pack-panel-header">
@@ -1291,9 +1439,8 @@
         </div>
         <div class="pack-panel-meta" id="packPanelMeta"></div>
         <div class="pack-panel-actions">
-            <button class="btn-sm" id="packPanelRerun">🔄 重新计算</button>
             <button class="btn-sm" id="packPanelClose">关闭</button>
-            <button class="btn-sm" id="packPanelExportAll" style="margin-left:auto;" title="导出所有方案的 Markdown 报告（用于 AI 分析）">📋 导出报告</button>
+            <button class="btn-sm" id="packPanelExportAll" style="margin-left:auto;" title="导出当前方案的 Markdown 报告（用于 AI 分析）">📋 导出报告</button>
         </div>
         <div class="pack-panel-list" id="packPanelList"></div>
         <div class="pack-panel-footer">
@@ -1397,6 +1544,11 @@
         const customW = $('#customW');
         const customH = $('#customH');
         const applyCustom = $('#applyCustom');
+        const containerSection = $('#containerSection');
+        const containerTitle = $('#containerTitle');
+        const containerSummary = $('#containerSummary');
+        const utilizationTitle = $('#utilizationTitle');
+        const utilizationContent = $('#utilizationContent');
         const allowOverflow = $('#allowOverflow');
         const overflowToggleLabel = $('#overflowToggleLabel');
         const allowIntersection = $('#allowIntersection');
@@ -1753,7 +1905,25 @@
                 const wireframe = new THREE.LineSegments(edges, edgeMat);
                 mesh.add(wireframe);
 
-                mesh.userData = { cargoIndex: idx, cargoId: cargo.id };
+                const selEdges = new THREE.EdgesGeometry(geo);
+                const selEdgeMat = new THREE.LineBasicMaterial({
+                    color: 0xffe082,
+                    transparent: true,
+                    opacity: 1,
+                    depthTest: false,
+                });
+                const selectionOutline = new THREE.LineSegments(selEdges, selEdgeMat);
+                selectionOutline.scale.setScalar(1.008);
+                selectionOutline.renderOrder = 20;
+                selectionOutline.visible = false;
+                mesh.add(selectionOutline);
+
+                mesh.userData = {
+                    cargoIndex: idx,
+                    cargoId: cargo.id,
+                    baseWireframe: wireframe,
+                    selectionOutline,
+                };
                 cargoGroup.add(mesh);
                 dragObjects.push(mesh);
 
@@ -1792,6 +1962,7 @@
             });
 
             // 自定义拖动：dragObjects 在 mousedown 时直接 raycaster 拾取
+            updateSelectionHighlight();
             renderCargoList();
             updateStats();
         }
@@ -1857,10 +2028,19 @@
 
         // 更新所有货物高亮：选中的变亮，未选中的恢复
         function updateSelectionHighlight() {
+            const hasSelection = state.selectedCargos.size > 0;
             dragObjects.forEach((obj, i) => {
+                const selected = isSelected(i);
                 if (obj.material) {
-                    obj.material.emissiveIntensity =
-                        isSelected(i) ? 0.5 : 0.08;
+                    obj.material.emissiveIntensity = selected ? 0.68 : 0.08;
+                    obj.material.opacity = hasSelection ? (selected ? 0.96 : 0.42) : 0.75;
+                }
+                if (obj.userData.baseWireframe && obj.userData.baseWireframe.material) {
+                    obj.userData.baseWireframe.material.opacity = selected ? 0.9 : 0.22;
+                }
+                if (obj.userData.selectionOutline) {
+                    const abnormal = !!(obj.userData.outOverlay && obj.userData.outOverlay.visible);
+                    obj.userData.selectionOutline.visible = selected && !abnormal;
                 }
             });
         }
@@ -2799,10 +2979,11 @@
         ];
 
         function tetrisLayoutV1(cargos, opts) {
-            const { container, allowStacking = false, allowFlatStacking = false, maxOverhangMM = 0 } = opts;
+            const { container, allowStacking = false, allowFlatStacking = false, maxOverhangMM = 0, defaultOnly = false } = opts;
             const results = [];
+            const routesToRun = defaultOnly ? SORT_ROUTES.filter(sr => sr.route === 0) : SORT_ROUTES;
 
-            for (const sr of SORT_ROUTES) {
+            for (const sr of routesToRun) {
                 const sorted = sortByClassifyQueue(cargos, container, sr.route);
                 const t0 = performance.now();
                 const placed = singleRun(sorted, container, allowStacking, allowFlatStacking, maxOverhangMM);
@@ -2951,6 +3132,7 @@
             state.cargos.forEach((c, idx) => {
                 const div = document.createElement('div');
                 div.className = 'cargo-item';
+                div.dataset.index = idx;
                 if (isSelected(idx)) {
                     div.classList.add('selected');
                 }
@@ -2982,17 +3164,6 @@
 
             // 事件绑定：铅笔编辑
             list.querySelectorAll('.cargo-edit').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const idx = parseInt(el.dataset.index);
-                    if (!isNaN(idx)) {
-                        openEditModal(idx);
-                    }
-                    e.stopPropagation();
-                });
-            });
-
-            // 事件绑定：旧编辑入口（保留兼容）
-            list.querySelectorAll('.color-dot, .cargo-name, .cargo-size').forEach(el => {
                 el.addEventListener('click', (e) => {
                     const idx = parseInt(el.dataset.index);
                     if (!isNaN(idx)) {
@@ -3041,9 +3212,11 @@
                 });
             });
 
-            // 点击货物项选中（Ctrl 多选）
-            list.querySelectorAll('.cargo-item').forEach((item, idx) => {
+            // 只有三个命中范围：货物大项 / 编辑按钮 / 删除按钮。
+            list.querySelectorAll('.cargo-item').forEach(item => {
                 item.addEventListener('click', (e) => {
+                    const idx = Number(item.dataset.index);
+                    if (!Number.isInteger(idx) || idx < 0 || idx >= state.cargos.length) return;
                     if (e.ctrlKey || e.metaKey) {
                         toggleSelection(idx);
                     } else {
@@ -3370,10 +3543,6 @@
             if (!errors.length) {
                 cargoInput.value = '';
             }
-            // 提示：货物已加载但尚未智能排布
-            if (packHint) {
-                packHint.textContent = `已加载 ${newCargos.length} 件货物（默认仅铺地面）。点击「🎲 开始计算」试用智能排布优化布局。`;
-            }
             return true;
         }
 
@@ -3665,11 +3834,9 @@
 
         // 分片调度：每帧最多执行 CHUNK 次迭代，让出主线程避免 UI 卡顿
         async function runPackingWithProgress(algoName, cargos, _iter, allowIntersection, allowStacking, allowFlatStacking, maxOverhangMM) {
-            // v1 算法：固定返回 3 解（3 条确定路线），不分片
             const container = state.container;
-            packRunBtn.disabled = true;
-            packRunBtn.textContent = '🎲 计算中…';
-            // 让出主线程 1 帧（让 UI 渲染"计算中"状态）
+            packParamConfirmBtn.disabled = true;
+            packParamConfirmBtn.textContent = '计算中…';
             await new Promise(res => requestAnimationFrame(res));
             const t0 = performance.now();
             const results = PackingAlgos.run(algoName, cargos, {
@@ -3678,10 +3845,11 @@
                 allowStacking,
                 allowFlatStacking,
                 maxOverhangMM,
+                defaultOnly: true,
             });
             const totalMs = performance.now() - t0;
-            packRunBtn.disabled = false;
-            packRunBtn.textContent = '🎲 开始计算';
+            packParamConfirmBtn.disabled = false;
+            packParamConfirmBtn.textContent = '确认并计算';
             return { results, totalMs };
         }
 
@@ -3795,76 +3963,64 @@
 
         // 渲染浮窗列表（3 条确定路线）
         function renderPackPanel(results, totalMs, iter) {
-            _lastPackResults = results.slice();
+            const result = results && results.length ? results[0] : null;
+            if (!result) {
+                alert('未生成可用的排布结果');
+                return;
+            }
+            _lastPackResults = [result];
             _lastPackTotalMs = totalMs;
-            _lastPackIter = iter;
+            _lastPackIter = 1;
             _lastPackSignature = _currentCargosSignature();
-
-            // 3 条路线全部展示，按评分排序
-            const top = results.slice().sort((a, b) => scoreLayoutResult(b) - scoreLayoutResult(a));
-            _currentResults = top;
+            _currentResults = [result];
             _currentPreviewIdx = -1;
 
+            const e = result.eval;
             packPanelMeta.innerHTML = `
-                计算 <b>${iter}</b> 次 / 总耗时 <b>${totalMs.toFixed(0)}</b> ms ·
-                <span style="color:#aaa;">点击列表项预览；满意后点【应用】保存。再次打开浮窗会复用上次结果（货物变化时自动重算）。</span>
+                默认方案计算完成 / 耗时 <b>${totalMs.toFixed(0)}</b> ms ·
+                <span style="color:#aaa;">当前已显示计算后的排布；可切换查看原始排布。不点【应用】直接关闭会恢复原排布。</span>
             `;
             packPanelList.innerHTML = '';
-            top.forEach((r, idx) => {
-                const e = r.eval;
-                const item = document.createElement('div');
-                item.className = 'pack-panel-item';
-                item.dataset.idx = idx;
-                item.innerHTML = `
-                    <div class="row1">
-                        <span class="num">#${idx + 1}</span>
-                        <span style="color:#ffaa44;font-weight:bold;">利用率 ${(e.utilRate * 100).toFixed(2)}%</span>
-                        <span style="margin-left:8px;font-size:12px;color:#aaa;">${r.sortKey}</span>
-                    </div>
-                    <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
-                        <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
-                        <span style="color:#ffb74d;">📏占用深度 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
-                        <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
-                        <span style="color:#81c784;">⚖️重心高度 <b>${e.comY.toFixed(0)} mm</b></span>
-                        ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
-                        ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
-                    </div>
-                    <div class="row3">
-                        <button class="btn-sm pack-preview-btn" data-idx="${idx}">预览</button>
-                        <button class="btn-sm btn-primary pack-apply-btn" data-idx="${idx}">应用</button>
-                        <button class="btn-sm pack-export-btn" data-idx="${idx}" style="margin-left:auto;" title="单独导出此方案的 Markdown 报告">📋 导出此方案</button>
-                    </div>
-                `;
-                item.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'BUTTON') return;
-                    handlePreviewBtn(idx);
-                });
-                packPanelList.appendChild(item);
+            const item = document.createElement('div');
+            item.className = 'pack-panel-item';
+            item.dataset.idx = '0';
+            item.innerHTML = `
+                <div class="row1">
+                    <span style="color:#ffaa44;font-weight:bold;">利用率 ${(e.utilRate * 100).toFixed(2)}%</span>
+                    <span style="font-size:12px;color:#aaa;">默认排布方案</span>
+                </div>
+                <div class="row2" style="display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;">
+                    <span style="color:#4fc3f7;">📦紧密度 <b>${(e.tightness * 100).toFixed(1)}%</b></span>
+                    <span style="color:#ffb74d;">📏占用深度 <b>${e.maxFrontX.toFixed(0)} mm</b></span>
+                    <span style="color:#ef5350;">🕳️空隙率 <b>${(e.voidRate * 100).toFixed(1)}%</b></span>
+                    <span style="color:#81c784;">⚖️重心高度 <b>${e.comY.toFixed(0)} mm</b></span>
+                    ${e.overflowCount > 0 ? `<span style="color:#ff9800;">⚠️出界 <b>${e.overflowCount}</b></span>` : ''}
+                    ${e.fullyOutsideCount > 0 ? `<span style="color:#f44336;">❌完全出界 <b>${e.fullyOutsideCount}</b></span>` : ''}
+                </div>
+                <div class="row3">
+                    <button class="btn-sm pack-preview-btn" data-idx="0">原始排布</button>
+                    <button class="btn-sm btn-primary pack-apply-btn" data-idx="0">应用</button>
+                    <button class="btn-sm pack-export-btn" data-idx="0" style="margin-left:auto;" title="导出当前方案的 Markdown 报告">📋 导出方案</button>
+                </div>
+            `;
+            packPanelList.appendChild(item);
+            item.querySelector('.pack-preview-btn').addEventListener('click', (ev) => {
+                ev.stopPropagation(); handlePreviewBtn(0);
             });
-            // 绑定按钮
-            packPanelList.querySelectorAll('.pack-preview-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.dataset.idx, 10);
-                    handlePreviewBtn(idx);
-                });
+            item.querySelector('.pack-apply-btn').addEventListener('click', (ev) => {
+                ev.stopPropagation(); handleApplyBtn(0);
             });
-            packPanelList.querySelectorAll('.pack-apply-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.dataset.idx, 10);
-                    handleApplyBtn(idx);
-                });
-            });
-            packPanelList.querySelectorAll('.pack-export-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.dataset.idx, 10);
-                    exportLayoutReport(idx);
-                });
+            item.querySelector('.pack-export-btn').addEventListener('click', (ev) => {
+                ev.stopPropagation(); exportLayoutReport(0);
             });
 
-            packPanelPreviewState.textContent = '';
+            // 计算完成后立即展示计算后的临时排布。
+            applyPreview(result);
+            _currentPreviewIdx = 0;
+            _setPreviewingItem(0);
+            const previewBtn = item.querySelector('.pack-preview-btn');
+            if (previewBtn) previewBtn.textContent = '原始排布';
+            packPanelPreviewState.textContent = `当前显示：计算后效果（利用率 ${(e.utilRate * 100).toFixed(2)}% / 出界 ${e.overflowCount} / 完全出界 ${e.fullyOutsideCount}）`;
             showPackPanel();
         }
 
@@ -3875,25 +4031,28 @@
         }
 
         function handlePreviewBtn(idx) {
+            const btn = packPanelList.querySelector('.pack-preview-btn');
             if (_currentPreviewIdx === idx) {
-                // 同一项再次点击 → 取消预览
+                // 当前显示计算后效果 → 回到计算前原始排布。
                 revertPreview();
                 _currentPreviewIdx = -1;
                 _setPreviewingItem(-1);
-                packPanelPreviewState.textContent = '';
+                if (btn) btn.textContent = '预览效果';
+                packPanelPreviewState.textContent = '当前显示：原始排布';
                 return;
             }
-            if (_currentPreviewIdx !== -1) {
-                revertPreview();
-            }
+
+            // 当前显示原始排布 → 再显示计算后效果。
             applyPreview(_currentResults[idx]);
             _currentPreviewIdx = idx;
             _setPreviewingItem(idx);
+            if (btn) btn.textContent = '原始排布';
             const r = _currentResults[idx];
-            packPanelPreviewState.textContent = `✓ 预览中：#${idx + 1}（${(r.eval.utilRate * 100).toFixed(2)}% / 出界 ${r.eval.overflowCount} / 完全出界 ${r.eval.fullyOutsideCount}）`;
+            packPanelPreviewState.textContent = `当前显示：计算后效果（利用率 ${(r.eval.utilRate * 100).toFixed(2)}% / 出界 ${r.eval.overflowCount} / 完全出界 ${r.eval.fullyOutsideCount}）`;
         }
 
         function handleApplyBtn(idx) {
+            // 即使当前切换到“原始排布”，应用仍始终接受计算后的方案。
             applyPlacementToState(_currentResults[idx]);
             _previewSnapshot = null;
             _currentPreviewIdx = -1;
@@ -3901,8 +4060,6 @@
             updateStats();
             saveState();
             hidePackPanel();
-            const r = _currentResults[idx];
-            packHint.textContent = `✅ 已应用 #${idx + 1} 方案。Ctrl+Z 可撤销。`;
         }
 
         function showPackPanel() {
@@ -3921,37 +4078,56 @@
             // 保留 _currentResults / _lastPackResults 供下次复用
         }
 
-        // 算法固定为 Tetris v1（旧版 packAlgoSelect 已移除）
-        const packRunBtn = $('#packRunBtn');
-        const packHint = $('#packHint');
+        // 智能排柜：货物列表 → 操作 → 智能排柜。
+        // 参数只在用户确认时写回；每次确认只计算默认路线一个方案。
         const packPanel = $('#packPanel');
         const packPanelMeta = $('#packPanelMeta');
         const packPanelList = $('#packPanelList');
-        const packPanelRerun = $('#packPanelRerun');
         const packPanelClose = $('#packPanelClose');
         const packPanelCloseX = $('#packPanelCloseX');
         const packPanelExportAll = $('#packPanelExportAll');
         const packPanelPreviewState = $('#packPanelPreviewState');
+        const packParamModal = $('#packParamModal');
+        const packParamCancelBtn = $('#packParamCancelBtn');
+        const packParamConfirmBtn = $('#packParamConfirmBtn');
+        const allowStackingInput = $('#allowStacking');
+        const allowFlatStackingInput = $('#allowFlatStacking');
+        const maxOverhangInput = $('#maxOverhangMM');
 
-        packRunBtn.addEventListener('click', async () => {
+        function syncPackParamLabels() {
+            stackingToggleLabel.classList.toggle('checked', allowStackingInput.checked);
+            flatStackingToggleLabel.classList.toggle('checked', allowFlatStackingInput.checked);
+        }
+
+        function openPackParamModal() {
             if (!state.cargos.length) {
                 alert('请先加载货物');
                 return;
             }
-            // 缓存命中：货物签名一致 + 已有结果 → 直接显示浮窗，不重算
-            const sig = _currentCargosSignature();
-            if (_lastPackResults && _lastPackSignature === sig) {
-                packHint.textContent = `复用上次结果（${_lastPackResults.length} 个解 / ${_lastPackTotalMs.toFixed(0)}ms）。点浮窗内【🔄 重新计算】强制重跑。`;
-                renderPackPanel(_lastPackResults, _lastPackTotalMs, _lastPackIter);
-                return;
-            }
-            // 签名不匹配（货物有变动）→ 清缓存
+            allowStackingInput.checked = !!state.allowStacking;
+            allowFlatStackingInput.checked = state.allowFlatStacking !== false;
+            maxOverhangInput.value = Number.isFinite(Number(state.maxOverhangMM)) ? Number(state.maxOverhangMM) : 0;
+            syncPackParamLabels();
+            packParamModal.classList.add('active');
+        }
+
+        function closePackParamModal() {
+            packParamModal.classList.remove('active');
+        }
+
+        allowStackingInput.addEventListener('change', syncPackParamLabels);
+        allowFlatStackingInput.addEventListener('change', syncPackParamLabels);
+        packParamCancelBtn.addEventListener('click', closePackParamModal);
+
+        packParamConfirmBtn.addEventListener('click', async () => {
+            const overhang = Math.max(0, Number(maxOverhangInput.value) || 0);
+            state.allowStacking = allowStackingInput.checked;
+            state.allowFlatStacking = allowFlatStackingInput.checked;
+            state.maxOverhangMM = overhang;
+            closePackParamModal();
+
             _lastPackResults = null;
             _lastPackSignature = '';
-
-            const algoName = 'tetris';
-            const totalRuns = 3; // v1 固定：3 条确定路线
-            packHint.textContent = `开始计算（3 条路线）…`;
 
             const cargosSnapshot = state.cargos.map(c => ({
                 id: c.id, name: c.name,
@@ -3961,31 +4137,46 @@
 
             try {
                 const { results, totalMs } = await runPackingWithProgress(
-                    algoName, cargosSnapshot, totalRuns,
+                    'tetris', cargosSnapshot, 1,
                     state.allowIntersection, state.allowStacking, state.allowFlatStacking, state.maxOverhangMM
                 );
-                const bestUtil = results.length ? Math.max(...results.map(r => r.eval.utilRate)) : 0;
-                packHint.textContent = `已完成 ${totalRuns} 个解计算，耗时 ${totalMs.toFixed(0)} ms。最优方案利用率：${(bestUtil * 100).toFixed(2)}%`;
-                renderPackPanel(results, totalMs, totalRuns);
+                renderPackPanel(results, totalMs, 1);
             } catch (e) {
                 console.error('[packing] 计算失败:', e);
-                packHint.textContent = '计算失败：' + e.message;
-                packRunBtn.disabled = false;
-                packRunBtn.textContent = '🎲 开始计算';
+                packParamConfirmBtn.disabled = false;
+                packParamConfirmBtn.textContent = '确认并计算';
+                alert('智能排柜计算失败：' + e.message);
             }
         });
 
-        packPanelRerun.addEventListener('click', () => {
-            // 强制重算：清缓存
-            _lastPackResults = null;
-            _lastPackSignature = '';
-            packRunBtn.click();
-        });
         packPanelClose.addEventListener('click', hidePackPanel);
         packPanelCloseX.addEventListener('click', hidePackPanel);
 
         document.getElementById('undoBtn').addEventListener('click', undo);
         document.getElementById('redoBtn').addEventListener('click', redo);
+
+        function updateContainerSummary() {
+            const c = state.container;
+            containerSummary.textContent = `${c.name || '自定义'} · ${c.l} × ${c.w} × ${c.h} mm`;
+        }
+
+        containerTitle.addEventListener('click', () => {
+            const collapsed = containerSection.classList.toggle('collapsed');
+            containerTitle.classList.toggle('collapsed', collapsed);
+        });
+
+        function updateApplyCustomState() {
+            const l = parseFloat(customL.value);
+            const w = parseFloat(customW.value);
+            const h = parseFloat(customH.value);
+            const valid = l > 0 && w > 0 && h > 0;
+            const changed = valid && (
+                l !== Number(state.container.l) ||
+                w !== Number(state.container.w) ||
+                h !== Number(state.container.h)
+            );
+            applyCustom.disabled = !changed;
+        }
 
         function syncContainerSelectUI(name, l, w, h) {
             let found = false;
@@ -3999,11 +4190,13 @@
             }
             if (!found) {
                 containerTypeSelect.value = 'custom';
-                customContainer.style.display = 'block';
+                customContainer.style.display = 'flex';
             }
             customL.value = l;
             customW.value = w;
             customH.value = h;
+            updateApplyCustomState();
+            updateContainerSummary();
         }
 
         function setContainer(name, l, w, h, wt, dw, dh) {
@@ -4026,7 +4219,7 @@
         //   idx=数字  → 导出第 idx+1 个解
         function exportLayoutReport(idx = null) {
             if (!_lastPackResults || _lastPackResults.length === 0) {
-                alert('请先点击"🎲 开始计算"生成方案');
+                alert('请先运行智能排布生成方案');
                 return;
             }
             const allResults = _lastPackResults;
@@ -4046,7 +4239,7 @@
             lines.push('');
             lines.push('> 用于 AI 分析优化的结构化导出');
             lines.push(`> 导出时间: ${new Date().toISOString()}`);
-            lines.push('> 算法: Tetris v1（分类队列 × 3 路线 + 4 入口角 + Y 方向跌落）');
+            lines.push('> 算法: Tetris v1（默认分类队列 + 4 入口角 + Y 方向跌落）');
             lines.push('');
 
             // 1. 元数据
@@ -4054,9 +4247,9 @@
             lines.push(`- 货柜: **${container.name}** (L=${container.l} × W=${container.w} × H=${container.h} mm)`);
             lines.push(`- 货柜总体积: ${(containerVol / 1e9).toFixed(3)} m³ = ${containerVol.toLocaleString()} mm³`);
             lines.push(`- 货物数: **${state.cargos.length}**`);
-            lines.push(`- 接受堆叠: **${state.allowStacking ? '✓' : '❌'}**`);
-            lines.push(`- 接受扁型货物堆叠: **${state.allowFlatStacking ? '✓' : '❌'}**（仅 #2/#4/#6 这类低高度长条）`);
-            lines.push(`- 接受悬空突出: **${state.maxOverhangMM} mm**`);
+            lines.push(`- 接受【全部】货物堆叠: **${state.allowStacking ? '✓' : '❌'}**`);
+            lines.push(`- 接受【扁型】货物堆叠: **${state.allowFlatStacking ? '✓' : '❌'}**（仅低高度长条货物）`);
+            lines.push(`- 可接受的悬空突出范围: **${state.maxOverhangMM} mm**`);
             lines.push(`- 接受相互交叉: **${state.allowIntersection ? '✓' : '❌'}**`);
             lines.push(`- 排序规则: 分类队列 — 普通主体(>median 体积降序) → 侧向填充(min(sx,sz) 升序) → 普通小件(≤median 体积降序) → 扁型堆叠(投影面积 sx*sz 降序)`);
             lines.push('');
@@ -4281,11 +4474,6 @@
                             modeToggle.classList.remove('tb-active');
                         }
 
-                        // 同步 textarea
-                        cargoInput.value = data.cargos.map(c =>
-                            `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`
-                        ).join('\n');
-
                         // 恢复 3D
                         controls.enabled = true;
                         buildScene();
@@ -4367,6 +4555,15 @@
             allowFlatStackingEl.checked = state.allowFlatStacking;
             flatStackingToggleLabel.classList.toggle('checked', state.allowFlatStacking);
             maxOverhangMM.value = String(state.maxOverhangMM);
+
+            // 快照恢复时同步货柜选择 UI，并重建货柜场景，确保 UI / state / 3D 尺寸一致。
+            syncContainerSelectUI(
+                state.container.name,
+                state.container.l,
+                state.container.w,
+                state.container.h
+            );
+            buildScene();
 
             // 直接同步模式 UI（不调 switchMode，避免 saveState 递归）
             if (snap.interactionMode === 'direct') {
@@ -4568,7 +4765,8 @@
         containerTypeSelect.addEventListener('change', () => {
             const sel = containerTypeSelect.options[containerTypeSelect.selectedIndex];
             if (sel.value === 'custom') {
-                customContainer.style.display = 'block';
+                customContainer.style.display = 'flex';
+                updateApplyCustomState();
                 return;
             }
             customContainer.style.display = 'none';
@@ -4590,7 +4788,8 @@
         [customL, customW, customH].forEach(el => {
             el.addEventListener('input', () => {
                 containerTypeSelect.value = 'custom';
-                customContainer.style.display = 'block';
+                customContainer.style.display = 'flex';
+                updateApplyCustomState();
             });
         });
 
@@ -4600,9 +4799,15 @@
             const h = parseFloat(customH.value);
             if (l > 0 && w > 0 && h > 0) {
                 setContainer('自定义', l, w, h, 0, 0, 0);
+                updateApplyCustomState();
             } else {
                 alert('请输入有效的正数尺寸 (mm)');
             }
+        });
+
+        utilizationTitle.addEventListener('click', () => {
+            const collapsed = utilizationContent.classList.toggle('collapsed');
+            utilizationTitle.classList.toggle('collapsed', collapsed);
         });
 
         // 允许溢出开关
@@ -4697,7 +4902,7 @@
         previewABtn.addEventListener('click', () => openLayoutPreview('A'));
         previewBBtn.addEventListener('click', () => openLayoutPreview('B'));
         // ============================================================
-        //  货物列表操作下拉菜单（清空 / 重置布局 / 复制当前货物）
+        //  货物列表操作下拉菜单（导入 / 复制清单 / 智能排柜 / 编号 / 重置 / 清空）
         // ============================================================
         const cargoActionBtn = $('#cargoActionBtn');
         const cargoActionMenu = $('#cargoActionMenu');
@@ -4715,6 +4920,8 @@
                 cargoActionMenu.style.display = 'none';
                 if (action === 'clearAll') {
                     clearAllCargos();
+                } else if (action === 'smartPacking') {
+                    openPackParamModal();
                 } else if (action === 'importCargo') {
                     const panel = $('#importCargoPanel');
                     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
@@ -4858,9 +5065,14 @@
         // ============================================================
         // 同步加载 UI（与原 loadState 流程等价）
         function syncUIFromState() {
-            customL.value = state.container.l;
-            customW.value = state.container.w;
-            customH.value = state.container.h;
+            // 货柜下拉、自定义面板与尺寸必须统一从已加载的 state.container 回填，
+            // 避免 HTML 默认 selected 项覆盖/残留在 UI 上。
+            syncContainerSelectUI(
+                state.container.name,
+                state.container.l,
+                state.container.w,
+                state.container.h
+            );
             allowOverflow.checked = state.allowOverflow;
             overflowToggleLabel.classList.toggle('checked', state.allowOverflow);
             allowIntersection.checked = state.allowIntersection;
@@ -4919,11 +5131,6 @@
                     // 同步 UI
                     syncUIFromState();
                     buildScene();
-
-                    // 同步 textarea
-                    cargoInput.value = data.cargos.map(c =>
-                        `${c.name}, ${c.sx}*${c.sz}*${c.sy}${c.weight ? `, ${c.weight}kg` : ''}`
-                    ).join('\n');
 
                     rebuildCargoMeshes();
                     updateStats();
