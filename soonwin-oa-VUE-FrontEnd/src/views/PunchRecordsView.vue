@@ -7,13 +7,25 @@
       <!-- 搜索筛选区域 -->
       <el-form :model="searchForm" :inline="true" class="search-form">
         <el-form-item label="员工姓名">
-          <el-input v-model="searchForm.name" placeholder="请输入员工姓名" clearable></el-input>
+          <el-autocomplete
+            v-model="searchForm.name"
+            :fetch-suggestions="querySearchName"
+            placeholder="输入或选择员工姓名"
+            clearable
+            style="width: 180px"
+          ></el-autocomplete>
         </el-form-item>
         <el-form-item label="员工工号">
-          <el-input v-model="searchForm.empId" placeholder="请输入员工工号" clearable></el-input>
+          <el-autocomplete
+            v-model="searchForm.empId"
+            :fetch-suggestions="querySearchEmpId"
+            placeholder="输入或选择员工工号"
+            clearable
+            style="width: 180px"
+          ></el-autocomplete>
         </el-form-item>
         <el-form-item label="打卡类型">
-          <el-select v-model="searchForm.punchType" placeholder="请选择打卡类型" clearable>
+          <el-select v-model="searchForm.punchType" placeholder="请选择打卡类型" clearable style="width: 150px">
             <el-option label="上班打卡" value="上班打卡"></el-option>
             <el-option label="下班打卡" value="下班打卡"></el-option>
           </el-select>
@@ -142,6 +154,7 @@ import { PunchRecord } from '@/types';
 import { getOperations } from '@/api/attendance';
 import { AttendanceOperation } from '@/types/attendance';
 import CommonHeader from '@/components/CommonHeader.vue';
+import { getCurrentEmpId } from '@/utils/userInfo';
 
 // 路由实例
 const router = useRouter();
@@ -164,6 +177,45 @@ const searchForm = ref({
 // 打卡记录数据
 const punchRecords = ref<PunchRecord[]>([]);
 const loading = ref(false);
+
+// 员工下拉选项（从打卡记录去重得到，供姓名/工号输入框提供建议）
+const employeeOptions = ref<{ emp_id: string; name: string }[]>([]);
+
+// 加载员工下拉选项：取全部打卡记录后按工号去重
+const loadEmployeeOptions = async () => {
+  if (employeeOptions.value.length > 0) return;
+  try {
+    const response = await request.get('/api/punch-records', { params: { page: 1, size: 999999 } });
+    const list = response.list || [];
+    const seen = new Map<string, { emp_id: string; name: string }>();
+    list.forEach((record: PunchRecord) => {
+      if (record.emp_id && !seen.has(record.emp_id)) {
+        seen.set(record.emp_id, { emp_id: record.emp_id, name: record.name || '' });
+      }
+    });
+    employeeOptions.value = Array.from(seen.values()).sort((a, b) => a.emp_id.localeCompare(b.emp_id));
+  } catch (error) {
+    console.warn('加载员工下拉列表失败', error);
+  }
+};
+
+// 姓名输入建议
+const querySearchName = (queryString: string, cb: (arg: any[]) => void) => {
+  const q = (queryString || '').trim().toLowerCase();
+  const matched = q
+    ? employeeOptions.value.filter(emp => (emp.name || '').toLowerCase().includes(q))
+    : employeeOptions.value;
+  cb(matched.map(emp => ({ value: emp.name })));
+};
+
+// 工号输入建议
+const querySearchEmpId = (queryString: string, cb: (arg: any[]) => void) => {
+  const q = (queryString || '').trim().toLowerCase();
+  const matched = q
+    ? employeeOptions.value.filter(emp => (emp.emp_id || '').toLowerCase().includes(q))
+    : employeeOptions.value;
+  cb(matched.map(emp => ({ value: emp.emp_id })));
+};
 
 // 详情弹窗相关
 const detailDialogVisible = ref(false);
@@ -250,6 +302,7 @@ const handleCurrentChange = (newPage: number) => {
 // 组件挂载时获取数据
 onMounted(() => {
   fetchPunchRecords();
+  loadEmployeeOptions();
 });
 
 // 显示详情
@@ -292,7 +345,7 @@ const closeDetailDialog = () => {
 
 
 // 导出打卡与考勤记录到 XLSX
-// 打卡区：按"员工 × 当前日期范围"展开完整矩阵，缺卡日保留行（时间留空）
+// 打卡区：按"员工 × 当前日期范围"展开完整矩阵；周日/已批准请假出差/缺卡均有标记
 // 考勤区：单 sheet 内隔一行，列出每位命中员工在日期范围内的考勤操作
 const exportToXlsx = async () => {
   try {
@@ -358,11 +411,46 @@ const exportToXlsx = async () => {
       dateList = Array.from(dateSet).sort();
     }
 
-    // 4. 构建 AOA（打卡区）
-    const aoa: any[][] = [];
-    aoa.push(['工号', '姓名', '日期', '上班打卡时间', '下班打卡时间']);
-
+    // 4. 拉命中员工的考勤操作（不带时间过滤，避免跨范围的长假单被后端漏查；日期判断交给本地）
+    // 后端 get_operations 一次只支持单个 emp_id，逐位员工拉取
     const sortedEmpKeys = Array.from(recordMap.keys()).sort();
+    const opsByEmp = new Map<string, AttendanceOperation[]>();
+
+    for (const empId of sortedEmpKeys) {
+      try {
+        const ops = await getOperations({ emp_id: empId });
+        if (Array.isArray(ops)) {
+          opsByEmp.set(empId, ops);
+        }
+      } catch (err) {
+        console.warn(`拉取员工 ${empId} 考勤记录失败`, err);
+      }
+    }
+
+    // 建立"员工+日期"索引：已批准的请假/出差（用于备注与时间列），当天全部请假/出差单据（用于状态列）
+    const approvedDayMap = new Map<string, Set<string>>();
+    const leaveTripDayMap = new Map<string, AttendanceOperation[]>();
+
+    sortedEmpKeys.forEach(empId => {
+      (opsByEmp.get(empId) || []).forEach(op => {
+        if (op.operation_type !== 'leave' && op.operation_type !== 'business_trip') return;
+        dateList.forEach(dateStr => {
+          if (!opCoversDate(op, dateStr)) return;
+          const dayKey = `${empId}|${dateStr}`;
+          if (!leaveTripDayMap.has(dayKey)) leaveTripDayMap.set(dayKey, []);
+          leaveTripDayMap.get(dayKey)!.push(op);
+          if (op.operation_status === 'approved') {
+            if (!approvedDayMap.has(dayKey)) approvedDayMap.set(dayKey, new Set());
+            approvedDayMap.get(dayKey)!.add(op.operation_type);
+          }
+        });
+      });
+    });
+
+    // 5. 构建 AOA（打卡区，7 列）
+    const aoa: any[][] = [];
+    aoa.push(['工号', '姓名', '日期', '上班打卡时间', '下班打卡时间', '备注信息', '请假/出差状态']);
+    let punchRowCount = 0;
 
     sortedEmpKeys.forEach(empKey => {
       const emp = empInfoMap.get(empKey)!;
@@ -388,34 +476,65 @@ const exportToXlsx = async () => {
           }
         }
 
-        aoa.push([emp.emp_id, emp.name, dateStr, punchInTime, punchOutTime]);
+        const dayKey = `${empKey}|${dateStr}`;
+        const isSun = isSunday(dateStr);
+        const hasPunch = !!(punchInTime || punchOutTime);
+        const approvedTypes = approvedDayMap.get(dayKey);
+        const approvedLeave = !!approvedTypes?.has('leave');
+        const approvedTrip = !!approvedTypes?.has('business_trip');
+        const hasApproved = approvedLeave || approvedTrip;
+
+        // 备注信息：周日未出勤记"周末"；否则按已批准单据标注请假/出差
+        let note = '';
+        if (isSun && !hasPunch) {
+          note = '周末';
+        } else if (approvedLeave && approvedTrip) {
+          note = '请假/出差';
+        } else if (approvedLeave) {
+          note = '请假';
+        } else if (approvedTrip) {
+          note = '出差';
+        }
+
+        // 上下班打卡时间：周日未出勤、工作日有已批准请假/出差写"-"；周日有打卡如实记录；其余缺卡记"漏打"
+        let inDisplay = '';
+        let outDisplay = '';
+        if (isSun && !hasPunch) {
+          inDisplay = '-';
+          outDisplay = '-';
+        } else if (!isSun && hasApproved) {
+          inDisplay = '-';
+          outDisplay = '-';
+        } else {
+          inDisplay = punchInTime || '漏打';
+          outDisplay = punchOutTime || '漏打';
+        }
+
+        // 请假/出差状态：列出当天全部请假/出差单据（不分状态），格式"类型-状态"
+        const dayOps = leaveTripDayMap.get(dayKey) || [];
+        const statusText = dayOps
+          .slice()
+          .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+          .map(op => `${OPERATION_TYPE_LABELS[op.operation_type] || op.operation_type}-${OPERATION_STATUS_LABELS[op.operation_status] || op.operation_status}`)
+          .join('、');
+
+        aoa.push([emp.emp_id, emp.name, dateStr, inDisplay, outDisplay, note, statusText]);
+        punchRowCount++;
       });
     });
 
-    // 5. 拉命中员工在日期范围内的考勤操作
+    // 6. 考勤操作本地按日期范围过滤（与范围有交集即保留），空一行 → 考勤表头 → 考勤记录
+    const rangeStart = searchForm.value.punchTimeRange?.[0] || '';
+    const rangeEnd = searchForm.value.punchTimeRange?.[1] || '';
     const attendanceOps: AttendanceOperation[] = [];
-    const startTime = searchForm.value.punchTimeRange?.[0]
-      ? `${searchForm.value.punchTimeRange[0]} 00:00:00` : undefined;
-    const endTime = searchForm.value.punchTimeRange?.[1]
-      ? `${searchForm.value.punchTimeRange[1]} 23:59:59` : undefined;
-
-    // 后端 get_operations 一次只支持单个 emp_id，逐位员工拉取
-    for (const empId of sortedEmpKeys) {
-      try {
-        const ops = await getOperations({
-          emp_id: empId,
-          start_time: startTime,
-          end_time: endTime,
-        });
-        if (Array.isArray(ops)) {
-          attendanceOps.push(...ops);
+    sortedEmpKeys.forEach(empId => {
+      (opsByEmp.get(empId) || []).forEach(op => {
+        if (opInRange(op, rangeStart, rangeEnd)) {
+          attendanceOps.push(op);
         }
-      } catch (err) {
-        console.warn(`拉取员工 ${empId} 考勤记录失败`, err);
-      }
-    }
+      });
+    });
 
-    // 6. 空一行 → 考勤表头 → 考勤记录
     aoa.push([]);
     aoa.push(['工号', '姓名', '操作类型', '开始时间', '结束时间', '时长(小时)', '事由', '状态', '申请时间']);
 
@@ -440,30 +559,54 @@ const exportToXlsx = async () => {
 
     // 7. 生成 XLSX
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    // 设置列宽
+    // 设置列宽（打卡区 7 列 / 考勤区 9 列共用）
     ws['!cols'] = [
       { wch: 12 }, // 工号
       { wch: 12 }, // 姓名
-      { wch: 18 }, // 日期 / 开始时间
-      { wch: 18 }, // 上班打卡时间 / 结束时间
-      { wch: 18 }, // 下班打卡时间 / 时长
-      { wch: 30 }, // 事由
+      { wch: 18 }, // 日期 / 操作类型
+      { wch: 18 }, // 上班打卡时间 / 开始时间
+      { wch: 18 }, // 下班打卡时间 / 结束时间
+      { wch: 16 }, // 备注信息 / 时长
+      { wch: 28 }, // 请假/出差状态 / 事由
       { wch: 12 }, // 状态
       { wch: 18 }, // 申请时间
-      { wch: 10 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '打卡与考勤');
 
-    XLSX.writeFile(wb, `打卡考勤_${formatDate(new Date())}.xlsx`);
+    // 文件名：打卡考勤_当前日期 工号
+    const currentEmpId = getCurrentEmpId();
+    const empIdSuffix = currentEmpId ? ` ${currentEmpId}` : '';
+    XLSX.writeFile(wb, `打卡考勤_${formatDate(new Date())}${empIdSuffix}.xlsx`);
 
-    // 统计打卡行数：第三列存在且是日期串的行（排除空行与考勤表头）
-    const punchRowCount = aoa.filter(r => r[0] && r[2] && r.length >= 3).length - 1; // 减去表头
     ElMessage.success(`导出成功：打卡 ${punchRowCount} 行，考勤 ${attendanceOps.length} 条`);
   } catch (error) {
     console.error('Export error:', error);
     ElMessage.error('导出失败');
   }
+};
+
+// 判断日期是否为周日（本项目只有周日算休息日）
+const isSunday = (dateStr: string): boolean => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.getDay() === 0;
+};
+
+// 判断考勤操作是否覆盖指定日期（跨天单据按起止日期区间判断）
+const opCoversDate = (op: AttendanceOperation, dateStr: string): boolean => {
+  if (!op.start_time) return false;
+  const start = op.start_time.slice(0, 10);
+  const end = op.end_time ? op.end_time.slice(0, 10) : start;
+  return dateStr >= start && dateStr <= end;
+};
+
+// 判断考勤操作是否与导出日期范围有交集（未选范围时全部保留）
+const opInRange = (op: AttendanceOperation, rangeStart: string, rangeEnd: string): boolean => {
+  if (!rangeStart || !rangeEnd) return true;
+  const start = op.start_time ? op.start_time.slice(0, 10) : '';
+  if (!start) return true;
+  const end = op.end_time ? op.end_time.slice(0, 10) : start;
+  return start <= rangeEnd && end >= rangeStart;
 };
 
 // 生成 [start, end] 区间内所有日期字符串（YYYY-MM-DD，含首尾）
