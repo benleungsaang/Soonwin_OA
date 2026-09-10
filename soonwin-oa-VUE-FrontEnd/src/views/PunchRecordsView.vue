@@ -44,7 +44,7 @@
           <el-button type="primary" @click="fetchPunchRecords">查询</el-button>
           <el-button @click="resetSearch">重置</el-button>
           <el-button type="success" @click="refreshData">刷新</el-button>
-          <el-button type="warning" @click="exportToXlsx">导出XLSX</el-button>
+          <el-button type="warning" :disabled="!canExport" @click="exportToXlsx">导出XLSX</el-button>
         </el-form-item>
       </el-form>
 
@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import * as XLSX from 'xlsx';
@@ -178,26 +178,16 @@ const searchForm = ref({
 const punchRecords = ref<PunchRecord[]>([]);
 const loading = ref(false);
 
-// 员工下拉选项（从打卡记录去重得到，供姓名/工号输入框提供建议）
-const employeeOptions = ref<{ emp_id: string; name: string }[]>([]);
-
-// 加载员工下拉选项：取全部打卡记录后按工号去重
-const loadEmployeeOptions = async () => {
-  if (employeeOptions.value.length > 0) return;
-  try {
-    const response = await request.get('/api/punch-records', { params: { page: 1, size: 999999 } });
-    const list = response.list || [];
-    const seen = new Map<string, { emp_id: string; name: string }>();
-    list.forEach((record: PunchRecord) => {
-      if (record.emp_id && !seen.has(record.emp_id)) {
-        seen.set(record.emp_id, { emp_id: record.emp_id, name: record.name || '' });
-      }
-    });
-    employeeOptions.value = Array.from(seen.values()).sort((a, b) => a.emp_id.localeCompare(b.emp_id));
-  } catch (error) {
-    console.warn('加载员工下拉列表失败', error);
-  }
-};
+// 员工下拉选项：取当前页打卡记录按工号去重，供姓名/工号输入框提供建议
+const employeeOptions = computed(() => {
+  const seen = new Map<string, { emp_id: string; name: string }>();
+  punchRecords.value.forEach(record => {
+    if (record.emp_id && !seen.has(record.emp_id)) {
+      seen.set(record.emp_id, { emp_id: record.emp_id, name: record.name || '' });
+    }
+  });
+  return Array.from(seen.values()).sort((a, b) => a.emp_id.localeCompare(b.emp_id));
+});
 
 // 姓名输入建议
 const querySearchName = (queryString: string, cb: (arg: any[]) => void) => {
@@ -302,7 +292,6 @@ const handleCurrentChange = (newPage: number) => {
 // 组件挂载时获取数据
 onMounted(() => {
   fetchPunchRecords();
-  loadEmployeeOptions();
 });
 
 // 显示详情
@@ -343,6 +332,14 @@ const closeDetailDialog = () => {
   selectedRecord.value = null;
 };
 
+
+// 导出条件：姓名、工号、打卡时间范围至少填一项，否则导出按钮置灰
+const canExport = computed(() => {
+  const hasName = !!searchForm.value.name?.trim();
+  const hasEmpId = !!searchForm.value.empId?.trim();
+  const hasRange = !!(searchForm.value.punchTimeRange?.[0] && searchForm.value.punchTimeRange?.[1]);
+  return hasName || hasEmpId || hasRange;
+});
 
 // 导出打卡与考勤记录到 XLSX
 // 打卡区：按"员工 × 当前日期范围"展开完整矩阵；周日/已批准请假出差/缺卡均有标记
