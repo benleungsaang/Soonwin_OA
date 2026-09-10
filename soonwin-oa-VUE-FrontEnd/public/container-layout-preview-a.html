@@ -746,6 +746,7 @@ const PRINT_ZONE_COUNT = 4;
 const PRINT_ROWS_PER_PAGE = 14;
 const PRINT_ZONE_NAMES = ['A', 'B', 'C', 'D'];
 const PRINT_ZONE_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed'];
+const PRINT_ISO_LABEL_GAP_MM = 800;
 const zoneOf = i => Math.min(PRINT_ZONE_COUNT - 1,
   Math.max(0, Math.floor(((CARGOS[i].px + CARGOS[i].sx / 2) / l) * PRINT_ZONE_COUNT)));
 const statusColor = i => STACK[i].stacked ? '#b42318' : (STACK[i].suspended ? '#9a6700' : '#245f92');
@@ -926,7 +927,7 @@ function drawIsoPrint(canvas, xStart, xEnd, indices, detail, showZones, overview
       const xx = l*z/PRINT_ZONE_COUNT;
       g.save(); g.strokeStyle='#315f88'; g.lineWidth=4; g.setLineDash([12,8]);
       g.beginPath(); g.moveTo(...pp(xx,0,0)); g.lineTo(...pp(xx,0,w)); g.stroke();
-      const a=pp(xx,0,0),b=pp(xx,0,w);
+      const a=pp(xx,0,-PRINT_ISO_LABEL_GAP_MM),b=pp(xx,0,w+PRINT_ISO_LABEL_GAP_MM);
       for(const [pt,label] of [[a,PRINT_ZONE_NAMES[z-1]+'|'+PRINT_ZONE_NAMES[z]],[b,PRINT_ZONE_NAMES[z-1]+'|'+PRINT_ZONE_NAMES[z]]]){
         g.setLineDash([]);g.fillStyle='rgba(255,255,255,.96)';g.beginPath();g.roundRect(pt[0]-38,pt[1]-16,76,30,6);g.fill();
         g.strokeStyle='rgba(49,95,136,.45)';g.lineWidth=1.4;g.beginPath();g.roundRect(pt[0]-38,pt[1]-16,76,30,6);g.stroke();
@@ -936,8 +937,8 @@ function drawIsoPrint(canvas, xStart, xEnd, indices, detail, showZones, overview
     }
     for (let z = 0; z < PRINT_ZONE_COUNT; z++) {
       const xx = l*(z+.5)/PRINT_ZONE_COUNT;
-      const [zx,zy] = pp(xx,0,w);
-      const labelY=Math.min(CH-22,zy+28);
+      const [zx,zy] = pp(xx,0,w+PRINT_ISO_LABEL_GAP_MM);
+      const labelY=Math.min(CH-22,zy+36);
       g.save();
       g.shadowColor='rgba(15,23,42,.18)';g.shadowBlur=5;g.shadowOffsetY=2;
       g.fillStyle='rgba(255,255,255,.88)';g.beginPath();g.roundRect(zx-52,labelY-18,104,36,8);g.fill();
@@ -1251,14 +1252,16 @@ function drawTopPrint(canvas, xStart, xEnd, indices, showZones, labelIndices = n
     }
     for(let z=0;z<PRINT_ZONE_COUNT;z++){
       const xa=xp(l*z/PRINT_ZONE_COUNT),xb=xp(l*(z+1)/PRINT_ZONE_COUNT);
-      // 宽高各缩小5%，居中留边；提高白色底牌对比度，同时保留底层货物轮廓。
+      // 相对上一版再缩小约5%，居中留边；提高白色底牌对比度，同时保留底层货物轮廓。
       g.save();
-      g.shadowColor='rgba(15,23,42,.14)';g.shadowBlur=5;g.shadowOffsetY=2;
-      const cardX=xa+(xb-xa)*.025,cardY=mt+drawH*.025,cardW=(xb-xa)*.95,cardH=drawH*.95;
+      g.shadowColor='rgba(15,23,42,.20)';g.shadowBlur=8;g.shadowOffsetY=3;
+      const cardScale=.95;
+      const cardW=(xb-xa)*.95*cardScale,cardH=drawH*.95*cardScale;
+      const cardX=xa+((xb-xa)-cardW)/2,cardY=mt+(drawH-cardH)/2;
       g.fillStyle='rgba(255,255,255,.72)';
       g.beginPath();g.roundRect(cardX,cardY,cardW,cardH,10);g.fill();
       g.shadowColor='transparent';g.shadowBlur=0;g.shadowOffsetY=0;
-      g.strokeStyle=PRINT_ZONE_COLORS[z];g.lineWidth=2.2;
+      g.strokeStyle=PRINT_ZONE_COLORS[z];g.lineWidth=3.3;
       g.beginPath();g.roundRect(cardX,cardY,cardW,cardH,10);g.stroke();
       g.fillStyle='#163a5d';g.font='800 32px Arial';g.textAlign='center';g.textBaseline='middle';
       g.fillText(PRINT_ZONE_NAMES[z]+'区',(xa+xb)/2,mt+drawH/2);
