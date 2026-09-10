@@ -17,6 +17,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   // 区分开发/生产环境的端口和代理目标
   const isDev = mode === 'development';
   const port = isDev ? Number(env.VITE_PORT || 5173) : Number(env.VITE_PORT || 5183);
+  const analyze = process.env.ANALYZE === 'true';
   // const proxyTarget = isDev
   //   ? (env.VITE_API_TARGET || 'http://localhost:5001')
   //   : (env.VITE_API_TARGET || `http://${getNetworkIP()}:5000`);
@@ -41,18 +42,13 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
         resolvers: [ElementPlusResolver()], // 自动识别并导入 Element Plus 组件
         dts: true, // 生成 components.d.ts 类型文件
       }),
-      // 体积分析插件配置
+      // 仅在显式分析时计算 gzip/brotli；日常构建仍生成原始体积 treemap。
       visualizer({
-        // 生成的分析报告文件名，默认在项目根目录
         filename: 'dist/stats.html',
-        // 分析模式：treemap（树形图，最直观）、sunburst（旭日图）、network（网络拓扑）
         template: 'treemap',
-        // 开启 gzip 体积分析（可选，更贴近实际传输体积）
-        gzipSize: true,
-        // 开启 brotli 体积分析（可选）
-        brotliSize: true,
-        // 是否在打包完成后自动打开报告页面：默认关（需 ANALYZE=true yarn build:prod 打开）
-        open: process.env.ANALYZE === 'true',
+        gzipSize: analyze,
+        brotliSize: analyze,
+        open: analyze,
       })
     ],
     // 开发服务器配置

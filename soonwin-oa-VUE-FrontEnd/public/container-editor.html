@@ -1145,26 +1145,49 @@
             height: 100%;
         }
 
-        /* 临时 3D 性能观测面板：仅用于本轮性能验收。 */
+        /* 渲染指标：右上角选中货物信息下方；默认折叠，展开时才启用监控。 */
         #perf-monitor {
             position: absolute;
-            left: 20px;
-            bottom: 58px;
+            top: 135px;
+            right: 20px;
             z-index: 12;
             min-width: 190px;
-            padding: 8px 10px;
             border-radius: 8px;
             background: rgba(0, 0, 0, 0.72);
             border: 1px solid rgba(79, 195, 247, 0.28);
             color: #aab7c4;
             font: 11px/1.55 Consolas, monospace;
-            pointer-events: none;
             white-space: nowrap;
+            pointer-events: auto;
+            overflow: hidden;
         }
         #perf-monitor .perf-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 7px 10px;
             color: #4fc3f7;
             font-weight: 700;
-            margin-bottom: 3px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #perf-monitor .perf-title:hover {
+            background: rgba(79, 195, 247, 0.08);
+        }
+        #perf-monitor .perf-arrow {
+            display: inline-block;
+            transition: transform 0.15s ease;
+        }
+        #perf-monitor.expanded .perf-arrow {
+            transform: rotate(180deg);
+        }
+        #perf-monitor .perf-body {
+            display: none;
+            padding: 0 10px 8px;
+        }
+        #perf-monitor.expanded .perf-body {
+            display: block;
         }
         #perf-monitor .perf-val {
             color: #fff;
@@ -1358,11 +1381,16 @@
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
             <div id="perf-monitor">
-                <div class="perf-title">⚙ 3D PERF · 临时验收</div>
-                <div>FPS <span class="perf-val" id="perfFps">—</span> · Frame <span class="perf-val" id="perfFrameMs">—</span> ms</div>
-                <div>Draw <span class="perf-val" id="perfDrawCalls">—</span> · Tri <span class="perf-val" id="perfTriangles">—</span></div>
-                <div>Collision/s <span class="perf-val" id="perfCollisionRate">—</span> · Avg <span class="perf-val" id="perfCollisionMs">—</span> ms</div>
-                <div>Collision total <span class="perf-val" id="perfCollisionTotal">0</span></div>
+                <div class="perf-title" id="perfToggle" title="展开/收起渲染指标">
+                    <span>渲染指标</span>
+                    <span class="perf-arrow">▼</span>
+                </div>
+                <div class="perf-body" id="perfBody">
+                    <div>Render FPS <span class="perf-val" id="perfFps">—</span> · Frame <span class="perf-val" id="perfFrameMs">—</span> ms</div>
+                    <div>Draw <span class="perf-val" id="perfDrawCalls">—</span> · Tri <span class="perf-val" id="perfTriangles">—</span></div>
+                    <div>Collision/s <span class="perf-val" id="perfCollisionRate">—</span> · Avg <span class="perf-val" id="perfCollisionMs">—</span> ms</div>
+                    <div>Collision total <span class="perf-val" id="perfCollisionTotal">0</span></div>
+                </div>
             </div>
             <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
             <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
@@ -1800,6 +1828,8 @@
         dirLight.shadow.camera.bottom = -10000;
         scene.add(dirLight);
 
+        // 阴影固定 1024：用于清晰呈现货物的空间层级与叠放关系。
+
         const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
         fillLight.position.set(-3000, 4000, -5000);
         scene.add(fillLight);
@@ -1912,11 +1942,35 @@
         // 3D 性能优化：碰撞/出界检测只在场景状态实际变化后执行。
         // 静止画面不再每帧重复 O(n²) 检测。
         let collisionDirty = true;
-        function markCollisionDirty() {
-            collisionDirty = true;
+
+        // ============================================================
+        //  按需渲染：静止时不持续提交 WebGL 帧。
+        // ============================================================
+        let renderRequested = false;
+        let renderLoopActive = false;
+        let pageSuspended = document.hidden;
+
+        function requestRender() {
+            if (pageSuspended) return;
+            renderRequested = true;
+            if (!renderLoopActive) {
+                renderLoopActive = true;
+                requestAnimationFrame(renderFrame);
+            }
         }
 
-        // 临时性能观测：低频刷新 UI，避免监控本身制造明显开销。
+        function markCollisionDirty() {
+            collisionDirty = true;
+            requestRender();
+        }
+
+        // requestRender 已完成初始化后再绑定 OrbitControls。
+        controls.addEventListener('change', requestRender);
+        controls.addEventListener('start', requestRender);
+
+        // 渲染指标：默认折叠；仅展开时启用统计与 500ms UI 刷新。
+        const perfMonitor = document.getElementById('perf-monitor');
+        const perfToggle = document.getElementById('perfToggle');
         const perfFps = document.getElementById('perfFps');
         const perfFrameMs = document.getElementById('perfFrameMs');
         const perfDrawCalls = document.getElementById('perfDrawCalls');
@@ -1925,43 +1979,49 @@
         const perfCollisionMs = document.getElementById('perfCollisionMs');
         const perfCollisionTotal = document.getElementById('perfCollisionTotal');
 
-        let perfWindowStart = performance.now();
-        let perfFrames = 0;
-        let perfFrameTimeSum = 0;
-        let perfLastFrameTs = performance.now();
+        let perfMonitoringActive = false;
+        let perfTimer = null;
+        let perfWindowStart = 0;
+        let perfRenderFrames = 0;
+        let perfRenderTimeSum = 0;
         let collisionCheckTotal = 0;
         let collisionCheckTotalMs = 0;
-        let collisionCheckWindowStart = performance.now();
         let collisionCheckWindowBase = 0;
         let collisionCheckWindowMsBase = 0;
 
-        function updatePerfMonitor(now) {
-            const dt = now - perfLastFrameTs;
-            perfLastFrameTs = now;
-            perfFrames++;
-            if (dt > 0 && dt < 1000) perfFrameTimeSum += dt;
+        function resetPerfWindow() {
+            perfWindowStart = performance.now();
+            perfRenderFrames = 0;
+            perfRenderTimeSum = 0;
+            collisionCheckWindowBase = collisionCheckTotal;
+            collisionCheckWindowMsBase = collisionCheckTotalMs;
+        }
 
-            const windowMs = now - perfWindowStart;
-            if (windowMs < 500) return;
+        function refreshPerfMonitor() {
+            if (!perfMonitoringActive || document.hidden) return;
 
-            const fps = perfFrames * 1000 / windowMs;
-            const frameMs = perfFrames > 0 ? perfFrameTimeSum / perfFrames : 0;
+            const now = performance.now();
+            const windowMs = Math.max(1, now - perfWindowStart);
+            const renderFps = perfRenderFrames * 1000 / windowMs;
+            const frameMs = perfRenderFrames > 0 ? perfRenderTimeSum / perfRenderFrames : 0;
 
             if (perfFps) {
-                perfFps.textContent = fps.toFixed(0);
-                perfFps.className = 'perf-val ' + (fps >= 55 ? 'perf-good' : fps >= 40 ? 'perf-warn' : '');
+                perfFps.textContent = renderFps.toFixed(0);
+                perfFps.className = 'perf-val ' + (renderFps === 0 ? 'perf-good' : '');
             }
-            if (perfFrameMs) perfFrameMs.textContent = frameMs.toFixed(1);
+            if (perfFrameMs) {
+                perfFrameMs.textContent = perfRenderFrames > 0 ? frameMs.toFixed(2) : '0.00';
+            }
 
-            // renderer.info 是 Three.js 自带运行时统计，不修改库。
+            // renderer.info 读取最近一次真实 Render 的 draw/triangle 统计；不会触发新 Render。
             if (perfDrawCalls) perfDrawCalls.textContent = String(renderer.info.render.calls || 0);
             if (perfTriangles) perfTriangles.textContent = Number(renderer.info.render.triangles || 0).toLocaleString();
 
-            const collisionWindowMs = now - collisionCheckWindowStart;
             const collisionDelta = collisionCheckTotal - collisionCheckWindowBase;
             const collisionMsDelta = collisionCheckTotalMs - collisionCheckWindowMsBase;
-            const collisionPerSec = collisionWindowMs > 0 ? collisionDelta * 1000 / collisionWindowMs : 0;
+            const collisionPerSec = collisionDelta * 1000 / windowMs;
             const collisionAvgMs = collisionDelta > 0 ? collisionMsDelta / collisionDelta : 0;
+
             if (perfCollisionRate) {
                 perfCollisionRate.textContent = collisionPerSec.toFixed(1);
                 perfCollisionRate.className = 'perf-val ' + (collisionPerSec <= 0.1 ? 'perf-good' : 'perf-warn');
@@ -1972,12 +2032,46 @@
             }
             if (perfCollisionTotal) perfCollisionTotal.textContent = String(collisionCheckTotal);
 
-            perfWindowStart = now;
-            perfFrames = 0;
-            perfFrameTimeSum = 0;
-            collisionCheckWindowStart = now;
-            collisionCheckWindowBase = collisionCheckTotal;
-            collisionCheckWindowMsBase = collisionCheckTotalMs;
+            resetPerfWindow();
+        }
+
+        function startPerfMonitoring() {
+            if (perfMonitoringActive || document.hidden) return;
+            perfMonitoringActive = true;
+            resetPerfWindow();
+            refreshPerfMonitor();
+            perfTimer = setInterval(refreshPerfMonitor, 500);
+        }
+
+        function stopPerfMonitoring() {
+            perfMonitoringActive = false;
+            if (perfTimer !== null) {
+                clearInterval(perfTimer);
+                perfTimer = null;
+            }
+        }
+
+        function setPerfExpanded(expanded) {
+            if (!perfMonitor) return;
+            perfMonitor.classList.toggle('expanded', expanded);
+            if (expanded) startPerfMonitoring();
+            else stopPerfMonitoring();
+        }
+
+        if (perfToggle) {
+            perfToggle.addEventListener('click', () => {
+                setPerfExpanded(!perfMonitor.classList.contains('expanded'));
+            });
+        }
+
+        function positionPerfMonitor() {
+            if (!perfMonitor) return;
+            const detailEl = document.getElementById('viewport-info-detail');
+            if (detailEl && detailEl.style.display !== 'none') {
+                perfMonitor.style.top = `${detailEl.offsetTop + detailEl.offsetHeight + 8}px`;
+            } else {
+                perfMonitor.style.top = '135px';
+            }
         }
 
         function rebuildCargoMeshes() {
@@ -2210,6 +2304,7 @@
 
         function onCanvasMouseDown(event) {
             if (editModal.classList.contains('active')) return;
+            requestRender();
             if (event.target !== renderer.domElement) return;
 
             screenToNDC(event.clientX, event.clientY);
@@ -2340,6 +2435,7 @@
         }
 
         function onCanvasMouseMove(event) {
+            if (dragState.active) requestRender();
             if (!dragState.active) return;
 
             const refIdx = dragState.cargoIdx;
@@ -2488,6 +2584,7 @@
         }
 
         function onCanvasMouseUp(event) {
+            requestRender();
             if (!dragState.active) return;
 
             dragState.active = false;
@@ -3570,6 +3667,7 @@
                     ? '🖱 点击货物即拖 · 按着 CTRL 多选货物 · 右键平移'
                     : '🖱 点击货物选中拖动 · 按着 CTRL 多选货物 · 右键平移';
             }
+            positionPerfMonitor();
         }
 
         // 拖动期间只更新发生变化的坐标文本，不重建整个货物列表，也不重算静态统计。
@@ -5382,6 +5480,8 @@
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
             renderer.setSize(w, h);
+            requestRender();
+            positionPerfMonitor();
         });
 
         // ============================================================
@@ -5482,12 +5582,19 @@
             // 捕获初始状态作为撤销基线
             saveState();
 
-            animate();
+            requestRender();
         }
 
-        function animate(now = performance.now()) {
-            requestAnimationFrame(animate);
-            controls.update();
+        function renderFrame(now = performance.now()) {
+            if (pageSuspended) {
+                renderLoopActive = false;
+                return;
+            }
+
+            renderRequested = false;
+
+            const controlsChanged = controls.update();
+
             if (collisionDirty) {
                 if (dragState.active) {
                     checkMovingOverlapsAndOutOfBounds(currentMovingIdxs());
@@ -5496,15 +5603,27 @@
                 }
                 collisionDirty = false;
             }
+
+            const perfRenderStart = perfMonitoringActive ? performance.now() : 0;
+
             renderer.render(scene, camera);
 
-            // 更新轴指示器：与主相机同方向
             const dir = new THREE.Vector3();
             camera.getWorldDirection(dir);
             axesCam.position.copy(dir).multiplyScalar(-axesDist);
             axesCam.lookAt(0, 0, 0);
             axesRenderer.render(axesScene, axesCam);
-            updatePerfMonitor(now);
+
+            if (perfMonitoringActive) {
+                perfRenderFrames++;
+                perfRenderTimeSum += performance.now() - perfRenderStart;
+            }
+
+            if (renderRequested || dragState.active || controlsChanged) {
+                requestAnimationFrame(renderFrame);
+            } else {
+                renderLoopActive = false;
+            }
         }
 
         // 拖动碰撞基线：拖动开始时只计算一次“未移动货物之间”的异常状态。
@@ -5591,12 +5710,12 @@
         }
 
         function checkMovingOverlapsAndOutOfBounds(movingIdxs) {
-            const t0 = performance.now();
-            collisionCheckTotal++;
+            const perfCollisionStart = perfMonitoringActive ? performance.now() : 0;
+            if (perfMonitoringActive) collisionCheckTotal++;
 
             const cargos = state.cargos;
             if (!cargos.length || !movingIdxs.length) {
-                collisionCheckTotalMs += performance.now() - t0;
+                if (perfMonitoringActive) collisionCheckTotalMs += performance.now() - perfCollisionStart;
                 return;
             }
 
@@ -5635,7 +5754,7 @@
             }
 
             applyBadFlagsToMeshes(bad);
-            collisionCheckTotalMs += performance.now() - t0;
+            if (perfMonitoringActive) collisionCheckTotalMs += performance.now() - perfCollisionStart;
         }
 
         // ============================================================
@@ -5644,8 +5763,8 @@
         //  - 通过 outOverlay/outOverlayEdges 子节点的 visible 切换
         // ============================================================
         function checkOverlapsAndOutOfBounds() {
-            const t0 = performance.now();
-            collisionCheckTotal++;
+            const perfCollisionStart = perfMonitoringActive ? performance.now() : 0;
+            if (perfMonitoringActive) collisionCheckTotal++;
             const cargos = state.cargos;
             const n = cargos.length;
             if (n === 0) return;
@@ -5681,10 +5800,51 @@
             }
 
             applyBadFlagsToMeshes(bad);
-            collisionCheckTotalMs += performance.now() - t0;
+            if (perfMonitoringActive) collisionCheckTotalMs += performance.now() - perfCollisionStart;
         }
 
+
+        function finishActiveDragForSuspend() {
+            if (!dragState.active) return;
+
+            dragState.active = false;
+            dragState.mesh = null;
+            dragState.cargoIdx = -1;
+            controls.enabled = true;
+
+            resetDragCollisionCache();
+            updateSelectionHighlight();
+            renderCargoList();
+            updateStats();
+            saveState();
+
+            collisionDirty = true;
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                finishActiveDragForSuspend();
+                pageSuspended = true;
+                renderRequested = false;
+                renderLoopActive = false;
+                if (perfTimer !== null) {
+                    clearInterval(perfTimer);
+                    perfTimer = null;
+                }
+            } else {
+                pageSuspended = false;
+
+                if (perfMonitor && perfMonitor.classList.contains('expanded')) {
+                    perfMonitoringActive = false;
+                    startPerfMonitoring();
+                }
+
+                requestRender();
+            }
+        });
+
         init();
+        positionPerfMonitor();
 
         // ============================================================
         //  Delete键删除选中货物 / R 键水平旋转选中货物
