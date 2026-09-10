@@ -840,7 +840,9 @@
 
         /* 右上角信息覆盖层 */
         #viewport-info {
-
+            position: absolute;
+            top: 16px;
+            right: 20px;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(6px);
             padding: 10px 16px;
@@ -1092,33 +1094,11 @@
             pointer-events: none;
         }
 
-        /* 右上信息区统一纵向排列。子项不再使用 absolute 定位。 */
-        #viewport-info-stack {
-            position:absolute;
-            top:16px;
-            right:20px;
-            z-index:12;
-            display:flex;
-            flex-direction:column;
-            align-items:flex-end;
-            gap:8px;
-            pointer-events:none;
-        }
-        #viewport-info-stack #viewport-info,
-        #viewport-info-stack #viewport-info-detail,
-        #viewport-info-stack #perf-monitor {
-            position:static;
-            top:auto;
-            right:auto;
-            left:auto;
-            bottom:auto;
-            margin:0;
-        }
-        #viewport-info-stack #perf-monitor { pointer-events:auto; }
-
         /* 选中货物详情框（独立于货柜信息） */
         #viewport-info-detail {
-
+            position: absolute;
+            top: 135px;
+            right: 20px;
             background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(6px);
             padding: 10px 16px;
@@ -1167,7 +1147,9 @@
 
         /* 渲染指标：右上角选中货物信息下方；默认折叠，展开时才启用监控。 */
         #perf-monitor {
-
+            position: absolute;
+            top: 135px;
+            right: 20px;
             z-index: 12;
             min-width: 190px;
             border-radius: 8px;
@@ -1372,7 +1354,7 @@
                     <button class="btn" id="importBtn" title="从本地JSON文件加载布局" style="background:#4a1a5a;border-color:#7a2a8a;color:#e0c0ff;">📥 导入本地文件</button>
                 </div>
                 <div class="panel-actions-row">
-                    <button class="btn" id="previewABtn" title="生成等轴测装柜图（货物上直接标注名称尺寸，自动避让）" style="background:#1a5c4a;border-color:#2a8a6e;color:#c0ffe0;width:100%;">🖼 生成装柜图</button>
+                    <button class="btn" id="previewABtn" title="生成等轴测装柜图（货物上直接标注名称尺寸，自动避让）" style="background:#1a5c4a;border-color:#2a8a6e;color:#c0ffe0;width:100%;">🖼 生成装柜图 - A</button>
                     <button class="btn" id="previewBBtn" title="生成等轴测装柜图（编号徽标+货物清单）" style="display:none;background:#1a4a5c;border-color:#2a6a8a;color:#c0e0ff;">🖼 生成装柜图 - B</button>
                 </div>
             </div>
@@ -1380,7 +1362,6 @@
 
         <!-- 3D 视口 -->
         <div id="viewport">
-            <div id="viewport-info-stack">
             <div id="viewport-info">
                 <div><span class="label">货柜</span> <span class="val" id="infoContainer">40尺高柜</span></div>
                 <div><span class="label">尺寸</span> <span class="val" id="infoSize">12030 × 2350 × 2390 mm</span></div>
@@ -1397,21 +1378,20 @@
                 <div><span class="label">坐标 X, Y, Z</span> <span class="val" id="detailPos">—</span></div>
                 <div id="detailDoorWarn" style="color:#ff6b6b;display:none;font-size:12px;"></div>
             </div>
+            <!-- XYZ 轴指示器 -->
+            <div id="axes-indicator"></div>
             <div id="perf-monitor">
                 <div class="perf-title" id="perfToggle" title="展开/收起渲染指标">
                     <span>渲染指标</span>
                     <span class="perf-arrow">▼</span>
                 </div>
                 <div class="perf-body" id="perfBody">
-                    <div>Render FPS <span class="perf-val" id="perfFps">—</span> · Render <span class="perf-val" id="perfFrameMs">—</span> ms</div>
+                    <div>Render FPS <span class="perf-val" id="perfFps">—</span> · Frame <span class="perf-val" id="perfFrameMs">—</span> ms</div>
                     <div>Draw <span class="perf-val" id="perfDrawCalls">—</span> · Tri <span class="perf-val" id="perfTriangles">—</span></div>
                     <div>Collision/s <span class="perf-val" id="perfCollisionRate">—</span> · Avg <span class="perf-val" id="perfCollisionMs">—</span> ms</div>
                     <div>Collision total <span class="perf-val" id="perfCollisionTotal">0</span></div>
                 </div>
             </div>
-            </div>
-            <!-- XYZ 轴指示器 -->
-            <div id="axes-indicator"></div>
             <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
             <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
             <div id="cargoContextMenu" style="display:none;">
@@ -2085,7 +2065,13 @@
         }
 
         function positionPerfMonitor() {
-            // 由 #viewport-info-stack 的 flex 布局自动处理顺序和间距。
+            if (!perfMonitor) return;
+            const detailEl = document.getElementById('viewport-info-detail');
+            if (detailEl && detailEl.style.display !== 'none') {
+                perfMonitor.style.top = `${detailEl.offsetTop + detailEl.offsetHeight + 8}px`;
+            } else {
+                perfMonitor.style.top = '135px';
+            }
         }
 
         function rebuildCargoMeshes() {
