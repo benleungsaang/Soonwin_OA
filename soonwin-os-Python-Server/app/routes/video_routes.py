@@ -13,11 +13,8 @@ from ..utils.upload_utils import (
     validate_file_type,
     save_uploaded_file,
     process_video_with_variants,
-    add_video_process_task,
     add_video_compress_task,
     UPLOAD_CONFIG,
-    get_video_info,
-    compress_video,
     generate_title_based_filename
 )
 from ..utils.auth_utils import get_user_id_from_token
@@ -80,7 +77,7 @@ def update_video_process_status(video_id, status, error_msg=None, app_context=No
 
         print(f"更新视频处理状态失败: {str(e)}")
 
-def update_video_after_compress(video_id, compressed_path, original_file_path):
+def _deprecated_update_video_after_compress(video_id, compressed_path, original_file_path):
 
     """压缩完成后更新视频记录，但保留原始文件作为备份"""
 
@@ -174,6 +171,36 @@ def update_video_process_result(video_id, paths, status, duration=None):
         db.session.commit()
     except Exception as e:
         print(f"更新视频处理结果失败: {str(e)}")
+
+def update_video_after_compress(video_id, result):
+    """Persist a validated compressor result before any source-file deletion."""
+    try:
+        video = Video.query.get(video_id)
+        if not video:
+            return False
+
+        action = result.get("action")
+        if action == "original":
+            video.compressed_path = None
+            video.file_size = result["source_bytes"]
+        elif action in ("compressed", "cached"):
+            output_path = result.get("output")
+            if not output_path or not os.path.isfile(output_path):
+                return False
+            video.compressed_path = os.path.relpath(
+                output_path, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER']
+            ).replace('\\', '/')
+            video.file_size = result["output_bytes"]
+        else:
+            return False
+
+        video.compress_status = "success"
+        db.session.commit()
+        return True
+    except Exception as error:
+        db.session.rollback()
+        print(f"更新视频压缩结果失败: {error}")
+        return False
 
 def process_video(original_file, base_save_dir="./assets/Media/Videos", title=""):
     """
@@ -290,7 +317,9 @@ def get_videos():
 @video_bp.route('/videos', methods=['POST'])
 @route_permission(ROUTE_VIDEO)
 def upload_video():
-    """视频上传接口：先入库返回，后台异步处理缩略图等"""
+    """Save, commit, then asynchronously prepare every newly uploaded video."""
+    process_result = None
+    committed = False
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': '未提供文件'}), 400
@@ -345,6 +374,7 @@ def upload_video():
 
         db.session.add(video)
         db.session.commit()
+        committed = True
 
         # 记录视频创建日志
         try:
@@ -370,61 +400,13 @@ def upload_video():
         except Exception as log_error:
             print(f"记录视频创建日志失败: {str(log_error)}")
 
-        # ========== 核心优化部分 ==========
-        # 1. 转换文件大小为MB（保留2位小数）
-        file_size_mb = round(process_result["file_size"] / (1024 * 1024), 2)
-        size_threshold = UPLOAD_CONFIG['VIDEO_SIZE_THRESHOLD']
-
-        # 2. 判断文件大小是否超过阈值
-        is_size_over = file_size_mb > size_threshold
-
-        # 3. 处理分辨率判断（适配横竖屏）
-        original_w = process_result["original_width"]
-        original_h = process_result["original_height"]
-        max_w = UPLOAD_CONFIG['VIDEO_MAX_WIDTH']
-        max_h = UPLOAD_CONFIG['VIDEO_MAX_HEIGHT']
-
-        # 区分横竖屏：宽>高为横屏，否则为竖屏
-        is_landscape = original_w > original_h
-
-        # 横屏：宽≤1920 且 高≤1080；竖屏：宽≤1080 且 高≤1920（交换阈值）
-        if is_landscape:
-            is_resolution_over = original_w > max_w or original_h > max_h
-            resolution_desc = f"横屏 {original_w}x{original_h}"
-            resolution_threshold = f"{max_w}x{max_h}"
-        else:
-            is_resolution_over = original_w > max_h or original_h > max_w  # 竖屏用高的阈值当宽，宽的阈值当高
-            resolution_desc = f"竖屏 {original_w}x{original_h}"
-            resolution_threshold = f"{max_h}x{max_w}"  # 竖屏阈值交换
-
-        # 4. 分开打印判断结果（清晰展示每个条件的状态）
-        print(f"视频大小判断：{file_size_mb}MB {'>' if is_size_over else '≤'} {size_threshold}MB（阈值）")
-        print(f"视频分辨率判断：{resolution_desc} {'>' if is_resolution_over else '≤'} {resolution_threshold}（阈值）")
-
-        # 5. 最终判断是否需要压缩（任一条件满足即需要）
-        needs_compress = is_size_over or is_resolution_over
-
-        if needs_compress:
-            print(f"视频需要压缩：大小超标={is_size_over}，分辨率超标={is_resolution_over}")
-            # 如果视频需要压缩，添加到压缩队列
-            add_video_compress_task(
-                video_id=video.id,
-                original_file_path=process_result["original_file_path"],
-                base_save_dir=process_result["base_save_dir"],
-                app_instance=app_instance
-            )
-        elif process_result["need_processing"]:
-            # 否则，添加到一般处理队列（生成缩略图等）
-            add_video_process_task(
-                video_id=video.id,
-                original_file_path=process_result["original_file_path"],
-                file_prefix=process_result["file_prefix"],
-                ext=process_result["ext"],
-                save_dir=process_result["save_dir"],
-                base_save_dir=process_result["base_save_dir"],
-                update_func=update_video_process_result_wrapper
-            )
-        # ========== 核心优化部分结束 ==========
+        # Every new upload enters the bounded 27 MB preparation lifecycle.
+        add_video_compress_task(
+            video_id=video.id,
+            original_file_path=process_result["original_file_path"],
+            base_save_dir=process_result["base_save_dir"],
+            app_instance=app_instance,
+        )
 
         # 返回成功响应
         return jsonify({
@@ -439,6 +421,21 @@ def upload_video():
             }
         }), 200
     except Exception as e:
+        if not committed:
+            db.session.rollback()
+            if process_result:
+                for path in (
+                    process_result.get("original_file_path"),
+                    os.path.join(
+                        UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'],
+                        process_result["paths"].get("thumbnail", ""),
+                    ) if process_result["paths"].get("thumbnail") else None,
+                ):
+                    if path and os.path.isfile(path):
+                        try:
+                            os.remove(path)
+                        except OSError as cleanup_error:
+                            print(f"上传失败后的文件清理失败: {cleanup_error}")
         print(f"上传视频失败: {str(e)}")
         return jsonify({'success': False, 'message': f'上传失败：{str(e)}'}), 500
 

@@ -1118,15 +1118,16 @@ const cancelEditingAll = () => {
 
 // 下载视频
 const downloadVideo = () => {
-  if (selectedVideo.value?.original_path) {
-    const originalVideoUrl = `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.value.original_path}`;
+  const videoPath = selectedVideo.value?.compressed_path || selectedVideo.value?.original_path;
+  if (videoPath) {
+    const videoUrl = `${apiBaseUrl.value}/assets/Media/Videos/${videoPath}`;
     // 创建一个临时链接来下载视频，并以视频标题命名
     const link = document.createElement('a');
-    link.href = originalVideoUrl;
+    link.href = videoUrl;
     // 使用视频标题作为文件名，如果标题为空则使用默认名称
     const fileName = selectedVideo.value.title ? selectedVideo.value.title.trim() : 'video';
     // 确保文件扩展名正确
-    const fileExtension = originalVideoUrl.split('.').pop() || 'mp4';
+    const fileExtension = videoUrl.split('.').pop() || 'mp4';
     link.download = `${fileName}.${fileExtension}`;
     document.body.appendChild(link);
     link.click();

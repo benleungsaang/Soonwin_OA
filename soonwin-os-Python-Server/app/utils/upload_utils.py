@@ -14,6 +14,7 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 import imghdr
 from PIL import Image, ImageOps
+from .video_compressor import prepare_video
 
 # 上传配置
 UPLOAD_CONFIG = {
@@ -83,13 +84,7 @@ def get_video_info(video_path):
         return None
 
 def compress_video(input_path, output_path, size_threshold=100):
-    """
-    一步式处理视频：同步完成格式转换（→MP4）+ 按需压缩
-    仅基于原始文件大小判断是否压缩，压缩后不校验大小，无二次压缩
-    :param input_path: 原始视频路径
-    :param output_path: 最终MP4输出路径
-    :param size_threshold: 原始文件大小阈值（MB），默认100
-    """
+    """DEPRECATED: legacy 100 MB/1080p compressor; no active caller remains."""
     # 1. 获取原始视频信息
     video_info = get_video_info(input_path)
     if not video_info:
@@ -168,18 +163,6 @@ def compress_video(input_path, output_path, size_threshold=100):
     else:
         print("视频处理失败，未生成有效文件")
         return None
-
-def add_video_compress_task(video_id, original_file_path, base_save_dir, app_instance):
-    """添加视频压缩任务到处理队列"""
-    processing_queue = get_processing_queue()
-    task = {
-        'type': 'video_compress',
-        'video_id': video_id,
-        'original_file_path': original_file_path,
-        'base_save_dir': base_save_dir,
-        'app_instance': app_instance
-    }
-    processing_queue.add_task(task)
 
 def sanitize_filename(filename):
     """清理文件名，确保在Windows中合法"""
@@ -414,14 +397,15 @@ def process_video_with_variants(file_path, base_save_dir, file_prefix, ext):
     try:
         # 修改：将缩略图保存在与视频文件相同的目录中
         video_dir = os.path.dirname(file_path)
-        thumbnail_path = os.path.join(video_dir, f"{file_prefix}_thumbnail.jpg")
+        thumbnail_path = os.path.join(video_dir, f"{file_prefix}_thumbnail.webp")
         # 简化：一行逻辑覆盖所有截取场景（优先10秒，不足则取中间点，至少1秒）
         safe_ss = min(10.0, max(1.0, duration * 0.5)) if duration > 0 else 1.0
 
         # 核心参数（不能简化）：-ss(时间点)、-vframes(1帧)、-vf(缩放)、-y(覆盖)
         ffmpeg_cmd = [
-            'ffmpeg', '-i', file_path, '-ss', str(safe_ss), '-vframes', '1',
+            'ffmpeg', '-i', file_path, '-ss', str(safe_ss), '-frames:v', '1',
             '-vf', 'scale=400:300:force_original_aspect_ratio=decrease',
+            '-c:v', 'libwebp', '-preset', 'photo', '-quality', '70', '-an',
             '-y', thumbnail_path
         ]
         res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -636,7 +620,7 @@ def add_video_process_task(video_id, original_file_path, file_prefix, ext, save_
         update_func=update_func
     )
 
-def add_video_compress_task(video_id, original_file_path, base_save_dir, app_instance):
+def _deprecated_add_video_compress_task(video_id, original_file_path, base_save_dir, app_instance):
     """
     添加视频压缩任务到队列
     :param video_id: 视频ID
@@ -754,6 +738,52 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
         original_file_path=original_file_path,
         base_save_dir=base_save_dir,
         app_instance=app_instance
+    )
+
+def add_video_compress_task(video_id, original_file_path, base_save_dir, app_instance):
+    """Queue every new upload for the bounded 27 MB preparation lifecycle."""
+    def update_in_context(callback, *args):
+        if app_instance:
+            with app_instance.app_context():
+                return callback(*args)
+        return callback(*args)
+
+    def compress_video_handler(video_id, original_file_path, base_save_dir, app_instance):
+        from ..routes.video_routes import update_video_after_compress, update_video_process_status
+
+        result = prepare_video(original_file_path)
+        if result.get('action') == 'failed':
+            update_in_context(update_video_process_status, video_id, 'failed', result.get('error'))
+            return
+
+        committed = update_in_context(update_video_after_compress, video_id, result)
+        if not committed:
+            if result.get('action') in ('compressed', 'cached') and result.get('output'):
+                try:
+                    os.remove(result['output'])
+                except FileNotFoundError:
+                    pass
+                except OSError as error:
+                    print(f"压缩数据库提交失败后的派生文件清理失败: {error}")
+            update_in_context(update_video_process_status, video_id, 'failed', 'compression result database commit failed')
+            return
+
+        if result.get('action') in ('compressed', 'cached'):
+            try:
+                os.remove(original_file_path)
+                print(f"已删除原视频文件: {original_file_path}")
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                print(f"删除原视频文件失败: {error}")
+
+    processing_queue.add_task(
+        task_type='video_compress',
+        handler_func=compress_video_handler,
+        video_id=video_id,
+        original_file_path=original_file_path,
+        base_save_dir=base_save_dir,
+        app_instance=app_instance,
     )
 
 def get_processing_queue():
