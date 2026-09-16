@@ -765,35 +765,40 @@ def add_video_compress_task(
     ):
         from ..routes.video_routes import update_video_after_compress, update_video_process_status
 
-        result = prepare_video(
-            original_file_path,
-            watermark_enabled=watermark_enabled,
-            watermark_position=watermark_position,
-        )
-        if result.get('action') == 'failed':
-            update_in_context(update_video_process_status, video_id, 'failed', result.get('error'))
-            return
+        try:
+            # Keep the frontend in a processing state for the complete task.
+            update_in_context(update_video_process_status, video_id, 'processing')
 
-        committed = update_in_context(update_video_after_compress, video_id, result)
-        if not committed:
-            if result.get('action') in ('compressed', 'cached') and result.get('output'):
+            result = prepare_video(
+                original_file_path,
+                watermark_enabled=watermark_enabled,
+                watermark_position=watermark_position,
+            )
+            if result.get('action') == 'failed':
+                update_in_context(update_video_process_status, video_id, 'failed', result.get('error'))
+                return
+
+            committed = update_in_context(update_video_after_compress, video_id, result)
+            if not committed:
+                # Keep a validated final video if thumbnail regeneration or DB persistence fails.
+                update_in_context(update_video_process_status, video_id, 'failed', 'compression result database commit failed')
+                return
+
+            if result.get('action') in ('compressed', 'cached'):
                 try:
-                    os.remove(result['output'])
+                    os.remove(original_file_path)
+                    print(f"已删除原视频文件: {original_file_path}")
                 except FileNotFoundError:
                     pass
                 except OSError as error:
-                    print(f"压缩数据库提交失败后的派生文件清理失败: {error}")
-            update_in_context(update_video_process_status, video_id, 'failed', 'compression result database commit failed')
-            return
-
-        if result.get('action') in ('compressed', 'cached'):
+                    print(f"删除原视频文件失败: {error}")
+        except Exception as error:
+            # The generic queue must not own Video model semantics, but every
+            # video handler must close its own lifecycle on an unexpected error.
             try:
-                os.remove(original_file_path)
-                print(f"已删除原视频文件: {original_file_path}")
-            except FileNotFoundError:
+                update_in_context(update_video_process_status, video_id, 'failed', str(error))
+            except Exception:
                 pass
-            except OSError as error:
-                print(f"删除原视频文件失败: {error}")
 
     processing_queue.add_task(
         task_type='video_compress',

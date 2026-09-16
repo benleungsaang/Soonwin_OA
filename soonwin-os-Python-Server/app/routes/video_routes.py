@@ -18,6 +18,7 @@ from ..utils.upload_utils import (
     generate_title_based_filename
 )
 from ..utils.auth_utils import get_user_id_from_token
+from ..utils.video_compressor import TARGET_BYTES
 
 video_bp = Blueprint('video_bp', __name__, url_prefix='/api')
 
@@ -187,9 +188,23 @@ def update_video_after_compress(video_id, result):
             output_path = result.get("output")
             if not output_path or not os.path.isfile(output_path):
                 return False
+
+            output_prefix = os.path.splitext(os.path.basename(output_path))[0]
+            output_ext = os.path.splitext(output_path)[1].lstrip('.')
+            thumbnail_result = process_video_with_variants(
+                output_path,
+                UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'],
+                output_prefix,
+                output_ext,
+            )
+            thumbnail_path = thumbnail_result['paths'].get('thumbnail', '')
+            if not thumbnail_path:
+                raise RuntimeError('final video thumbnail regeneration failed')
+
             video.compressed_path = os.path.relpath(
                 output_path, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER']
             ).replace('\\', '/')
+            video.thumbnail_path = thumbnail_path
             video.file_size = result["output_bytes"]
         else:
             return False
@@ -383,7 +398,11 @@ def upload_video():
             original_height=process_result["original_height"],
             duration=process_result["duration"],
             file_size=process_result["file_size"],
-            compress_status="pending"  # 初始状态为待处理
+            compress_status=(
+                "pending"
+                if watermark_enabled or process_result["file_size"] > TARGET_BYTES
+                else "success"
+            )
         )
 
         db.session.add(video)
@@ -414,15 +433,23 @@ def upload_video():
         except Exception as log_error:
             print(f"记录视频创建日志失败: {str(log_error)}")
 
-        # Every new upload enters the bounded 27 MB preparation lifecycle.
-        add_video_compress_task(
-            video_id=video.id,
-            original_file_path=process_result["original_file_path"],
-            base_save_dir=process_result["base_save_dir"],
-            app_instance=app_instance,
-            watermark_enabled=watermark_enabled,
-            watermark_position=watermark_position,
+        # Only tasks that can change the video enter the async lifecycle.
+        needs_background_processing = (
+            watermark_enabled or process_result["file_size"] > TARGET_BYTES
         )
+        if needs_background_processing:
+            try:
+                add_video_compress_task(
+                    video_id=video.id,
+                    original_file_path=process_result["original_file_path"],
+                    base_save_dir=process_result["base_save_dir"],
+                    app_instance=app_instance,
+                    watermark_enabled=watermark_enabled,
+                    watermark_position=watermark_position,
+                )
+            except Exception as enqueue_error:
+                update_video_process_status(video.id, 'failed', str(enqueue_error))
+                raise
 
         # 返回成功响应
         return jsonify({
@@ -842,5 +869,13 @@ app_instance = None
 def set_app_instance(app):
     global app_instance
     app_instance = app
-    # 初始化处理队列（在应用启动时已初始化）
-    pass
+    # The queue is in-memory; any pending Video rows at a fresh process start
+    # are orphaned because their tasks cannot exist in the new process.
+    try:
+        pending_videos = Video.query.filter_by(compress_status='pending').all()
+        if pending_videos:
+            for video in pending_videos:
+                video.compress_status = 'failed'
+            db.session.commit()
+    except Exception:
+        db.session.rollback()

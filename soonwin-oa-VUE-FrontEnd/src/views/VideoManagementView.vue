@@ -208,6 +208,11 @@
             <span>无缩略图</span>
           </div>
 
+          <div v-if="isVideoProcessing(video)" class="video-processing-overlay">
+            <el-icon class="video-processing-icon"><Refresh /></el-icon>
+            <span>转码中...</span>
+          </div>
+
           <!-- 右下角时长和文件大小 -->
           <div class="video-info-bottom">
             <span v-if="video.duration" class="video-duration">{{ formatDuration(video.duration) }}</span>
@@ -345,19 +350,31 @@
             </template>
           </el-upload>
         </el-form-item>
-        <el-form-item label="水印设置">
-          <el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
-          <div v-if="watermarkEnabled" class="watermark-position-selector">
-            <div class="watermark-position-label">水印位置</div>
-            <el-radio-group v-model="watermarkPosition">
-              <el-radio :value="1">左上</el-radio>
-              <el-radio :value="2">右上</el-radio>
-              <el-radio :value="3">中间</el-radio>
-              <el-radio :value="4">左下</el-radio>
-              <el-radio :value="5">右下</el-radio>
-            </el-radio-group>
+        <div class="watermark-settings-panel">
+          <div class="watermark-settings-toggle">
+            <el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
           </div>
-        </el-form-item>
+          <div v-if="watermarkEnabled" class="watermark-position-selector">
+            <div class="watermark-position-label">选择水印位置</div>
+            <div class="watermark-position-grid">
+              <button
+                v-for="option in watermarkPositionOptions"
+                :key="option.value"
+                type="button"
+                class="watermark-position-card"
+                :class="{ selected: watermarkPosition === option.value }"
+                :aria-pressed="watermarkPosition === option.value"
+                @click="watermarkPosition = option.value"
+              >
+                <img
+                  :src="`${apiBaseUrl}/assets/Media/Videos/water-mark/${option.image}`"
+                  :alt="`水印位置：${option.label}`"
+                />
+                <span>{{ option.label }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
         <!-- 上传进度条 -->
         <el-form-item v-if="uploadProgress > 0" label="上传进度">
           <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
@@ -560,7 +577,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -604,6 +621,13 @@ const uploadForm = ref({
 const uploadFormTags = ref<string[]>([]);
 const watermarkEnabled = ref(false);
 const watermarkPosition = ref(2);
+const watermarkPositionOptions = [
+  { value: 1, label: '左上', image: 'pos-1.jpg' },
+  { value: 2, label: '右上', image: 'pos-2.jpg' },
+  { value: 3, label: '中间', image: 'pos-3.jpg' },
+  { value: 4, label: '左下', image: 'pos-4.jpg' },
+  { value: 5, label: '右下', image: 'pos-5.jpg' }
+];
 const inputValueString = ref('');
 const inputVisible = ref(false);
 const inputValue = ref('');
@@ -785,6 +809,14 @@ const onVideoError = (event: Event) => {
     ElMessage.error('视频加载失败');
   }
 };
+
+const isVideoProcessing = (video: any) => {
+  return ['pending', 'processing', 'compressing'].includes(
+    String(video?.compress_status || '').toLowerCase()
+  );
+};
+
+let processingRefreshTimer: ReturnType<typeof setInterval> | undefined;
 
 // 获取视频列表
 const fetchVideos = async () => {
@@ -1496,6 +1528,17 @@ const isNormalVideoSelected = (videoId: number) => {
 onMounted(() => {
   fetchVideos();
   fetchMachines();
+  processingRefreshTimer = setInterval(() => {
+    if (!showingRecycleBin.value && videos.value.some(isVideoProcessing)) {
+      fetchVideos();
+    }
+  }, 3000);
+});
+
+onBeforeUnmount(() => {
+  if (processingRefreshTimer) {
+    clearInterval(processingRefreshTimer);
+  }
 });
 </script>
 
@@ -1878,6 +1921,115 @@ onMounted(() => {
   min-height: 34px;
 }
 
+/* Logo 水印设置区 */
+.watermark-settings-panel {
+  margin-top: 18px;
+  padding: 16px 18px 18px;
+  border: 1px solid #e4edf8;
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.watermark-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 14px;
+}
+
+.watermark-position-selector {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e7edf5;
+}
+
+.watermark-position-label {
+  margin-bottom: 12px;
+  color: #606266;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.watermark-position-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.watermark-position-card {
+  min-width: 0;
+  padding: 5px;
+  border: 2px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #606266;
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.watermark-position-card:hover {
+  border-color: #a8abb2;
+}
+
+.watermark-position-card.selected {
+  border-color: #409eff;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.12);
+  color: #409eff;
+}
+
+.watermark-position-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.watermark-position-card span {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.watermark-position-card.selected span {
+  color: #409eff;
+  font-weight: 500;
+}
+
+/* 视频后台处理状态 */
+.video-processing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.video-processing-icon {
+  font-size: 28px;
+  animation: video-processing-spin 1.3s linear infinite;
+}
+
+@keyframes video-processing-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* 保留并适配原有标签样式，确保视觉一致 */
 .tag-input-wrapper {
   /* 继承原有容器样式 */
@@ -2097,6 +2249,10 @@ onMounted(() => {
 
   .video-image {
     height: 160px;
+  }
+
+  .watermark-position-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .video-title {

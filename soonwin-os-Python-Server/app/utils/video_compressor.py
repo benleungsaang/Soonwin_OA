@@ -129,13 +129,29 @@ def probe_video(path):
     }
 
 
+def _runtime_backend_root():
+    """Resolve the backend root from the active runtime when available."""
+    try:
+        from flask import has_app_context, current_app
+        if has_app_context():
+            return Path(current_app.root_path).parent
+    except (ImportError, RuntimeError):
+        pass
+    return Path(__file__).resolve().parents[2]
+
+
 def _logo_path():
-    backend_root = Path(__file__).resolve().parents[2]
-    return backend_root / "assets" / "Media" / "Videos" / "Logo.png"
+    backend_root = _runtime_backend_root()
+    return backend_root / "assets" / "Media" / "Videos" / "water-mark" / "Logo.png"
 
 
 def _probe_logo(path):
-    if not path.is_file() or path.is_symlink() or path.stat().st_size <= 0:
+    if (
+        not path.is_file()
+        or path.is_symlink()
+        or path.stat().st_size <= 0
+        or not os.access(path, os.R_OK)
+    ):
         raise RuntimeError("Logo.png is not a regular non-empty file")
 
     result = _run([
@@ -234,7 +250,22 @@ def _target_video_bitrate(duration, has_audio):
     return max(int(TARGET_BYTES * 8 / duration - reserve), MIN_VIDEO_BITRATE)
 
 
-def _build_plan(source, info, watermark_enabled=False, watermark_position=2):
+def _watermark_video_bitrate(source_size, info):
+    """Choose a non-inflating baseline for watermark-only encoding."""
+    source_bitrate = int(info.get("video_bitrate") or 0)
+    if source_bitrate > 0:
+        return source_bitrate
+
+    # When stream bitrate metadata is absent, estimate the source's average
+    # video bitrate from its own size and duration; never use TARGET_BYTES.
+    duration = float(info["duration"])
+    reserve = MUX_RESERVE_BITRATE + (AUDIO_BITRATE if info["has_audio"] else 0)
+    estimated = int(source_size * 8 / duration - reserve)
+    return max(estimated, MIN_VIDEO_BITRATE)
+
+
+def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
+                force_target_size=False):
     source_size = source.stat().st_size
     if source_size <= TARGET_BYTES and not watermark_enabled:
         return {
@@ -244,6 +275,20 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2):
             "source_bytes": source_size,
             "output_bytes": source_size,
             "target_bytes": TARGET_BYTES,
+        }
+
+    if watermark_enabled and source_size <= TARGET_BYTES and not force_target_size:
+        return {
+            "action": "watermark",
+            "source": str(source),
+            "output": str(_output_path_for(source)),
+            "source_bytes": source_size,
+            "target_bytes": TARGET_BYTES,
+            "video_bitrate": _watermark_video_bitrate(source_size, info),
+            "output_fps": info["fps"],
+            "scale_filter": None,
+            "watermark_enabled": True,
+            "watermark_geometry": _logo_geometry(info, watermark_position),
         }
 
     output = _output_path_for(source)
@@ -290,6 +335,48 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2):
     if watermark_enabled:
         plan["watermark_geometry"] = _logo_geometry(info, watermark_position)
     return plan
+
+
+def _ffmpeg_watermark_one_pass(source, output, video_bitrate,
+                                output_fps, source_fps, scale_filter,
+                                has_audio, watermark_geometry):
+    filters = []
+    if scale_filter:
+        filters.append(scale_filter)
+    if output_fps > 0 and source_fps > output_fps + 0.5:
+        filters.append(f"fps={output_fps:g}")
+
+    command = ["ffmpeg", "-y", "-v", "warning", "-i", str(source),
+               "-loop", "1", "-i", watermark_geometry["logo_path"]]
+    source_chain = ",".join(filters) if filters else "null"
+    width = int(watermark_geometry["width"])
+    height = int(watermark_geometry["height"])
+    x = int(watermark_geometry["x"])
+    y = int(watermark_geometry["y"])
+    opacity = float(watermark_geometry["opacity"])
+    logo_chain = (
+        f"[1:v]scale={width}:{height},format=rgba,"
+        f"colorchannelmixer=aa={opacity:.6f}[wm]"
+        if opacity < 1.0 else
+        f"[1:v]scale={width}:{height},format=rgba[wm]"
+    )
+    filter_complex = (
+        f"[0:v]{source_chain}[base];{logo_chain};"
+        f"[base][wm]overlay={x}:{y}:shortest=1:format=auto[vout]"
+    )
+    command += ["-filter_complex", filter_complex, "-map", "[vout]",
+                "-c:v", "libx264", "-b:v", str(video_bitrate),
+                "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                "-shortest"]
+    if has_audio:
+        command += ["-map", "0:a:0?", "-c:a", "aac", "-b:a", "96k"]
+    else:
+        command += ["-an"]
+    command += ["-movflags", "+faststart", str(output)]
+
+    result = _run(command)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg watermark one-pass failed: {result.stderr.strip()}")
 
 
 def _ffmpeg_pass(source, output, pass_number, passlog, video_bitrate,
@@ -398,6 +485,33 @@ def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
                     "output": str(output), "source_bytes": source.stat().st_size,
                     "output_bytes": output.stat().st_size, "target_bytes": TARGET_BYTES,
                 }
+
+            if plan["action"] == "watermark":
+                _ffmpeg_watermark_one_pass(
+                    source, temp, plan["video_bitrate"], plan["output_fps"],
+                    info["fps"], plan["scale_filter"], info["has_audio"],
+                    plan["watermark_geometry"],
+                )
+                if not temp.is_file() or temp.stat().st_size <= 0:
+                    raise RuntimeError("watermark one-pass completed without a non-empty output")
+                one_pass_size = temp.stat().st_size
+                probe_video(temp)
+                if one_pass_size <= TARGET_BYTES:
+                    os.replace(temp, output)
+                    return {
+                        "ok": True, "action": "compressed", "encode_mode": "watermark_one_pass",
+                        "source": str(source), "output": str(output),
+                        "source_bytes": source.stat().st_size, "output_bytes": one_pass_size,
+                        "target_bytes": TARGET_BYTES,
+                    }
+
+                # An unexpectedly oversized one-pass result uses the existing
+                # target-size two-pass plan; no new retry algorithm is added.
+                _cleanup_passlog(passlog)
+                plan = _build_plan(
+                    source, info, watermark_enabled=True,
+                    watermark_position=watermark_position, force_target_size=True,
+                )
 
             bitrate = int(plan["video_bitrate"])
             last_size = None
