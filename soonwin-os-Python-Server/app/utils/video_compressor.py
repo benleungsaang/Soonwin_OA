@@ -267,9 +267,9 @@ def _watermark_video_bitrate(source_size, info):
 
 
 def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
-                force_target_size=False):
+                force_target_size=False, compress_enabled=True):
     source_size = source.stat().st_size
-    if source_size <= TARGET_BYTES and not watermark_enabled:
+    if not compress_enabled and not watermark_enabled:
         return {
             "action": "original",
             "source": str(source),
@@ -279,7 +279,7 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
             "target_bytes": TARGET_BYTES,
         }
 
-    if watermark_enabled and source_size <= TARGET_BYTES and not force_target_size:
+    if watermark_enabled and (not compress_enabled or source_size <= TARGET_BYTES) and not force_target_size:
         return {
             "action": "watermark",
             "source": str(source),
@@ -294,7 +294,7 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
         }
 
     output = _output_path_for(source)
-    if not watermark_enabled and _cache_valid(source, output):
+    if compress_enabled and not watermark_enabled and _cache_valid(source, output):
         return {
             "action": "cached",
             "source": str(source),
@@ -305,6 +305,8 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
         }
 
     bitrate = _target_video_bitrate(info["duration"], info["has_audio"])
+    if source_size <= TARGET_BYTES:
+        bitrate = min(bitrate, _watermark_video_bitrate(source_size, info))
     bitrate_ratio = bitrate / info["video_bitrate"] if info["video_bitrate"] > 0 else 1.0
     output_fps = info["fps"]
     scale_filter = None
@@ -446,7 +448,8 @@ def _cleanup_passlog(passlog):
             pass
 
 
-def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
+def prepare_video(source_path, watermark_enabled=False, watermark_position=2,
+                  compress_enabled=True):
     """Return a validated ``original``, ``compressed``, or ``failed`` result.
 
     Exceptions are converted into a failed result so callers can preserve the
@@ -465,6 +468,7 @@ def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
             info,
             watermark_enabled=bool(watermark_enabled),
             watermark_position=int(watermark_position),
+            compress_enabled=bool(compress_enabled),
         )
         if plan["action"] in ("original", "cached"):
             plan["ok"] = True
@@ -497,10 +501,12 @@ def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
                     raise RuntimeError("watermark one-pass completed without a non-empty output")
                 one_pass_size = temp.stat().st_size
                 probe_video(temp)
-                if one_pass_size <= TARGET_BYTES:
+                if not compress_enabled or one_pass_size <= TARGET_BYTES:
                     os.replace(temp, output)
                     return {
-                        "ok": True, "action": "compressed", "encode_mode": "watermark_one_pass",
+                        "ok": True,
+                        "action": "compressed" if compress_enabled else "watermarked",
+                        "encode_mode": "watermark_one_pass",
                         "source": str(source), "output": str(output),
                         "source_bytes": source.stat().st_size, "output_bytes": one_pass_size,
                         "target_bytes": TARGET_BYTES,
@@ -512,6 +518,7 @@ def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
                 plan = _build_plan(
                     source, info, watermark_enabled=True,
                     watermark_position=watermark_position, force_target_size=True,
+                    compress_enabled=True,
                 )
 
             bitrate = int(plan["video_bitrate"])

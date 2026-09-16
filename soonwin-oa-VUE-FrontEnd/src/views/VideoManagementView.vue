@@ -189,9 +189,28 @@
           />
         </div>
 
-        <!-- 删除按钮（仅在非多选模式且非回收站模式下显示） -->
-        <div v-else-if="!showingRecycleBin && !isMultiSelectMode" class="delete-btn" @click.stop="deleteVideo(video.id)">
-          <el-icon style="margin: 0;"><Delete /></el-icon>
+        <!-- 卡片菜单（仅在非多选模式且非回收站模式下显示） -->
+        <div v-else-if="!showingRecycleBin && !isMultiSelectMode" class="delete-btn" @click.stop>
+          <el-dropdown trigger="click" @command="handleVideoMenuCommand($event, video)">
+            <el-button circle text aria-label="视频操作菜单">
+              <el-icon><MoreFilled /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="delete">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="isAdmin"
+                  command="compress"
+                  :disabled="Boolean(video.compressed_path) || isVideoProcessing(video)"
+                >
+                  <el-icon><VideoPlay /></el-icon>
+                  {{ video.compressed_path ? '已压缩' : isVideoProcessing(video) ? '压缩中' : '压缩' }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
 
         <!-- 视频区域 - 包含标题、分辨率、点击触发详情 -->
@@ -351,6 +370,9 @@
           </el-upload>
         </el-form-item>
         <div class="watermark-settings-panel">
+          <div class="watermark-settings-toggle">
+            <el-checkbox v-model="compressVideoEnabled">压缩视频（默认压缩）</el-checkbox>
+          </div>
           <div class="watermark-settings-toggle">
             <el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
           </div>
@@ -579,7 +601,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft, MoreFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
@@ -591,6 +613,7 @@ import request, {
   createVideo,
   updateVideo,
   deleteVideo as deleteVideoAPI,
+  compressVideo as compressVideoAPI,
   getDeletedVideos,
   physicalDeleteVideos,
   restoreVideos
@@ -620,6 +643,7 @@ const uploadForm = ref({
 
 const uploadFormTags = ref<string[]>([]);
 const watermarkEnabled = ref(false);
+const compressVideoEnabled = ref(true);
 const watermarkPosition = ref(2);
 const watermarkPositionOptions = [
   { value: 1, label: '左上', image: 'pos-1.jpg' },
@@ -987,6 +1011,7 @@ const submitUpload = async () => {
     formData.append('remark', uploadForm.value.remark);
     formData.append('watermark_enabled', String(watermarkEnabled.value));
     formData.append('watermark_position', String(watermarkPosition.value));
+    formData.append('compress_video', String(compressVideoEnabled.value));
 
     // 从token中解析用户信息作为上传者
     const token = localStorage.getItem('oa_token');
@@ -1034,6 +1059,7 @@ const resetUploadForm = () => {
   };
   fileList.value = [];
   watermarkEnabled.value = false;
+  compressVideoEnabled.value = true;
   watermarkPosition.value = 2;
   uploadProgress.value = 0;
 };
@@ -1055,6 +1081,32 @@ const deleteVideo = async (id: number) => {
     if (error !== 'cancel') {
       console.error('删除视频失败:', error);
       ElMessage.error('删除失败');
+    }
+  }
+};
+
+const handleVideoMenuCommand = (command: string, video: any) => {
+  if (command === 'delete') {
+    deleteVideo(video.id);
+  } else if (command === 'compress' && !video.compressed_path && !isVideoProcessing(video)) {
+    compressVideo(video.id);
+  }
+};
+
+const compressVideo = async (video: any) => {
+  try {
+    await ElMessageBox.confirm(`确定要压缩视频“${video.title}”吗？`, '确认压缩', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    await compressVideoAPI(video.id);
+    ElMessage.success('视频已加入压缩队列');
+    fetchVideos();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('压缩视频失败:', error);
+      ElMessage.error('压缩视频失败');
     }
   }
 };

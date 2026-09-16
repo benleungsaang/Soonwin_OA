@@ -184,6 +184,29 @@ def update_video_after_compress(video_id, result):
         if action == "original":
             video.compressed_path = None
             video.file_size = result["source_bytes"]
+        elif action == "watermarked":
+            output_path = result.get("output")
+            if not output_path or not os.path.isfile(output_path):
+                return False
+
+            output_prefix = os.path.splitext(os.path.basename(output_path))[0]
+            output_ext = os.path.splitext(output_path)[1].lstrip('.')
+            thumbnail_result = process_video_with_variants(
+                output_path,
+                UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'],
+                output_prefix,
+                output_ext,
+            )
+            thumbnail_path = thumbnail_result['paths'].get('thumbnail', '')
+            if not thumbnail_path:
+                raise RuntimeError('watermarked video thumbnail regeneration failed')
+
+            video.original_path = os.path.relpath(
+                output_path, UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER']
+            ).replace('\\', '/')
+            video.compressed_path = None
+            video.thumbnail_path = thumbnail_path
+            video.file_size = result["output_bytes"]
         elif action in ("compressed", "cached"):
             output_path = result.get("output")
             if not output_path or not os.path.isfile(output_path):
@@ -355,6 +378,9 @@ def upload_video():
         watermark_enabled = request.form.get('watermark_enabled', 'false').strip().lower() in {
             'true', '1', 'yes', 'on'
         }
+        compress_enabled = request.form.get('compress_video', 'true').strip().lower() in {
+            'true', '1', 'yes', 'on'
+        }
         watermark_position_raw = request.form.get('watermark_position', '2')
         try:
             watermark_position = int(watermark_position_raw)
@@ -365,7 +391,8 @@ def upload_video():
         print(
             f'Uploader: {uploader}, Title: {title}, Tags: {tags}, '
             f'Machine ID: {machine_id}, Remark: {remark}, '
-            f'Watermark: {watermark_enabled}, Position: {watermark_position}'
+            f'Watermark: {watermark_enabled}, Compression: {compress_enabled}, '
+            f'Position: {watermark_position}'
         )
 
         # 验证视频文件
@@ -400,7 +427,7 @@ def upload_video():
             file_size=process_result["file_size"],
             compress_status=(
                 "pending"
-                if watermark_enabled or process_result["file_size"] > TARGET_BYTES
+                if watermark_enabled or compress_enabled
                 else "success"
             )
         )
@@ -435,7 +462,7 @@ def upload_video():
 
         # Only tasks that can change the video enter the async lifecycle.
         needs_background_processing = (
-            watermark_enabled or process_result["file_size"] > TARGET_BYTES
+            watermark_enabled or compress_enabled
         )
         if needs_background_processing:
             try:
@@ -446,6 +473,7 @@ def upload_video():
                     app_instance=app_instance,
                     watermark_enabled=watermark_enabled,
                     watermark_position=watermark_position,
+                    compress_enabled=compress_enabled,
                 )
             except Exception as enqueue_error:
                 update_video_process_status(video.id, 'failed', str(enqueue_error))
@@ -584,6 +612,43 @@ def update_video(video_id):
         db.session.rollback()
         print(f"更新视频失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@video_bp.route('/videos/<int:video_id>/compress', methods=['POST'])
+@route_permission(ROUTE_VIDEO_MANAGE)
+def manually_compress_video(video_id):
+    """Queue compression for an uncompressed video from the admin card menu."""
+    try:
+        if get_user_role_from_token() != 'admin':
+            return jsonify({'success': False, 'message': '仅管理员可以压缩视频'}), 403
+
+        video = Video.query.get(video_id)
+        if not video or video.is_deleted:
+            return jsonify({'success': False, 'message': '视频不存在'}), 404
+        if video.compressed_path:
+            return jsonify({'success': False, 'message': '视频已压缩'}), 400
+        if video.compress_status in ('pending', 'processing', 'compressing'):
+            return jsonify({'success': False, 'message': '视频正在处理中'}), 400
+
+        source_path = os.path.join(
+            UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'], video.original_path or ''
+        )
+        if not os.path.isfile(source_path):
+            return jsonify({'success': False, 'message': '待压缩视频文件不存在'}), 404
+
+        video.compress_status = 'pending'
+        db.session.commit()
+        add_video_compress_task(
+            video_id=video.id,
+            original_file_path=source_path,
+            base_save_dir=UPLOAD_CONFIG['VIDEO_UPLOAD_FOLDER'],
+            app_instance=app_instance,
+            compress_enabled=True,
+        )
+        return jsonify({'success': True, 'message': '视频已加入压缩队列'})
+    except Exception as error:
+        db.session.rollback()
+        print(f"手动压缩视频失败: {error}")
+        return jsonify({'success': False, 'message': str(error)}), 500
 
 @video_bp.route('/videos/<int:video_id>', methods=['DELETE'])
 @route_permission(ROUTE_VIDEO)

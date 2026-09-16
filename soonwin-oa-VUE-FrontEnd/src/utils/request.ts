@@ -497,6 +497,7 @@ export const createVideo = (
 export const updateVideo = (videoId: number, data: any) => request.put(`/api/videos/${videoId}`, data);
 
 export const deleteVideo = (videoId: number) => request.delete(`/api/videos/${videoId}`);
+export const compressVideo = (videoId: number) => request.post(`/api/videos/${videoId}/compress`);
 
 export const getMachinesForVideos = () => request.get('/api/videos/machines');
 

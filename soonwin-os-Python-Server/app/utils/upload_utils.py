@@ -747,6 +747,7 @@ def add_video_compress_task(
     app_instance,
     watermark_enabled=False,
     watermark_position=2,
+    compress_enabled=True,
 ):
     """Queue every new upload for the bounded 27 MB preparation lifecycle."""
     def update_in_context(callback, *args):
@@ -762,6 +763,7 @@ def add_video_compress_task(
         app_instance,
         watermark_enabled,
         watermark_position,
+        compress_enabled,
     ):
         from ..routes.video_routes import update_video_after_compress, update_video_process_status
 
@@ -773,6 +775,7 @@ def add_video_compress_task(
                 original_file_path,
                 watermark_enabled=watermark_enabled,
                 watermark_position=watermark_position,
+                compress_enabled=compress_enabled,
             )
             if result.get('action') == 'failed':
                 update_in_context(update_video_process_status, video_id, 'failed', result.get('error'))
@@ -784,7 +787,7 @@ def add_video_compress_task(
                 update_in_context(update_video_process_status, video_id, 'failed', 'compression result database commit failed')
                 return
 
-            if result.get('action') in ('compressed', 'cached'):
+            if result.get('action') in ('compressed', 'cached', 'watermarked'):
                 try:
                     os.remove(original_file_path)
                     print(f"已删除原视频文件: {original_file_path}")
@@ -809,6 +812,7 @@ def add_video_compress_task(
         app_instance=app_instance,
         watermark_enabled=watermark_enabled,
         watermark_position=watermark_position,
+        compress_enabled=compress_enabled,
     )
 
 def get_processing_queue():

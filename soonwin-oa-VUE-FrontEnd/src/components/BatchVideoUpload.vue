@@ -26,6 +26,10 @@
       </template>
     </el-upload>
 
+    <div class="batch-upload-options">
+      <el-checkbox v-model="compressVideoEnabled">压缩视频（默认压缩）</el-checkbox>
+    </div>
+
     <!-- 文件列表 -->
     <div v-if="fileList.length > 0" class="file-list-section">
       <div class="section-header">
@@ -204,6 +208,7 @@ const isMatching = ref(false);
 const isUploading = ref(false);
 const isUploadingDirectly = ref(false);
 const uploadProgressMap = ref<Record<string, number>>({});
+const compressVideoEnabled = ref(true);
 
 // 计算属性
 const hasVideoAndJson = computed(() => {
@@ -481,6 +486,7 @@ const batchUpload = async () => {
           }
         }
         formData.append('uploader', uploader);
+        formData.append('compress_video', String(compressVideoEnabled.value));
 
         // 使用createVideo函数支持进度回调
         await createVideo(formData, (progressEvent) => {
@@ -600,6 +606,7 @@ const performDirectUpload = async (videoFiles: any[]) => {
           }
         }
         formData.append('uploader', uploader);
+        formData.append('compress_video', String(compressVideoEnabled.value));
 
         // 使用createVideo函数支持进度回调
         await createVideo(formData, (progressEvent) => {
