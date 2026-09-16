@@ -50,9 +50,9 @@ def _powershell_json(script: str) -> Any:
         return None
 
 
-def _list_listening_pids() -> list[int]:
+def _listening_pids(port: int) -> list[int]:
     value = _powershell_json(
-        "Get-NetTCPConnection -State Listen -LocalPort 5000 "
+        f"Get-NetTCPConnection -State Listen -LocalPort {port} "
         "-ErrorAction SilentlyContinue | "
         "Select-Object -ExpandProperty OwningProcess | "
         "Sort-Object -Unique | ConvertTo-Json -Compress"
@@ -61,6 +61,10 @@ def _list_listening_pids() -> list[int]:
         return []
     values = value if isinstance(value, list) else [value]
     return [int(item) for item in values if str(item).isdigit()]
+
+
+def _list_listening_pids() -> list[int]:
+    return _listening_pids(5000)
 
 
 def _process_info(pid: int) -> dict[str, Any] | None:
