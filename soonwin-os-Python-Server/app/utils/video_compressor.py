@@ -4,12 +4,12 @@ This module owns the 27,000,000-byte delivery policy used for newly uploaded
 videos.  It never overwrites or removes the source file.
 """
 
-import fcntl
 import json
 import math
 import os
 import subprocess
 import time
+from filelock import FileLock
 from pathlib import Path
 
 TARGET_BYTES = 27_000_000
@@ -477,8 +477,7 @@ def prepare_video(source_path, watermark_enabled=False, watermark_position=2):
     start = time.monotonic()
 
     try:
-        with lock_path.open("a+") as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        with FileLock(str(lock_path)):
             if not watermark_enabled and _cache_valid(source, output):
                 return {
                     "ok": True, "action": "cached", "source": str(source),
