@@ -130,3 +130,6 @@ soonwin-os-Python-Server/.history/
 # 货柜排布/ 目录是独立 git 仓库，主仓库不追踪其内容
 # 它的 Container.html 会按需复制到 soonwin-oa-VUE-FrontEnd/public/
 货柜排布/
+# 数据库 .bak 备份文件
+*.db.*.bak
+*.db.bak
