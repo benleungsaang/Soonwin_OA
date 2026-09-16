@@ -44,15 +44,6 @@
         <div class="header-actions">
           <span v-if="hasToken && userRole === 'admin' && appVersion" class="version-badge" :title="'点击查看版本记录'" @click="showVersionDialog = true">v{{ appVersion }}</span>
           <el-button
-            class="restart-btn"
-            type="warning"
-            @click="handleRestart"
-            :loading="restarting"
-            v-if="hasToken && userRole === 'admin'"
-          >
-            <el-icon><RefreshRight /></el-icon><span class="btn-text">重启服务</span>
-          </el-button>
-          <el-button
             class="module-manage-btn"
             type="primary"
             @click="openModuleManageDialog"
@@ -238,7 +229,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, RefreshRight, Box, Setting, Tickets
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, Box, Setting, Tickets
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -274,18 +265,6 @@ async function loadAppVersion() {
     const data = await res.json();
     if (data?.version) appVersion.value = data.version;
   } catch { /* ignore */ }
-}
-const restarting = ref(false);
-async function handleRestart() {
-  try {
-    await ElMessageBox.confirm('确定要重启服务器 OA 服务吗？', '确认重启', { type: 'warning' });
-    restarting.value = true;
-    const res = await fetch('/api/admin/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'SoonwinOA_Restart_Key_2026' }) });
-    const data = await res.json();
-    if (data.success) ElMessage.success(data.msg);
-    else ElMessage.error(data.msg);
-  } catch { /* cancelled */ }
-  finally { restarting.value = false }
 }
 // 权限是否已加载
 const permissionsLoaded = ref(false);
