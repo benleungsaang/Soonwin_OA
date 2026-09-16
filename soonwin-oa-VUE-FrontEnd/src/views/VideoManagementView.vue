@@ -345,6 +345,19 @@
             </template>
           </el-upload>
         </el-form-item>
+        <el-form-item label="水印设置">
+          <el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
+          <div v-if="watermarkEnabled" class="watermark-position-selector">
+            <div class="watermark-position-label">水印位置</div>
+            <el-radio-group v-model="watermarkPosition">
+              <el-radio :value="1">左上</el-radio>
+              <el-radio :value="2">右上</el-radio>
+              <el-radio :value="3">中间</el-radio>
+              <el-radio :value="4">左下</el-radio>
+              <el-radio :value="5">右下</el-radio>
+            </el-radio-group>
+          </div>
+        </el-form-item>
         <!-- 上传进度条 -->
         <el-form-item v-if="uploadProgress > 0" label="上传进度">
           <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
@@ -589,6 +602,8 @@ const uploadForm = ref({
 });
 
 const uploadFormTags = ref<string[]>([]);
+const watermarkEnabled = ref(false);
+const watermarkPosition = ref(2);
 const inputValueString = ref('');
 const inputVisible = ref(false);
 const inputValue = ref('');
@@ -938,6 +953,8 @@ const submitUpload = async () => {
     formData.append('tags', uploadForm.value.tags);
     formData.append('machine_id', uploadForm.value.machineId);
     formData.append('remark', uploadForm.value.remark);
+    formData.append('watermark_enabled', String(watermarkEnabled.value));
+    formData.append('watermark_position', String(watermarkPosition.value));
 
     // 从token中解析用户信息作为上传者
     const token = localStorage.getItem('oa_token');
@@ -984,6 +1001,8 @@ const resetUploadForm = () => {
     file: null
   };
   fileList.value = [];
+  watermarkEnabled.value = false;
+  watermarkPosition.value = 2;
   uploadProgress.value = 0;
 };
 

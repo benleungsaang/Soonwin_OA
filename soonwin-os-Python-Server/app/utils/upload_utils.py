@@ -740,7 +740,14 @@ def _deprecated_add_video_compress_task(video_id, original_file_path, base_save_
         app_instance=app_instance
     )
 
-def add_video_compress_task(video_id, original_file_path, base_save_dir, app_instance):
+def add_video_compress_task(
+    video_id,
+    original_file_path,
+    base_save_dir,
+    app_instance,
+    watermark_enabled=False,
+    watermark_position=2,
+):
     """Queue every new upload for the bounded 27 MB preparation lifecycle."""
     def update_in_context(callback, *args):
         if app_instance:
@@ -748,10 +755,21 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
                 return callback(*args)
         return callback(*args)
 
-    def compress_video_handler(video_id, original_file_path, base_save_dir, app_instance):
+    def compress_video_handler(
+        video_id,
+        original_file_path,
+        base_save_dir,
+        app_instance,
+        watermark_enabled,
+        watermark_position,
+    ):
         from ..routes.video_routes import update_video_after_compress, update_video_process_status
 
-        result = prepare_video(original_file_path)
+        result = prepare_video(
+            original_file_path,
+            watermark_enabled=watermark_enabled,
+            watermark_position=watermark_position,
+        )
         if result.get('action') == 'failed':
             update_in_context(update_video_process_status, video_id, 'failed', result.get('error'))
             return
@@ -784,6 +802,8 @@ def add_video_compress_task(video_id, original_file_path, base_save_dir, app_ins
         original_file_path=original_file_path,
         base_save_dir=base_save_dir,
         app_instance=app_instance,
+        watermark_enabled=watermark_enabled,
+        watermark_position=watermark_position,
     )
 
 def get_processing_queue():

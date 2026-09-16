@@ -337,7 +337,21 @@ def upload_video():
         tags = request.form.get('tags', '')
         machine_id = request.form.get('machine_id', '')  # 机器ID是型号字符串，不是整数
         remark = request.form.get('remark', '')
-        print(f'Uploader: {uploader}, Title: {title}, Tags: {tags}, Machine ID: {machine_id}, Remark: {remark}')
+        watermark_enabled = request.form.get('watermark_enabled', 'false').strip().lower() in {
+            'true', '1', 'yes', 'on'
+        }
+        watermark_position_raw = request.form.get('watermark_position', '2')
+        try:
+            watermark_position = int(watermark_position_raw)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': '水印位置无效'}), 400
+        if watermark_position not in {1, 2, 3, 4, 5}:
+            return jsonify({'success': False, 'message': '水印位置必须为1到5'}), 400
+        print(
+            f'Uploader: {uploader}, Title: {title}, Tags: {tags}, '
+            f'Machine ID: {machine_id}, Remark: {remark}, '
+            f'Watermark: {watermark_enabled}, Position: {watermark_position}'
+        )
 
         # 验证视频文件
         is_valid, msg = validate_file_type(file, UPLOAD_CONFIG['VIDEO_ALLOWED_EXTENSIONS'])
@@ -406,6 +420,8 @@ def upload_video():
             original_file_path=process_result["original_file_path"],
             base_save_dir=process_result["base_save_dir"],
             app_instance=app_instance,
+            watermark_enabled=watermark_enabled,
+            watermark_position=watermark_position,
         )
 
         # 返回成功响应
