@@ -119,6 +119,15 @@ nginx_pid/
 # 取反保留：Python后端项目的assets/TemplateImg目录（及内部所有内容）
 !assets/TemplateImg/
 !assets/TemplateImg/**/*
+# 取反保留：视频水印图片（Docker 与本地视频处理均依赖）
+!soonwin-os-Python-Server/assets/
+soonwin-os-Python-Server/assets/*
+!soonwin-os-Python-Server/assets/Media/
+soonwin-os-Python-Server/assets/Media/*
+!soonwin-os-Python-Server/assets/Media/Videos/
+soonwin-os-Python-Server/assets/Media/Videos/*
+!soonwin-os-Python-Server/assets/Media/Videos/water-mark/
+!soonwin-os-Python-Server/assets/Media/Videos/water-mark/**
 
 # ===================== 补充：忽略历史记录目录 =====================
 # Vue前端项目历史记录
