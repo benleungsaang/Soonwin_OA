@@ -46,6 +46,8 @@ class OATray:
         self.last_health_check: datetime | None = None
         self.last_backup: BackupResult | None = None
         self._tray_mutex = None
+        self._busy_animation_stop = threading.Event()
+        self._busy_animation_thread: threading.Thread | None = None
 
     def _image(self, color: str) -> Image.Image:
         image = Image.new("RGB", (64, 64), "white")
@@ -53,9 +55,41 @@ class OATray:
         draw.ellipse((10, 10, 54, 54), fill=color, outline="#333333", width=2)
         return image
 
+    def _start_busy_animation(self) -> None:
+        if self._busy_animation_thread and self._busy_animation_thread.is_alive():
+            return
+        self._busy_animation_stop.clear()
+        self._busy_animation_thread = threading.Thread(
+            target=self._busy_animation_loop,
+            name="oa-tray-busy-animation",
+            daemon=True,
+        )
+        self._busy_animation_thread.start()
+
+    def _stop_busy_animation(self) -> None:
+        self._busy_animation_stop.set()
+        thread = self._busy_animation_thread
+        self._busy_animation_thread = None
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=1.2)
+
+    def _busy_animation_loop(self) -> None:
+        colors = ("#f2b233", "#ffd966")
+        index = 0
+        while not self._busy_animation_stop.wait(0.85):
+            if not self.icon or not self.busy:
+                continue
+            self.icon.icon = self._image(colors[index])
+            self.icon.update_menu()
+            index = 1 - index
+
     def _set_status(self, status: str, version: str = "") -> None:
         self.status = status
         self.version = version
+        if status in {"Restarting", "Building Frontend"}:
+            self._start_busy_animation()
+        else:
+            self._stop_busy_animation()
         if self.icon:
             color = {
                 "Running": "#22aa44",
@@ -225,6 +259,34 @@ class OATray:
         )
         return f"状态：OA {self.status}" + (f" | {self.version}" if self.version else "")
 
+    def version_text(self, item: Any) -> str:
+        return f"Version: {self.version or 'None'}"
+
+    def health_text(self, item: Any) -> str:
+        value = self.last_health_check.strftime("%H:%M") if self.last_health_check else "None"
+        return f"Last check: {value}"
+
+    def _build_menu(self) -> pystray.Menu:
+        return pystray.Menu(
+            pystray.MenuItem(self.status_text, None, enabled=False),
+            pystray.MenuItem(self.version_text, None, enabled=False),
+            pystray.MenuItem(self.health_text, None, enabled=False),
+            pystray.MenuItem(self.last_backup_text, None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("\u6253\u5f00 OA", lambda icon, item: webbrowser.open("http://127.0.0.1:5183/")),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("\u91cd\u542f Backend", self.restart),
+            pystray.MenuItem("\u6784\u5efa Frontend", self.build),
+            pystray.MenuItem("\u7acb\u5373\u5907\u4efd\u6570\u636e\u5e93", self.backup),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("\u6253\u5f00 Backend \u65e5\u5fd7", lambda icon, item: self._open_file(BACKEND_LOG)),
+            pystray.MenuItem("\u6253\u5f00 Frontend Build \u65e5\u5fd7", lambda icon, item: self._open_file(FRONTEND_LOG)),
+            pystray.MenuItem("\u6253\u5f00 Nginx Error \u65e5\u5fd7", lambda icon, item: self._open_file(NGINX_ERROR_LOG)),
+            pystray.MenuItem("\u6253\u5f00\u5907\u4efd\u76ee\u5f55", lambda icon, item: self._open_file(self._backup_dir())),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("\u9000\u51fa\u6258\u76d8", lambda icon, item: self._stop_tray()),
+        )
+
     def run(self) -> None:
         if not self._acquire_single_instance():
             return
@@ -246,10 +308,13 @@ class OATray:
                 pystray.MenuItem("退出托盘", lambda icon, item: self._stop_tray()),
             ),
         )
+        self.icon.menu = self._build_menu()
+        self.icon.update_menu()
         threading.Thread(target=self._status_loop, daemon=True).start()
         threading.Thread(target=self._backup_loop, daemon=True).start()
         self.icon.run()
         self._stop_event.set()
+        self._stop_busy_animation()
 
     @staticmethod
     def _backup_dir() -> Path:
@@ -257,6 +322,7 @@ class OATray:
 
     def _stop_tray(self) -> None:
         self._stop_event.set()
+        self._stop_busy_animation()
         if self.icon:
             self.icon.stop()
 

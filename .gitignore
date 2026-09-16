@@ -142,3 +142,6 @@ soonwin-os-Python-Server/.history/
 # 数据库 .bak 备份文件
 *.db.*.bak
 *.db.bak
+
+# Windows 临时 OA 数据库备份（不入库）
+/windows-backup/
