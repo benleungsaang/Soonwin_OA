@@ -139,6 +139,11 @@ class OATray:
 
     def last_backup_text(self, item: Any) -> str:
         if self.last_backup is None:
+            return "Last backup: None"
+        if self.last_backup.success:
+            return "Last backup: " + self.last_backup.finished_at.strftime("%Y-%m-%d %H:%M") + " \u2713"
+        return "Last backup: Failed"
+        if self.last_backup is None:
             value = "None"
         elif self.last_backup.success:
             value = self.last_backup.finished_at.strftime("%Y-%m-%d %H:%M") + " ✓"
@@ -212,6 +217,12 @@ class OATray:
         return True
 
     def status_text(self, item: Any) -> str:
+        last_check = self.last_health_check.strftime("%H:%M") if self.last_health_check else "None"
+        return (
+            f"OA {self.status}"
+            + (f" | v{self.version}" if self.version else "")
+            + f" | Last check: {last_check}"
+        )
         return f"状态：OA {self.status}" + (f" | {self.version}" if self.version else "")
 
     def run(self) -> None:

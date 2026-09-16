@@ -7,7 +7,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 from oa_backend_controller import (
     BACKEND_URL,
@@ -25,7 +24,6 @@ NGINX_DIR = ROOT_DIR / "nginx-1.28.1"
 NGINX_EXE = NGINX_DIR / "nginx.exe"
 NGINX_CONF = NGINX_DIR / "conf" / "nginx.conf"
 NGINX_LOG = ROOT_DIR / "windows-tools" / "nginx-startup.log"
-NGINX_URL = "http://127.0.0.1:5183/"
 TRAY_SCRIPT = ROOT_DIR / "windows-tools" / "oa_tray.py"
 
 
@@ -113,9 +111,26 @@ def _tray_executable() -> str:
     return str(pythonw if pythonw.exists() else current)
 
 
+def _tray_is_running() -> bool:
+    if os.name != "nt":
+        return False
+    import ctypes
+
+    synchronize = 0x00100000
+    handle = ctypes.windll.kernel32.OpenMutexW(
+        synchronize, False, "Global\\SoonwinOA_Tray_SingleInstance"
+    )
+    if not handle:
+        return False
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return True
+
+
 def launch_tray() -> tuple[bool, str]:
     if not TRAY_SCRIPT.exists():
         return False, f"Tray script missing: {TRAY_SCRIPT}"
+    if _tray_is_running():
+        return True, "Tray already running; no second Tray launched"
     try:
         subprocess.Popen(
             [_tray_executable(), str(TRAY_SCRIPT)],

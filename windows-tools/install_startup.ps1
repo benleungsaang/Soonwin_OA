@@ -7,10 +7,10 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $startupDir = [Environment]::GetFolderPath('Startup')
 $entryPath = Join-Path $startupDir 'SoonwinOA-Startup.vbs'
 $launcher = Join-Path $repoRoot 'windows-tools\oa_startup.py'
-$launcherEscaped = $launcher.Replace('\', '\\').Replace('"', '""')
+$launcherEscaped = $launcher.Replace('"', '""')
 $content = @"
 Set shell = CreateObject("WScript.Shell")
-shell.Run "py -3 `"$launcherEscaped`"", 0, False
+shell.Run "py -3 ""$launcherEscaped""", 0, False
 "@
 
 if ($WhatIfOnly) {
