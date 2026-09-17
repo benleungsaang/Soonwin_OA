@@ -56,6 +56,14 @@ class OATray:
         draw.ellipse((10, 10, 54, 54), fill=color, outline="#333333", width=2)
         return image
 
+    def _notify(self, message: str, title: str = "Soonwin OA") -> None:
+        if not self.icon:
+            return
+        try:
+            self.icon.notify(message, title)
+        except Exception:
+            pass
+
     def _start_busy_animation(self) -> None:
         if self._busy_animation_thread and self._busy_animation_thread.is_alive():
             return
@@ -75,7 +83,7 @@ class OATray:
             thread.join(timeout=1.2)
 
     def _busy_animation_loop(self) -> None:
-        colors = ("#f2b233", "#ffd966")
+        colors = ("#c77700", "#ffe066")
         index = 0
         while not self._busy_animation_stop.wait(0.85):
             if not self.icon or not self.busy:
@@ -168,6 +176,11 @@ class OATray:
         try:
             result = restart_backend()
             self._set_status("Running" if result.get("success") else "Offline")
+            self._notify(
+                "Backend restarted successfully"
+                if result.get("success")
+                else f"Backend restart failed: {result.get('message', 'unknown error')}"
+            )
         finally:
             self.busy = False
             self._operation_lock.release()
@@ -183,6 +196,12 @@ class OATray:
         try:
             self.last_backup = backup_database()
             self._set_status(self.status)
+            if not scheduled:
+                self._notify(
+                    "Database backup completed"
+                    if self.last_backup.success
+                    else f"Database backup failed: {self.last_backup.message}"
+                )
         finally:
             self._backup_lock.release()
 
@@ -214,6 +233,8 @@ class OATray:
 
     def _run_build(self) -> None:
         FRONTEND_LOG.parent.mkdir(parents=True, exist_ok=True)
+        success = False
+        failure_message = "unknown error"
         try:
             with FRONTEND_LOG.open("a", encoding="utf-8", buffering=1) as log_handle:
                 log_handle.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] build:prod started\n")
@@ -230,10 +251,19 @@ class OATray:
                     )
                     exit_code = process.wait()
                     log_handle.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] exit_code={exit_code}\n")
+                    success = exit_code == 0
+                    if not success:
+                        failure_message = f"exit code {exit_code}"
                     self._set_status("Running" if exit_code == 0 else "Offline")
                 except Exception as exc:
+                    failure_message = str(exc)
                     log_handle.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] build failed: {exc}\n")
                     self._set_status("Offline")
+            self._notify(
+                "Frontend build completed"
+                if success
+                else f"Frontend build failed: {failure_message}"
+            )
         finally:
             self.busy = False
             self._operation_lock.release()
