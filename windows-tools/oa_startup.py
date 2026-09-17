@@ -9,14 +9,11 @@ import time
 from pathlib import Path
 
 from oa_backend_controller import (
-    BACKEND_URL,
     ROOT_DIR,
-    _http_json,
-    _list_listening_pids,
+    _listening_pids,
     _process_info,
     _hidden_creation_kwargs,
-    _start_waitress,
-    find_project_waitress,
+    start_backend,
 )
 
 
@@ -83,17 +80,8 @@ def _start_project_nginx() -> tuple[bool, str]:
 
 
 def ensure_backend() -> tuple[bool, str]:
-    pid, reason = find_project_waitress()
-    if pid is not None:
-        healthy, detail = _http_json(BACKEND_URL, 3)
-        return (True, f"Backend already healthy PID={pid}") if healthy else (
-            False,
-            f"project Waitress PID={pid} is not healthy; no automatic restart: {detail}",
-        )
-    if _listening_pids(5000):
-        return False, f"port 5000 ownership unknown: {reason}"
-    started, message = _start_waitress()
-    return started, message
+    result = start_backend()
+    return bool(result.get("success")), str(result.get("message", "Backend start failed"))
 
 
 def ensure_nginx() -> tuple[bool, str]:

@@ -48,6 +48,7 @@ class OATray:
         self._tray_mutex = None
         self._busy_animation_stop = threading.Event()
         self._busy_animation_thread: threading.Thread | None = None
+        self._last_menu_signature: tuple[str, str, str] | None = None
 
     def _image(self, color: str) -> Image.Image:
         image = Image.new("RGB", (64, 64), "white")
@@ -80,8 +81,25 @@ class OATray:
             if not self.icon or not self.busy:
                 continue
             self.icon.icon = self._image(colors[index])
-            self.icon.update_menu()
             index = 1 - index
+
+    def _menu_signature(self) -> tuple[str, str, str]:
+        if self.last_backup is None:
+            backup_state = "None"
+        elif self.last_backup.success:
+            backup_state = self.last_backup.finished_at.strftime("%Y-%m-%d %H:%M")
+        else:
+            backup_state = "Failed"
+        return self.status, self.version, backup_state
+
+    def _update_menu_if_needed(self) -> None:
+        if not self.icon:
+            return
+        signature = self._menu_signature()
+        if signature == self._last_menu_signature:
+            return
+        self._last_menu_signature = signature
+        self.icon.update_menu()
 
     def _set_status(self, status: str, version: str = "") -> None:
         self.status = status
@@ -110,7 +128,7 @@ class OATray:
                 + (f" · v{version}" if version else "")
                 + f"\nLast check: {last_check}\nLast backup: {last_backup}"
             )
-            self.icon.update_menu()
+            self._update_menu_if_needed()
 
     def _health_check(self) -> tuple[bool, str]:
         try:

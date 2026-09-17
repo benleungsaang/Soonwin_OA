@@ -141,7 +141,7 @@ def find_project_waitress() -> tuple[int | None, str]:
 
 
 def _port_is_free() -> bool:
-    return not _listening_pids()
+    return not _listening_pids(5000)
 
 
 def _wait_until(predicate, timeout: float, interval: float = 0.25) -> bool:
@@ -239,6 +239,32 @@ def _start_waitress() -> tuple[bool, str]:
     if not _wait_until(lambda: _http_json(BACKEND_URL, 1.5)[0], 20):
         return False, "new Waitress did not return HTTP 200 on 5000/api/version"
     return True, f"new Waitress PID {process.pid} is healthy"
+
+
+def start_backend() -> dict[str, Any]:
+    """Start the project Waitress only when port 5000 is available."""
+    _log("backend start requested")
+    pid, ownership = find_project_waitress()
+    if pid is not None:
+        healthy, detail = _http_json(BACKEND_URL, 3.0)
+        if healthy:
+            message = f"Backend already healthy PID={pid}"
+            _log(message)
+            return {"success": True, "status": "already_running", "message": message}
+        message = f"project Waitress PID={pid} is not healthy; no automatic restart: {detail}"
+        _log(f"FAILED: {message}")
+        return {"success": False, "status": "already_running_unhealthy", "message": message}
+
+    if _listening_pids(5000):
+        message = f"FAILED / ownership unknown: {ownership}"
+        _log(message)
+        return {"success": False, "status": "ownership_unknown", "message": message}
+
+    started, message = _start_waitress()
+    status = "started" if started else "start_failed"
+    if not started:
+        _log(f"FAILED: {message}")
+    return {"success": started, "status": status, "message": message}
 
 
 def restart_backend() -> dict[str, Any]:
