@@ -19,5 +19,5 @@ if ($WhatIfOnly) {
     exit 0
 }
 
-Set-Content -LiteralPath $entryPath -Value $content -Encoding UTF8
+[IO.File]::WriteAllText($entryPath, $content, [Text.Encoding]::Unicode)
 Write-Output "Created user Startup entry: $entryPath"
