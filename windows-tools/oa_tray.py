@@ -49,6 +49,13 @@ class OATray:
         self._busy_animation_stop = threading.Event()
         self._busy_animation_thread: threading.Thread | None = None
         self._last_menu_signature: tuple[str, str, str] | None = None
+        self._status_colors = {
+            "Checking": ("#455A64", "#CFD8DC"),
+            "Running": ("#00C853", "#B9F6CA"),
+            "Offline": ("#D50000", "#FFCDD2"),
+            "Restarting": ("#FF6D00", "#FFF176"),
+            "Building Frontend": ("#FF6D00", "#FFF176"),
+        }
 
     def _image(self, color: str) -> Image.Image:
         image = Image.new("RGB", (64, 64), "white")
@@ -83,11 +90,11 @@ class OATray:
             thread.join(timeout=1.2)
 
     def _busy_animation_loop(self) -> None:
-        colors = ("#c77700", "#ffe066")
         index = 0
-        while not self._busy_animation_stop.wait(0.85):
-            if not self.icon or not self.busy:
+        while not self._busy_animation_stop.wait(0.65):
+            if not self.icon:
                 continue
+            colors = self._status_colors.get(self.status, ("#424242", "#E0E0E0"))
             self.icon.icon = self._image(colors[index])
             index = 1 - index
 
@@ -112,18 +119,10 @@ class OATray:
     def _set_status(self, status: str, version: str = "") -> None:
         self.status = status
         self.version = version
-        if status in {"Restarting", "Building Frontend"}:
-            self._start_busy_animation()
-        else:
-            self._stop_busy_animation()
+        self._start_busy_animation()
         if self.icon:
-            color = {
-                "Running": "#22aa44",
-                "Offline": "#cc3333",
-                "Restarting": "#e09b20",
-                "Building Frontend": "#e09b20",
-            }.get(status, "#777777")
-            self.icon.icon = self._image(color)
+            colors = self._status_colors.get(status, ("#424242", "#E0E0E0"))
+            self.icon.icon = self._image(colors[0])
             last_check = self.last_health_check.strftime("%H:%M") if self.last_health_check else "None"
             if self.last_backup is None:
                 last_backup = "None"
@@ -358,6 +357,7 @@ class OATray:
         )
         self.icon.menu = self._build_menu()
         self.icon.update_menu()
+        self._start_busy_animation()
         threading.Thread(target=self._status_loop, daemon=True).start()
         threading.Thread(target=self._backup_loop, daemon=True).start()
         self.icon.run()
