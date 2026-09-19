@@ -91,7 +91,10 @@ class OATray:
 
     def _busy_animation_loop(self) -> None:
         index = 0
-        while not self._busy_animation_stop.wait(0.65):
+        while True:
+            interval = 1.2 if self.status == "Running" else 0.65
+            if self._busy_animation_stop.wait(interval):
+                break
             if not self.icon:
                 continue
             colors = self._status_colors.get(self.status, ("#424242", "#E0E0E0"))
