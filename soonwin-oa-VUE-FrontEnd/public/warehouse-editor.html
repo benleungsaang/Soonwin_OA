@@ -461,6 +461,7 @@ function redo(){if(!future.length)return;undoStack.push(snapshot());restore(futu
 function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
 function applyView(){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo()}
 function fit(){
+ if(!floor||!stage)return;
  const vw=$('viewport').clientWidth,vh=$('viewport').clientHeight,margin=100;
  scale=Math.min((vw-margin*2)/floor.width,(vh-margin*2)/floor.length);
  origin={x:(vw-floor.width*scale)/2,y:(vh-floor.length*scale)/2+12};
@@ -616,6 +617,7 @@ function scrollSelectedObjectIntoView(){
  requestAnimationFrame(()=>document.querySelector('.object-item.selected')?.scrollIntoView({block:'nearest'}));
 }
 function renderList(){
+ if(!floor)return;
  if(objectMode){renderObjectList();return}
  const q=$('searchInput').value.trim().toLowerCase(), own=$('cargoList'), other=$('otherCargoList');
  own.innerHTML=''; other.innerHTML='';
@@ -644,6 +646,7 @@ function renderList(){
 }
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function renderInfo(){
+ if(!floor)return;
  $('floorSummary').textContent=floor.name;
  $('floorSizeStat').textContent=`${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm`;
  $('floorGridStat').textContent=`${floor.cols} × ${floor.rows}`;
@@ -658,6 +661,7 @@ function columnGroupKey(o){
  return JSON.stringify({w:o.w,h:o.h,type:o.type,pattern:o.pattern||'solid',blocks:o.blocks!==false,showText:!!o.showText,color:o.color||'#687386',rotation:o.rotation||0});
 }
 function renderObjectList(){
+ if(!floor)return;
  const q=$('searchInput').value.trim().toLowerCase(),list=$('cargoList');list.innerHTML='';
  const filtered=floor.objects.filter(o=>!q||[o.name,o.type].join(' ').toLowerCase().includes(q));
  const groups=[],columnMap=new Map();
@@ -732,7 +736,7 @@ function addColumns(){
  pushHistory();const stamp=Date.now();points.forEach((p,i)=>floor.objects.push({id:'col'+stamp+'_'+i,name:'柱 '+(floor.objects.length+1),w,h,x:p.cx-w/2,y:p.cy-h/2,type:'COLUMN',pattern:'solid',blocks:true,showText:false,color:'#687386'}));
  setDirty(true);$('columnsModal').classList.remove('open');renderAll()
 }
-function renderAll(){document.title=`${floor.name} - 库存平面图`;$('floorMapCaption').textContent=`${floor.name} - 库存平面图`;if(objLayer)objLayer.listening(objectMode);if(cargoLayer)cargoLayer.listening(!objectMode);drawGrid();drawObjects();if(objectMode){cargoLayer.destroyChildren();cargoLayer.batchDraw();renderObjectList();$('selectionInfo').style.display='none'}else{drawCargos();renderList();renderInfo()}updateButtons()}
+function renderAll(){if(!floor)return;document.title=`${floor.name} - 库存平面图`;$('floorMapCaption').textContent=`${floor.name} - 库存平面图`;if(objLayer)objLayer.listening(objectMode);if(cargoLayer)cargoLayer.listening(!objectMode);drawGrid();drawObjects();if(objectMode){cargoLayer.destroyChildren();cargoLayer.batchDraw();renderObjectList();$('selectionInfo').style.display='none'}else{drawCargos();renderList();renderInfo()}updateButtons()}
 function setMode(m){
  mode=m;
  $('directBtn').classList.toggle('active',m==='direct');
