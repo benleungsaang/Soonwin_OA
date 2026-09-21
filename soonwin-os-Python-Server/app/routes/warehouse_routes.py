@@ -194,6 +194,10 @@ def _validate_item_data(data, require_all=False):
 
 
 def _validate_object_data(data, require_all=False):
+    # 兼容旧版独立编辑器可能把货物字段带入障碍物保存请求的情况。
+    # 这些字段不属于障碍物模型，直接丢弃；其它未知字段仍严格拒绝。
+    for legacy_item_field in ('height_mm', 'owner_group', 'remark', 'stocked_date'):
+        data.pop(legacy_item_field, None)
     unknown = set(data) - OBJECT_FIELDS - {'id', '_client_id'}
     if unknown:
         raise ValueError(f'不支持的障碍物字段: {sorted(unknown)}')

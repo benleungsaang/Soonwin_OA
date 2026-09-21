@@ -729,7 +729,7 @@ function duplicateObjects(){if(!objectSelected.size)return;pushHistory();const o
 function showObjectContext(x,y){const m=$('objectContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
 function parseObjectImport(){
  const lines=$('objectImportText').value.split(/\r?\n/).filter(x=>x.trim()),errs=[],rows=[];
- lines.forEach((line,i)=>{const c=splitImportLine(line);if(i===0&&/名称|尺寸|位置/.test(c.join(' ')))return;const [name='',szRaw='',posRaw='']=c,sz=parseSize(szRaw);if(!name||!sz){errs.push(`第 ${i+1} 行：${!name?'缺少名称':'尺寸格式无效'}`);return}let p={x:0,y:0};if(posRaw){const xy=posXY(posRaw);p=xy}rows.push({name,w:sz.l,h:sz.w,height_mm:sz.h,...p})});
+ lines.forEach((line,i)=>{const c=splitImportLine(line);if(i===0&&/名称|尺寸|位置/.test(c.join(' ')))return;const [name='',szRaw='',posRaw='']=c,sz=parseSize(szRaw);if(!name||!sz){errs.push(`第 ${i+1} 行：${!name?'缺少名称':'尺寸格式无效'}`);return}let p={x:0,y:0};if(posRaw){const xy=posXY(posRaw);p=xy}rows.push({name,w:sz.l,h:sz.w,...p})});
  $('objectImportErrors').innerHTML=errs.map(x=>`<div class="import-error">${esc(x)}</div>`).join('');if(errs.length)return;
  pushHistory();const stamp=Date.now();rows.forEach((r,i)=>floor.objects.push({id:'oi'+stamp+'_'+i,...r,type:$('oiType').value,pattern:$('oiPattern').value,blocks:$('oiBlocks').checked,showText:$('oiShowText').checked}));setDirty(true);$('objectImportModal').classList.remove('open');renderAll()
 }
