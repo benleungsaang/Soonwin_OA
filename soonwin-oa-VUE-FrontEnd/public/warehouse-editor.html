@@ -404,9 +404,9 @@ async function warehouseApi(path,options={}){
 }
 const toEditorMap=map=>({id:String(map.id),dbId:map.id,name:map.name,width:map.width_mm,length:map.length_mm,cols:map.grid_columns,rows:map.grid_rows,revision:map.revision,objectOpacity:30,objects:[],cargos:[]});
 const toEditorItem=item=>({id:String(item.id),name:item.name,l:item.length_mm,w:item.width_mm,height_mm:item.height_mm,x:item.x_mm,y:item.y_mm,r:item.rotation||0,owner:item.owner_group,color:item.color,stock:item.stocked_date||today(),remark:item.remark||'',status:item.status||'ACTIVE',stocked_by:item.stocked_by,stocked_by_name:item.stocked_by_name,shipped_date:item.shipped_date,shipped_at:item.shipped_at,shipped_by:item.shipped_by,shipped_by_name:item.shipped_by_name,shipped_remark:item.shipped_remark});
-const toEditorObject=object=>({id:String(object.id),name:object.name,type:object.type,x:object.x_mm,y:object.y_mm,w:object.length_mm,h:object.width_mm,rotation:object.rotation||0,showText:!!object.show_text,pattern:object.pattern||'solid',blocks:object.blocks_cargo!==false,color:object.color||'#687386'});
+const toEditorObject=object=>({id:String(object.id),name:object.name,type:object.type||'OTHER',x:object.x_mm,y:object.y_mm,w:object.length_mm,h:object.width_mm,rotation:object.rotation||0,showText:!!object.show_text,pattern:object.pattern||'solid',blocks:object.blocks_cargo!==false,color:object.color||'#687386'});
 const itemPayload=item=>({name:item.name,x_mm:Math.round(item.x),y_mm:Math.round(item.y),length_mm:Math.round(item.l),width_mm:Math.round(item.w),height_mm:Math.round(item.height_mm),rotation:item.r||0,owner_group:item.owner,color:item.color||'#4d96ff',remark:item.remark||'',stocked_date:item.stock||null});
-const objectPayload=object=>({name:object.name,type:object.type,x_mm:Math.round(object.x),y_mm:Math.round(object.y),length_mm:Math.round(object.w),width_mm:Math.round(object.h),rotation:object.rotation||0,show_text:!!object.showText,pattern:object.pattern||'solid',blocks_cargo:object.blocks!==false,color:object.color||'#687386'});
+const objectPayload=object=>({name:object.name,type:object.type||'OTHER',x_mm:Math.round(object.x),y_mm:Math.round(object.y),length_mm:Math.round(object.w),width_mm:Math.round(object.h),rotation:object.rotation||0,show_text:!!object.showText,pattern:object.pattern||'solid',blocks_cargo:object.blocks!==false,color:object.color||'#687386'});
 function applyWarehouseSnapshot(snapshot){
  const map=toEditorMap(snapshot.map);map.cargos=(snapshot.items||[]).map(toEditorItem);map.objects=(snapshot.objects||[]).map(toEditorObject);floors[map.id]=map;floor=map;baseWarehouseSnapshot=deep({map:toEditorMap(snapshot.map),cargos:map.cargos,objects:map.objects,revision:snapshot.revision});stagedRestoreIds=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);$('floorSelect').value=map.id;fit();renderAll();
 }
@@ -670,7 +670,7 @@ function renderInfo(){
  $('mapInfo').innerHTML=`<span class=l>楼层</span> <span class=v>${floor.name}</span><br><span class=l>尺寸</span> <span class=v>${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm</span><br><span class=l>网格</span> <span class=v>${floor.cols} × ${floor.rows}</span><br><span class=l>Revision</span> <span class=v>${floor.revision}</span>`;
  if(!selected.size){$('selectionInfo').style.display='none';return}
  const cs=[...selected].map(id=>floor.cargos.find(c=>c.id===id)).filter(Boolean);$('selectionInfo').style.display='block';
- if(cs.length===1){const c=cs[0],d=dims(c);$('selectionInfo').innerHTML=`<span class=l>选中</span> <span class="namev">${esc(c.name)}</span><br><span class=l>尺寸</span> <span class=v>${d.w} × ${d.h} mm</span><br><span class=l>位置</span> <span class=v>${cellName(c)}</span><br><span class=l>坐标</span> <span class=v>${Math.round(c.x)}, ${Math.round(c.y)}</span>`}
+ if(cs.length===1){const c=cs[0],d=dims(c),department=c.owner==='OTHER'?'其它':'海外部';$('selectionInfo').innerHTML=`<span class=l>部门</span> <span class=v>${department}</span><br><span class=l>选中</span> <span class="namev">${esc(c.name)}</span><br><span class=l>尺寸</span> <span class=v>${d.w} × ${d.h} mm</span><br><span class=l>位置</span> <span class=v>${cellName(c)}</span><br><span class=l>坐标</span> <span class=v>${Math.round(c.x)}, ${Math.round(c.y)}</span>`}
  else $('selectionInfo').innerHTML=`<span class=l>已选中</span> <span class=namev>${cs.length} 件货物</span><br><span class=l>拖动</span> <span class=v>保持相对位置</span>`;
 }
 
@@ -1272,7 +1272,7 @@ function applyBatchColorLive(){
 $('batchColorInput').oninput=applyBatchColorLive;
 $('batchColorInput').onchange=()=>{
  applyBatchColorLive();
- if(batchColorTouched&&batchColorBefore){undoStack.push(batchColorBefore);if(undoStack.length>100)undoStack.shift();redoStack.length=0}
+ if(batchColorTouched&&batchColorBefore){undoStack.push(batchColorBefore);if(undoStack.length>100)undoStack.shift();future=[]}
  batchColorBefore=null;batchColorTouched=false;
 };
 $('batchDone').onclick=()=>{if(objectMode){objectSelected.clear();drawObjects();renderObjectList()}else clearSelection()};$('deleteBatch').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('shipBatch').onclick=()=>openShip(selected);

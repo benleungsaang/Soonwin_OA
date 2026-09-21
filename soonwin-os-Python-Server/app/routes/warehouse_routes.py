@@ -76,12 +76,12 @@ def _item_dict(item, employee_names=None):
         'status': item.status,
         'stocked_date': item.stocked_date.isoformat() if item.stocked_date else None,
         'stocked_by': item.stocked_by,
-        'stocked_by_name': employee_names.get(item.stocked_by),
+        'stocked_by_name': employee_names.get(item.stocked_by) or item.stocked_by,
         'remark': item.remark,
         'shipped_date': item.shipped_date.isoformat() if item.shipped_date else None,
         'shipped_at': item.shipped_at.isoformat() if item.shipped_at else None,
         'shipped_by': item.shipped_by,
-        'shipped_by_name': employee_names.get(item.shipped_by),
+        'shipped_by_name': employee_names.get(item.shipped_by) or item.shipped_by,
         'shipped_remark': item.shipped_remark,
     }
 
