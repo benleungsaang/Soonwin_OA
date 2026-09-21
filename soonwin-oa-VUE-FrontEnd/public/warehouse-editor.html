@@ -389,7 +389,7 @@ const floors={};
 const floors={};
 const deep=o=>JSON.parse(JSON.stringify(o));
 let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContextId=null, objectClipboard=[];
-let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false;
+let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set();
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false;
 const $=id=>document.getElementById(id);
@@ -408,7 +408,7 @@ const toEditorObject=object=>({id:String(object.id),name:object.name,type:object
 const itemPayload=item=>({name:item.name,x_mm:Math.round(item.x),y_mm:Math.round(item.y),length_mm:Math.round(item.l),width_mm:Math.round(item.w),height_mm:Math.round(item.height_mm),rotation:item.r||0,owner_group:item.owner,color:item.color||'#4d96ff',remark:item.remark||'',stocked_date:item.stock||null});
 const objectPayload=object=>({name:object.name,type:object.type||'OTHER',x_mm:Math.round(object.x),y_mm:Math.round(object.y),length_mm:Math.round(object.w),width_mm:Math.round(object.h),rotation:object.rotation||0,show_text:!!object.showText,pattern:object.pattern||'solid',blocks_cargo:object.blocks!==false,color:object.color||'#687386'});
 function applyWarehouseSnapshot(snapshot){
- const map=toEditorMap(snapshot.map);map.cargos=(snapshot.items||[]).map(toEditorItem);map.objects=(snapshot.objects||[]).map(toEditorObject);floors[map.id]=map;floor=map;baseWarehouseSnapshot=deep({map:toEditorMap(snapshot.map),cargos:map.cargos,objects:map.objects,revision:snapshot.revision});stagedRestoreIds=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);$('floorSelect').value=map.id;fit();renderAll();
+ const map=toEditorMap(snapshot.map);map.cargos=(snapshot.items||[]).map(toEditorItem);map.objects=(snapshot.objects||[]).map(toEditorObject);floors[map.id]=map;floor=map;baseWarehouseSnapshot=deep({map:toEditorMap(snapshot.map),cargos:map.cargos,objects:map.objects,revision:snapshot.revision});stagedRestoreIds=new Set();stagedObjectDeletes=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);$('floorSelect').value=map.id;fit();renderAll();
 }
 async function loadWarehouseMap(mapId){const snapshot=await warehouseApi(`/api/warehouse/maps/${mapId}`);applyWarehouseSnapshot(snapshot);return snapshot}
 async function loadWarehouseMaps(){
@@ -416,7 +416,7 @@ async function loadWarehouseMaps(){
  const select=$('floorSelect');select.innerHTML='';warehouseMaps.forEach(map=>{const option=document.createElement('option');option.value=String(map.id);option.textContent=map.name;select.appendChild(option)});
  const floorActions=[...$('floorMenu').querySelectorAll('[data-floor-act]')];
  if(!warehouseMaps.length){
-  floor=null;baseWarehouseSnapshot=null;selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);
+  floor=null;baseWarehouseSnapshot=null;stagedObjectDeletes=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);
   select.disabled=true;$('floorSummary').textContent='暂无楼层';$('floorSizeStat').textContent='—';$('floorGridStat').textContent='—';$('saveBtn').disabled=true;$('reportBtn').disabled=true;$('shipRecords').disabled=true;
   floorActions.forEach(button=>{button.disabled=button.dataset.floorAct!=='create'});
   return;
@@ -441,7 +441,7 @@ function warehouseSavePayload(){
  const deleted=[...baseItems.keys()].filter(id=>!floor.cargos.some(item=>String(item.id)===id&&item.status));
  const objectCreated=floor.objects.filter(object=>!/^\d+$/.test(String(object.id))).map(object=>({...objectPayload(object),_client_id:String(object.id)}));
  const objectUpdated=floor.objects.filter(object=>/^\d+$/.test(String(object.id))).filter(object=>JSON.stringify(objectPayload(object))!==JSON.stringify(objectPayload(baseObjects.get(String(object.id))))).map(object=>({id:Number(object.id),...objectPayload(object)}));
- const objectDeleted=[...baseObjects.keys()].filter(id=>!floor.objects.some(object=>String(object.id)===id));
+ const objectDeleted=[...stagedObjectDeletes];
  const mapChanged=['name','width','length','cols','rows'].some(key=>floor[key]!==baseWarehouseSnapshot?.map?.[key]);
  return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created,updated,deleted:objectDeleted.map(Number)}};
 }
@@ -470,9 +470,9 @@ const ageColor=c=>{
  if(days<30)return '#ffd6d6'; if(days<60)return '#ff9f9f'; if(days<120)return '#f45b69'; return '#b4233c';
 };
 function setDirty(v=true){dirty=v;$('dirty').textContent=v?'● 有未保存修改':'● 已保存状态';$('dirty').classList.toggle('dirty',v)}
-function snapshot(){return JSON.stringify({cargos:floor.cargos,objects:floor.objects,restoreIds:[...stagedRestoreIds]})}
+function snapshot(){return JSON.stringify({cargos:floor.cargos,objects:floor.objects,restoreIds:[...stagedRestoreIds],objectDeleteIds:[...stagedObjectDeletes]})}
 function pushHistory(){undoStack.push(snapshot());if(undoStack.length>100)undoStack.shift();future=[];updateButtons()}
-function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;stagedRestoreIds=new Set(d.restoreIds||[]);selected.clear();setDirty(true);renderAll()}
+function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;stagedRestoreIds=new Set(d.restoreIds||[]);stagedObjectDeletes=new Set(d.objectDeleteIds||[]);selected.clear();setDirty(true);renderAll()}
 function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
 function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
 function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
@@ -729,7 +729,7 @@ function saveObject(){
  else{const o={id:'o'+Date.now(),name,w,h,x:0,y:0,type:$('oType').value,blocks:$('oBlocks').checked,showText:$('oShowText').checked,pattern:$('oPattern').value,color:$('oColor').value};floor.objects.push(o);objectSelected.clear();objectSelected.add(o.id)}
  setDirty(true);$('objectModal').classList.remove('open');renderAll()
 }
-function deleteObjects(ids){pushHistory();const set=new Set(ids);floor.objects=floor.objects.filter(o=>!set.has(o.id));objectSelected.clear();setDirty(true);renderAll()}
+function deleteObjects(ids){pushHistory();const set=new Set(ids);ids.forEach(id=>{if(/^\d+$/.test(String(id)))stagedObjectDeletes.add(Number(id))});floor.objects=floor.objects.filter(o=>!set.has(o.id));objectSelected.clear();setDirty(true);renderAll()}
 function copyObjects(){objectClipboard=[...objectSelected].map(id=>deep(floor.objects.find(o=>o.id===id))).filter(Boolean);updateButtons()}
 function pasteObjects(){if(!objectClipboard.length)return;pushHistory();const stamp=Date.now(),gap=Math.max(100,10/scale);objectSelected.clear();objectClipboard.forEach((o,i)=>{const n=deep(o);n.id='op'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x+=gap;n.y+=gap;floor.objects.push(n);objectSelected.add(n.id)});setDirty(true);renderAll()}
 function rotateObjects(){if(!objectSelected.size)return;pushHistory();for(const id of objectSelected){const o=floor.objects.find(x=>x.id===id);[o.w,o.h]=[o.h,o.w]}setDirty(true);renderAll()}
