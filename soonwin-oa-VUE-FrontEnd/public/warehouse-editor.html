@@ -443,7 +443,7 @@ function warehouseSavePayload(){
  const objectUpdated=floor.objects.filter(object=>/^\d+$/.test(String(object.id))).filter(object=>JSON.stringify(objectPayload(object))!==JSON.stringify(objectPayload(baseObjects.get(String(object.id))))).map(object=>({id:Number(object.id),...objectPayload(object)}));
  const objectDeleted=[...stagedObjectDeletes];
  const mapChanged=['name','width','length','cols','rows'].some(key=>floor[key]!==baseWarehouseSnapshot?.map?.[key]);
- return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created,updated,deleted:objectDeleted.map(Number)}};
+ return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created:objectCreated,updated:objectUpdated,deleted:objectDeleted.map(Number)}};
 }
 async function saveWarehouse(){
  if(!floor){alert('当前暂无楼层，请先创建楼层。');return}
