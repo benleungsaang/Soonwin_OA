@@ -40,6 +40,7 @@ export type RouteName =
   | 'customer_manage'          // 客户信息管理 - 业务员
   | 'blog_manage'              // 博客管理 - 全员共有
   | 'container_layout_manage'  // 货柜排布 - 全员共有
+  | 'warehouse_manage'          // 库存位置 - 全员共有
   | 'task_track_manage'        // 任务跟踪 - 全员共有
   | 'todo_manage'              // 待办事项 - 全员共有
 
@@ -243,4 +244,4 @@ export async function loadUserPermissions(): Promise<void> {
     // 如果无法获取权限数据，初始化为空权限
     initUserPermissions([]);
   }
-}
+}

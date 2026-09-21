@@ -190,6 +190,10 @@
                       <el-icon><Box /></el-icon>
                       <span>货柜排布</span>
                     </el-menu-item>
+                    <el-menu-item index="24" @click="goToWarehouse" v-if="hasToken && permissions.warehouseManage && !hiddenModules.includes('warehouseManage')">
+                      <el-icon><Location /></el-icon>
+                      <span>库存位置</span>
+                    </el-menu-item>
                     <el-menu-item index="22" @click="goToTaskTrack" v-if="hasToken && permissions.taskTrackManage && !hiddenModules.includes('taskTrackManage')">
                       <el-icon><List /></el-icon>
                       <span>任务跟踪</span>
@@ -229,7 +233,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Tools, Document, User, Clock, ChatDotRound, Money, Coin,
-  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, Box, Setting, Tickets
+  Monitor,  Files, Picture, VideoCamera, ArrowDown, ArrowRight, Timer, List, Loading, Wallet, SwitchButton, Grid, EditPen, Box, Location, Setting, Tickets
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
@@ -304,7 +308,7 @@ const hiddenModules = ref<string[]>([]);
 const moduleGroupMap: Record<string, string[]> = {
   resource: ['photoManage', 'videoManage', 'machineManage', 'expenseManage', 'employeeManage'],
   order:    ['inquiriesManage', 'orderManage', 'orderStatusManage', 'quotationManage', 'orderRecordManage', 'customerManage'],
-  other:    ['punchManage', 'punchRecordsManage', 'displayFilesManage', 'attendanceManage', 'blogManage', 'containerLayoutManage', 'taskTrackManage', 'todoManage'],
+  other:    ['punchManage', 'punchRecordsManage', 'displayFilesManage', 'attendanceManage', 'blogManage', 'containerLayoutManage', 'warehouseManage', 'taskTrackManage', 'todoManage'],
 };
 
 /** 弹窗分组定义（显示标题 + key 列表） */
@@ -438,6 +442,7 @@ const permissionMap = {
   customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
   blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' },
   containerLayoutManage: { key: 'container_layout_manage', name: '货柜排布', path: '/container-layout' },
+  warehouseManage: { key: 'warehouse_manage', name: '库存位置', path: '/warehouse-editor.html' },
   taskTrackManage: { key: 'task_track_manage', name: '任务跟踪', path: '/task-track' },
   todoManage: { key: 'todo_manage', name: '待办事项', path: '/todo' }
 };
@@ -493,6 +498,13 @@ const goToOrderRecordManage = () => navigateToPage('orderRecordManage');
 const goToCustomerManage = () => navigateToPage('customerManage');
 const goToBlog = () => navigateToPage('blogManage');
 const goToContainerLayout = () => navigateToPage('containerLayoutManage');
+const goToWarehouse = () => {
+  if (hasRoutePermission('warehouse_manage')) {
+    window.open('/warehouse-editor.html', '_blank', 'noopener');
+  } else {
+    ElMessage.error('您没有权限访问库存位置页面！');
+  }
+};
 const goToTaskTrack = () => navigateToPage('taskTrackManage');
 const goToTodo = () => navigateToPage('todoManage');
 

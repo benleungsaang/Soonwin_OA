@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>库存位置平面图 · V0.18</title>
-<script src="https://unpkg.com/konva@9/konva.min.js"></script>
+<script src="./vendor/konva/konva.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#1a1a2e;--panel:#16213e;--section:#1a1a3e;--deep:#0a0a2a;--line:#2a2a5e;--blue:#0f3460;--red:#e94560;--yellow:#ffd93d;--text:#e0e0e0;--muted:#9aa8b8;--cyan:#a8d8ea;--orange:#ffaa44;--green:#6bcb77}
@@ -171,7 +171,7 @@ input:focus,select:focus{border-color:var(--red)}
     <section class="section">
       <div class="section-title">🏢 楼层管理 <span class="grow" id="floorSummary"></span></div>
       <div class="row">
-        <select id="floorSelect"><option value="2F">2楼</option><option value="7F">7楼</option></select>
+        <select id="floorSelect"></select>
         <div class="floor-menu-wrap"><button class="btn" id="floorManage">管理 ▾</button>
 <div class="floor-menu" id="floorMenu"><button data-floor-act="edit">修改楼层</button><button data-floor-act="create">创建楼层</button><button data-floor-act="objects">进入障碍物修改模式</button></div></div>
       </div>
@@ -225,7 +225,7 @@ input:focus,select:focus{border-color:var(--red)}
 
     
 
-    <section class="section panel-footer"><div class="row"><button class="btn primary" id="fakeSave" style="flex:1">保存（演示）</button><button class="btn ship-record-btn" id="reportBtn">打印 / PDF</button><button class="btn ship-record-btn" id="shipRecords">查看出库记录</button></div></section>
+    <section class="section panel-footer"><div class="row"><button class="btn primary" id="saveBtn" style="flex:1">保存</button><button class="btn ship-record-btn" id="reportBtn">打印 / PDF</button><button class="btn ship-record-btn" id="shipRecords">查看出库记录</button></div></section>
   </aside>
 
   <main id="viewport">
@@ -361,7 +361,7 @@ input:focus,select:focus{border-color:var(--red)}
 if (!window.Konva){document.getElementById('konvaError').style.display='flex';return;}
 
 const palette=['#e94560','#ff6b6b','#ffa94d','#ffd93d','#6bcb77','#4d96ff','#845ef7','#20c997','#ff922b','#339af0','#f06595'];
-const floors={
+/* const prototypeFloors={
  '2F':{id:'2F',name:'2楼',width:30000,length:15000,cols:10,rows:5,revision:1,
   objects:[
    {id:'o1',name:'柱 A',type:'COLUMN',x:8800,y:4300,w:700,h:700,blocks:true},
@@ -383,12 +383,56 @@ const floors={
    {id:'c72',name:'其它部门货物 B',l:2600,w:1800,x:5200,y:5200,r:0,owner:'OTHER',color:'#7b8492',stock:'2026-04-11',remark:'其它'}
   ]}
 };
+// 正式运行时楼层来自 Warehouse API；prototypeFloors 仅保留为历史迁移参考，不参与运行。
+const floors={};
+*/
+const floors={};
 const deep=o=>JSON.parse(JSON.stringify(o));
-const original=deep(floors);
 let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContextId=null, objectClipboard=[];
-let floorModalMode='edit'; let floor=floors['2F']; Object.values(floors).forEach(f=>f.cargos.forEach(c=>{if(!c.status)c.status='ACTIVE'})); Object.values(floors).forEach(f=>{if(f.objectOpacity==null)f.objectOpacity=30}); Object.values(floors).forEach(f=>f.objects.forEach((o,i)=>{o.id=o.id||('o_'+f.id+'_'+i);o.name=o.name||('障碍物 '+(i+1));o.type=o.type||'OTHER';o.pattern=o.pattern||'solid';if(o.showText==null)o.showText=false;if(o.blocks==null)o.blocks=true;})), mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false;
+let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false;
+let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false;
 const $=id=>document.getElementById(id);
+const warehouseToken=()=>localStorage.getItem('oa_token');
+async function warehouseApi(path,options={}){
+ const token=warehouseToken();
+ if(!token)throw new Error('未检测到登录凭证，请先在 OA 系统登录');
+ const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok||body.success===false){const error=new Error(body.message||body.msg||`Warehouse API ${response.status}`);error.status=response.status;error.body=body;throw error}
+ return body.data===undefined?body:body.data;
+}
+const toEditorMap=map=>({id:String(map.id),dbId:map.id,name:map.name,width:map.width_mm,length:map.length_mm,cols:map.grid_columns,rows:map.grid_rows,revision:map.revision,objectOpacity:30,objects:[],cargos:[]});
+const toEditorItem=item=>({id:String(item.id),name:item.name,l:item.length_mm,w:item.width_mm,height_mm:item.height_mm,x:item.x_mm,y:item.y_mm,r:item.rotation||0,owner:item.owner_group,color:item.color,stock:item.stocked_date||today(),remark:item.remark||'',status:item.status||'ACTIVE',stocked_by:item.stocked_by,stocked_by_name:item.stocked_by_name,shipped_date:item.shipped_date,shipped_at:item.shipped_at,shipped_by:item.shipped_by,shipped_by_name:item.shipped_by_name,shipped_remark:item.shipped_remark});
+const toEditorObject=object=>({id:String(object.id),name:object.name,type:object.type,x:object.x_mm,y:object.y_mm,w:object.length_mm,h:object.width_mm,rotation:object.rotation||0,showText:!!object.show_text,pattern:object.pattern||'solid',blocks:object.blocks_cargo!==false,color:object.color||'#687386'});
+const itemPayload=item=>({name:item.name,x_mm:Math.round(item.x),y_mm:Math.round(item.y),length_mm:Math.round(item.l),width_mm:Math.round(item.w),height_mm:Math.round(item.height_mm),rotation:item.r||0,owner_group:item.owner,color:item.color||'#4d96ff',remark:item.remark||'',stocked_date:item.stock||null});
+const objectPayload=object=>({name:object.name,type:object.type,x_mm:Math.round(object.x),y_mm:Math.round(object.y),length_mm:Math.round(object.w),width_mm:Math.round(object.h),rotation:object.rotation||0,show_text:!!object.showText,pattern:object.pattern||'solid',blocks_cargo:object.blocks!==false,color:object.color||'#687386'});
+function applyWarehouseSnapshot(snapshot){
+ const map=toEditorMap(snapshot.map);map.cargos=(snapshot.items||[]).map(toEditorItem);map.objects=(snapshot.objects||[]).map(toEditorObject);floors[map.id]=map;floor=map;baseWarehouseSnapshot=deep({map:toEditorMap(snapshot.map),cargos:map.cargos,objects:map.objects,revision:snapshot.revision});stagedRestoreIds=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);$('floorSelect').value=map.id;fit();renderAll();
+}
+async function loadWarehouseMap(mapId){const snapshot=await warehouseApi(`/api/warehouse/maps/${mapId}`);applyWarehouseSnapshot(snapshot);return snapshot}
+async function loadWarehouseMaps(){
+ warehouseMaps=await warehouseApi('/api/warehouse/maps');
+ const select=$('floorSelect');select.innerHTML='';warehouseMaps.forEach(map=>{const option=document.createElement('option');option.value=String(map.id);option.textContent=map.name;select.appendChild(option)});
+ if(!warehouseMaps.length)throw new Error('暂无可用库存楼层');
+ await loadWarehouseMap(Number(warehouseMaps[0].id));
+}
+function warehouseSavePayload(){
+ const baseItems=new Map((baseWarehouseSnapshot?.cargos||[]).map(item=>[String(item.id),item])),baseObjects=new Map((baseWarehouseSnapshot?.objects||[]).map(object=>[String(object.id),object]));
+ const created=floor.cargos.filter(item=>!/^\d+$/.test(String(item.id))).map(item=>({...itemPayload(item),_client_id:String(item.id)}));
+ const updated=floor.cargos.filter(item=>/^\d+$/.test(String(item.id))&&item.status!=='SHIPPED'&&baseItems.has(String(item.id))).filter(item=>JSON.stringify(itemPayload(item))!==JSON.stringify(itemPayload(baseItems.get(String(item.id))))).map(item=>({id:Number(item.id),...itemPayload(item)}));
+ const outbound=floor.cargos.filter(item=>/^\d+$/.test(String(item.id))&&item.status==='SHIPPED'&&baseItems.get(String(item.id))?.status!=='SHIPPED').map(item=>({id:Number(item.id),shipped_date:item.shipped_date||today(),shipped_remark:item.shipped_remark||''}));
+ const deleted=[...baseItems.keys()].filter(id=>!floor.cargos.some(item=>String(item.id)===id&&item.status));
+ const objectCreated=floor.objects.filter(object=>!/^\d+$/.test(String(object.id))).map(object=>({...objectPayload(object),_client_id:String(object.id)}));
+ const objectUpdated=floor.objects.filter(object=>/^\d+$/.test(String(object.id))).filter(object=>JSON.stringify(objectPayload(object))!==JSON.stringify(objectPayload(baseObjects.get(String(object.id))))).map(object=>({id:Number(object.id),...objectPayload(object)}));
+ const objectDeleted=[...baseObjects.keys()].filter(id=>!floor.objects.some(object=>String(object.id)===id));
+ const mapChanged=['name','width','length','cols','rows'].some(key=>floor[key]!==baseWarehouseSnapshot?.map?.[key]);
+ return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created,updated,deleted:objectDeleted.map(Number)}};
+}
+async function saveWarehouse(){
+ try{const result=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/save`,{method:'PUT',body:JSON.stringify(warehouseSavePayload())});applyWarehouseSnapshot(result);alert('库存平面图已保存');}
+ catch(error){if(error.status===409)alert('当前楼层已被其他用户修改，请重新加载后再保存。当前本地修改仍保留。');else{console.error('[warehouse] save failed',error);alert(error.message||'保存失败')}}
+}
 const visibleCargo=c=>c.status!=='SHIPPED'&&(c.owner!=='OTHER'||$('showOther').checked); const cargoLocked=c=>c.owner==='OTHER'&&$('lockOther').checked;
 const dims=c=>c.r%180===0?{w:c.l,h:c.w}:{w:c.w,h:c.l};
 const cellW=()=>floor.width/floor.cols, cellH=()=>floor.length/floor.rows;
@@ -409,9 +453,9 @@ const ageColor=c=>{
  if(days<30)return '#ffd6d6'; if(days<60)return '#ff9f9f'; if(days<120)return '#f45b69'; return '#b4233c';
 };
 function setDirty(v=true){dirty=v;$('dirty').textContent=v?'● 有未保存修改':'● 已保存状态';$('dirty').classList.toggle('dirty',v)}
-function snapshot(){return JSON.stringify({cargos:floor.cargos,objects:floor.objects})}
+function snapshot(){return JSON.stringify({cargos:floor.cargos,objects:floor.objects,restoreIds:[...stagedRestoreIds]})}
 function pushHistory(){undoStack.push(snapshot());if(undoStack.length>100)undoStack.shift();future=[];updateButtons()}
-function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;selected.clear();setDirty(true);renderAll()}
+function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;stagedRestoreIds=new Set(d.restoreIds||[]);selected.clear();setDirty(true);renderAll()}
 function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
 function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
 function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
@@ -713,14 +757,14 @@ function paste(){
  if(!clipboard.length)return;pushHistory();selected.clear();const gap=12/scale;const minX=Math.min(...clipboard.map(c=>c.x)),maxX=Math.max(...clipboard.map(c=>c.x+dims(c).w));const dx=(maxX-minX)+gap;
  clipboard.forEach((src,i)=>{const c=deep(src);c.id='c'+Date.now()+'_'+i;c.name=baseCopyName(src.name);c.x+=dx;c.color=src.color;floor.cargos.push(c);selected.add(c.id)});setDirty(true);renderAll()
 }
-function addDemo(){
+/* function addDemo(){
  pushHistory();const i=floor.cargos.length,c={id:'c'+Date.now(),name:'新货物 '+(i+1),l:2000,w:1200,height_mm:1000,x:500+i*120,y:floor.length-2200,r:0,owner:'OVERSEAS',color:palette[i%palette.length],stock:new Date().toISOString().slice(0,10),remark:''};
  floor.cargos.push(c);selected.clear();selected.add(c.id);setDirty(true);renderAll()
 }
-function resetDemo(){Object.assign(floors,deep(original));floor=floors[$('floorSelect').value];undoStack=[];future=[];selected.clear();setDirty(false);fit();renderAll()}
+*/
 function switchFloor(){
  if(dirty&&!confirm('当前有未保存的位置修改。放弃修改并切换楼层？')){$('floorSelect').value=floor.id;return}
- floor=floors[$('floorSelect').value];selected.clear();undoStack=[];future=[];setDirty(false);fit();renderAll()
+ loadWarehouseMap(Number($('floorSelect').value)).catch(error=>{console.error('[warehouse] load map failed',error);alert(error.message||'楼层加载失败')})
 }
 function initStage(){
  stage=new Konva.Stage({container:'stage',width:$('viewport').clientWidth,height:$('viewport').clientHeight});
@@ -866,31 +910,13 @@ function buildReportSvg(cargos,objects){
  return z+'</svg>';
 }
 
-function makeReportDemoCargos(base){
- const out=base.map(c=>({...c}));
- const own=out.filter(c=>c.owner!=='OTHER').length;
- const other=out.filter(c=>c.owner==='OTHER').length;
- const targetOwn=43,targetOther=9;
- const names=['Cartoning machine','Packing machine','Conveyor','Check weigher','Metal detector','Rotary table','Vacuum feeder','Screw feeder','Labeling machine','Date printer','Sealing machine','Sorting table','Bucket elevator','Powder mixer','Auger filler','Working platform'];
- for(let i=own;i<targetOwn;i++){
-  const n=i+1,col=i%floor.cols,row=Math.floor(i/floor.cols)%floor.rows;
-  out.push({id:'report-demo-own-'+i,name:`临时货物 ${String(n).padStart(2,'0')} · ${names[i%names.length]}`,l:1200+(i%4)*300,w:900+(i%3)*250,height_mm:1000+(i%3)*200,x:col*cellW()+Math.min(180,cellW()*.12),y:row*cellH()+Math.min(180,cellH()*.12),rotation:0,owner:'OVERSEAS',color:['#ffd166','#90caf9','#a5d6a7','#ce93d8','#ffab91'][i%5],stock:`2026-${String(5+(i%5)).padStart(2,'0')}-${String(1+(i*3)%27).padStart(2,'0')}`,remark:i%4===0?'临时打印测试':(i%4===1?'待确认位置':'')});
- }
- for(let i=other;i<targetOther;i++){
-  const n=i+1,idx=targetOwn+i,col=(idx+3)%floor.cols,row=Math.floor((idx+3)/floor.cols)%floor.rows;
-  out.push({id:'report-demo-other-'+i,name:`其它部门临时货物 ${String(n).padStart(2,'0')}`,l:1500+(i%3)*300,w:1000+(i%2)*300,height_mm:1200,x:col*cellW()+220,y:row*cellH()+220,rotation:0,owner:'OTHER',color:'#8b929b',stock:`2026-0${6+(i%3)}-${String(3+i*2).padStart(2,'0')}`,remark:'临时打印测试'});
- }
- return out;
-}
 function buildReportRows(list,startNo){
  return list.map((c,i)=>`<tr><td class="no">${startNo+i}</td><td><b>${reportXml(c.name)}</b><div class="sub">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div></td><td>${reportXml(cellName(c))}</td><td>${reportXml(c.stock||'—')}</td><td>${reportXml(c.remark||'—')}</td></tr>`).join('');
 }
 
 
 function openInventoryReport(){
- const real=floor.cargos.filter(c=>visibleCargo(c));
- // V0.18 preview only: supplement temporary cargo to stress-test multi-page output.
- const all=makeReportDemoCargos(real);
+ const all=floor.cargos.filter(c=>visibleCargo(c));
  const own=all.filter(c=>c.owner!=='OTHER'),other=all.filter(c=>c.owner==='OTHER');
  const ordered=[...own,...other];
  const generated=new Date().toLocaleString('zh-CN',{hour12:false});
@@ -1000,7 +1026,7 @@ function openInventoryReport(){
 }
 $('reportBtn').onclick=openInventoryReport;
 
-$('fakeSave').onclick=()=>{floor.revision++;undoStack=[];future=[];setDirty(false);renderAll();alert('V0.1 演示：已将当前 Edit State 标记为“已保存”。\n尚未写入 OA / SQLite。')};
+$('saveBtn').onclick=saveWarehouse;
 document.addEventListener('keydown',e=>{
  if($('confirmModal').classList.contains('open')){
    if(e.key==='Escape'){e.preventDefault();$('confirmCancel').click();return}
@@ -1118,13 +1144,18 @@ function askConfirm(title,text,action){
  $('confirmTitle').textContent=title;$('confirmText').textContent=text;confirmAction=action;$('confirmModal').classList.add('open');
 }
 let shipRecordSelected=new Set();
-function renderShipRecords(){
+async function renderShipRecords(){
+ try{
+  const shipped=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/shipments`);
+  const activeIds=new Set(floor.cargos.map(c=>String(c.id)));
+  shipped.map(toEditorItem).forEach(item=>{if(!activeIds.has(String(item.id)))floor.cargos.push(item)});
+ }catch(error){console.error('[warehouse] shipments load failed',error);alert(error.message||'出库记录加载失败');return}
  const arr=floor.cargos.filter(c=>c.status==='SHIPPED').sort((a,b)=>(b.shipped_date||'').localeCompare(a.shipped_date||''));
  [...shipRecordSelected].forEach(id=>{if(!arr.some(c=>c.id===id))shipRecordSelected.delete(id)});
  $('shipRecordsList').innerHTML=arr.length?arr.map(c=>{
   const sel=shipRecordSelected.has(c.id)?' selected':'';
-  const operator=c.shipped_by||c.operator||'当前用户';
-  const inboundOperator=c.stocked_by||c.inbound_by||'当前用户';return `<div class="ship-row${sel}" data-ship-id="${c.id}"><div><div class="cargo-title">${esc(c.name)}</div><div class="cargo-dim">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div><div class="cargo-origin"><b>原位置：</b>${cellName({...c,x:c.ship_x??c.x,y:c.ship_y??c.y})}</div></div><div class="ship-stock-box"><div class="ship-cell"><b>日期：</b>${esc(c.stock||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(inboundOperator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.remark||'—')}</div></div><div class="ship-out-box"><div class="ship-cell"><b>日期：</b>${esc(c.shipped_date||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(operator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.shipped_remark||'—')}</div></div><div class="ship-record-actions">${shipRecordSelected.has(c.id)?`<button class="ship-record-restore" data-restore-one="${c.id}">恢复记录</button>`:''}</div></div>`
+  const operator=c.shipped_by_name||c.shipped_by||'—';
+  const inboundOperator=c.stocked_by_name||c.stocked_by||'—';return `<div class="ship-row${sel}" data-ship-id="${c.id}"><div><div class="cargo-title">${esc(c.name)}</div><div class="cargo-dim">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div><div class="cargo-origin"><b>原位置：</b>${cellName({...c,x:c.ship_x??c.x,y:c.ship_y??c.y})}</div></div><div class="ship-stock-box"><div class="ship-cell"><b>日期：</b>${esc(c.stock||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(inboundOperator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.remark||'—')}</div></div><div class="ship-out-box"><div class="ship-cell"><b>日期：</b>${esc(c.shipped_date||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(operator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.shipped_remark||'—')}</div></div><div class="ship-record-actions">${shipRecordSelected.has(c.id)?`<button class="ship-record-restore" data-restore-one="${c.id}">恢复记录</button>`:''}</div></div>`
  }).join(''):'<div class="empty-state">暂无出库记录</div>';
  const n=shipRecordSelected.size;
  $('shipRecordSummary').textContent=n?`当前有 ${arr.length} 条出库记录，选中 ${n} 条`:`当前有 ${arr.length} 条出库记录`;
@@ -1134,7 +1165,7 @@ function renderShipRecords(){
 function restoreShipments(ids){
  const valid=ids.filter(id=>floor.cargos.some(c=>c.id===id&&c.status==='SHIPPED'));if(!valid.length)return;
  askConfirm('确认恢复出库',valid.length===1?`确定恢复“${floor.cargos.find(c=>c.id===valid[0])?.name||''}”吗？恢复后将取消出库日期，并回到出库前的位置。`:`确定批量恢复选中的 ${valid.length} 条出库记录吗？恢复后将取消出库日期，并回到各自出库前的位置。`,()=>{
-  pushHistory();valid.forEach(id=>{const c=floor.cargos.find(q=>q.id===id);if(!c)return;c.status='ACTIVE';c.x=c.ship_x??c.x;c.y=c.ship_y??c.y;delete c.shipped_date;delete c.shipped_at;delete c.shipped_by;delete c.shipped_remark;delete c.ship_x;delete c.ship_y});
+  pushHistory();valid.forEach(id=>{const c=floor.cargos.find(q=>String(q.id)===String(id));if(!c)return;stagedRestoreIds.add(Number(id));c.status='ACTIVE';c.x=c.ship_x??c.x;c.y=c.ship_y??c.y;delete c.shipped_date;delete c.shipped_at;delete c.shipped_by;delete c.shipped_by_name;delete c.shipped_remark;delete c.ship_x;delete c.ship_y});
   shipRecordSelected.clear();setDirty(true);renderShipRecords();renderAll()
  })
 }
@@ -1274,13 +1305,13 @@ $('floorMenu').onclick=e=>{
  }
  $('floorModal2').classList.add('open');
 };
-$('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').onclick=()=>{
+$('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').onclick=async()=>{
  const w=+$('fW').value,l=+$('fL').value,co=+$('fCols').value,ro=+$('fRows').value,name=$('fName').value.trim();
  if(!name||w<=0||l<=0||co<1||ro<1)return alert('请填写有效的楼层名称、尺寸和网格数量。');
  if(floorModalMode==='edit'){pushHistory();Object.assign(floor,{name,width:w,length:l,cols:Math.floor(co),rows:Math.floor(ro)});setDirty(true);}
  else{
-   const id='F'+Date.now();floors[id]={id,name,width:w,length:l,cols:Math.floor(co),rows:Math.floor(ro),revision:1,objects:[],cargos:[]};
-   const op=document.createElement('option');op.value=id;op.textContent=name;$('floorSelect').appendChild(op);floor=floors[id];$('floorSelect').value=id;selected.clear();undoStack=[];future=[];setDirty(true);
+   try{const created=await warehouseApi('/api/warehouse/maps',{method:'POST',body:JSON.stringify({name,width_mm:w,length_mm:l,grid_columns:Math.floor(co),grid_rows:Math.floor(ro)})});$('floorModal2').classList.remove('open');await loadWarehouseMaps();await loadWarehouseMap(Number(created.id));return}
+   catch(error){console.error('[warehouse] create map failed',error);alert(error.message||'创建楼层失败');return}
  }
  $('floorModal2').classList.remove('open');fit();renderAll();
 };
@@ -1288,7 +1319,8 @@ $('otherHead').onclick=e=>{if(e.target.closest('.other-lock'))return;const list=
 document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
 
 [...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
-initStage();renderAll();
+initStage();
+loadWarehouseMaps().catch(error=>{console.error('[warehouse] bootstrap failed',error);alert(error.message||'Warehouse 数据加载失败')});
 })();
 </script>
 </body>
