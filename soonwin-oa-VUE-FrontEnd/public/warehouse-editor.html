@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>库存位置平面图 · V0.18</title>
+<script src="https://unpkg.com/konva@9/konva.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#1a1a2e;--panel:#16213e;--section:#1a1a3e;--deep:#0a0a2a;--line:#2a2a5e;--blue:#0f3460;--red:#e94560;--yellow:#ffd93d;--text:#e0e0e0;--muted:#9aa8b8;--cyan:#a8d8ea;--orange:#ffaa44;--green:#6bcb77}
+html,body,#app{width:100%;height:100%;overflow:hidden}
+body{font-family:'Segoe UI','PingFang SC',Roboto,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit}
+#app{display:flex}
+#panel{width:420px;min-width:420px;height:100vh;background:var(--panel);border-right:2px solid var(--blue);padding:18px;overflow:hidden;display:flex;flex-direction:column;gap:12px;z-index:20}
+#panel::-webkit-scrollbar,.cargo-list::-webkit-scrollbar{width:4px}#panel::-webkit-scrollbar-thumb,.cargo-list::-webkit-scrollbar-thumb{background:var(--blue);border-radius:4px}
+h1{font-size:21px;color:var(--red);display:flex;align-items:center;gap:8px;border-bottom:2px solid var(--blue);padding-bottom:10px}
+h1 small{font-size:12px;color:#8fa0b4;font-weight:400;margin-left:auto}
+.section{background:var(--section);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.section-title{font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:9px;display:flex;align-items:center;gap:7px}
+.section-title .grow{margin-left:auto;font-size:11px;color:#8191a4;font-weight:400}
+.row{display:flex;gap:8px;align-items:center}.row+.row{margin-top:8px}
+.field{display:flex;flex-direction:column;gap:4px;flex:1}.field label{font-size:11px;color:#8999aa}
+input,select{width:100%;background:var(--deep);color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 8px;outline:none}
+input:focus,select:focus{border-color:var(--red)}
+.btn{border:0;border-radius:18px;padding:6px 13px;background:var(--blue);color:#ddd;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:#1a4a7a;color:#fff}.btn.primary{background:var(--red);color:#fff}.btn.primary:hover{background:#ff6b81}.btn.warn{color:#ffd93d;border:1px solid rgba(255,170,68,.35);background:rgba(255,170,68,.08)}
+.toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:#aeb8c5;cursor:pointer;user-select:none}.toggle input{width:14px;height:14px;accent-color:var(--red)}
+.search{position:relative}.search input{padding-right:58px}.search .count{position:absolute;right:8px;top:7px;font-size:11px;color:#718096}
+.cargo-section{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}.cargo-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px;min-height:0;flex:1 1 auto;padding-right:3px}
+.cargo-item{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;background:var(--deep);border-left:4px solid var(--c,#e94560);border-radius:6px;padding:7px 8px;gap:2px 8px;cursor:pointer;transition:.15s}
+.cargo-item:hover{background:#171743}.cargo-item.selected{background:#1e2a4a;border-left-color:var(--yellow);outline:1px solid rgba(255,215,61,.35);box-shadow:0 0 8px rgba(255,215,61,.2)}
+.cargo-item.dimmed{opacity:.42}.cargo-item.other{filter:saturate(.25)}
+.c1{display:flex;align-items:center;gap:7px;min-width:0}.dot{width:13px;height:13px;border-radius:3px;background:var(--c);flex:none}.idx{font:11px Consolas;color:#7e90a5;min-width:23px}.name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{font:11px Consolas;color:#7da1a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.owner{grid-column:2;grid-row:1/3;align-self:center;font-size:10px;color:#9ba8b6;padding:2px 5px;border:1px solid #38445a;border-radius:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.actions .btn{justify-content:center}
+#viewport{flex:1;height:100vh;position:relative;overflow:hidden;background:#0d0d1a}
+#stage{position:absolute;inset:0}
+#toolbar{position:absolute;left:20px;top:16px;z-index:10;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 300px)}
+.tb{background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border:1px solid var(--line);color:#ccc;padding:5px 13px;border-radius:18px;font-size:13px;cursor:pointer}.tb:hover{border-color:var(--red);color:#fff}.tb.active{background:rgba(233,69,96,.2);border-color:var(--red);color:var(--yellow)}.tb:disabled{opacity:.3;cursor:not-allowed}
+.divider{width:1px;height:22px;background:rgba(255,255,255,.18);margin:0 3px}
+#info-stack{position:absolute;right:20px;top:16px;z-index:12;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
+.info{background:rgba(0,0,0,.72);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:12px;line-height:1.65;min-width:190px;text-align:right}.info .l{color:#8f9baa}.info .v{color:#fff}.info .namev{color:var(--yellow);font-weight:600}
+#hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(0,0,0,.68);border:1px solid var(--line);border-radius:20px;padding:6px 16px;color:#9ca8b7;font-size:12px;pointer-events:none;white-space:nowrap}
+#dirty{position:absolute;bottom:18px;right:20px;z-index:10;background:rgba(0,0,0,.68);border:1px solid var(--line);border-radius:18px;padding:6px 12px;color:#8f9baa;font-size:12px}.dirty{color:#ffd93d!important;border-color:rgba(255,215,61,.35)!important}
+.badge{font-size:10px;padding:2px 6px;border-radius:9px;background:rgba(255,255,255,.06);color:#aab5c2}
+#konvaError{display:none;position:absolute;inset:0;z-index:100;background:#0d0d1a;align-items:center;justify-content:center;text-align:center;color:#fff;padding:40px}
+@media(max-width:1000px){#panel{width:360px;min-width:360px}}
+
+.settings-head{margin-bottom:0!important;cursor:pointer;user-select:none}.settings-body{display:none;padding-top:10px}.settings.open .settings-body{display:block}.settings-arrow{margin-left:auto;transition:.15s}.settings.open .settings-arrow{transform:rotate(180deg)}
+.cargo-menu-wrap{position:relative;margin-left:auto}.cargo-menu-btn{width:28px;height:28px;border-radius:50%;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:block;width:100%;border:0;background:transparent;color:#d9e1ea;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{background:#24304c}
+.batchbar{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #303653;align-items:center;gap:7px;font-size:12px;color:#aeb8c5}.batchbar.on{display:flex}
+.ctx{display:none;position:fixed;z-index:120;width:180px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.ctx.open{display:block}.ctx button{display:block;width:100%;border:0;background:transparent;color:#e1e7ee;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.ctx button:hover{background:#28334e}.ctx .danger{color:#ff7b8d}
+.modal-bg2{display:none;position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.72);align-items:center;justify-content:center}.modal-bg2.open{display:flex}.modal2{width:430px;background:#1a1a3e;border:1px solid #2a2a5e;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.7)}.modal2 h2{font-size:18px;color:#a8d8ea;margin-bottom:16px}.modal2 .field{margin-bottom:10px}.modal2 .field label{display:block;color:#9ba8b6;font-size:12px;margin-bottom:4px}.modal-actions2{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+.other-head{margin-top:8px;padding:8px 7px;border-top:1px solid #303653;color:#aeb8c5;font-size:12px;cursor:pointer;user-select:none}.other-head:hover{color:#fff}.other-count{float:right;color:#74849a}.other-list{min-height:0!important;max-height:22vh!important;padding-top:2px}
+
+.floor-menu-wrap{position:relative}.floor-menu{display:none;position:absolute;right:0;top:34px;width:130px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:90;box-shadow:0 12px 32px rgba(0,0,0,.55)}.floor-menu.open{display:block}.floor-menu button{display:block;width:100%;border:0;background:transparent;color:#d9e1ea;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.floor-menu button:hover{background:#24304c}
+.other-list{display:none!important;flex:0 0 auto!important;min-height:0!important;height:0!important}.other-list.open{display:flex!important;height:auto!important;min-height:48px!important;max-height:144px!important;overflow-y:auto!important}
+.row-actions{grid-column:3;grid-row:1/3;align-self:center;display:flex;gap:4px}.row-action{border:0;background:transparent;color:#aeb8c5;cursor:pointer;font-size:14px;padding:4px;border-radius:5px}.row-action:hover{background:#27324b;color:#fff}.row-action.delete{color:#ff6577}.row-action:disabled{opacity:.25;cursor:not-allowed;background:transparent}
+
+.panel-footer{flex:0 0 auto}
+.floor-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.floor-stat{border-radius:9px;padding:8px 10px;font-size:11px}.floor-stat .k{color:#8fa0b4;display:block;margin-bottom:3px}.floor-stat .v{font:12px Consolas;color:#fff}.floor-stat.size{background:rgba(15,52,96,.55)}.floor-stat.grid{background:rgba(88,56,120,.42)}
+.settings-body .toggle{padding:8px 10px;border-radius:8px;margin-top:7px}.settings-body .toggle:nth-of-type(1){background:rgba(15,52,96,.42)}.settings-body .toggle:nth-of-type(2){background:rgba(88,56,120,.38)}.settings-body .toggle:nth-of-type(3){background:rgba(80,90,55,.34)}.settings-body .toggle:nth-of-type(4){background:rgba(105,65,35,.34)}.settings-body .toggle:nth-of-type(5){background:rgba(65,90,90,.30)}
+.cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}
+.cargo-item.other.locked .dot{background:#a8adb5!important}.cargo-item.other:not(.locked) .dot{background:#6f7680!important}.panel-footer .row{gap:8px}.ship-record-btn{border:1px solid #40516c;background:#101833;color:#cbd5e1}
+.other-head{display:flex;align-items:center;gap:7px}.other-head .other-count{margin-left:auto;float:none}.other-lock{margin-left:6px;font-size:11px;display:flex;gap:4px;align-items:center;cursor:pointer}.other-lock input{width:13px;height:13px}
+.batchbar.on{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}.batchbar .btn{padding:6px 7px}.batch-exit{background:#334155}.batch-delete{background:#7f1d2d!important;color:#fecdd3!important}.batch-ship{background:#166534!important;color:#dcfce7!important}.batchbar .btn:disabled{opacity:.35;cursor:not-allowed}
+.age-legend{display:none;margin:8px 0 2px 21px;font-size:10px;color:#aeb8c5;line-height:1.8}.age-legend.on{display:block}.legend-row{display:flex;align-items:center;gap:6px}.legend-swatch{width:12px;height:8px;border-radius:2px}.l1{background:#ffe1e1}.l2{background:#ffadad}.l3{background:#ff6868}.l4{background:#b91c3c}
+.modal2.wide{width:min(860px,92vw)}.modal-title-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}.modal-title-row h2{margin:0}.modal-pos{margin-left:auto;color:#ffd93d;font:12px Consolas}.ship-btn{margin-right:auto;background:#166534!important}.danger-btn{background:#7f1d2d!important}
+.import-input{width:100%;height:220px;resize:vertical;background:#0a0a2a;color:#e5e7eb;border:1px solid #2a2a5e;border-radius:8px;padding:10px;font:12px Consolas;outline:none;white-space:pre}.import-errors{max-height:120px;overflow:auto;margin-top:8px}.import-error{padding:5px 8px;margin:3px 0;border-radius:5px;background:rgba(233,69,96,.16);color:#ff9aaa;font-size:12px}.import-input.has-error{border-color:#e94560;background:rgba(127,29,45,.12)}
+.preview-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}.preview-table th,.preview-table td{border-bottom:1px solid #303653;padding:7px 6px;text-align:left}.preview-table th{color:#9fb0c4}.warn-default{color:#ffd93d}.ship-list{max-height:55vh;overflow:auto}.ship-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:9px 5px;border-bottom:1px solid #303653}.ship-row .meta{white-space:normal}.empty-state{padding:24px;text-align:center;color:#8191a4}
+
+.object-item{border-left-color:#8b96a8!important}
+.object-swatch{width:16px;height:16px;border-radius:3px;flex:none;border:1px solid rgba(255,255,255,.35)}
+.object-mode-badge{display:none;margin-left:6px;color:#ffd93d;font-size:11px}.object-mode-badge.on{display:inline}
+.object-only{display:none}.object-mode .object-only{display:block}
+.pattern-preview{height:54px;border:1px solid #3a4660;border-radius:8px;margin-top:6px;background:#59616d}
+.inline-check{display:flex;align-items:center;gap:7px;font-size:12px;color:#cbd5e1}.inline-check input{width:14px;height:14px}
+.column-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;max-height:190px;overflow:auto;padding:6px;background:#0a0a2a;border-radius:8px}.column-grid label{padding:5px;border-radius:5px;background:#222a42;font-size:11px}.column-grid input{width:12px;height:12px}
+
+.color-input{width:52px!important;height:32px;padding:2px!important;cursor:pointer}
+.pos-pill{display:inline-flex;align-items:center;padding:4px 9px;border-radius:12px;background:rgba(255,215,61,.12);border:1px solid rgba(255,215,61,.35);color:#ffd93d;font:12px Consolas}
+.exit-object-btn{display:none;background:#7c3aed!important;color:#fff!important;border-color:#a78bfa!important}.exit-object-btn.on{display:inline-block}
+.batch-color{background:#5b4b9a!important;color:#eee!important}
+.color-pop{display:none;position:fixed;z-index:160;background:#15152f;border:1px solid #2a2a5e;border-radius:10px;padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.color-pop.open{display:block}.color-pop .row{gap:8px}
+
+.object-opacity-control{display:none;margin-top:8px;padding:8px 10px;border-radius:9px;background:rgba(50,68,82,.42)}
+.object-opacity-control.on{display:block}.object-opacity-control .line{display:flex;align-items:center;gap:8px}
+.object-opacity-control input[type=range]{flex:1;min-width:0}.object-opacity-control input[type=number]{width:58px!important;padding:5px!important;text-align:center}
+
+.ctx button:disabled{
+  color:#687586 !important;
+  opacity:.58;
+  cursor:default;
+  background:transparent !important;
+}
+.ctx button:disabled:hover{
+  color:#687586 !important;
+  background:transparent !important;
+}
+
+#confirmModal{z-index:12050!important}
+#confirmModal.open{z-index:12050!important}
+
+.ship-record-modal{width:min(900px,92vw);max-height:82vh;overflow:hidden}
+.ship-record-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.ship-record-head h2{margin:0 0 5px}
+.ship-record-summary{font-size:12px;color:#8797aa}
+.ship-record-columns{display:grid;grid-template-columns:minmax(0,1fr) 180px 140px;gap:16px;padding:9px 14px;border:1px solid #2b3544;border-radius:8px 8px 0 0;background:#151c26;color:#8fa0b4;font-size:11px;font-weight:700}
+.ship-record-modal .ship-list{max-height:52vh;overflow:auto;border:1px solid #2b3544;border-top:0;border-radius:0 0 8px 8px;padding:6px}
+.ship-record-modal .ship-row{display:grid;grid-template-columns:minmax(0,1fr) 180px 140px;gap:16px;align-items:center;padding:10px 12px;margin:2px 0;border:1px solid transparent;border-radius:7px;cursor:pointer;user-select:none}
+.ship-record-modal .ship-row:hover{background:#1c2633}
+.ship-record-modal .ship-row.selected{background:#26364a;border-color:#4f78a7}
+.ship-record-modal .ship-row .cargo-title{font-size:13px;font-weight:700;color:#e7edf4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ship-record-modal .ship-row .meta{margin-top:3px}
+.ship-record-modal .ship-cell{font-size:12px;color:#c4ced9}
+#shipBatchRestore:disabled{color:#687586;opacity:.58;cursor:default}
+
+.ship-record-modal{background:#202a37}
+.ship-record-columns{background:#2d3b4b!important;color:#e6ebf0!important;font-size:12px!important;font-weight:700!important;border-color:#4a5d73!important}
+.ship-record-modal .ship-list{background:#27333f;border-color:#4a5d73!important}
+.ship-record-modal .ship-row{background:#334252;border-color:#44566b!important;padding:13px 14px!important}
+.ship-record-modal .ship-row:nth-child(even){background:#374657}
+.ship-record-modal .ship-row:hover{background:#3e5064}
+.ship-record-modal .ship-row.selected{background:#45617f!important;border-color:#86a9cf!important}
+.ship-record-modal .ship-row .cargo-title{font-size:14px!important;font-weight:700!important;color:#fafbfd!important}
+.ship-record-modal .ship-row .meta{font-size:12px!important;font-weight:500;color:#d5dee7!important;line-height:1.55}
+.ship-record-modal .ship-cell{font-size:13px!important;font-weight:600!important;color:#f0f3f6!important;line-height:1.5}
+.ship-record-detail{margin-top:4px;font-size:12px;line-height:1.55;color:#dce3ea}
+.ship-record-detail b{color:#f7f9fb;font-weight:700}
+.ship-record-note{white-space:normal;overflow-wrap:anywhere}
+
+/* v0.12 approved shipment-record design */
+.ship-record-modal{background:#2a3543!important}
+.ship-record-columns{background:#d8dee6!important;color:#26313d!important;font-size:12px!important;font-weight:750!important;border-color:#c4ccd5!important}
+.ship-record-modal .ship-list{background:#d5dce4!important;border-color:#c4ccd5!important;padding:6px!important}
+.ship-record-modal .ship-row{background:#f1f4f7!important;color:#27313c!important;border-color:#c8d0d9!important;padding:12px 14px!important}
+.ship-record-modal .ship-row:nth-child(even){background:#e9eef3!important}
+.ship-record-modal .ship-row:hover{background:#dfe9f3!important}
+.ship-record-modal .ship-row.selected{background:#d1e1f0!important;border-color:#9cb6cf!important;box-shadow:inset 4px 0 #52799f}
+.ship-record-modal .cargo-title{display:block!important;background:#dce5ed;border-radius:8px;padding:4px 8px;font-size:14px!important;font-weight:780!important;color:#17212b!important}
+.ship-record-modal .cargo-dim{display:block;margin-top:5px;font-size:12px;font-weight:600;color:#566474}
+.ship-record-modal .ship-stock-box,.ship-record-modal .ship-out-box{border-radius:9px;padding:8px 9px}
+.ship-record-modal .ship-stock-box{background:#dcebdd}
+.ship-record-modal .ship-out-box{background:#eee5d9}
+.ship-record-modal .ship-cell,.ship-record-modal .ship-record-detail{font-size:12px!important;font-weight:500!important;color:#536170!important;line-height:1.55}
+.ship-record-modal .ship-record-detail{margin-top:3px}
+.ship-record-modal .ship-record-detail b,.ship-record-modal .ship-cell b{color:#25313d!important;font-weight:700!important}
+
+.import-confirm-summary{padding:10px 12px;margin-bottom:10px;border-radius:8px;background:#202b38;color:#dce4ed;font-size:13px}.import-fail-count{color:#ff6b6b}.bad-row{background:#fff0f0!important}.import-error-param{display:inline-flex;align-items:center;gap:5px;color:#b91c1c;font-weight:700}.import-error-param::before{content:"!";display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:900}
+.ship-record-columns,.ship-record-modal .ship-row{grid-template-columns:minmax(180px,.85fr) minmax(215px,1.15fr) minmax(215px,1.15fr) 92px!important}
+.ship-record-modal .cargo-title{color:#17212b!important;-webkit-text-fill-color:#17212b!important}
+.ship-record-actions{display:flex;justify-content:flex-end;align-items:center}.ship-record-restore{border:1px solid #8ca0b4;background:#fff;color:#304254;border-radius:7px;padding:6px 9px;font-size:12px;font-weight:700;cursor:pointer}.ship-record-restore:hover{background:#edf4fa}
+
+.ship-stock-box .ship-cell,.ship-out-box .ship-cell{margin:0 0 3px}
+.ship-stock-box .ship-record-detail,.ship-out-box .ship-record-detail{margin-top:3px!important}
+
+.ship-record-top-actions{display:flex;align-items:center;gap:10px}
+.ship-record-ctrl-hint{font-size:12px;color:#aebaca;white-space:nowrap}
+.ship-record-modal .cargo-origin{margin-top:3px;font-size:12px;font-weight:500;color:#566474}
+.ship-record-modal .cargo-origin b{color:#25313d;font-weight:700}
+
+#floorMapCaption{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:10;color:#aebaca;font-size:13px;font-weight:650;letter-spacing:.02em;pointer-events:none;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.75)}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1>📦 库存位置 <small>2D Editor · V0.18</small></h1>
+
+    <section class="section">
+      <div class="section-title">🏢 楼层管理 <span class="grow" id="floorSummary"></span></div>
+      <div class="row">
+        <select id="floorSelect"><option value="2F">2楼</option><option value="7F">7楼</option></select>
+        <div class="floor-menu-wrap"><button class="btn" id="floorManage">管理 ▾</button>
+<div class="floor-menu" id="floorMenu"><button data-floor-act="edit">修改楼层</button><button data-floor-act="create">创建楼层</button><button data-floor-act="objects">进入障碍物修改模式</button></div></div>
+      </div>
+      <div class="floor-stats">
+        <div class="floor-stat size"><span class="k">尺寸 · 长 × 宽</span><span class="v" id="floorSizeStat"></span></div>
+        <div class="floor-stat grid"><span class="k">网格 · 横 × 纵</span><span class="v" id="floorGridStat"></span></div>
+      </div>
+      <div class="object-opacity-control" id="objectOpacityControl">
+        <span class="k" style="font-size:11px;color:#8fa0b4">普通模式障碍物透明度</span>
+        <div class="line"><input id="objectOpacityRange" type="range" min="0" max="100" value="30"><input id="objectOpacityNumber" type="number" min="0" max="100" value="30"><span style="font-size:11px;color:#9fb0c4">%</span></div>
+      </div>
+    </section>
+<section class="section settings" id="settingsSec">
+  <div class="section-title settings-head" id="settingsHead">⚙ 设置 <span class="grow">点击展开</span><span class="settings-arrow">▾</span></div>
+  <div class="settings-body">
+    <label class="toggle"><input type="checkbox" id="showOther" checked>显示其它部门货物</label>
+    <label class="toggle"><input type="checkbox" id="ageMode">检查货物存放时长</label>
+    <div class="age-legend" id="ageLegend">
+      <div class="legend-row"><span class="legend-swatch l1"></span>0–15 天</div>
+      <div class="legend-row"><span class="legend-swatch l2"></span>16–30 天</div>
+      <div class="legend-row"><span class="legend-swatch l3"></span>31–45 天</div>
+      <div class="legend-row"><span class="legend-swatch l4"></span>45 天以上</div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="snapToggle" checked>辅助吸附</label>
+    <label class="toggle"><input type="checkbox" id="overlapToggle">允许重叠货物</label>
+    <label class="toggle"><input type="checkbox" id="outsideToggle">允许超出边界</label>
+  </div>
+</section>
+
+    <section class="section cargo-section">
+      <div class="section-title"><span id="listTitle">📋 库存货物</span><button class="btn exit-object-btn" id="exitObjectList">退出障碍物模式</button><span class="grow" id="cargoSummary"></span>
+        <div class="cargo-menu-wrap"><button class="cargo-menu-btn" id="cargoMenuBtn">⋯</button>
+          <div class="cargo-menu" id="cargoMenu">
+            <button data-act="add">添加货物</button>
+            <button data-act="import">导入货物</button>
+            <button data-act="copylist">复制货物清单</button>
+                        <button class="object-only" data-act="addobj">添加障碍物</button>
+            <button class="object-only" data-act="importobj">导入障碍物</button>
+            <button class="object-only" data-act="columns">批量添加柱</button>
+            <button class="object-only" data-act="copyobjlist">复制障碍物清单</button>
+            
+          </div>
+        </div>
+      </div>
+      <div class="search"><input id="searchInput" placeholder="🔎 名称 / 位置 / 备注"><span class="count" id="searchCount"></span></div>
+      <div class="cargo-list" id="cargoList"></div>
+      <div class="other-head" id="otherHead"><span id="otherArrow">▶</span><span>其它部门货物</span><span class="other-count" id="otherCount">0</span><label class="other-lock" title="锁定其它部门货物"><input type="checkbox" id="lockOther" checked>锁定货物</label></div>
+      <div class="cargo-list other-list" id="otherCargoList"></div>
+      <div class="batchbar" id="batchbar"><button class="btn batch-exit" id="batchDone">↩ 退出多选</button><button class="btn batch-delete" id="deleteBatch">✕ 删除</button><button class="btn batch-color" id="colorBatch">● 颜色</button><button class="btn batch-ship" id="shipBatch">⇥ 出货</button><span id="batchCount" style="grid-column:1/5;text-align:center">已选择 0 件</span></div>
+    </section>
+
+    
+
+    <section class="section panel-footer"><div class="row"><button class="btn primary" id="fakeSave" style="flex:1">保存（演示）</button><button class="btn ship-record-btn" id="reportBtn">打印 / PDF</button><button class="btn ship-record-btn" id="shipRecords">查看出库记录</button></div></section>
+  </aside>
+
+  <main id="viewport">
+    <div id="stage"></div>
+    <div id="toolbar">
+      <button class="tb exit-object-btn" id="exitObjectTop">← 退出障碍物模式</button><button class="tb active" id="directBtn">🖱 即点即拖</button>
+      <button class="tb" id="selectBtn">▣ 点击选中</button>
+      <span class="divider"></span>
+      <button class="tb" id="undoBtn">↶ 撤销</button>
+      <button class="tb" id="redoBtn">↷ 重做</button>
+      <span class="divider"></span>
+      <button class="tb" id="rotateBtn">↻ 旋转 90°</button>
+      <button class="tb" id="copyBtn">⧉ 复制货物</button>
+      <button class="tb" id="deleteBtn">⌫ 删除</button>
+    </div>
+    <div id="info-stack">
+      <div class="info" id="mapInfo"></div>
+      <div class="info" id="selectionInfo" style="display:none"></div>
+    </div>
+    <div id="floorMapCaption"></div>
+    <div id="hint">滚轮缩放 · 右键空白拖动画布 / 单击取消选择 · 右键货物打开菜单 · Ctrl 多选 · Ctrl+C/V · Esc 取消</div>
+    <div id="dirty">● 已保存状态</div>
+    <div id="konvaError"><div><h2 style="margin-bottom:12px">Konva 未加载</h2><p>此 V0.1 使用 Konva CDN。请联网打开，或后续由 W 将 Konva 放入 OA 本地静态资源。</p></div></div>
+  </main>
+</div>
+
+
+<div class="modal-bg2" id="batchCargoEditModal"><div class="modal2">
+ <h2>统一修改货物信息 <span class="pos-pill" id="batchCargoCount"></span></h2>
+ <div class="field"><label>货物名称</label><input id="bcName" placeholder="留空：保持各自原值"></div>
+ <div class="row"><div class="field"><label>长度 L (mm)</label><input id="bcL" type="number" placeholder="留空保持"></div><div class="field"><label>宽度 W (mm)</label><input id="bcW" type="number" placeholder="留空保持"></div><div class="field"><label>高度 H (mm)</label><input id="bcH" type="number" placeholder="留空保持"></div></div>
+ <div class="field"><label>入库日期</label><input id="bcDate" type="date"></div>
+ <div class="field"><label>备注</label><input id="bcRemark" placeholder="留空：保持各自原值"></div>
+ <div class="field"><label>所属</label><select id="bcOwner"><option value="">保持各自原值</option><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
+ <div class="field"><label><input id="bcUseColor" type="checkbox" style="width:auto;margin-right:8px">统一颜色</label><input id="bcColor" type="color" value="#7aa7d9"></div>
+ <div class="modal-actions2"><button class="btn" id="bcCancel">取消</button><button class="btn primary" id="bcOk">确认修改</button></div>
+</div></div>
+
+<div class="modal-bg2" id="batchObjectEditModal"><div class="modal2">
+ <h2>统一修改障碍物信息 <span class="pos-pill" id="batchObjectCount"></span></h2>
+ <div class="field"><label>名称</label><input id="boName" placeholder="留空：保持各自原值"></div>
+ <div class="row"><div class="field"><label>长度 L (mm)</label><input id="boL" type="number" placeholder="留空保持"></div><div class="field"><label>宽度 W (mm)</label><input id="boW" type="number" placeholder="留空保持"></div></div>
+ <div class="field"><label>类型</label><select id="boType"><option value="">保持各自原值</option><option value="COLUMN">柱</option><option value="WALL">墙</option><option value="RESTRICTED">限制区域</option><option value="EQUIPMENT">设备</option><option value="PASSAGE">通道</option><option value="OTHER">其它</option></select></div>
+ <div class="field"><label>底纹</label><select id="boPattern"><option value="">保持各自原值</option><option value="solid">纯色</option><option value="diag">斜线</option><option value="diag2">反斜线</option><option value="cross">交叉</option><option value="dots">点状</option></select></div>
+ <div class="field"><label>显示名称</label><select id="boShowText"><option value="">保持各自原值</option><option value="true">显示</option><option value="false">隐藏</option></select></div>
+ <div class="field"><label>阻挡货物</label><select id="boBlocks"><option value="">保持各自原值</option><option value="true">阻挡</option><option value="false">不阻挡</option></select></div>
+ <div class="field"><label><input id="boUseColor" type="checkbox" style="width:auto;margin-right:8px">统一颜色</label><input id="boColor" type="color" value="#687386"></div>
+ <div class="modal-actions2"><button class="btn" id="boCancel">取消</button><button class="btn primary" id="boOk">确认修改</button></div>
+</div></div>
+<div class="modal-bg2" id="confirmModal"><div class="modal2"><h2 id="confirmTitle">确认操作</h2><div id="confirmText" style="color:#cbd5e1;line-height:1.7"></div><div class="modal-actions2"><button class="btn" id="confirmCancel">取消</button><button class="btn primary" id="confirmOk">确认</button></div></div></div>
+<input id="batchColorInput" type="color" value="#e94560" style="position:fixed;opacity:0;width:1px;height:1px;pointer-events:none">
+
+<div class="ctx" id="cargoListBlankContext">
+  <button data-lc="add">＋ 添加货物</button>
+  <button data-lc="import">⇩ 导入货物</button>
+  <button data-lc="copylist">⧉ 复制货物清单</button>
+</div>
+<div class="ctx" id="objectListBlankContext">
+  <button data-lo="add">＋ 添加障碍物</button>
+  <button data-lo="import">⇩ 导入障碍物</button>
+  <button data-lo="columns">▦ 批量添加柱</button>
+</div>
+<div class="ctx" id="blankContext"><button data-b="undo">↶ 撤销</button><button data-b="redo">↷ 重做</button><button data-b="paste">⧉ 粘贴</button><div class="sep"></div><button data-b="refreshsel">⟳ 刷新</button></div>
+<div class="ctx" id="objectContext">
+ <button data-o="rotate">↻ 旋转 90°</button><button data-o="edit">✎ 修改障碍物</button><button data-o="duplicate">⧉ 复制障碍物</button><button data-o="resetpos">⌖ 位置复位</button><button class="danger" data-o="delete">⌫ 删除障碍物</button>
+</div>
+<div class="ctx" id="cargoContext">
+ <button data-c="rotate">↻ 旋转 90°</button><button data-c="edit">✎ 修改货物信息</button><button data-c="duplicate">⧉ 复制货物</button><button data-c="ship">⇥ 出货</button><button data-c="resetpos">⌖ 位置复位</button><button class="danger" data-c="delete">⌫ 删除货物</button>
+</div>
+<div class="modal-bg2" id="cargoModal2"><div class="modal2">
+ <div class="modal-title-row"><h2 id="cargoModalTitle2">添加货物</h2><span class="pos-pill" id="mPosDisplay"></span></div>
+ <div class="field"><label>货物名称</label><input id="mName"></div>
+ <div class="row"><div class="field"><label>长度 L (mm)</label><input id="mL" type="number"></div><div class="field"><label>宽度 W (mm)</label><input id="mW" type="number"></div><div class="field"><label>高度 H (mm)</label><input id="mH" type="number"></div></div>
+ <div class="field"><label>入库日期</label><input id="mDate" type="date"></div>
+ <div class="row"><div class="field"><label>备注</label><input id="mRemark"></div><div class="field" style="flex:0 0 90px"><label>颜色</label><input class="color-input" id="mColor" type="color"></div></div>
+ <div class="field"><label>所属</label><select id="mOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
+ <div class="modal-actions2"><button class="btn ship-btn" id="mShip">⇥ 操作出库</button><button class="btn" id="mCancel">取消</button><button class="btn primary" id="mOk">确认修改</button></div>
+</div></div>
+<div class="modal-bg2" id="shipModal"><div class="modal2"><h2>操作出库</h2>
+ <div class="field"><label>出库日期</label><input id="shipDate" type="date"></div>
+ <div class="field"><label>出货备注 <span style="font-weight:400;color:#8fa0b4">（选填）</span></label><input id="shipRemark" type="text" placeholder="可填写本次出货相关备注"></div>
+ <div class="modal-actions2"><button class="btn" id="shipCancel">取消</button><button class="btn primary" id="shipOk">确认出库</button></div>
+</div></div>
+<div class="modal-bg2" id="shipRecordsModal"><div class="modal2 wide ship-record-modal">
+ <div class="ship-record-head"><div><h2>出库记录</h2><div class="ship-record-summary" id="shipRecordSummary">当前有 0 条出库记录</div></div><div class="ship-record-top-actions"><span class="ship-record-ctrl-hint">按住 Ctrl 可多选货物</span><button class="btn" id="shipBatchRestore" disabled>↩ 恢复记录</button></div></div>
+ <div class="ship-record-columns"><span>货物信息</span><span>库存记录</span><span>出货记录</span><span>操作</span></div>
+ <div class="ship-list" id="shipRecordsList"></div>
+ <div class="modal-actions2"><button class="btn primary" id="shipRecordsClose">关闭</button></div>
+</div></div>
+<div class="modal-bg2" id="importModal"><div class="modal2 wide"><h2>导入货物</h2>
+ <div class="field"><label>所属</label><select id="importOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
+ <div class="field"><label>粘贴 Excel / WPS 数据（名称、尺寸、位置、入库时间、备注）</label><textarea class="import-input" id="importText" placeholder="名称&#9;尺寸&#9;位置&#9;入库时间&#9;备注&#10;货物A&#9;1200x800&#9;A3&#9;20260919&#9;SW26-1127"></textarea></div>
+ <div class="import-errors" id="importErrors"></div>
+ <div class="modal-actions2"><button class="btn" id="importCancel">取消</button><button class="btn primary" id="importParse">检查并继续</button></div>
+</div></div>
+<div class="modal-bg2" id="importPreviewModal"><div class="modal2 wide"><h2>确认入库列表</h2>
+ <div id="importPreview"></div>
+ <div class="modal-actions2"><button class="btn" id="importBack">返回修改</button><button class="btn primary" id="importConfirm">确认入库</button></div>
+</div></div>
+
+<div class="modal-bg2" id="objectModal"><div class="modal2">
+ <div class="modal-title-row"><h2 id="objectModalTitle">添加障碍物</h2><span class="modal-pos" id="oPosDisplay">位置 A1</span></div>
+ <div class="field"><label>名称</label><input id="oName"></div>
+ <div class="row"><div class="field"><label>长度 L (mm)</label><input id="oL" type="number"></div><div class="field"><label>宽度 W (mm)</label><input id="oW" type="number"></div></div>
+ <div class="field"><label>类型</label><select id="oType"><option value="COLUMN">柱</option><option value="WALL">墙体</option><option value="EQUIPMENT">设备</option><option value="RESTRICTED">限制区域</option><option value="OTHER">其它</option></select></div>
+ <div class="row"><label class="inline-check"><input id="oBlocks" type="checkbox" checked>阻挡货物</label><label class="inline-check"><input id="oShowText" type="checkbox">在物件上显示文本</label></div>
+ <div class="row"><div class="field"><label>花纹</label><select id="oPattern"><option value="solid">纯色</option><option value="diag">斜线</option><option value="backdiag">反斜线</option><option value="cross">交叉线</option><option value="dots">点阵</option></select></div><div class="field" style="flex:0 0 90px"><label>颜色</label><input class="color-input" id="oColor" type="color"></div></div>
+ <div class="modal-actions2"><button class="btn" id="oCancel">取消</button><button class="btn primary" id="oOk">确认</button></div>
+</div></div>
+
+<div class="modal-bg2" id="objectImportModal"><div class="modal2 wide"><h2>导入障碍物</h2>
+ <div class="row"><div class="field"><label>默认类型</label><select id="oiType"><option value="OTHER">其它</option><option value="COLUMN">柱</option><option value="WALL">墙体</option><option value="EQUIPMENT">设备</option><option value="RESTRICTED">限制区域</option></select></div><div class="field"><label>默认花纹</label><select id="oiPattern"><option value="solid">纯色</option><option value="diag">斜线</option><option value="cross">交叉线</option><option value="dots">点阵</option></select></div></div>
+ <div class="row"><label class="inline-check"><input id="oiBlocks" type="checkbox" checked>默认阻挡货物</label><label class="inline-check"><input id="oiShowText" type="checkbox">默认显示文本</label></div>
+ <div class="field"><label>粘贴：名称、尺寸、位置（位置可空，默认 A1）</label><textarea class="import-input" id="objectImportText" placeholder="柱1&#9;500x500&#9;A2&#10;墙体A&#9;3000x200&#9;B3"></textarea></div>
+ <div class="import-errors" id="objectImportErrors"></div>
+ <div class="modal-actions2"><button class="btn" id="oiCancel">取消</button><button class="btn primary" id="oiOk">确认导入</button></div>
+</div></div>
+
+<div class="modal-bg2" id="columnsModal"><div class="modal2 wide"><h2>批量添加柱</h2>
+ <div class="row"><div class="field"><label>柱长度 (mm)</label><input id="colL" type="number" value="500"></div><div class="field"><label>柱宽度 (mm)</label><input id="colW" type="number" value="500"></div></div>
+ <div style="font-size:12px;color:#9fb0c4;line-height:1.7;margin-top:8px">将自动在当前楼层所有尚未有柱的网格交叉点添加柱；不需要的柱可添加后直接删除。</div>
+ <div class="modal-actions2"><button class="btn" id="colCancel">取消</button><button class="btn primary" id="colOk">确认添加</button></div>
+</div></div>
+<div class="modal-bg2" id="floorModal2"><div class="modal2"><h2 id="floorModalTitle">修改楼层</h2>
+ <div class="field"><label>当前楼层名称</label><input id="fName"></div>
+ <div class="row"><div class="field"><label>宽度 (mm)</label><input id="fW" type="number"></div><div class="field"><label>长度 (mm)</label><input id="fL" type="number"></div></div>
+ <div class="row"><div class="field"><label>横向网格</label><input id="fCols" type="number"></div><div class="field"><label>纵向网格</label><input id="fRows" type="number"></div></div>
+ <p style="color:#8898aa;font-size:12px;line-height:1.6">本轮先开放楼层参数编辑入口；新增/删除楼层与障碍物编辑在 Floor Edit 阶段继续完善。</p>
+ <div class="modal-actions2"><button class="btn" id="fCancel">取消</button><button class="btn primary" id="fOk">应用到 Edit State</button></div>
+</div></div>
+<script>
+(() => {
+if (!window.Konva){document.getElementById('konvaError').style.display='flex';return;}
+
+const palette=['#e94560','#ff6b6b','#ffa94d','#ffd93d','#6bcb77','#4d96ff','#845ef7','#20c997','#ff922b','#339af0','#f06595'];
+const floors={
+ '2F':{id:'2F',name:'2楼',width:30000,length:15000,cols:10,rows:5,revision:1,
+  objects:[
+   {id:'o1',name:'柱 A',type:'COLUMN',x:8800,y:4300,w:700,h:700,blocks:true},
+   {id:'o2',name:'柱 B',type:'COLUMN',x:17800,y:4300,w:700,h:700,blocks:true},
+   {id:'o3',name:'设备区',type:'EQUIPMENT',x:23500,y:10500,w:3500,h:2500,blocks:true}
+  ],
+  cargos:[
+   {id:'c1',name:'VP-BF-180-06',l:3200,w:1800,x:800,y:900,r:0,owner:'OVERSEAS',color:palette[0],stock:'2026-08-12',remark:'SW26-1127'},
+   {id:'c2',name:'多头秤',l:2200,w:1600,x:4300,y:900,r:0,owner:'OVERSEAS',color:palette[5],stock:'2026-07-25',remark:'Highdream'},
+   {id:'c3',name:'Z-lifter',l:2800,w:1200,x:7000,y:900,r:90,owner:'OVERSEAS',color:palette[4],stock:'2026-09-03',remark:''},
+   {id:'c4',name:'Cake machine',l:2600,w:1900,x:11000,y:7000,r:0,owner:'OVERSEAS',color:palette[2],stock:'2026-05-18',remark:'待装柜'},
+   {id:'c5',name:'其它部门货物 A',l:3000,w:1800,x:15500,y:900,r:0,owner:'OTHER',color:'#7b8492',stock:'2026-06-02',remark:'其它'},
+   {id:'c6',name:'Food Printer',l:1800,w:1200,x:20200,y:6500,r:0,owner:'OVERSEAS',color:palette[6],stock:'2026-09-10',remark:'AP-A3pro'}
+  ]},
+ '7F':{id:'7F',name:'7楼',width:24000,length:12000,cols:8,rows:4,revision:1,
+  objects:[{id:'o7',name:'柱 7A',type:'COLUMN',x:11650,y:5650,w:700,h:700,blocks:true}],
+  cargos:[
+   {id:'c71',name:'Baking Tray',l:2400,w:1400,x:900,y:900,r:0,owner:'OVERSEAS',color:palette[8],stock:'2026-08-28',remark:''},
+   {id:'c72',name:'其它部门货物 B',l:2600,w:1800,x:5200,y:5200,r:0,owner:'OTHER',color:'#7b8492',stock:'2026-04-11',remark:'其它'}
+  ]}
+};
+const deep=o=>JSON.parse(JSON.stringify(o));
+const original=deep(floors);
+let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContextId=null, objectClipboard=[];
+let floorModalMode='edit'; let floor=floors['2F']; Object.values(floors).forEach(f=>f.cargos.forEach(c=>{if(!c.status)c.status='ACTIVE'})); Object.values(floors).forEach(f=>{if(f.objectOpacity==null)f.objectOpacity=30}); Object.values(floors).forEach(f=>f.objects.forEach((o,i)=>{o.id=o.id||('o_'+f.id+'_'+i);o.name=o.name||('障碍物 '+(i+1));o.type=o.type||'OTHER';o.pattern=o.pattern||'solid';if(o.showText==null)o.showText=false;if(o.blocks==null)o.blocks=true;})), mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false;
+let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false;
+const $=id=>document.getElementById(id);
+const visibleCargo=c=>c.status!=='SHIPPED'&&(c.owner!=='OTHER'||$('showOther').checked); const cargoLocked=c=>c.owner==='OTHER'&&$('lockOther').checked;
+const dims=c=>c.r%180===0?{w:c.l,h:c.w}:{w:c.w,h:c.l};
+const cellW=()=>floor.width/floor.cols, cellH=()=>floor.length/floor.rows;
+const cellName=(c)=>{
+ const d=dims(c), cx1=Math.max(0,c.x),cy1=Math.max(0,c.y),cx2=Math.min(floor.width,c.x+d.w),cy2=Math.min(floor.length,c.y+d.h);
+ if(cx2<=cx1||cy2<=cy1)return 'OUTSIDE';
+ let best=null,area=-1;
+ for(let col=0;col<floor.cols;col++)for(let row=0;row<floor.rows;row++){
+  const x1=col*cellW(),y1=row*cellH(),x2=x1+cellW(),y2=y1+cellH();
+  const a=Math.max(0,Math.min(c.x+d.w,x2)-Math.max(c.x,x1))*Math.max(0,Math.min(c.y+d.h,y2)-Math.max(c.y,y1));
+  if(a>area){area=a;best=String.fromCharCode(65+col)+(row+1)}
+ }
+ return best||'OUTSIDE';
+};
+const ageColor=c=>{
+ if(!$('ageMode').checked||c.owner==='OTHER')return c.color;
+ const days=Math.max(0,(Date.now()-new Date(c.stock+'T00:00:00').getTime())/86400000);
+ if(days<30)return '#ffd6d6'; if(days<60)return '#ff9f9f'; if(days<120)return '#f45b69'; return '#b4233c';
+};
+function setDirty(v=true){dirty=v;$('dirty').textContent=v?'● 有未保存修改':'● 已保存状态';$('dirty').classList.toggle('dirty',v)}
+function snapshot(){return JSON.stringify({cargos:floor.cargos,objects:floor.objects})}
+function pushHistory(){undoStack.push(snapshot());if(undoStack.length>100)undoStack.shift();future=[];updateButtons()}
+function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;selected.clear();setDirty(true);renderAll()}
+function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
+function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
+function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
+function applyView(){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo()}
+function fit(){
+ const vw=$('viewport').clientWidth,vh=$('viewport').clientHeight,margin=100;
+ scale=Math.min((vw-margin*2)/floor.width,(vh-margin*2)/floor.length);
+ origin={x:(vw-floor.width*scale)/2,y:(vh-floor.length*scale)/2+12};
+ drawGrid();drawObjects();drawCargos();applyView();
+}
+function mmx(v){return v} function mmy(v){return v} function screenWorld(p){return{x:(p.x-origin.x)/scale,y:(p.y-origin.y)/scale}}
+function drawGrid(){
+ gridLayer.destroyChildren();
+ gridLayer.add(new Konva.Rect({x:mmx(0),y:mmy(0),width:floor.width,height:floor.length,fill:'#f8fafc',stroke:'#67819b',strokeWidth:2/scale}));
+ for(let i=0;i<=floor.cols;i++){const x=i*cellW();gridLayer.add(new Konva.Line({points:[x,0,x,floor.length],stroke:'#c5d1dd',strokeWidth:1/scale}));if(i<floor.cols)gridLayer.add(new Konva.Text({x:(i+.5)*cellW()-10/scale,y:-28/scale,text:String.fromCharCode(65+i),fontSize:14/scale,fill:'#9fb3c7',fontStyle:'bold'}))}
+ for(let i=0;i<=floor.rows;i++){const y=i*cellH();gridLayer.add(new Konva.Line({points:[0,y,floor.width,y],stroke:'#c5d1dd',strokeWidth:1/scale}));if(i<floor.rows)gridLayer.add(new Konva.Text({x:-28/scale,y:(i+.5)*cellH()-7/scale,text:String(i+1),fontSize:14/scale,fill:'#9fb3c7',fontStyle:'bold'}))}
+ gridLayer.batchDraw();
+}
+function drawObjects(){
+ objLayer.destroyChildren();
+ floor.objects.forEach(o=>{
+  const sel=objectSelected.has(o.id),g=new Konva.Group({x:o.x,y:o.y,id:o.id,name:'object',listening:objectMode,clipX:0,clipY:0,clipWidth:o.w,clipHeight:o.h});
+  const fill=sel&&objectMode?'#b68cff':(o.color||'#687386');
+  g.add(new Konva.Rect({width:o.w,height:o.h,fill,opacity:objectMode?.88:(Math.max(0,Math.min(100,floor.objectOpacity??30))/100),stroke:sel?'#ffd93d':'#aab3c0',strokeWidth:(sel?3:1)/scale,cornerRadius:2/scale}));
+  const step=Math.max(120,10/scale),line='#303846';
+  if(o.pattern!=='solid'){
+   if(o.pattern==='dots'){for(let x=step/2;x<o.w;x+=step)for(let y=step/2;y<o.h;y+=step)g.add(new Konva.Circle({x,y,r:Math.max(12,1.4/scale),fill:line,opacity:.4,listening:false}))}
+   else{
+    const addDiag=back=>{for(let k=-o.h;k<o.w;k+=step){const pts=back?[k,0,k+o.h,o.h]:[k,o.h,k+o.h,0];g.add(new Konva.Line({points:pts,stroke:line,opacity:.4,strokeWidth:1/scale,listening:false}))}};
+    if(o.pattern==='diag'||o.pattern==='cross')addDiag(false);if(o.pattern==='backdiag'||o.pattern==='cross')addDiag(true);
+   }
+  }
+  if(o.showText){
+   const fs=12/scale,pad=4/scale,label=new Konva.Label({listening:false,opacity:objectMode?1:Math.max(.55,(floor.objectOpacity??30)/100)});
+   label.add(new Konva.Tag({fill:'#fff',cornerRadius:5/scale,shadowColor:'black',shadowBlur:2/scale,shadowOpacity:.16}));
+   label.add(new Konva.Text({text:o.name,fontSize:fs,fill:'#111',padding:pad,align:'center'}));
+   const box=label.getClientRect({skipTransform:true});label.position({x:Math.max(0,(o.w-box.width)/2),y:Math.max(0,(o.h-box.height)/2)});g.add(label);
+  }
+  if(objectMode){
+   g.on('mousedown touchstart',e=>{
+    if(e.evt.button===2)return;e.cancelBubble=true;const ctrl=e.evt.ctrlKey||e.evt.metaKey;
+    if(ctrl){objectSelected.has(o.id)?objectSelected.delete(o.id):objectSelected.add(o.id)}else if(!objectSelected.has(o.id)){objectSelected.clear();objectSelected.add(o.id)}
+    drawObjects();renderObjectList();
+    if(mode==='direct'){const p=stage.getPointerPosition();directDrag={kind:'object',before:snapshot(),starts:new Map([...objectSelected].map(id=>{const q=floor.objects.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),lastPointer:p?{...p}:null,moved:false}}
+   });
+   g.on('contextmenu',e=>{e.evt.preventDefault();e.cancelBubble=true;if(!objectSelected.has(o.id)){objectSelected.clear();objectSelected.add(o.id)}drawObjects();renderObjectList();objectContextId=o.id;showObjectContext(e.evt.clientX,e.evt.clientY)});
+  }
+  objLayer.add(g);
+ });
+ objLayer.batchDraw();updateButtons();
+}
+function collision(candidate,ignoreIds){
+ const d=dims(candidate), a={x:candidate.x,y:candidate.y,w:d.w,h:d.h};
+ const outside=a.x<0||a.y<0||a.x+a.w>floor.width||a.y+a.h>floor.length;
+ if(!$('outsideToggle').checked && outside){
+  const old=floor.cargos.find(x=>x.id===candidate.id),od=old?dims(old):null;
+  const oldOutside=old?(old.x<0||old.y<0||old.x+od.w>floor.width||old.y+od.h>floor.length):false;
+  if(!oldOutside)return true;
+ }
+ for(const o of floor.objects.filter(x=>x.blocks)){
+  if(a.x<o.x+o.w&&a.x+a.w>o.x&&a.y<o.y+o.h&&a.y+a.h>o.y)return true;
+ }
+ if(!$('overlapToggle').checked)for(const c of floor.cargos){
+  if(ignoreIds.has(c.id)||!visibleCargo(c))continue; const b=dims(c);
+  if(a.x<c.x+b.w&&a.x+a.w>c.x&&a.y<c.y+b.h&&a.y+a.h>c.y)return true;
+ }
+ return false;
+}
+function snapPos(c,x,y){
+ if(!$('snapToggle').checked)return{x,y};
+ const d=dims(c),thr=9/scale; let xs=[0,floor.width-d.w],ys=[0,floor.length-d.h];
+ for(let i=0;i<=floor.cols;i++)xs.push(i*cellW(),i*cellW()-d.w);
+ for(let i=0;i<=floor.rows;i++)ys.push(i*cellH(),i*cellH()-d.h);
+ floor.objects.forEach(o=>{xs.push(o.x,o.x+o.w,o.x-d.w,o.x+o.w-d.w);ys.push(o.y,o.y+o.h,o.y-d.h,o.y+o.h-d.h)});
+ floor.cargos.filter(q=>q.id!==c.id).forEach(q=>{const b=dims(q);xs.push(q.x,q.x+b.w,q.x-d.w,q.x+b.w-d.w);ys.push(q.y,q.y+b.h,q.y-d.h,q.y+b.h-d.h)});
+ const nx=xs.reduce((best,v)=>Math.abs(v-x)<Math.abs(best-x)&&Math.abs(v-x)<=thr?v:best,x);
+ const ny=ys.reduce((best,v)=>Math.abs(v-y)<Math.abs(best-y)&&Math.abs(v-y)<=thr?v:best,y);
+ return{x:nx,y:ny};
+}
+function clearSelection(){if(objectMode)return;selected.clear();renderSelection()}
+function selectOnly(id){selected.clear();const c=floor.cargos.find(q=>q.id===id);if(c&&!cargoLocked(c))selected.add(id);renderSelection()}
+function toggleSelect(id){const c=floor.cargos.find(q=>q.id===id);if(!c||cargoLocked(c))return;selected.has(id)?selected.delete(id):selected.add(id);renderSelection()}
+function renderSelection(){if(objectMode){cargoLayer.destroyChildren();cargoLayer.batchDraw();renderObjectList();return}drawCargos();renderList();renderInfo();updateButtons()}
+
+function rectOf(c,x=c.x,y=c.y){const d=dims(c);return{x,y,w:d.w,h:d.h}}
+function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function blockersFor(id, movingIds){
+ const out=floor.objects.filter(o=>o.blocks!==false).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
+ if(!$('overlapToggle').checked)floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
+ return out;
+}
+function clampAxis(c,fromX,fromY,toX,toY,axis,movingIds){
+ const d=dims(c), blocks=blockersFor(c.id,movingIds); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
+ if(!$('outsideToggle').checked){
+   if(axis==='x'){x=Math.max(0,Math.min(floor.width-d.w,x))}
+   else{y=Math.max(0,Math.min(floor.length-d.h,y))}
+ }
+ const start=rectOf(c,fromX,fromY);
+ if(axis==='x'){
+   const dx=x-fromX;
+   if(dx>0) for(const b of blocks){if(start.y<b.y+b.h&&start.y+d.h>b.y&&fromX+d.w<=b.x&&x+d.w>b.x)x=Math.min(x,b.x-d.w)}
+   if(dx<0) for(const b of blocks){if(start.y<b.y+b.h&&start.y+d.h>b.y&&fromX>=b.x+b.w&&x<b.x+b.w)x=Math.max(x,b.x+b.w)}
+ } else {
+   const dy=y-fromY;
+   if(dy>0) for(const b of blocks){if(start.x<b.x+b.w&&start.x+d.w>b.x&&fromY+d.h<=b.y&&y+d.h>b.y)y=Math.min(y,b.y-d.h)}
+   if(dy<0) for(const b of blocks){if(start.x<b.x+b.w&&start.x+d.w>b.x&&fromY>=b.y+b.h&&y<b.y+b.h)y=Math.max(y,b.y+b.h)}
+ }
+ return axis==='x'?x:y;
+}
+function constrainedDelta(starts,rawDx,rawDy,movingIds){
+ let dx=rawDx,dy=rawDy;
+ // X first, then Y. Each axis is constrained across the whole selected group.
+ for(const [id,st] of starts){const c=floor.cargos.find(q=>q.id===id);const x=clampAxis(c,st.x,st.y,st.x+dx,st.y,'x',movingIds);dx=(dx>=0)?Math.min(dx,x-st.x):Math.max(dx,x-st.x)}
+ for(const [id,st] of starts){const c=floor.cargos.find(q=>q.id===id);const y=clampAxis(c,st.x+dx,st.y,st.x+dx,st.y+dy,'y',movingIds);dy=(dy>=0)?Math.min(dy,y-st.y):Math.max(dy,y-st.y)}
+ return{dx,dy};
+}
+
+function drawCargos(){
+ cargoLayer.destroyChildren();
+ if(objectMode){cargoLayer.batchDraw();return}
+ const any=selected.size>0;
+ floor.cargos.forEach((c,index)=>{
+  if(!visibleCargo(c))return;
+  const d=dims(c),isSel=selected.has(c.id),locked=cargoLocked(c);
+  const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo'});
+  group.add(new Konva.Rect({width:d.w,height:d.h,fill:ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
+  group.on('mousedown touchstart',e=>{
+   if(e.evt.button===2)return;
+   e.cancelBubble=true;
+   if(locked)return;
+   const ctrl=e.evt.ctrlKey||e.evt.metaKey;
+   if(mode==='direct'){
+    if(ctrl){selected.has(c.id)?selected.delete(c.id):selected.add(c.id)}
+    else if(!selected.has(c.id)){selected.clear();selected.add(c.id)}
+    // Same press starts selection + drag. No layer rebuild here.
+    cargoLayer.find('.cargo').forEach(n=>{const r=n.findOne('Rect'),sel=selected.has(n.id());if(r){r.opacity(selected.size&&!sel?.35:.88);r.stroke(sel?'#ffd93d':'rgba(255,255,255,.75)');r.strokeWidth((sel?3:1)/scale)}});
+    renderList();renderInfo();updateButtons();
+    const p=stage.getPointerPosition();
+    directDrag={before:snapshot(),starts:new Map([...selected].map(id=>{const q=floor.cargos.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),lastPointer:p?{...p}:null,moved:false};
+   }else{
+    if(ctrl)toggleSelect(c.id);else if(!selected.has(c.id))selectOnly(c.id);
+   }
+  });
+  group.on('contextmenu',e=>{e.evt.preventDefault();e.cancelBubble=true;if(locked)return;if(!selected.has(c.id))selectOnly(c.id);contextId=c.id;showContext(e.evt.clientX,e.evt.clientY)});
+  cargoLayer.add(group);
+ });
+ cargoLayer.batchDraw();
+}
+function firstSelectedCargoId(){
+ for(const c of floor.cargos)if(selected.has(c.id))return c.id;return null;
+}
+function scrollSelectedCargoIntoView(){
+ const id=firstSelectedCargoId();if(!id)return;
+ requestAnimationFrame(()=>document.querySelector(`[data-cargo-id="${CSS.escape(id)}"]`)?.scrollIntoView({block:'nearest'}));
+}
+function scrollSelectedObjectIntoView(){
+ if(!objectSelected.size)return;
+ requestAnimationFrame(()=>document.querySelector('.object-item.selected')?.scrollIntoView({block:'nearest'}));
+}
+function renderList(){
+ if(objectMode){renderObjectList();return}
+ const q=$('searchInput').value.trim().toLowerCase(), own=$('cargoList'), other=$('otherCargoList');
+ own.innerHTML=''; other.innerHTML='';
+ const matches=c=>!q||[c.name,cellName(c),c.remark].join(' ').toLowerCase().includes(q);
+ const ownArr=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner!=='OTHER').filter(matches);
+ const otherArr=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner==='OTHER').filter(matches);
+ $('searchCount').textContent=(ownArr.length+otherArr.length)+'/'+floor.cargos.length;
+ $('otherCount').textContent=otherArr.length;
+ const make=(c,target)=>{
+  const el=document.createElement('div'),isLock=cargoLocked(c);el.dataset.cargoId=c.id;
+  el.className='cargo-item'+(selected.has(c.id)?' selected':'')+((batchMode&&!selected.has(c.id))||(selected.size&&!selected.has(c.id))?' dimmed':'')+(c.owner==='OTHER'?' other':'')+(isLock?' locked':'');
+  el.style.setProperty('--c',ageColor(c));
+  const d=dims(c);
+  el.innerHTML=`<div class="c1"><span class="dot"></span><span class="idx">#${String(floor.cargos.indexOf(c)+1).padStart(2,'0')}</span><span class="name">${esc(c.name)}</span></div><div class="meta">${Math.round(d.w)}×${Math.round(d.h)} · ${cellName(c)} · ${esc(c.remark||'')}</div><span class="row-actions"><button class="row-action edit" title="修改" ${isLock?'disabled':''}>✎</button><button class="row-action delete" title="删除" ${isLock?'disabled':''}>✕</button></span>`;
+  el.onclick=e=>{if(e.target.closest('.row-action'))return;if(isLock)return;if(e.ctrlKey||e.metaKey||batchMode)toggleSelect(c.id);else selectOnly(c.id)};
+  el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();if(isLock)return;if(!selected.has(c.id)){selected.clear();selected.add(c.id)}contextId=c.id;renderSelection();showContext(e.clientX,e.clientY)};
+  const eb=el.querySelector('.row-action.edit'),db=el.querySelector('.row-action.delete');
+  eb.onclick=e=>{e.stopPropagation();if(!isLock)openCargoModal(c.id)};
+  db.onclick=e=>{e.stopPropagation();if(isLock)return;selectOnly(c.id);del()};
+  target.appendChild(el);
+ };
+ ownArr.forEach(c=>make(c,own)); otherArr.forEach(c=>make(c,other));
+ $('cargoSummary').textContent=selected.size?`当前有 ${ownArr.length} 件，选中 ${selected.size} 件`:`当前有 ${ownArr.length} 件`;
+ if($('batchCount')){const n=objectMode?objectSelected.size:selected.size;$('batchCount').textContent='已选择 '+n+' 件';$('batchbar').classList.toggle('on',n>0);$('deleteBatch').disabled=!n;$('colorBatch').disabled=!n;$('shipBatch').disabled=!n||(!objectMode&&[...selected].some(id=>floor.cargos.find(c=>c.id===id)?.owner==='OTHER'));$('shipBatch').style.display=objectMode?'none':'';}
+ scrollSelectedCargoIntoView();
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function renderInfo(){
+ $('floorSummary').textContent=floor.name;
+ $('floorSizeStat').textContent=`${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm`;
+ $('floorGridStat').textContent=`${floor.cols} × ${floor.rows}`;
+ $('mapInfo').innerHTML=`<span class=l>楼层</span> <span class=v>${floor.name}</span><br><span class=l>尺寸</span> <span class=v>${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm</span><br><span class=l>网格</span> <span class=v>${floor.cols} × ${floor.rows}</span><br><span class=l>Revision</span> <span class=v>${floor.revision}</span>`;
+ if(!selected.size){$('selectionInfo').style.display='none';return}
+ const cs=[...selected].map(id=>floor.cargos.find(c=>c.id===id)).filter(Boolean);$('selectionInfo').style.display='block';
+ if(cs.length===1){const c=cs[0],d=dims(c);$('selectionInfo').innerHTML=`<span class=l>选中</span> <span class="namev">${esc(c.name)}</span><br><span class=l>尺寸</span> <span class=v>${d.w} × ${d.h} mm</span><br><span class=l>位置</span> <span class=v>${cellName(c)}</span><br><span class=l>坐标</span> <span class=v>${Math.round(c.x)}, ${Math.round(c.y)}</span>`}
+ else $('selectionInfo').innerHTML=`<span class=l>已选中</span> <span class=namev>${cs.length} 件货物</span><br><span class=l>拖动</span> <span class=v>保持相对位置</span>`;
+}
+
+function columnGroupKey(o){
+ return JSON.stringify({w:o.w,h:o.h,type:o.type,pattern:o.pattern||'solid',blocks:o.blocks!==false,showText:!!o.showText,color:o.color||'#687386',rotation:o.rotation||0});
+}
+function renderObjectList(){
+ const q=$('searchInput').value.trim().toLowerCase(),list=$('cargoList');list.innerHTML='';
+ const filtered=floor.objects.filter(o=>!q||[o.name,o.type].join(' ').toLowerCase().includes(q));
+ const groups=[],columnMap=new Map();
+ for(const o of filtered){
+  if(o.type==='COLUMN'){
+   const k=columnGroupKey(o);if(!columnMap.has(k)){const g={kind:'columns',items:[]};columnMap.set(k,g);groups.push(g)}columnMap.get(k).items.push(o);
+  }else groups.push({kind:'single',items:[o]});
+ }
+ $('cargoSummary').textContent=objectSelected.size?`当前有 ${floor.objects.length} 个，选中 ${objectSelected.size} 个`:`当前有 ${floor.objects.length} 个`;
+ $('searchCount').textContent=filtered.length+'/'+floor.objects.length;
+ $('batchbar').classList.toggle('on',objectSelected.size>0);$('batchCount').textContent='已选择 '+objectSelected.size+' 个';$('deleteBatch').disabled=!objectSelected.size;$('colorBatch').disabled=!objectSelected.size;$('shipBatch').style.display='none';
+ groups.forEach(gr=>{
+  const items=gr.items,allSelected=items.every(o=>objectSelected.has(o.id)),someSelected=items.some(o=>objectSelected.has(o.id)),o=items[0];
+  const el=document.createElement('div');el.className='cargo-item object-item'+(someSelected?' selected':'')+(objectSelected.size&&!someSelected?' dimmed':'');
+  if(gr.kind==='columns'){
+   el.innerHTML=`<div class="c1"><span class="object-swatch" style="background:${o.color||'#687386'}"></span><span class="name">柱 × ${items.length}</span></div><div class="meta">${Math.round(o.w)}×${Math.round(o.h)} · ${o.blocks?'阻挡货物':'不阻挡'}${o.pattern&&o.pattern!=='solid'?' · '+o.pattern:''}</div>`;
+   el.onclick=e=>{const ids=items.map(x=>x.id);if(e.ctrlKey||e.metaKey){const add=!allSelected;ids.forEach(id=>add?objectSelected.add(id):objectSelected.delete(id))}else{objectSelected.clear();ids.forEach(id=>objectSelected.add(id))}drawObjects();renderObjectList()};el.oncontextmenu=e=>{e.preventDefault();objectSelected.clear();items.forEach(x=>objectSelected.add(x.id));drawObjects();renderObjectList();objectContextId=items[0].id;showObjectContext(e.clientX,e.clientY)};
+  }else{
+   el.innerHTML=`<div class="c1"><span class="object-swatch" style="background:${o.color||'#687386'}"></span><span class="name">${esc(o.name)}</span></div><div class="meta">${Math.round(o.w)}×${Math.round(o.h)} · ${o.type} · ${o.blocks?'阻挡货物':'不阻挡'}</div><span class="row-actions"><button class="row-action edit">✎</button><button class="row-action delete">✕</button></span>`;
+   el.onclick=e=>{if(e.target.closest('.row-action'))return;if(e.ctrlKey||e.metaKey){objectSelected.has(o.id)?objectSelected.delete(o.id):objectSelected.add(o.id)}else{objectSelected.clear();objectSelected.add(o.id)}drawObjects();renderObjectList()};el.oncontextmenu=e=>{e.preventDefault();if(!objectSelected.has(o.id)){objectSelected.clear();objectSelected.add(o.id)}drawObjects();renderObjectList();objectContextId=o.id;showObjectContext(e.clientX,e.clientY)};
+   el.querySelector('.edit').onclick=e=>{e.stopPropagation();openObjectModal(o.id)};
+   el.querySelector('.delete').onclick=e=>{e.stopPropagation();askConfirm('确认删除障碍物',`确定删除“${o.name}”吗？`,()=>deleteObjects([o.id]))};
+  }
+  list.appendChild(el);
+ });
+ scrollSelectedObjectIntoView();
+ updateButtons();
+}
+function enterObjectMode(v){
+ objectMode=v;selected.clear();objectSelected.clear();batchMode=false;directDrag=null;groupDrag=null;selectStart=null;selectionRect=null;rightPan=null;$('batchbar').classList.remove('on');
+ if(objLayer)objLayer.listening(v);if(cargoLayer)cargoLayer.listening(!v);
+ $('exitObjectTop').classList.toggle('on',v);$('exitObjectList').classList.toggle('on',v);$('objectOpacityControl').classList.toggle('on',v);
+ $('objectOpacityRange').value=$('objectOpacityNumber').value=floor.objectOpacity??30;$('listTitle').textContent=v?'🧱 障碍物':'📋 库存货物';
+ $('otherHead').style.display=v?'none':'';$('otherCargoList').style.display=v?'none':'';
+ $('cargoMenu').classList.toggle('object-mode',v);
+ [...$('cargoMenu').querySelectorAll('button')].forEach(b=>{const oa=['addobj','importobj','columns','copyobjlist','batchobj'].includes(b.dataset.act);b.style.display=v?(oa?'block':'none'):(oa?'none':'block')});
+ const modeBtn=$('floorMenu').querySelector('[data-floor-act="objects"]');if(modeBtn)modeBtn.textContent=v?'退出障碍物修改模式':'进入障碍物修改模式';
+ $('searchInput').placeholder=v?'🔎 障碍物名称 / 类型':'🔎 名称 / 位置 / 备注';
+ renderAll();
+}
+function openObjectModal(id=null){
+ objectEditId=id;const o=id?floor.objects.find(x=>x.id===id):null;$('objectModalTitle').textContent=o?'修改障碍物':'添加障碍物';
+ $('oPosDisplay').textContent='位置 '+(o?cellName({x:o.x,y:o.y}):'A1（默认）');$('oName').value=o?o.name:'';$('oL').value=o?o.w:1000;$('oW').value=o?o.h:1000;$('oType').value=o?o.type:'OTHER';$('oBlocks').checked=o?o.blocks:true;$('oShowText').checked=o?o.showText:false;$('oPattern').value=o?o.pattern:'solid';$('oColor').value=o?(o.color||'#687386'):'#687386';$('objectModal').classList.add('open')
+}
+function saveObject(){
+ const name=$('oName').value.trim(),w=+$('oL').value,h=+$('oW').value;if(!name||w<=0||h<=0)return alert('请填写有效的名称和尺寸。');pushHistory();
+ if(objectEditId){Object.assign(floor.objects.find(x=>x.id===objectEditId),{name,w,h,type:$('oType').value,blocks:$('oBlocks').checked,showText:$('oShowText').checked,pattern:$('oPattern').value,color:$('oColor').value})}
+ else{const o={id:'o'+Date.now(),name,w,h,x:0,y:0,type:$('oType').value,blocks:$('oBlocks').checked,showText:$('oShowText').checked,pattern:$('oPattern').value,color:$('oColor').value};floor.objects.push(o);objectSelected.clear();objectSelected.add(o.id)}
+ setDirty(true);$('objectModal').classList.remove('open');renderAll()
+}
+function deleteObjects(ids){pushHistory();const set=new Set(ids);floor.objects=floor.objects.filter(o=>!set.has(o.id));objectSelected.clear();setDirty(true);renderAll()}
+function copyObjects(){objectClipboard=[...objectSelected].map(id=>deep(floor.objects.find(o=>o.id===id))).filter(Boolean);updateButtons()}
+function pasteObjects(){if(!objectClipboard.length)return;pushHistory();const stamp=Date.now(),gap=Math.max(100,10/scale);objectSelected.clear();objectClipboard.forEach((o,i)=>{const n=deep(o);n.id='op'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x+=gap;n.y+=gap;floor.objects.push(n);objectSelected.add(n.id)});setDirty(true);renderAll()}
+function rotateObjects(){if(!objectSelected.size)return;pushHistory();for(const id of objectSelected){const o=floor.objects.find(x=>x.id===id);[o.w,o.h]=[o.h,o.w]}setDirty(true);renderAll()}
+function duplicateObjects(){if(!objectSelected.size)return;pushHistory();const old=[...objectSelected].map(id=>floor.objects.find(x=>x.id===id)).filter(Boolean),stamp=Date.now();objectSelected.clear();old.forEach((o,i)=>{const n=deep(o);n.id='o'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x+=Math.max(100,10/scale);floor.objects.push(n);objectSelected.add(n.id)});setDirty(true);renderAll()}
+function showObjectContext(x,y){const m=$('objectContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
+function parseObjectImport(){
+ const lines=$('objectImportText').value.split(/\r?\n/).filter(x=>x.trim()),errs=[],rows=[];
+ lines.forEach((line,i)=>{const c=splitImportLine(line);if(i===0&&/名称|尺寸|位置/.test(c.join(' ')))return;const [name='',szRaw='',posRaw='']=c,sz=parseSize(szRaw);if(!name||!sz){errs.push(`第 ${i+1} 行：${!name?'缺少名称':'尺寸格式无效'}`);return}let p={x:0,y:0};if(posRaw){const xy=posXY(posRaw);p=xy}rows.push({name,w:sz.l,h:sz.w,height_mm:sz.h,...p})});
+ $('objectImportErrors').innerHTML=errs.map(x=>`<div class="import-error">${esc(x)}</div>`).join('');if(errs.length)return;
+ pushHistory();const stamp=Date.now();rows.forEach((r,i)=>floor.objects.push({id:'oi'+stamp+'_'+i,...r,type:$('oiType').value,pattern:$('oiPattern').value,blocks:$('oiBlocks').checked,showText:$('oiShowText').checked}));setDirty(true);$('objectImportModal').classList.remove('open');renderAll()
+}
+function openColumns(){$('columnsModal').classList.add('open')}
+function addColumns(){
+ const w=+$('colL').value,h=+$('colW').value;if(w<=0||h<=0)return alert('请输入有效的柱尺寸。');
+ const points=[];for(let r=0;r<=floor.rows;r++)for(let c=0;c<=floor.cols;c++){
+   const cx=c*cellW(),cy=r*cellH();
+   const occupied=floor.objects.some(o=>o.type==='COLUMN'&&Math.abs((o.x+o.w/2)-cx)<1&&Math.abs((o.y+o.h/2)-cy)<1);
+   if(!occupied)points.push({cx,cy});
+ }
+ if(!points.length)return alert('当前所有网格交叉点都已有柱。');
+ pushHistory();const stamp=Date.now();points.forEach((p,i)=>floor.objects.push({id:'col'+stamp+'_'+i,name:'柱 '+(floor.objects.length+1),w,h,x:p.cx-w/2,y:p.cy-h/2,type:'COLUMN',pattern:'solid',blocks:true,showText:false,color:'#687386'}));
+ setDirty(true);$('columnsModal').classList.remove('open');renderAll()
+}
+function renderAll(){document.title=`${floor.name} - 库存平面图`;$('floorMapCaption').textContent=`${floor.name} - 库存平面图`;if(objLayer)objLayer.listening(objectMode);if(cargoLayer)cargoLayer.listening(!objectMode);drawGrid();drawObjects();if(objectMode){cargoLayer.destroyChildren();cargoLayer.batchDraw();renderObjectList();$('selectionInfo').style.display='none'}else{drawCargos();renderList();renderInfo()}updateButtons()}
+function setMode(m){
+ mode=m;
+ $('directBtn').classList.toggle('active',m==='direct');
+ $('selectBtn').classList.toggle('active',m==='select');
+ if(objLayer)objLayer.listening(objectMode);
+ if(cargoLayer)cargoLayer.listening(!objectMode);
+ renderAll();
+}
+function rotate(){
+ if(!selected.size)return;pushHistory();const ids=new Set(selected);let bad=false,old=new Map();
+ for(const id of selected){const c=floor.cargos.find(x=>x.id===id);old.set(id,{r:c.r,x:c.x,y:c.y});c.r=(c.r+90)%360;if(collision(c,ids))bad=true}
+ if(bad){for(const[id,v]of old){const c=floor.cargos.find(x=>x.id===id);Object.assign(c,v)}undoStack.pop()}else setDirty(true);renderAll()
+}
+function doDeleteCargo(){pushHistory();floor.cargos=floor.cargos.filter(c=>!selected.has(c.id));selected.clear();setDirty(true);renderAll()}
+function del(){if(!selected.size)return;const ids=[...selected],names=ids.map(id=>floor.cargos.find(c=>c.id===id)?.name).filter(Boolean);askConfirm('确认删除货物',ids.length===1?`确定删除“${names[0]}”吗？`:`确定删除选中的 ${ids.length} 件货物吗？`,doDeleteCargo)}
+function copy(){clipboard=[...selected].map(id=>deep(floor.cargos.find(c=>c.id===id))).filter(Boolean);updateButtons()}
+function baseCopyName(name){
+ const root=name.replace(/\s*-\s*副本(?:\s+\d+)?$/,'');let n=1,cand=root+' - 副本',names=new Set(floor.cargos.map(c=>c.name));
+ while(names.has(cand)){n++;cand=root+' - 副本 '+n}return cand;
+}
+function paste(){
+ if(!clipboard.length)return;pushHistory();selected.clear();const gap=12/scale;const minX=Math.min(...clipboard.map(c=>c.x)),maxX=Math.max(...clipboard.map(c=>c.x+dims(c).w));const dx=(maxX-minX)+gap;
+ clipboard.forEach((src,i)=>{const c=deep(src);c.id='c'+Date.now()+'_'+i;c.name=baseCopyName(src.name);c.x+=dx;c.color=src.color;floor.cargos.push(c);selected.add(c.id)});setDirty(true);renderAll()
+}
+function addDemo(){
+ pushHistory();const i=floor.cargos.length,c={id:'c'+Date.now(),name:'新货物 '+(i+1),l:2000,w:1200,height_mm:1000,x:500+i*120,y:floor.length-2200,r:0,owner:'OVERSEAS',color:palette[i%palette.length],stock:new Date().toISOString().slice(0,10),remark:''};
+ floor.cargos.push(c);selected.clear();selected.add(c.id);setDirty(true);renderAll()
+}
+function resetDemo(){Object.assign(floors,deep(original));floor=floors[$('floorSelect').value];undoStack=[];future=[];selected.clear();setDirty(false);fit();renderAll()}
+function switchFloor(){
+ if(dirty&&!confirm('当前有未保存的位置修改。放弃修改并切换楼层？')){$('floorSelect').value=floor.id;return}
+ floor=floors[$('floorSelect').value];selected.clear();undoStack=[];future=[];setDirty(false);fit();renderAll()
+}
+function initStage(){
+ stage=new Konva.Stage({container:'stage',width:$('viewport').clientWidth,height:$('viewport').clientHeight});
+ gridLayer=new Konva.Layer({listening:false});objLayer=new Konva.Layer({listening:false});cargoLayer=new Konva.Layer({listening:true});selLayer=new Konva.Layer({listening:false});stage.add(gridLayer,objLayer,cargoLayer,selLayer);
+ stage.container().addEventListener('contextmenu',e=>e.preventDefault());
+ stage.on('wheel',e=>{e.evt.preventDefault();const p=stage.getPointerPosition(),world=screenWorld(p),old=scale,factor=1.12;scale=e.evt.deltaY<0?old*factor:old/factor;scale=Math.max(.003,Math.min(.25,scale));origin={x:p.x-world.x*scale,y:p.y-world.y*scale};applyView();});
+ stage.on('mousedown touchstart',e=>{
+  hideContext();
+  const ev=e.evt,p=stage.getPointerPosition();selectAdditive=!!(ev.ctrlKey||ev.metaKey);
+  if(objectMode){
+   const objHit=e.target&&(e.target.hasName?.('object')||e.target.findAncestor?.('.object'));
+   if(ev.button===2 && !objHit){rightPan={p0:{...p},o0:{...origin},moved:false};return}
+   if(ev.button!==0||objHit)return; // object nodes handle their own press
+   selectStart={...p};
+   if(mode==='select'&&objectSelected.size){
+    directDrag={kind:'object',before:snapshot(),starts:new Map([...objectSelected].map(id=>{const q=floor.objects.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),lastPointer:{...p},moved:false};
+   }else{
+    const w=screenWorld(p);selectionRect=new Konva.Rect({x:w.x,y:w.y,width:0,height:0,fill:'rgba(77,150,255,.14)',stroke:'#4d96ff',strokeWidth:1/scale,dash:[5/scale,3/scale]});selLayer.add(selectionRect);
+   }
+   return;
+  }
+
+  // Cargo mode only below this line.
+  const cargoHit=e.target&&(e.target.hasName?.('cargo')||e.target.findAncestor?.('.cargo'));
+  if(ev.button===2&&!cargoHit){rightPan={p0:{...p},o0:{...origin},moved:false};return}
+  if(ev.button!==0||cargoHit)return;
+  selectStart={...p};
+  if(mode==='select'&&selected.size&&!batchMode){
+   groupDrag={before:snapshot(),starts:new Map([...selected].map(id=>{const q=floor.cargos.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),canvas:true,lastPointer:{...p}};
+  }else{
+   const w=screenWorld(p);selectionRect=new Konva.Rect({x:w.x,y:w.y,width:0,height:0,fill:'rgba(77,150,255,.14)',stroke:'#4d96ff',strokeWidth:1/scale,dash:[5/scale,3/scale]});selLayer.add(selectionRect);
+  }
+ });
+ stage.on('mousemove touchmove',()=>{
+  const p=stage.getPointerPosition();if(!p)return;
+  if(objectMode){
+   if(directDrag&&directDrag.kind==='object'&&directDrag.lastPointer){
+    const dx=(p.x-directDrag.lastPointer.x)/scale,dy=(p.y-directDrag.lastPointer.y)/scale;directDrag.lastPointer={...p};
+    if(Math.abs(dx)+Math.abs(dy)>.01)directDrag.moved=true;
+    for(const[id]of directDrag.starts){const n=objLayer.findOne('#'+id);if(n)n.position({x:n.x()+dx,y:n.y()+dy})}objLayer.batchDraw();return;
+   }
+   if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
+   if(selectionRect&&selectStart){const a=screenWorld(selectStart),b=screenWorld(p);selectionRect.setAttrs({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});selLayer.batchDraw()}
+   return;
+  }
+
+  // Cargo mode only below this line.
+  if(directDrag&&directDrag.lastPointer){
+   const rawDx=(p.x-directDrag.lastPointer.x)/scale,rawDy=(p.y-directDrag.lastPointer.y)/scale;directDrag.lastPointer={...p};if(Math.abs(rawDx)+Math.abs(rawDy)>0)directDrag.moved=true;
+   const current=new Map([...selected].map(id=>{const n=cargoLayer.findOne('#'+id);return[id,{x:n.x(),y:n.y()}]})),movingIds=new Set(current.keys()),cd=constrainedDelta(current,rawDx,rawDy,movingIds);
+   for(const[id,st]of current){const n=cargoLayer.findOne('#'+id);if(n)n.position({x:st.x+cd.dx,y:st.y+cd.dy})}cargoLayer.batchDraw();return;
+  }
+  if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
+  if(!selectStart)return;
+  if(groupDrag&&groupDrag.canvas){
+   const rawDx=(p.x-groupDrag.lastPointer.x)/scale,rawDy=(p.y-groupDrag.lastPointer.y)/scale;groupDrag.lastPointer={...p};
+   const current=new Map([...selected].map(id=>{const n=cargoLayer.findOne('#'+id);return[id,{x:n.x(),y:n.y()}]})),movingIds=new Set(current.keys()),cd=constrainedDelta(current,rawDx,rawDy,movingIds);
+   for(const[id,st]of current){const n=cargoLayer.findOne('#'+id);if(n)n.position({x:st.x+cd.dx,y:st.y+cd.dy})}cargoLayer.batchDraw();
+  }else if(selectionRect){const a=screenWorld(selectStart),b=screenWorld(p);selectionRect.setAttrs({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});selLayer.batchDraw()}
+ });
+ stage.on('mouseup touchend',e=>{
+  const ev=e.evt;
+  if(objectMode){
+   if(ev.button===0&&directDrag&&directDrag.kind==='object'){
+    let changed=false;for(const[id,st]of directDrag.starts){const n=objLayer.findOne('#'+id),q=floor.objects.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
+    if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;selectStart=null;renderAll();return;
+   }
+   if(ev.button===2&&rightPan){
+    const moved=rightPan.moved;rightPan=null;
+    if(!moved){
+     if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList();updateButtons()}
+     else showBlankContext(ev.clientX,ev.clientY);
+    }
+    return
+   }
+   if(ev.button!==0||!selectStart)return;
+   if(selectionRect){
+    const r=selectionRect.getClientRect({relativeTo:selLayer}),tiny=r.width<5/scale&&r.height<5/scale;selectionRect.destroy();selectionRect=null;
+    if(tiny){if(!selectAdditive)objectSelected.clear()}else{if(!selectAdditive)objectSelected.clear();floor.objects.forEach(o=>{if(Konva.Util.haveIntersection(r,{x:o.x,y:o.y,width:o.w,height:o.h}))objectSelected.add(o.id)})}
+    drawObjects();renderObjectList();
+   }
+   selectStart=null;selectAdditive=false;return;
+  }
+
+  // Cargo mode only below this line.
+  if(ev.button===0&&directDrag){
+   let changed=false;for(const[id,st]of directDrag.starts){const n=cargoLayer.findOne('#'+id),q=floor.cargos.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
+   if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;renderAll();return;
+  }
+  if(ev.button===2&&rightPan){
+   const moved=rightPan.moved;rightPan=null;
+   if(!moved){
+    if(selected.size)clearSelection();
+    else showBlankContext(ev.clientX,ev.clientY);
+   }
+   return
+  }
+  if(ev.button!==0||!selectStart)return;
+  if(groupDrag&&groupDrag.canvas){
+   let changed=false;for(const[id,st]of groupDrag.starts){const n=cargoLayer.findOne('#'+id),q=floor.cargos.find(z=>z.id===id);if(n&&(n.x()!==st.x||n.y()!==st.y)){q.x=n.x();q.y=n.y();changed=true}}
+   if(changed){undoStack.push(groupDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}groupDrag=null;renderAll();
+  }else if(selectionRect){
+   const r=selectionRect.getClientRect({relativeTo:selLayer}),tiny=r.width<5/scale&&r.height<5/scale;selectionRect.destroy();selectionRect=null;
+   if(tiny){if(!selectAdditive)selected.clear()}else{if(!selectAdditive)selected.clear();floor.cargos.filter(c=>visibleCargo(c)&&!cargoLocked(c)).forEach(c=>{const d=dims(c);if(Konva.Util.haveIntersection(r,{x:c.x,y:c.y,width:d.w,height:d.h}))selected.add(c.id)})}renderSelection();
+  }
+  selectStart=null;selectAdditive=false;
+ });
+ function cleanupStaleSelectionBox(){if(!selectionRect)return;selectionRect.destroy();selectionRect=null;selectStart=null;selectAdditive=false;selLayer?.batchDraw()}
+window.addEventListener('mouseup',()=>setTimeout(cleanupStaleSelectionBox,0));
+window.addEventListener('blur',cleanupStaleSelectionBox);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)cleanupStaleSelectionBox()});
+
+window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidth,height:$('viewport').clientHeight});fit()});
+ fit();
+}
+$('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
+['showOther','lockOther','ageMode','snapToggle','overlapToggle','outsideToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);if(id==='showOther'||id==='lockOther'){for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}}renderAll()});
+
+function reportXml(s){return esc(s)}
+function reportAgeColor(c){
+ if(!$('ageMode').checked||c.owner==='OTHER')return c.owner==='OTHER'?'#8b929b':c.color;
+ const days=Math.max(0,(Date.now()-new Date(c.stock+'T00:00:00').getTime())/86400000);
+ if(days<=15)return '#ffe1e1';if(days<=30)return '#ffadad';if(days<=45)return '#ff6868';return '#b91c3c';
+}
+function buildReportSvg(cargos,objects){
+ const W=1000,H=Math.max(420,Math.round(1000*floor.length/floor.width)),pad=34;
+ const sx=(W-pad*2)/floor.width,sy=(H-pad*2)/floor.length,k=Math.min(sx,sy),ox=(W-floor.width*k)/2,oy=(H-floor.length*k)/2;
+ let z=`<svg id="reportMapSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${reportXml(floor.name)} 库存平面图"><rect width="100%" height="100%" fill="#fff"/>`;
+ z+=`<rect x="${ox}" y="${oy}" width="${floor.width*k}" height="${floor.length*k}" fill="#fafcfe" stroke="#66788a" stroke-width="1.4"/>`;
+ for(let i=0;i<=floor.cols;i++){const x=ox+i*cellW()*k;z+=`<line x1="${x}" y1="${oy}" x2="${x}" y2="${oy+floor.length*k}" stroke="#d5dde5" stroke-width="1"/>`;if(i<floor.cols)z+=`<text x="${ox+(i+.5)*cellW()*k}" y="${Math.max(15,oy-8)}" text-anchor="middle" font-size="12" font-weight="700" fill="#64748b">${String.fromCharCode(65+i)}</text>`}
+ for(let i=0;i<=floor.rows;i++){const y=oy+i*cellH()*k;z+=`<line x1="${ox}" y1="${y}" x2="${ox+floor.width*k}" y2="${y}" stroke="#d5dde5" stroke-width="1"/>`;if(i<floor.rows)z+=`<text x="${Math.max(10,ox-12)}" y="${oy+(i+.5)*cellH()*k+4}" text-anchor="middle" font-size="12" font-weight="700" fill="#64748b">${i+1}</text>`}
+ const objectOpacity=Math.max(.12,Math.min(1,(floor.objectOpacity??30)/100));
+ objects.forEach(o=>{
+  z+=`<rect x="${ox+o.x*k}" y="${oy+o.y*k}" width="${o.w*k}" height="${o.h*k}" rx="2" fill="${o.color||'#687386'}" fill-opacity="${objectOpacity}" stroke="#8a96a3" stroke-width="1"/>`;
+  if(o.showText)z+=`<text x="${ox+(o.x+o.w/2)*k}" y="${oy+(o.y+o.h/2)*k+4}" text-anchor="middle" font-size="10" font-weight="700" fill="#26313d">${reportXml(o.name)}</text>`;
+ });
+ cargos.forEach((c,idx)=>{
+  const d=dims(c),x=ox+c.x*k,y=oy+c.y*k,w=d.w*k,h=d.h*k,active=c.__reportActive!==false,op=active?.92:.16;
+  z+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${reportAgeColor(c)}" fill-opacity="${op}" stroke="#475569" stroke-opacity="${active?1:.18}" stroke-width="1"/>`;
+  const fs=Math.max(8,Math.min(13,Math.min(w/5,h/2.5)));
+  z+=`<text x="${x+w/2}" y="${y+h/2+fs*.34}" text-anchor="middle" font-size="${fs}" font-weight="800" fill="#17212b" fill-opacity="${active?1:.2}">${idx+1}</text>`;
+ });
+ return z+'</svg>';
+}
+
+function makeReportDemoCargos(base){
+ const out=base.map(c=>({...c}));
+ const own=out.filter(c=>c.owner!=='OTHER').length;
+ const other=out.filter(c=>c.owner==='OTHER').length;
+ const targetOwn=43,targetOther=9;
+ const names=['Cartoning machine','Packing machine','Conveyor','Check weigher','Metal detector','Rotary table','Vacuum feeder','Screw feeder','Labeling machine','Date printer','Sealing machine','Sorting table','Bucket elevator','Powder mixer','Auger filler','Working platform'];
+ for(let i=own;i<targetOwn;i++){
+  const n=i+1,col=i%floor.cols,row=Math.floor(i/floor.cols)%floor.rows;
+  out.push({id:'report-demo-own-'+i,name:`临时货物 ${String(n).padStart(2,'0')} · ${names[i%names.length]}`,l:1200+(i%4)*300,w:900+(i%3)*250,height_mm:1000+(i%3)*200,x:col*cellW()+Math.min(180,cellW()*.12),y:row*cellH()+Math.min(180,cellH()*.12),rotation:0,owner:'OVERSEAS',color:['#ffd166','#90caf9','#a5d6a7','#ce93d8','#ffab91'][i%5],stock:`2026-${String(5+(i%5)).padStart(2,'0')}-${String(1+(i*3)%27).padStart(2,'0')}`,remark:i%4===0?'临时打印测试':(i%4===1?'待确认位置':'')});
+ }
+ for(let i=other;i<targetOther;i++){
+  const n=i+1,idx=targetOwn+i,col=(idx+3)%floor.cols,row=Math.floor((idx+3)/floor.cols)%floor.rows;
+  out.push({id:'report-demo-other-'+i,name:`其它部门临时货物 ${String(n).padStart(2,'0')}`,l:1500+(i%3)*300,w:1000+(i%2)*300,height_mm:1200,x:col*cellW()+220,y:row*cellH()+220,rotation:0,owner:'OTHER',color:'#8b929b',stock:`2026-0${6+(i%3)}-${String(3+i*2).padStart(2,'0')}`,remark:'临时打印测试'});
+ }
+ return out;
+}
+function buildReportRows(list,startNo){
+ return list.map((c,i)=>`<tr><td class="no">${startNo+i}</td><td><b>${reportXml(c.name)}</b><div class="sub">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div></td><td>${reportXml(cellName(c))}</td><td>${reportXml(c.stock||'—')}</td><td>${reportXml(c.remark||'—')}</td></tr>`).join('');
+}
+
+
+function openInventoryReport(){
+ const real=floor.cargos.filter(c=>visibleCargo(c));
+ // V0.18 preview only: supplement temporary cargo to stress-test multi-page output.
+ const all=makeReportDemoCargos(real);
+ const own=all.filter(c=>c.owner!=='OTHER'),other=all.filter(c=>c.owner==='OTHER');
+ const ordered=[...own,...other];
+ const generated=new Date().toLocaleString('zh-CN',{hour12:false});
+ const numOf=c=>ordered.findIndex(x=>x.id===c.id)+1;
+
+ function rowsFor(list){
+   return list.map(c=>`<tr><td class="no">${numOf(c)}</td><td><b>${reportXml(c.name)}</b><div class="sub">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div></td><td>${reportXml(cellName(c))}</td><td>${reportXml(c.stock||'—')}</td><td>${reportXml(c.remark||'—')}</td></tr>`).join('');
+ }
+ function tableBlock(list,title){
+   const ownRows=list.filter(c=>c.owner!=='OTHER'),otherRows=list.filter(c=>c.owner==='OTHER');
+   let rows='';
+   if(ownRows.length)rows+=rowsFor(ownRows);
+   if(otherRows.length)rows+=`<tr class="dept-sep"><td colspan="5"><span>其它部门货物</span></td></tr>`+rowsFor(otherRows);
+   return `<section class="table-block"><h2>${title} <span>本区 ${list.length} 件</span></h2><table><thead><tr><th>#</th><th>货物信息</th><th>位置</th><th>入库</th><th>备注</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+ }
+
+ const html=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${reportXml(floor.name)} - 库存平面图</title><style>
+ @page{size:A4 landscape;margin:8mm}
+ *{box-sizing:border-box}
+ html,body{margin:0;padding:0}
+ body{background:#e9eef3;color:#17212b;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+ .bar{position:sticky;top:0;z-index:10;display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;background:#202b38}
+ .bar button{border:1px solid #53667c;background:#fff;color:#243447;border-radius:7px;padding:7px 13px;font-weight:700;cursor:pointer}
+ #printRoot{display:flex;flex-direction:column;align-items:center}
+ .sheet{width:1120px;height:760px;margin:18px auto;background:#fff;padding:24px 28px 16px;box-shadow:0 8px 28px #0002;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;break-after:page;page-break-after:always}
+ .sheet:last-child{break-after:auto;page-break-after:auto}
+ header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #27384a;padding-bottom:10px;margin-bottom:14px}
+ h1{font-size:23px;margin:0}.meta{font-size:11px;color:#667788;text-align:right;line-height:1.65}
+ .r-layout{min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:60% 40%;column-gap:18px;row-gap:12px}
+ .main-table{grid-column:1;grid-row:1 / span 2;min-width:0;min-height:0;overflow:hidden}
+ .map-cell{grid-column:2;grid-row:1;min-width:0;min-height:0;overflow:hidden}
+ .overflow-table{grid-column:2;grid-row:2;min-width:0;min-height:0;overflow:hidden}
+ .mapbox{width:100%;height:100%;border:1px solid #cbd5df;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+ .map-inner{width:86%;height:96%;display:flex;align-items:center;justify-content:center}
+ .map-inner svg{display:block;width:100%;height:100%}
+ .table-block{height:100%;display:flex;flex-direction:column;min-height:0}
+ .table-block h2{font-size:13px;margin:0 0 6px;line-height:1.2}.table-block h2 span{font-size:10px;color:#667788;font-weight:500}
+ table{width:100%;border-collapse:separate;border-spacing:0;font-size:9.7px;border:1px solid #cbd5df;border-radius:7px;overflow:hidden;table-layout:fixed}
+ th{background:#e5ebf1;color:#263544;text-align:left;padding:4px 5px;border-bottom:1px solid #cbd5df}
+ td{padding:4px 5px;border-bottom:1px solid #dde4eb;vertical-align:top;height:34px;overflow:hidden}
+ tbody tr:nth-child(even):not(.dept-sep) td{background:#f5f8fb}
+ tbody tr:nth-child(odd):not(.dept-sep) td{background:#fff}
+ tr:last-child td{border-bottom:0}
+ th:nth-child(1),td:nth-child(1){width:7%}th:nth-child(2),td:nth-child(2){width:45%}th:nth-child(3),td:nth-child(3){width:10%}th:nth-child(4),td:nth-child(4){width:19%}th:nth-child(5),td:nth-child(5){width:19%}
+ .no{text-align:center;font-weight:800;color:#536579}.sub{font-size:8.7px;color:#718096;margin-top:1px;white-space:nowrap}
+ .dept-sep td{height:22px!important;padding:3px 5px!important;background:#e9edf2!important;border-top:1px solid #c4ced8;border-bottom:1px solid #c4ced8;color:#657382;font-weight:700;text-align:center}
+ .dept-sep span:before,.dept-sep span:after{content:"";display:inline-block;width:30px;border-top:1px solid #b5c0cb;vertical-align:middle;margin:0 7px}
+ footer{padding-top:7px;margin-top:9px;border-top:1px solid #d8e0e8;font-size:9.5px;color:#718096;display:flex;justify-content:space-between}
+ .capacity-probe{position:absolute!important;left:-20000px!important;top:0!important;visibility:hidden!important;pointer-events:none!important;margin:0!important}
+ @media print{
+   html,body{background:#fff}
+   .bar,.capacity-probe{display:none!important}
+   #printRoot{display:block}
+   .sheet{width:281mm;height:190mm;margin:0;padding:0;box-shadow:none;overflow:hidden;break-after:page;page-break-after:always}
+   .sheet:last-child{break-after:auto;page-break-after:auto}
+ }
+ </style></head><body><div class="bar"><button onclick="window.print()">打印 / 另存为 PDF</button></div><div id="printRoot"></div></body></html>`;
+ const win=window.open('','_blank');if(!win){alert('浏览器阻止了报告窗口，请允许此页面打开新窗口。');return}
+ win.document.open();win.document.write(html);win.document.close();
+
+ // 与正式报告完全相同的隐藏 A4 页：让浏览器先排版，再读取左右两个表格区域的真实高度。
+ const d=win.document,root=d.getElementById('printRoot');
+ const probe=d.createElement('section');probe.className='sheet capacity-probe';
+ probe.innerHTML=`<header><div><h1>${reportXml(floor.name)} - 库存平面图</h1></div><div class="meta">生成时间：${reportXml(generated)}<br>楼层尺寸：${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm<br>网格：${floor.cols} × ${floor.rows}</div></header><main class="r-layout"><section class="main-table">${tableBlock(ordered.slice(0,1),'库存货物清单')}</section><section class="map-cell"><div class="mapbox"></div></section><section class="overflow-table">${tableBlock(ordered.slice(0,1),'库存货物清单 · 续')}</section></main><footer><span>容量测量</span><span>第 1 / 1 页</span></footer>`;
+ d.body.append(probe);
+
+ const measureArea=sel=>{
+   const area=probe.querySelector(sel),block=area.querySelector('.table-block'),title=block.querySelector('h2'),thead=block.querySelector('thead'),row=block.querySelector('tbody tr:not(.dept-sep)');
+   const available=area.getBoundingClientRect().height;
+   const fixed=title.getBoundingClientRect().height+parseFloat(win.getComputedStyle(title).marginBottom||0)+thead.getBoundingClientRect().height;
+   const rowH=row?.getBoundingClientRect().height||34;
+   return {available,fixed,rowH,body:Math.max(0,available-fixed)};
+ };
+ const leftM=measureArea('.main-table'),rightM=measureArea('.overflow-table');
+ // 分隔行高度也由真实 DOM 测量，不按固定 22px 参与分页计算。
+ const sepProbe=d.createElement('table');sepProbe.style.cssText='position:absolute;left:-20000px;visibility:hidden;width:500px';sepProbe.innerHTML='<tbody><tr class="dept-sep"><td><span>其它部门货物</span></td></tr></tbody>';d.body.append(sepProbe);
+ const sepH=sepProbe.querySelector('tr').getBoundingClientRect().height||22;sepProbe.remove();probe.remove();
+
+ // 给定真实可用高度，从当前位置开始尽可能多装；OTHER 首次出现在该表格时自动计入部门分隔行高度。
+ function takeForHeight(start,metric){
+   let used=0,count=0,hasOther=false;
+   for(let i=start;i<ordered.length;i++){
+     const c=ordered[i];let need=metric.rowH;
+     if(c.owner==='OTHER'&&!hasOther){need+=sepH;hasOther=true}
+     if(used+need>metric.body+.5)break;
+     used+=need;count++;
+   }
+   return count;
+ }
+ const pages=[];let cursor=0;
+ while(cursor<ordered.length){
+   const leftCount=takeForHeight(cursor,leftM),left=ordered.slice(cursor,cursor+leftCount);cursor+=leftCount;
+   const rightCount=takeForHeight(cursor,rightM),right=ordered.slice(cursor,cursor+rightCount);cursor+=rightCount;
+   // 极端字体/缩放异常时至少推进一件，避免死循环。
+   if(!left.length&&!right.length){left.push(ordered[cursor]);cursor++}
+   pages.push({left,right});
+ }
+ if(!pages.length)pages.push({left:[],right:[]});
+
+ const totalPages=pages.length;
+ root.innerHTML=pages.map((pg,pi)=>{
+   const page=[...pg.left,...pg.right],ids=new Set(page.map(c=>c.id));
+   const reportCargos=ordered.map(c=>({...c,__reportActive:ids.has(c.id)}));
+   const svg=buildReportSvg(reportCargos,floor.objects.slice());
+   return `<section class="sheet"><header><div><h1>${reportXml(floor.name)} - 库存平面图</h1></div><div class="meta">生成时间：${reportXml(generated)}<br>楼层尺寸：${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm<br>网格：${floor.cols} × ${floor.rows}</div></header><main class="r-layout"><section class="main-table">${tableBlock(pg.left,'库存货物清单')}</section><section class="map-cell"><div class="mapbox"><div class="map-inner">${svg}</div></div></section><section class="overflow-table">${tableBlock(pg.right,'库存货物清单 · 续')}</section></main><footer><span>共 ${ordered.length} 件 · 当前页 ${page.length} 件 · 分页按 A4 实际可用高度动态测算</span><span>第 ${pi+1} / ${totalPages} 页</span></footer></section>`;
+ }).join('');
+}
+$('reportBtn').onclick=openInventoryReport;
+
+$('fakeSave').onclick=()=>{floor.revision++;undoStack=[];future=[];setDirty(false);renderAll();alert('V0.1 演示：已将当前 Edit State 标记为“已保存”。\n尚未写入 OA / SQLite。')};
+document.addEventListener('keydown',e=>{
+ if($('confirmModal').classList.contains('open')){
+   if(e.key==='Escape'){e.preventDefault();$('confirmCancel').click();return}
+   if(e.key==='Enter'||e.key===' '){e.preventDefault();$('confirmOk').click();return}
+ }
+ const tag=(e.target.tagName||'').toLowerCase();if(['input','textarea','select'].includes(tag))return;
+ if(e.key==='Escape'){if(objectMode){objectSelected.clear();drawObjects();renderObjectList()}else{selected.clear();renderSelection()}return}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!e.shiftKey){e.preventDefault();undo();return}
+ if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.key.toLowerCase()==='z'&&e.shiftKey))){e.preventDefault();redo();return}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();objectMode?copyObjects():copy();return}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();objectMode?pasteObjects():paste();return}
+ if(e.key.toLowerCase()==='r'){e.preventDefault();objectMode?rotateObjects():rotate();return}
+ if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()}
+});
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+
+function hideAllContexts(){['cargoContext','objectContext','blankContext','cargoMenu','cargoListBlankContext','objectListBlankContext'].forEach(id=>$(id)?.classList.remove('open'))}
+function showListBlankContext(x,y){
+ hideAllContexts();const m=$(objectMode?'objectListBlankContext':'cargoListBlankContext');
+ m.style.left=Math.min(x,innerWidth-210)+'px';m.style.top=Math.min(y,innerHeight-180)+'px';m.classList.add('open')
+}
+function showBlankContext(x,y){
+ hideAllContexts();const m=$('blankContext');
+ m.querySelector('[data-b="undo"]').disabled=$('undoBtn').disabled;
+ m.querySelector('[data-b="redo"]').disabled=$('redoBtn').disabled;
+ m.querySelector('[data-b="paste"]').disabled=objectMode?!objectClipboard.length:!clipboard.length;
+ m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')
+}
+function resetSelectionArtifacts(){if(selectionRect){selectionRect.destroy();selectionRect=null}selectStart=null;selectAdditive=false;selLayer?.destroyChildren();selLayer?.batchDraw();if(objectMode){drawObjects();renderObjectList()}else renderSelection()}
+
+function selectedCargoIds(){return [...selected].filter(id=>floor.cargos.some(c=>c.id===id))}
+function selectedObjectIds(){return [...objectSelected].filter(id=>floor.objects.some(o=>o.id===id))}
+function duplicateCargoIds(ids){
+ if(!ids.length)return;pushHistory();const stamp=Date.now(),newIds=[];
+ ids.forEach((id,i)=>{const c=floor.cargos.find(x=>x.id===id);if(!c)return;const n=deep(c),d=dims(c);
+  n.id='cp'+stamp+'_'+i;n.name=baseCopyName(c.name);n.x=c.x+d.w+Math.max(80,8/scale);n.y=c.y;floor.cargos.push(n);newIds.push(n.id)});
+ selected.clear();newIds.forEach(id=>selected.add(id));setDirty(true);renderAll()
+}
+function duplicateObjectIds(ids){
+ if(!ids.length)return;pushHistory();const stamp=Date.now(),newIds=[];
+ ids.forEach((id,i)=>{const o=floor.objects.find(x=>x.id===id);if(!o)return;const n=deep(o);
+  n.id='op'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x=o.x+o.w+Math.max(80,8/scale);n.y=o.y;floor.objects.push(n);newIds.push(n.id)});
+ objectSelected.clear();newIds.forEach(id=>objectSelected.add(id));setDirty(true);renderAll()
+}
+function openBatchCargoEdit(){
+ const ids=selectedCargoIds();if(ids.length<2)return;
+ $('batchCargoCount').textContent=ids.length+' 件';
+ ['bcName','bcL','bcW','bcH','bcDate','bcRemark'].forEach(id=>$(id).value='');$('bcOwner').value='';$('bcUseColor').checked=false;
+ $('batchCargoEditModal').classList.add('open')
+}
+function applyBatchCargoEdit(){
+ const ids=selectedCargoIds(),name=$('bcName').value.trim(),l=$('bcL').value,w=$('bcW').value,h=$('bcH').value,date=$('bcDate').value,remark=$('bcRemark').value.trim(),owner=$('bcOwner').value,useColor=$('bcUseColor').checked,color=$('bcColor').value,changes=[];
+ if(l&&+l<=0||w&&+w<=0)return alert('尺寸必须大于 0。');
+ if(name)changes.push('名称 = '+name);if(l)changes.push('长度 = '+l+' mm');if(w)changes.push('宽度 = '+w+' mm');if(date)changes.push('入库日期 = '+date);if(remark)changes.push('备注 = '+remark);if(owner)changes.push('所属 = '+(owner==='OVERSEAS'?'海外部':'其它'));if(useColor)changes.push('颜色 = '+color);
+ if(!changes.length)return $('batchCargoEditModal').classList.remove('open');
+ askConfirm('确认统一修改',`确定给选中的 ${ids.length} 件货物统一分配以下参数：\n${changes.join('\n')}\n\n未填写的参数保持各货物原值。`,()=>{
+  pushHistory();ids.forEach(id=>{const c=floor.cargos.find(x=>x.id===id);if(!c)return;if(name)c.name=name;if(l)c.l=+l;if(w)c.w=+w;if(h)c.height_mm=+h;if(date)c.stock=date;if(remark)c.remark=remark;if(owner)c.owner=owner;if(useColor)c.color=color});
+  $('batchCargoEditModal').classList.remove('open');setDirty(true);renderAll()
+ })
+}
+function openBatchObjectEdit(){
+ const ids=selectedObjectIds();if(ids.length<2)return;
+ $('batchObjectCount').textContent=ids.length+' 个';
+ ['boName','boL','boW'].forEach(id=>$(id).value='');['boType','boPattern','boShowText','boBlocks'].forEach(id=>$(id).value='');$('boUseColor').checked=false;
+ $('batchObjectEditModal').classList.add('open')
+}
+function applyBatchObjectEdit(){
+ const ids=selectedObjectIds(),name=$('boName').value.trim(),w=$('boL').value,h=$('boW').value,type=$('boType').value,pattern=$('boPattern').value,show=$('boShowText').value,blocks=$('boBlocks').value,useColor=$('boUseColor').checked,color=$('boColor').value,changes=[];
+ if(w&&+w<=0||h&&+h<=0)return alert('尺寸必须大于 0。');
+ if(name)changes.push('名称 = '+name);if(w)changes.push('长度 = '+w+' mm');if(h)changes.push('宽度 = '+h+' mm');if(type)changes.push('类型 = '+type);if(pattern)changes.push('底纹 = '+pattern);if(show)changes.push('显示名称 = '+(show==='true'?'是':'否'));if(blocks)changes.push('阻挡货物 = '+(blocks==='true'?'是':'否'));if(useColor)changes.push('颜色 = '+color);
+ if(!changes.length)return $('batchObjectEditModal').classList.remove('open');
+ askConfirm('确认统一修改',`确定给选中的 ${ids.length} 个障碍物统一分配以下参数：\n${changes.join('\n')}\n\n未填写的参数保持各障碍物原值。`,()=>{
+  pushHistory();ids.forEach(id=>{const o=floor.objects.find(x=>x.id===id);if(!o)return;if(name)o.name=name;if(w)o.w=+w;if(h)o.h=+h;if(type)o.type=type;if(pattern)o.pattern=pattern;if(show)o.showText=show==='true';if(blocks)o.blocks=blocks==='true';if(useColor)o.color=color});
+  $('batchObjectEditModal').classList.remove('open');setDirty(true);renderAll()
+ })
+}
+$('bcCancel').onclick=()=>$('batchCargoEditModal').classList.remove('open');$('bcOk').onclick=applyBatchCargoEdit;
+$('boCancel').onclick=()=>$('batchObjectEditModal').classList.remove('open');$('boOk').onclick=applyBatchObjectEdit;
+function resetCargoPosition(ids){if(!ids.length)return;pushHistory();const cx=floor.width/2,cy=floor.length/2;ids.forEach(id=>{const c=floor.cargos.find(x=>x.id===id);if(c){const d=dims(c);c.x=cx-d.w/2;c.y=cy-d.h/2}});setDirty(true);renderAll()}
+function resetObjectPosition(ids){if(!ids.length)return;pushHistory();const cx=floor.width/2,cy=floor.length/2;ids.forEach(id=>{const o=floor.objects.find(x=>x.id===id);if(o){o.x=cx-o.w/2;o.y=cy-o.h/2}});setDirty(true);renderAll()}
+function showContext(x,y){const m=$('cargoContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
+function hideContext(){hideAllContexts()}
+function openCargoModal(id=null){
+ editId=id;const c=id?floor.cargos.find(q=>q.id===id):null;
+ $('cargoModalTitle2').textContent=c?'修改货物信息':'添加货物';
+ $('mPosDisplay').textContent='位置 '+(c?cellName(c):'A1（默认）');
+ $('mName').value=c?c.name:'';$('mL').value=c?c.l:2000;$('mW').value=c?c.w:1200;$('mH').value=c?(c.height_mm||1000):1000;
+ $('mDate').value=c?c.stock:today();$('mOwner').value=c?c.owner:'OVERSEAS';$('mRemark').value=c?c.remark:'';$('mColor').value=c?(c.color||'#e94560'):palette[floor.cargos.length%palette.length];
+ $('mShip').style.display=c&&c.owner!=='OTHER'?'inline-block':'none';
+ $('mOk').textContent=c?'确认修改':'确认添加';$('cargoModal2').classList.add('open')
+}
+function posXY(v){const m=/^([A-Z])(\d+)$/i.exec(v.trim());return m?{x:(m[1].toUpperCase().charCodeAt(0)-65)*cellW(),y:(+m[2]-1)*cellH()}:{x:0,y:0}}
+function saveCargoModal(){
+ const name=$('mName').value.trim(),l=+$('mL').value,w=+$('mW').value,height_mm=+$('mH').value;if(!name||l<=0||w<=0||height_mm<=0)return alert('请填写有效的货物名称和长、宽、高尺寸。');
+ pushHistory();
+ if(editId){const c=floor.cargos.find(q=>q.id===editId);Object.assign(c,{name,l,w,height_mm,stock:$('mDate').value||today(),owner:$('mOwner').value,remark:$('mRemark').value,color:$('mColor').value});}
+ else{const c={id:'c'+Date.now(),name,l,w,height_mm,x:0,y:0,r:0,owner:$('mOwner').value,color:$('mColor').value,stock:$('mDate').value||today(),remark:$('mRemark').value,status:'ACTIVE'};floor.cargos.push(c);selected.clear();if(!cargoLocked(c))selected.add(c.id);}
+ setDirty(true);$('cargoModal2').classList.remove('open');renderAll()
+}
+
+function today(){const d=new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`}
+let shipIds=[],importRows=[];
+function openShip(ids){
+ shipIds=[...ids].filter(id=>{const c=floor.cargos.find(q=>q.id===id);return c&&c.owner!=='OTHER'&&c.status!=='SHIPPED'});
+ if(!shipIds.length)return;
+ $('shipDate').value=today();$('shipRemark').value='';$('shipModal').classList.add('open');
+}
+function confirmShip(){
+ const date=$('shipDate').value||today(),shipRemark=$('shipRemark').value.trim();pushHistory();
+ shipIds.forEach(id=>{const c=floor.cargos.find(q=>q.id===id);if(c){c.status='SHIPPED';c.shipped_date=date;c.shipped_remark=shipRemark;c.ship_x=c.x;c.ship_y=c.y}});
+ selected.clear();setDirty(true);$('shipModal').classList.remove('open');$('cargoModal2').classList.remove('open');renderAll()
+}
+let confirmAction=null;
+function askConfirm(title,text,action){
+ $('confirmTitle').textContent=title;$('confirmText').textContent=text;confirmAction=action;$('confirmModal').classList.add('open');
+}
+let shipRecordSelected=new Set();
+function renderShipRecords(){
+ const arr=floor.cargos.filter(c=>c.status==='SHIPPED').sort((a,b)=>(b.shipped_date||'').localeCompare(a.shipped_date||''));
+ [...shipRecordSelected].forEach(id=>{if(!arr.some(c=>c.id===id))shipRecordSelected.delete(id)});
+ $('shipRecordsList').innerHTML=arr.length?arr.map(c=>{
+  const sel=shipRecordSelected.has(c.id)?' selected':'';
+  const operator=c.shipped_by||c.operator||'当前用户';
+  const inboundOperator=c.stocked_by||c.inbound_by||'当前用户';return `<div class="ship-row${sel}" data-ship-id="${c.id}"><div><div class="cargo-title">${esc(c.name)}</div><div class="cargo-dim">${c.l} × ${c.w} × ${c.height_mm||1000} mm</div><div class="cargo-origin"><b>原位置：</b>${cellName({...c,x:c.ship_x??c.x,y:c.ship_y??c.y})}</div></div><div class="ship-stock-box"><div class="ship-cell"><b>日期：</b>${esc(c.stock||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(inboundOperator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.remark||'—')}</div></div><div class="ship-out-box"><div class="ship-cell"><b>日期：</b>${esc(c.shipped_date||'—')}</div><div class="ship-record-detail"><b>操作人员：</b>${esc(operator)}</div><div class="ship-record-detail"><b>备注：</b>${esc(c.shipped_remark||'—')}</div></div><div class="ship-record-actions">${shipRecordSelected.has(c.id)?`<button class="ship-record-restore" data-restore-one="${c.id}">恢复记录</button>`:''}</div></div>`
+ }).join(''):'<div class="empty-state">暂无出库记录</div>';
+ const n=shipRecordSelected.size;
+ $('shipRecordSummary').textContent=n?`当前有 ${arr.length} 条出库记录，选中 ${n} 条`:`当前有 ${arr.length} 条出库记录`;
+ $('shipBatchRestore').disabled=n===0;
+ $('shipRecordsModal').classList.add('open');
+}
+function restoreShipments(ids){
+ const valid=ids.filter(id=>floor.cargos.some(c=>c.id===id&&c.status==='SHIPPED'));if(!valid.length)return;
+ askConfirm('确认恢复出库',valid.length===1?`确定恢复“${floor.cargos.find(c=>c.id===valid[0])?.name||''}”吗？恢复后将取消出库日期，并回到出库前的位置。`:`确定批量恢复选中的 ${valid.length} 条出库记录吗？恢复后将取消出库日期，并回到各自出库前的位置。`,()=>{
+  pushHistory();valid.forEach(id=>{const c=floor.cargos.find(q=>q.id===id);if(!c)return;c.status='ACTIVE';c.x=c.ship_x??c.x;c.y=c.ship_y??c.y;delete c.shipped_date;delete c.shipped_at;delete c.shipped_by;delete c.shipped_remark;delete c.ship_x;delete c.ship_y});
+  shipRecordSelected.clear();setDirty(true);renderShipRecords();renderAll()
+ })
+}
+function parseDate(v){
+ const t=(v||'').trim();if(!t)return null;
+ if(/^\d{8}$/.test(t))return `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)}`;
+ if(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(t)){const [y,m,d]=t.split(/[-/]/);return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`}
+ return null;
+}
+function parseSize(v){const m=/^\s*(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)(?:\s*[xX×*]\s*(\d+(?:\.\d+)?))?\s*$/.exec(v||'');return m?{l:+m[1],w:+m[2],h:m[3]?+m[3]:1000}:null}
+function splitImportLine(line){
+ if(line.includes('\t'))return line.split('\t').map(x=>x.trim());
+ return line.trim().split(/\s{2,}/).map(x=>x.trim());
+}
+function parseImport(){
+ const lines=$('importText').value.split(/\r?\n/).filter(x=>x.trim()),rows=[];
+ lines.forEach((line,i)=>{
+  const cols=splitImportLine(line);if(i===0&&/名称|尺寸|位置|入库/.test(cols.join(' ')))return;
+  const [name='',sizeRaw='',posRaw='',dateRaw='',remark='']=cols,sz=parseSize(sizeRaw),fieldErrors={};
+  if(!name)fieldErrors.name='缺少名称';
+  if(!sizeRaw)fieldErrors.size='缺少尺寸';else if(!sz)fieldErrors.size='尺寸格式无效';
+  let pos=null;if(posRaw){const m=/^([A-Z])(\d+)$/i.exec(posRaw);if(!m)fieldErrors.pos='位置格式无效';else{const col=m[1].toUpperCase().charCodeAt(0)-65,row=+m[2]-1;if(col<0||col>=floor.cols||row<0||row>=floor.rows)fieldErrors.pos='位置超出当前楼层网格';else pos={label:m[1].toUpperCase()+m[2],x:col*cellW(),y:row*cellH()}}}
+  let date=parseDate(dateRaw);if(dateRaw&&!date)fieldErrors.date='入库时间格式无效';
+  rows.push({line:i+1,name,size:sz,sizeRaw,pos,posRaw,date,dateRaw,remark,posDefault:!posRaw,dateDefault:!dateRaw,fieldErrors});
+ });
+ const bad=rows.filter(r=>Object.keys(r.fieldErrors).length),ok=rows.filter(r=>!Object.keys(r.fieldErrors).length);
+ importRows=ok.map(r=>({...r,pos:r.pos||{label:'A1',x:0,y:0},date:r.date||today()}));
+ const mark=(value,error)=>error?`<span class="import-error-param" title="${esc(error)}">${esc(value||'—')}</span>`:esc(value||'—');
+ $('importPreview').innerHTML=`<div class="import-confirm-summary">当前准备导入 <b>${rows.length}</b> 件，成功 <b>${ok.length}</b> 件，失败 <b class="import-fail-count">${bad.length}</b> 件</div><table class="preview-table"><thead><tr><th>名称</th><th>尺寸</th><th>位置</th><th>入库时间</th><th>备注</th></tr></thead><tbody>${rows.map(r=>`<tr class="${Object.keys(r.fieldErrors).length?'bad-row':''}"><td>${mark(r.name,r.fieldErrors.name)}</td><td>${mark(r.size?`${r.size.l}×${r.size.w}×${r.size.h}`:r.sizeRaw,r.fieldErrors.size)}</td><td>${mark(r.pos?r.pos.label:(r.posDefault?'A1（默认）':r.posRaw),r.fieldErrors.pos)}</td><td>${mark(r.date||(r.dateDefault?today()+'（默认）':r.dateRaw),r.fieldErrors.date)}</td><td>${esc(r.remark||'')}</td></tr>`).join('')}</tbody></table>`;
+ $('importErrors').innerHTML=bad.length?`<div class="import-error">失败项目已在确认列表中用红色 ! 标记，请返回修正后重新检查。</div>`:'';
+ $('importText').classList.toggle('has-error',!!bad.length);
+ $('importConfirm').disabled=!!bad.length;
+ $('importModal').classList.remove('open');$('importPreviewModal').classList.add('open');
+}function confirmImport(){
+ if(!importRows.length)return;pushHistory();const owner=$('importOwner').value,stamp=Date.now();
+ importRows.forEach((r,i)=>floor.cargos.push({id:'imp'+stamp+'_'+i,name:r.name,l:r.size.l,w:r.size.w,height_mm:r.size.h,x:r.pos.x,y:r.pos.y,r:0,owner,color:palette[(floor.cargos.length+i)%palette.length],stock:r.date,remark:r.remark||'',status:'ACTIVE'}));
+ setDirty(true);$('importPreviewModal').classList.remove('open');importRows=[];renderAll()
+}
+function setBatch(v){batchMode=v;selected.clear();$('batchbar').classList.toggle('on',v);renderAll()}
+$('exitObjectTop').onclick=$('exitObjectList').onclick=()=>enterObjectMode(false);
+function setObjectOpacity(v){
+ v=Math.max(0,Math.min(100,Number(v)||0));floor.objectOpacity=v;$('objectOpacityRange').value=v;$('objectOpacityNumber').value=v;setDirty(true);drawObjects();
+}
+$('objectOpacityRange').oninput=e=>setObjectOpacity(e.target.value);
+$('objectOpacityNumber').oninput=e=>setObjectOpacity(e.target.value);
+$('cargoList').addEventListener('click',e=>{
+ if(e.target!==$('cargoList'))return;
+ if(objectMode){if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList()}}
+ else if(selected.size)clearSelection();
+});
+$('cargoList').addEventListener('contextmenu',e=>{
+ if(e.target!==$('cargoList'))return;
+ e.preventDefault();e.stopPropagation();
+ if(objectMode){
+  if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList();return}
+ }else{
+  if(selected.size){clearSelection();return}
+ }
+ showListBlankContext(e.clientX,e.clientY);
+});
+$('settingsHead').onclick=()=>$('settingsSec').classList.toggle('open');
+$('cargoMenuBtn').onclick=e=>{e.stopPropagation();$('cargoMenu').classList.toggle('open')};
+$('cargoMenu').onclick=e=>{const a=e.target.dataset.act;if(!a)return;hideContext();if(a==='add')openCargoModal();if(a==='import'){$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open');}if(a==='copylist'){const text=floor.cargos.filter(visibleCargo).filter(c=>c.owner!=='OTHER').map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock}\t${c.remark||''}`).join('\n');navigator.clipboard?.writeText(text).then(()=>alert('已复制当前货物清单。')).catch(()=>alert(text));}
+ if(a==='addobj')openObjectModal();
+ if(a==='importobj'){$('objectImportText').value='';$('objectImportErrors').innerHTML='';$('objectImportModal').classList.add('open')}
+ if(a==='columns')openColumns();
+ if(a==='copyobjlist'){const text=floor.objects.map(o=>`${o.name}\t${o.w}x${o.h}\t${cellName({x:o.x,y:o.y})}\t${o.type}`).join('\n');navigator.clipboard?.writeText(text)}
+ };
+let batchColorBefore=null,batchColorTouched=false;
+$('colorBatch').onclick=()=>{batchColorBefore=snapshot();batchColorTouched=false;$('batchColorInput').click()};
+function applyBatchColorLive(){
+ const color=$('batchColorInput').value;
+ batchColorTouched=true;
+ if(objectMode){
+  for(const id of objectSelected){const o=floor.objects.find(x=>x.id===id);if(o)o.color=color}
+  drawObjects();renderObjectList();
+ }else{
+  for(const id of selected){const c=floor.cargos.find(x=>x.id===id);if(c)c.color=color}
+  drawCargos();renderList();renderInfo();
+ }
+ setDirty(true);
+}
+$('batchColorInput').oninput=applyBatchColorLive;
+$('batchColorInput').onchange=()=>{
+ applyBatchColorLive();
+ if(batchColorTouched&&batchColorBefore){undoStack.push(batchColorBefore);if(undoStack.length>100)undoStack.shift();redoStack.length=0}
+ batchColorBefore=null;batchColorTouched=false;
+};
+$('batchDone').onclick=()=>{if(objectMode){objectSelected.clear();drawObjects();renderObjectList()}else clearSelection()};$('deleteBatch').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('shipBatch').onclick=()=>openShip(selected);
+$('cargoListBlankContext').onclick=e=>{const a=e.target.dataset.lc;if(!a)return;hideAllContexts();if(a==='add')openAdd();if(a==='import')openImport();if(a==='copylist')copyList()};
+$('objectListBlankContext').onclick=e=>{const a=e.target.dataset.lo;if(!a)return;hideAllContexts();if(a==='add')openObjectModal();if(a==='import')openObjectImport();if(a==='columns')openBatchColumns()};
+$('blankContext').onclick=e=>{const a=e.target.dataset.b;if(!a||e.target.disabled)return;hideAllContexts();if(a==='undo')undo();if(a==='redo')redo();if(a==='paste'){objectMode?pasteObjects():paste()}if(a==='refreshsel')resetSelectionArtifacts()};
+$('cargoContext').onclick=e=>{
+ const a=e.target.dataset.c;if(!a)return;hideContext();const ids=selectedCargoIds(),multi=ids.length>1;
+ if(a==='rotate')rotate();
+ if(a==='edit'){multi?openBatchCargoEdit():openCargoModal(contextId)}
+ if(a==='duplicate'){multi?duplicateCargoIds(ids):(copy(),paste())}
+ if(a==='ship'){const eligible=ids.filter(id=>floor.cargos.find(x=>x.id===id)?.owner!=='OTHER');if(eligible.length)openShip(eligible)}
+ if(a==='resetpos')resetCargoPosition(ids.length?ids:[contextId]);
+ if(a==='delete')del()
+};
+$('oCancel').onclick=()=>$('objectModal').classList.remove('open');$('oOk').onclick=saveObject;
+$('oiCancel').onclick=()=>$('objectImportModal').classList.remove('open');$('oiOk').onclick=parseObjectImport;
+$('colCancel').onclick=()=>$('columnsModal').classList.remove('open');$('colOk').onclick=addColumns;
+$('objectContext').onclick=e=>{
+ const a=e.target.dataset.o;if(!a)return;$('objectContext').classList.remove('open');const ids=selectedObjectIds(),multi=ids.length>1;
+ if(a==='rotate')rotateObjects();
+ if(a==='edit'){multi?openBatchObjectEdit():openObjectModal(objectContextId)}
+ if(a==='duplicate'){multi?duplicateObjectIds(ids):duplicateObjects()}
+ if(a==='resetpos')resetObjectPosition(ids.length?ids:[objectContextId]);
+ if(a==='delete')askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))
+};
+$('mCancel').onclick=()=>$('cargoModal2').classList.remove('open');$('mOk').onclick=saveCargoModal;
+$('mShip').onclick=()=>{if(editId)openShip([editId])};
+$('shipCancel').onclick=()=>$('shipModal').classList.remove('open');$('shipOk').onclick=confirmShip;
+$('shipRecords').onclick=()=>{shipRecordSelected.clear();renderShipRecords()};
+$('shipRecordsClose').onclick=()=>{$('shipRecordsModal').classList.remove('open');shipRecordSelected.clear()};
+$('shipRecordsList').onclick=e=>{const restore=e.target.closest('[data-restore-one]');if(restore){e.stopPropagation();restoreShipments([restore.dataset.restoreOne]);return}const row=e.target.closest('[data-ship-id]');if(!row)return;const id=row.dataset.shipId;if(e.ctrlKey||e.metaKey){shipRecordSelected.has(id)?shipRecordSelected.delete(id):shipRecordSelected.add(id)}else{shipRecordSelected.clear();shipRecordSelected.add(id)}renderShipRecords()};
+$('shipBatchRestore').onclick=()=>{if(!$('shipBatchRestore').disabled)restoreShipments([...shipRecordSelected])};
+$('confirmCancel').onclick=()=>{$('confirmModal').classList.remove('open');confirmAction=null};
+$('confirmOk').onclick=()=>{const fn=confirmAction;$('confirmModal').classList.remove('open');confirmAction=null;if(fn)fn()};
+document.querySelectorAll('.modal-bg2').forEach(bg=>bg.addEventListener('mousedown',e=>{if(e.target===bg){if(bg.id==='confirmModal'){$('confirmCancel').click()}else bg.classList.remove('open');}}));
+$('importCancel').onclick=()=>$('importModal').classList.remove('open');$('importParse').onclick=parseImport;
+$('importBack').onclick=()=>{$('importPreviewModal').classList.remove('open');$('importModal').classList.add('open')};$('importConfirm').onclick=confirmImport;
+$('floorManage').onclick=e=>{e.stopPropagation();$('floorMenu').classList.toggle('open')};
+$('floorMenu').onclick=e=>{
+ const a=e.target.dataset.floorAct;if(!a)return;
+ $('floorMenu').classList.remove('open');
+ if(a==='objects'){enterObjectMode(!objectMode);return}
+ floorModalMode=a;
+ if(a==='edit'){
+  $('floorModalTitle').textContent='修改楼层';$('fOk').textContent='确认';
+  $('fName').value=floor.name;$('fW').value=floor.width;$('fL').value=floor.length;$('fCols').value=floor.cols;$('fRows').value=floor.rows;
+ }else{
+  $('floorModalTitle').textContent='创建楼层';$('fOk').textContent='创建';
+  $('fName').value='';$('fW').value=30000;$('fL').value=15000;$('fCols').value=10;$('fRows').value=5;
+ }
+ $('floorModal2').classList.add('open');
+};
+$('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').onclick=()=>{
+ const w=+$('fW').value,l=+$('fL').value,co=+$('fCols').value,ro=+$('fRows').value,name=$('fName').value.trim();
+ if(!name||w<=0||l<=0||co<1||ro<1)return alert('请填写有效的楼层名称、尺寸和网格数量。');
+ if(floorModalMode==='edit'){pushHistory();Object.assign(floor,{name,width:w,length:l,cols:Math.floor(co),rows:Math.floor(ro)});setDirty(true);}
+ else{
+   const id='F'+Date.now();floors[id]={id,name,width:w,length:l,cols:Math.floor(co),rows:Math.floor(ro),revision:1,objects:[],cargos:[]};
+   const op=document.createElement('option');op.value=id;op.textContent=name;$('floorSelect').appendChild(op);floor=floors[id];$('floorSelect').value=id;selected.clear();undoStack=[];future=[];setDirty(true);
+ }
+ $('floorModal2').classList.remove('open');fit();renderAll();
+};
+$('otherHead').onclick=e=>{if(e.target.closest('.other-lock'))return;const list=$('otherCargoList');const open=list.classList.toggle('open');$('otherArrow').textContent=open?'▼':'▶';};
+document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
+
+[...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
+initStage();renderAll();
+})();
+</script>
+</body>
+</html>
