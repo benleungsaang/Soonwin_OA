@@ -10,7 +10,7 @@ from app.constants.simple_permission_constants import ROUTE_WAREHOUSE_MANAGE
 from app.models.business_operation_log import BusinessOperationLog
 from app.models.employee import Employee
 from app.models.warehouse import WarehouseItem, WarehouseMap, WarehouseObject
-from app.utils.auth_utils import get_user_id_from_token, get_user_role_from_token, require_admin
+from app.utils.auth_utils import get_user_id_from_token
 from app.utils.simple_auth_utils import route_permission
 
 
@@ -232,7 +232,7 @@ def list_maps():
 
 
 @warehouse_bp.route('/maps', methods=['POST'])
-@require_admin
+@route_permission(ROUTE_WAREHOUSE_MANAGE)
 def create_map():
     try:
         data = _validate_map_data(request.get_json(silent=True) or {})
@@ -254,6 +254,28 @@ def create_map():
         db.session.rollback()
         print(f'[warehouse] 创建楼层失败: {exc}')
         return jsonify({'success': False, 'message': '创建楼层失败'}), 500
+
+
+@warehouse_bp.route('/maps/<int:map_id>', methods=['DELETE'])
+@route_permission(ROUTE_WAREHOUSE_MANAGE)
+def delete_map(map_id):
+    warehouse_map = WarehouseMap.query.filter_by(id=map_id, active=1).first()
+    if not warehouse_map:
+        return jsonify({'success': False, 'message': '楼层不存在'}), 404
+    uid = get_user_id_from_token()
+    try:
+        warehouse_map.active = 0
+        warehouse_map.updated_at = datetime.now()
+        _audit(uid, 'delete', warehouse_map.id, {
+            'entity': 'map',
+            'name': warehouse_map.name,
+        })
+        db.session.commit()
+        return jsonify({'success': True, 'data': {'id': map_id}})
+    except Exception as exc:
+        db.session.rollback()
+        print(f'[warehouse] 删除楼层失败: {exc}')
+        return jsonify({'success': False, 'message': '删除楼层失败'}), 500
 
 
 @warehouse_bp.route('/maps/<int:map_id>', methods=['GET'])
@@ -357,14 +379,10 @@ def _save_items(warehouse_map, payload, uid, id_map, changes):
             changes.append({'type': 'restore', 'entity': 'item', 'id': item.id})
 
 
-def _save_objects(warehouse_map, payload, role, changes):
+def _save_objects(warehouse_map, payload, changes):
     object_payload = payload.get('objects') or {}
     if not isinstance(object_payload, dict):
         raise ValueError('objects 必须是对象')
-    has_changes = any(object_payload.get(key) for key in ('created', 'updated', 'deleted'))
-    if has_changes and role != 'admin':
-        raise PermissionError('只有管理员可以管理障碍物')
-
     for raw in object_payload.get('created') or []:
         data = _validate_object_data(dict(raw), require_all=True)
         data.pop('_client_id', None)
@@ -403,7 +421,6 @@ def save_map(map_id):
         return jsonify({'success': False, 'message': '楼层不存在'}), 404
     body = request.get_json(silent=True) or {}
     uid = get_user_id_from_token()
-    role = get_user_role_from_token()
     if not uid:
         return jsonify({'success': False, 'message': '无法确定当前操作人员'}), 401
     employee = _employee(uid)
@@ -420,13 +437,11 @@ def save_map(map_id):
 
         map_payload = body.get('map') or {}
         map_changed = bool(map_payload)
-        if map_changed and role != 'admin':
-            return jsonify({'success': False, 'message': '只有管理员可以修改楼层结构'}), 403
         map_payload = _validate_map_data(dict(map_payload))
         changes = []
         id_map = {}
         _save_items(warehouse_map, body, uid, id_map, changes)
-        _save_objects(warehouse_map, body, role, changes)
+        _save_objects(warehouse_map, body, changes)
         for key, value in map_payload.items():
             setattr(warehouse_map, key, value)
         if map_changed:

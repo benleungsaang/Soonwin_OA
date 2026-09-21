@@ -173,7 +173,7 @@ input:focus,select:focus{border-color:var(--red)}
       <div class="row">
         <select id="floorSelect"></select>
         <div class="floor-menu-wrap"><button class="btn" id="floorManage">管理 ▾</button>
-<div class="floor-menu" id="floorMenu"><button data-floor-act="edit">修改楼层</button><button data-floor-act="create">创建楼层</button><button data-floor-act="objects">进入障碍物修改模式</button></div></div>
+<div class="floor-menu" id="floorMenu"><button data-floor-act="edit">修改楼层</button><button data-floor-act="create">创建楼层</button><button data-floor-act="delete" style="color:#ff6577">删除楼层</button><button data-floor-act="objects">进入障碍物修改模式</button></div></div>
       </div>
       <div class="floor-stats">
         <div class="floor-stat size"><span class="k">尺寸 · 长 × 宽</span><span class="v" id="floorSizeStat"></span></div>
@@ -416,6 +416,15 @@ async function loadWarehouseMaps(){
  const select=$('floorSelect');select.innerHTML='';warehouseMaps.forEach(map=>{const option=document.createElement('option');option.value=String(map.id);option.textContent=map.name;select.appendChild(option)});
  if(!warehouseMaps.length)throw new Error('暂无可用库存楼层');
  await loadWarehouseMap(Number(warehouseMaps[0].id));
+}
+async function deleteWarehouseMap(){
+ if(!floor)return;
+ if(dirty&&!confirm('当前楼层有未保存修改，确定继续删除吗？'))return;
+ if(!confirm(`确定删除楼层“${floor.name}”吗？删除后该楼层将从库存位置列表隐藏。`))return;
+ try{
+  await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}`,{method:'DELETE'});
+  await loadWarehouseMaps();
+ }catch(error){console.error('[warehouse] delete map failed',error);alert(error.message||'删除楼层失败')}
 }
 function warehouseSavePayload(){
  const baseItems=new Map((baseWarehouseSnapshot?.cargos||[]).map(item=>[String(item.id),item])),baseObjects=new Map((baseWarehouseSnapshot?.objects||[]).map(object=>[String(object.id),object]));
@@ -1299,6 +1308,7 @@ $('floorMenu').onclick=e=>{
  const a=e.target.dataset.floorAct;if(!a)return;
  $('floorMenu').classList.remove('open');
  if(a==='objects'){enterObjectMode(!objectMode);return}
+ if(a==='delete'){deleteWarehouseMap();return}
  floorModalMode=a;
  if(a==='edit'){
   $('floorModalTitle').textContent='修改楼层';$('fOk').textContent='确认';
