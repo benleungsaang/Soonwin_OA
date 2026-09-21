@@ -198,6 +198,9 @@ def _validate_object_data(data, require_all=False):
     # 这些字段不属于障碍物模型，直接丢弃；其它未知字段仍严格拒绝。
     for legacy_item_field in ('height_mm', 'owner_group', 'remark', 'stocked_date'):
         data.pop(legacy_item_field, None)
+    # 兼容旧版编辑器未发送 type 的新增障碍物，按普通 OTHER 障碍物保存。
+    if not data.get('type'):
+        data['type'] = 'OTHER'
     unknown = set(data) - OBJECT_FIELDS - {'id', '_client_id'}
     if unknown:
         raise ValueError(f'不支持的障碍物字段: {sorted(unknown)}')
