@@ -414,7 +414,14 @@ async function loadWarehouseMap(mapId){const snapshot=await warehouseApi(`/api/w
 async function loadWarehouseMaps(){
  warehouseMaps=await warehouseApi('/api/warehouse/maps');
  const select=$('floorSelect');select.innerHTML='';warehouseMaps.forEach(map=>{const option=document.createElement('option');option.value=String(map.id);option.textContent=map.name;select.appendChild(option)});
- if(!warehouseMaps.length)throw new Error('暂无可用库存楼层');
+ const floorActions=[...$('floorMenu').querySelectorAll('[data-floor-act]')];
+ if(!warehouseMaps.length){
+  floor=null;baseWarehouseSnapshot=null;selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);
+  select.disabled=true;$('floorSummary').textContent='暂无楼层';$('floorSizeStat').textContent='—';$('floorGridStat').textContent='—';$('saveBtn').disabled=true;$('reportBtn').disabled=true;$('shipRecords').disabled=true;
+  floorActions.forEach(button=>{button.disabled=button.dataset.floorAct!=='create'});
+  return;
+ }
+ select.disabled=false;$('saveBtn').disabled=false;$('reportBtn').disabled=false;$('shipRecords').disabled=false;floorActions.forEach(button=>{button.disabled=false});
  await loadWarehouseMap(Number(warehouseMaps[0].id));
 }
 async function deleteWarehouseMap(){
@@ -439,6 +446,7 @@ function warehouseSavePayload(){
  return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created,updated,deleted:objectDeleted.map(Number)}};
 }
 async function saveWarehouse(){
+ if(!floor){alert('当前暂无楼层，请先创建楼层。');return}
  try{const result=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/save`,{method:'PUT',body:JSON.stringify(warehouseSavePayload())});applyWarehouseSnapshot(result);alert('库存平面图已保存');}
  catch(error){if(error.status===409)alert('当前楼层已被其他用户修改，请重新加载后再保存。当前本地修改仍保留。');else{console.error('[warehouse] save failed',error);alert(error.message||'保存失败')}}
 }
@@ -1307,6 +1315,7 @@ $('floorManage').onclick=e=>{e.stopPropagation();$('floorMenu').classList.toggle
 $('floorMenu').onclick=e=>{
  const a=e.target.dataset.floorAct;if(!a)return;
  $('floorMenu').classList.remove('open');
+ if(!floor&&a!=='create')return;
  if(a==='objects'){enterObjectMode(!objectMode);return}
  if(a==='delete'){deleteWarehouseMap();return}
  floorModalMode=a;
