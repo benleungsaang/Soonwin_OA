@@ -168,6 +168,11 @@ def create_app(port=5000):
         from .routes.container_layout_routes import container_layout_bp
         app.register_blueprint(container_layout_bp, url_prefix='/api')
 
+        # Warehouse route imports its models after db.create_all(); the three
+        # Warehouse tables are created by the explicit DEV schema bootstrap.
+        from .routes.warehouse_routes import warehouse_bp
+        app.register_blueprint(warehouse_bp)
+
         # 设置照片压缩功能的应用实例
         from .routes.photo_routes import set_app_instance
         set_app_instance(app)
