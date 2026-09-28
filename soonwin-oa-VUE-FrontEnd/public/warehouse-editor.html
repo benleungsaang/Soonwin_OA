@@ -162,10 +162,6 @@ input:focus,select:focus{border-color:var(--red)}
 .ship-record-modal .cargo-origin b{color:#25313d;font-weight:700}
 
 #floorMapCaption{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:10;color:#aebaca;font-size:13px;font-weight:650;letter-spacing:.02em;pointer-events:none;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.75)}
-
-/* TEMP PERFORMANCE DIAGNOSTIC: rendered only for ?perf=1. */
-#perfPanel{display:none;position:fixed;right:14px;bottom:14px;z-index:300;width:min(390px,calc(100vw - 28px));max-height:72vh;overflow:auto;padding:12px;background:rgba(9,15,29,.96);border:1px solid #5b6c86;border-radius:10px;color:#e5edf7;font:11px/1.45 Consolas,monospace;box-shadow:0 8px 28px #0009}
-#perfPanel.on{display:block}#perfPanel h3{font:600 14px/1.4 'Segoe UI',sans-serif;margin:0 0 8px;color:#a8d8ea}#perfPanel .perf-row{display:flex;gap:6px;align-items:center;margin:5px 0}#perfPanel select{flex:1;min-width:0;font:11px Consolas}#perfPanel button{font:11px 'Segoe UI',sans-serif;padding:5px 8px;border-radius:5px}#perfPanel .perf-actions{display:flex;gap:5px;flex-wrap:wrap}#perfPanel pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0;color:#cbd5e1;font:10px/1.45 Consolas,monospace}#perfWarning{color:#ffcc80;font:bold 11px 'Segoe UI',sans-serif;margin:6px 0}
 </style>
 </head>
 <body>
@@ -362,16 +358,6 @@ input:focus,select:focus{border-color:var(--red)}
  <p style="color:#8898aa;font-size:12px;line-height:1.6">本轮先开放楼层参数编辑入口；新增/删除楼层与障碍物编辑在 Floor Edit 阶段继续完善。</p>
  <div class="modal-actions2"><button class="btn" id="fCancel">取消</button><button class="btn primary" id="fOk">应用到 Edit State</button></div>
 </div></div>
-<aside id="perfPanel" aria-label="Temporary performance diagnostic">
- <h3>TEMP PERFORMANCE DIAGNOSTIC</h3>
- <div class="perf-row"><label for="perfMode">Mode</label><select id="perfMode">
-  <option value="NORMAL">MODE 1 — NORMAL</option><option value="MINIMAL_PAN">MODE 2 — MINIMAL PAN</option><option value="PAN_NO_HIT_GRAPH">MODE 3 — PAN NO HIT GRAPH</option><option value="PIXEL_RATIO_1">MODE 4 — PIXEL RATIO 1</option><option value="MINIMAL_DRAG">MODE 5 — MINIMAL DRAG</option><option value="DRAG_NO_COLLISION">MODE 6 — DRAG NO COLLISION</option>
- </select></div>
- <div id="perfWarning"></div>
- <div class="perf-actions"><button id="perfStart">开始测试</button><button id="perfStop">结束测试</button><button id="perfClear">清空</button><button id="perfCopy">复制报告</button><button id="perfClose">关闭面板</button></div>
- <pre id="perfInstructions">SESSION 1 NORMAL → Pan 5 秒；2 MINIMAL PAN → Pan 5 秒；3 PAN NO HIT GRAPH → Pan 5 秒；4 PIXEL RATIO 1 → Pan 5 秒；5 NORMAL → 单货物 Drag 5 秒；6 MINIMAL DRAG → 同一货物 Drag 5 秒；7 DRAG NO COLLISION → 同一货物 Drag 5 秒。每轮单独开始、操作、结束并复制报告。</pre>
- <pre id="perfLive">等待加载楼层…</pre>
-</aside>
 <script>
 (() => {
 if (!window.Konva){document.getElementById('konvaError').style.display='flex';return;}
@@ -409,68 +395,8 @@ let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), cl
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null;
 const $=id=>document.getElementById(id);
-// TEMP PERFORMANCE DIAGNOSTIC: opt-in only; all temporary overrides are restored per session.
-const PerfDiagnostic=(()=>{
- const enabled=new URLSearchParams(location.search).get('perf')==='1', names=['NORMAL','MINIMAL_PAN','PAN_NO_HIT_GRAPH','PIXEL_RATIO_1','MINIMAL_DRAG','DRAG_NO_COLLISION'];
- const panel=$('perfPanel'),modeInput=$('perfMode'),warning=$('perfWarning'),live=$('perfLive');
- const originalPixelRatio=Konva.pixelRatio;
- let modeName='NORMAL',active=false,startedAt=0,sessionDuration=0,lastReport='',timer=0,uiTimer=0,rafId=0,lastFrame=0,panRaf=0,pendingPan=null,restoreListen=null,restorePositions=null,restoreFloor=null,refreshSamples=[],env={},stats=null;
- const keys=['raf','panHandler','applyView','drawSchedule','drawActual','dragWhole','nodeLookup','constrained','snap','collision'];
- function reset(){stats={};keys.forEach(k=>stats[k]=[]);stats.drawCount=0;stats.layerDrawCounts={};stats.collisionCalls=0;stats.pointerEvents=0;stats.processedFrames=0;stats.panEvents=0;stats.panFrames=0;stats.disabledLayers=[];refreshSamples=[]}
- function push(key,value){if(active&&stats&&stats[key])stats[key].push(value)}
- function avg(a){return a.length?a.reduce((s,n)=>s+n,0)/a.length:null}
- function pct(a,p){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.ceil(p*s.length)-1)]}
- function fmt(n,d=2){return n==null?'UNAVAILABLE':Number(n).toFixed(d)}
- function summary(key){const a=stats?.[key]||[];return{avg:avg(a),p50:pct(a,.5),p95:pct(a,.95),max:a.length?Math.max(...a):null,count:a.length}}
- function allLayers(){return[gridLayer,objLayer,cargoLayer,selLayer].filter(Boolean)}
- function nodeCount(){let n=0;const walk=node=>{n++;node.getChildren?.().forEach(walk)};allLayers().forEach(layer=>layer.getChildren().forEach(walk));return n}
- function backing(){return[...$('stage').querySelectorAll('canvas')].map(c=>`${c.width}x${c.height}`).join(', ')||'UNAVAILABLE'}
- function captureEnv(){env={ua:navigator.userAgent,viewport:`${innerWidth}x${innerHeight}`,dpr:devicePixelRatio,konvaPixelRatio:Konva.pixelRatio,backing:backing(),floor:floor?.name||'UNAVAILABLE',cargoCount:floor?.cargos?.length??'UNAVAILABLE',objectCount:floor?.objects?.length??'UNAVAILABLE',nodeCount:nodeCount(),layerCount:allLayers().length}}
- function installLayerHooks(){for(const layer of allLayers()){
-  const draw=layer.draw.bind(layer),batch=layer.batchDraw.bind(layer);
-  layer.draw=function(){const t=active?performance.now():0;try{return draw()}finally{if(active){push('drawActual',performance.now()-t);stats.drawCount++;const key=layer===cargoLayer?'cargoLayer':'otherLayers';stats.layerDrawCounts[key]=(stats.layerDrawCounts[key]||0)+1}}};
-  layer.batchDraw=function(){const t=active?performance.now():0;try{return batch()}finally{if(active)push('drawSchedule',performance.now()-t)}};
- }}
- function resetStage(){if(!stage)return;const savedOrigin={...origin},savedScale=scale;stage.destroy();stage=null;gridLayer=objLayer=cargoLayer=selLayer=null;initStage();scale=savedScale;origin=savedOrigin;drawGrid();drawObjects();drawCargos();applyView()}
- function applyMode(){warning.textContent='';restoreListen=null;
-  if(modeName==='PAN_NO_HIT_GRAPH'){
-   restoreListen=[];const labels=['gridLayer','objLayer','cargoLayer','selLayer'];allLayers().forEach((layer,index)=>{let changed=0;const walk=node=>node.getChildren?.().forEach(child=>{restoreListen.push([child,child.listening()]);if(child.listening())changed++;child.listening(false);walk(child)});walk(layer);layer.drawHit();stats.disabledLayers.push(`${labels[index]} nodes=${changed}`)});
-  }
-  if(modeName==='PIXEL_RATIO_1'&&Konva.pixelRatio!==1){Konva.pixelRatio=1;resetStage()}
- }
- function restoreMode(){if(restoreListen){restoreListen.forEach(([node,value])=>node.listening(value));restoreListen=null;allLayers().forEach(layer=>layer.drawHit())}
-  if(Konva.pixelRatio!==originalPixelRatio){Konva.pixelRatio=originalPixelRatio;resetStage()}
- }
- function restoreTestCargo(){if(!restoreFloor)return;if(restorePositions){restorePositions.forEach((p,id)=>{const cargo=restoreFloor.cargos.find(c=>String(c.id)===id);if(cargo){cargo.x=p.x;cargo.y=p.y}});restorePositions=null;if(cargoLayer&&floor===restoreFloor){drawCargos();applyView()}}restoreFloor=null;
- }
- function flags(){return{minimalPan:modeName==='MINIMAL_PAN',hitGraphDisabled:modeName==='PAN_NO_HIT_GRAPH',pixelRatioOverride:modeName==='PIXEL_RATIO_1'?`${originalPixelRatio} -> ${Konva.pixelRatio}`:'none',minimalDrag:modeName==='MINIMAL_DRAG',collisionDisabled:modeName==='MINIMAL_DRAG'||modeName==='DRAG_NO_COLLISION'}}
- function report(){const raf=summary('raf'),pan=summary('panHandler'),view=summary('applyView'),schedule=summary('drawSchedule'),whole=summary('dragWhole'),lookup=summary('nodeLookup'),constrained=summary('constrained'),snap=summary('snap'),collision=summary('collision'),duration=active?Math.max(0,(performance.now()-startedAt)/1000):sessionDuration,late=(limit)=>stats.raf.filter(x=>x>limit).length;
-  const hz=pct(refreshSamples,.5);return[
-   'WAREHOUSE KONVA PERF REPORT','===========================',`timestamp: ${new Date().toISOString()}`,`mode: ${modeName}`,`duration: ${fmt(duration,2)} s`,'','ENV',`userAgent: ${env.ua||navigator.userAgent}`,`viewport: ${env.viewport||`${innerWidth}x${innerHeight}`}`,`devicePixelRatio: ${env.dpr??devicePixelRatio}`,`Konva.pixelRatio: ${env.konvaPixelRatio??Konva.pixelRatio}`,`Canvas backing size: ${env.backing||backing()}`,`estimatedRefreshHz: ${hz?fmt(1000/hz,1):'UNAVAILABLE'}`,`floor: ${env.floor||floor?.name||'UNAVAILABLE'}`,`cargoCount: ${env.cargoCount??floor?.cargos?.length??'UNAVAILABLE'}`,`objectCount: ${env.objectCount??floor?.objects?.length??'UNAVAILABLE'}`,`nodeCount: ${env.nodeCount??nodeCount()}`,`layerCount: ${env.layerCount??allLayers().length}`,'','RAF',`samples: ${raf.count}`,`avg: ${fmt(raf.avg)}`,`p50: ${fmt(raf.p50)}`,`p95: ${fmt(raf.p95)}`,`max: ${fmt(raf.max)}`,`late20: ${late(20)}`,`late33: ${late(33)}`,`late50: ${late(50)}`,'','POINTER',`events: ${stats.pointerEvents}`,`eventsPerSec: ${fmt(duration?stats.pointerEvents/duration:null)}`,`processedFrames: ${stats.processedFrames}`,`processedFramesPerSec: ${fmt(duration?stats.processedFrames/duration:null)}`,'','PAN',`events: ${stats.panEvents}`,`handlerAvg: ${fmt(pan.avg)}`,`handlerP95: ${fmt(pan.p95)}`,`handlerMax: ${fmt(pan.max)}`,`applyViewAvg: ${fmt(view.avg)}`,`applyViewP95: ${fmt(view.p95)}`,`applyViewMax: ${fmt(view.max)}`,`drawScheduleAvg: ${fmt(schedule.avg)}`,`drawCount: ${stats.drawCount}`,'','DRAG',`frames: ${whole.count}`,`wholeAvg: ${fmt(whole.avg)}`,`wholeP95: ${fmt(whole.p95)}`,`wholeMax: ${fmt(whole.max)}`,`nodeLookupAvg: ${fmt(lookup.avg)}`,`constrainedAvg: ${fmt(constrained.avg)}`,`snapAvg: ${fmt(snap.avg)}`,`collisionCalls: ${stats.collisionCalls}`,`collisionCallsPerFrame: ${fmt(whole.count?stats.collisionCalls/whole.count:null)}`,`collisionAvg: ${fmt(collision.avg)}`,`collisionTotal: ${fmt(collision.avg==null?null:collision.avg*collision.count)}`,`drawScheduleAvg: ${fmt(schedule.avg)}`,`drawCount: ${stats.drawCount}`,'','DIAGNOSTIC FLAGS',`minimalPan: ${flags().minimalPan}`,`hitGraphDisabled: ${flags().hitGraphDisabled}${stats.disabledLayers.length?` (${stats.disabledLayers.join(',')})`:''}`,`pixelRatioOverride: ${flags().pixelRatioOverride}`,`minimalDrag: ${flags().minimalDrag}`,`collisionDisabled: ${flags().collisionDisabled}`,'','NOTES',`screenRefreshEstimateMs: ${fmt(hz)}`,`drawActualAvg: ${fmt(summary('drawActual').avg)}`,`drawActualP95: ${fmt(summary('drawActual').p95)}`,`drawActualMax: ${fmt(summary('drawActual').max)}`,`cargoLayerDrawCount: ${stats.layerDrawCounts.cargoLayer||0}`,`collisionScope: constrainedDelta time (boundary, obstacles, cargo blockers)`, `panFrames: ${stats.panFrames}`].join('\n')}
- function update(){if(!enabled)return;if(!active&&(!env.floor||env.floor!==floor?.name))captureEnv();if(active)live.textContent=`State: TESTING ${modeName}\n${report()}`;else live.textContent=`State: ${lastReport?'TEST ENDED — report ready':'READY'}\nUA: ${env.ua}\nViewport: ${env.viewport} | DPR: ${env.dpr} | Konva: ${env.konvaPixelRatio}\nCanvas: ${env.backing}\nFloor: ${env.floor} | cargos: ${env.cargoCount} | objects: ${env.objectCount}\nKonva nodes: ${env.nodeCount} | layers: ${env.layerCount}\nActual layer draw hooks and draw scheduling are measured separately.`}
- function sampler(ts){if(!active)return;if(lastFrame){const d=ts-lastFrame;push('raf',d);if(d>=1&&d<=60){refreshSamples.push(d);if(refreshSamples.length>120)refreshSamples.shift()}}lastFrame=ts;rafId=requestAnimationFrame(sampler)}
- function start(){if(!enabled||active)return;if(!floor){warning.textContent='等待库存楼层加载完成后再开始。';return}if((modeName==='MINIMAL_DRAG'||modeName==='DRAG_NO_COLLISION')&&objectMode){warning.textContent='请先退出障碍物模式，再开始货物拖动测试。';return}if((modeName==='MINIMAL_DRAG'||modeName==='DRAG_NO_COLLISION')&&mode!=='direct'){warning.textContent='请先切换到 Direct 模式，再开始货物拖动测试。';return}
-  reset();lastReport='';sessionDuration=0;restoreFloor=floor;restorePositions=(modeName==='MINIMAL_DRAG'||modeName==='DRAG_NO_COLLISION')?new Map(floor.cargos.map(c=>[String(c.id),{x:c.x,y:c.y}])):null;applyMode();captureEnv();startedAt=performance.now();lastFrame=0;active=true;warning.textContent=modeName==='MINIMAL_DRAG'?'DIAGNOSTIC ONLY — COLLISION DISABLED':modeName==='DRAG_NO_COLLISION'?'DIAGNOSTIC ONLY — CONSTRAINTS/COLLISION/SNAP DISABLED':'';
-  document.addEventListener('pointermove',onPointer,{passive:true});rafId=requestAnimationFrame(sampler);timer=setInterval(update,500);update()}
- function onPointer(){if(active)stats.pointerEvents++}
- function stop(){if(!active)return;sessionDuration=Math.max(0,(performance.now()-startedAt)/1000);active=false;cancelAnimationFrame(rafId);rafId=0;if(panRaf)cancelAnimationFrame(panRaf);panRaf=0;pendingPan=null;clearInterval(timer);timer=0;lastReport=report();restoreTestCargo();restoreMode();directDrag=null;groupDrag=null;pendingCargoPointer=null;dragRaf&&cancelAnimationFrame(dragRaf);dragRaf=0;document.removeEventListener('pointermove',onPointer);warning.textContent='';update()}
- function clear(){if(active)stop();lastReport='';sessionDuration=0;reset();update()}
- function selectMode(value){if(active)stop();modeName=names.includes(value)?value:'NORMAL';modeInput.value=modeName;warning.textContent='';update()}
- function close(){if(active)stop();restoreMode();clearInterval(uiTimer);panel.classList.remove('on')}
- function panMove(pointer,pan){if(!active||modeName!=='MINIMAL_PAN')return false;pendingPan={pointer:{...pointer},pan};if(!panRaf)panRaf=requestAnimationFrame(()=>{panRaf=0;const item=pendingPan;pendingPan=null;if(!active||!item)return;const t=performance.now();origin={x:item.pan.o0.x+item.pointer.x-item.pan.p0.x,y:item.pan.o0.y+item.pointer.y-item.pan.p0.y};allLayers().forEach(layer=>{layer.position(origin);layer.scale({x:scale,y:scale})});stage.batchDraw();push('applyView',performance.now()-t);stats.panFrames++;stats.processedFrames++;});return true}
- function flushPan(){if(!pendingPan)return;cancelAnimationFrame(panRaf);panRaf=0;const item=pendingPan;pendingPan=null;if(active&&item){origin={x:item.pan.o0.x+item.pointer.x-item.pan.p0.x,y:item.pan.o0.y+item.pointer.y-item.pan.p0.y};allLayers().forEach(layer=>{layer.position(origin);layer.scale({x:scale,y:scale})});stage.batchDraw()}}
- function makeDragState(c){const start=new Map([[c.id,{x:c.x,y:c.y,cargo:c}]]);return{before:null,starts:start,movingIds:new Set([c.id]),blockers:[],diagNode:cargoLayer.findOne('#'+c.id)}}
- function processDrag(pointer,drag){if(!active||modeName!=='MINIMAL_DRAG')return false;const dx=(pointer.x-drag.lastPointer.x)/scale,dy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};const node=drag.diagNode;if(node)node.position({x:node.x()+dx,y:node.y()+dy});cargoLayer.batchDraw();return true}
- function beforeNormalConstraint(fn,key){const t=performance.now();try{return fn()}finally{if(active){const elapsed=performance.now()-t;push(key,elapsed);if(key==='constrained'){push('collision',elapsed);stats.collisionCalls++}}}}
- function dragEnd(t){if(active){push('dragWhole',performance.now()-t);stats.processedFrames++}}
- function panHandler(t){if(active){stats.panEvents++;push('panHandler',performance.now()-t);if(modeName!=='MINIMAL_PAN'){stats.processedFrames++;stats.panFrames++}}}
- function beginView(){return active?performance.now():0}function endView(t){if(active)push('applyView',performance.now()-t)}
- function init(){if(!enabled)return;reset();panel.classList.add('on');modeInput.addEventListener('change',()=>selectMode(modeInput.value));$('perfStart').onclick=start;$('perfStop').onclick=stop;$('perfClear').onclick=clear;$('perfCopy').onclick=async()=>{const text=lastReport||report();try{await navigator.clipboard.writeText(text)}catch{const area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove()}warning.textContent='报告已复制到剪贴板。'};$('perfClose').onclick=close;update();uiTimer=setInterval(update,500)}
- return{enabled,get active(){return active},get mode(){return modeName},init,installLayerHooks,selectMode,stop,close,applyViewStart:beginView,applyViewEnd:endView,panHandler,panMove,flushPan,makeDragState,processDrag,dragEnd,beforeNormalConstraint};
-})();
 const warehouseToken=()=>localStorage.getItem('oa_token');
 async function warehouseApi(path,options={}){
- if(PerfDiagnostic.enabled&&PerfDiagnostic.active&&!['GET','HEAD'].includes((options.method||'GET').toUpperCase()))throw new Error('诊断 session 期间禁止写入 OA 数据；结束测试后再操作。');
  const token=warehouseToken();
  if(!token)throw new Error('未检测到登录凭证，请先在 OA 系统登录');
  const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});
@@ -552,7 +478,7 @@ function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.
 function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
 function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
 function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
-function applyView(){if(!PerfDiagnostic.enabled){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo();return}const perfStart=PerfDiagnostic.applyViewStart();[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();if(!(PerfDiagnostic.active&&PerfDiagnostic.mode==='MINIMAL_PAN'))renderInfo();PerfDiagnostic.applyViewEnd(perfStart)}
+function applyView(){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo()}
 function fit(){
  if(!floor||!stage)return;
  const vw=$('viewport').clientWidth,vh=$('viewport').clientHeight,margin=100;
@@ -680,22 +606,11 @@ function cargoDragState(ids){
 function processCargoDrag(pointer){
  const drag=directDrag&&!directDrag.kind?directDrag:groupDrag?.canvas?groupDrag:null;
  if(!drag||!drag.lastPointer)return;
- if(!PerfDiagnostic.enabled||!PerfDiagnostic.active){
-  const rawDx=(pointer.x-drag.lastPointer.x)/scale,rawDy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};if(Math.abs(rawDx)+Math.abs(rawDy)>0&&directDrag)directDrag.moved=true;
-  const current=new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]}));
-  const constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds),delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);
-  for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();return;
- }
- const perfStart=PerfDiagnostic.active?performance.now():0;
- try{
- if(PerfDiagnostic.processDrag(pointer,drag))return;
  const rawDx=(pointer.x-drag.lastPointer.x)/scale,rawDy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};
  if(Math.abs(rawDx)+Math.abs(rawDy)>0&&directDrag)directDrag.moved=true;
- const current=PerfDiagnostic.beforeNormalConstraint(()=>new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]})),'nodeLookup');
- const noCollision=PerfDiagnostic.mode==='DRAG_NO_COLLISION',constrained=noCollision?{dx:rawDx,dy:rawDy}:PerfDiagnostic.beforeNormalConstraint(()=>constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds),'constrained');
- const delta=noCollision?constrained:PerfDiagnostic.beforeNormalConstraint(()=>snapCargoGroup(current,constrained,drag.movingIds,drag.blockers),'snap');
- const updateNodes=()=>{for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}};PerfDiagnostic.beforeNormalConstraint(updateNodes,'nodeLookup');cargoLayer.batchDraw();
- }finally{if(PerfDiagnostic.active)PerfDiagnostic.dragEnd(perfStart)}
+ const current=new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]}));
+ const constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds),delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);
+ for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();
 }
 function scheduleCargoDrag(pointer){
  pendingCargoPointer={...pointer};if(dragRaf)return;
@@ -723,8 +638,7 @@ function drawCargos(){
     cargoLayer.find('.cargo').forEach(n=>{const r=n.findOne('Rect'),sel=selected.has(n.id());if(r){r.opacity(selected.size&&!sel?.35:.88);r.stroke(sel?'#ffd93d':'rgba(255,255,255,.75)');r.strokeWidth((sel?3:1)/scale)}});
     renderList();renderInfo();updateButtons();
     const p=stage.getPointerPosition();
-    if(PerfDiagnostic.enabled&&PerfDiagnostic.active&&['MINIMAL_DRAG','DRAG_NO_COLLISION'].includes(PerfDiagnostic.mode)){selected.clear();selected.add(c.id);directDrag={...PerfDiagnostic.makeDragState(c),lastPointer:p?{...p}:null,moved:false,diagnostic:true}}
-    else directDrag={before:snapshot(),...cargoDragState(selected),lastPointer:p?{...p}:null,moved:false};
+    directDrag={before:snapshot(),...cargoDragState(selected),lastPointer:p?{...p}:null,moved:false};
    }else{
     if(ctrl)toggleSelect(c.id);else if(!selected.has(c.id))selectOnly(c.id);
    }
@@ -901,7 +815,7 @@ function switchFloor(){
 }
 function initStage(){
  stage=new Konva.Stage({container:'stage',width:$('viewport').clientWidth,height:$('viewport').clientHeight});
- gridLayer=new Konva.Layer({listening:false});objLayer=new Konva.Layer({listening:false});cargoLayer=new Konva.Layer({listening:true});selLayer=new Konva.Layer({listening:false});stage.add(gridLayer,objLayer,cargoLayer,selLayer);if(PerfDiagnostic.enabled)PerfDiagnostic.installLayerHooks();
+ gridLayer=new Konva.Layer({listening:false});objLayer=new Konva.Layer({listening:false});cargoLayer=new Konva.Layer({listening:true});selLayer=new Konva.Layer({listening:false});stage.add(gridLayer,objLayer,cargoLayer,selLayer);
  stage.container().addEventListener('contextmenu',e=>e.preventDefault());
  stage.on('wheel',e=>{e.evt.preventDefault();const p=stage.getPointerPosition(),world=screenWorld(p),old=scale,factor=1.12;scale=e.evt.deltaY<0?old*factor:old/factor;scale=Math.max(.003,Math.min(.25,scale));origin={x:p.x-world.x*scale,y:p.y-world.y*scale};applyView();});
  stage.on('mousedown touchstart',e=>{
@@ -939,7 +853,7 @@ function initStage(){
     if(Math.abs(dx)+Math.abs(dy)>.01)directDrag.moved=true;
     for(const[id]of directDrag.starts){const n=objLayer.findOne('#'+id);if(n)n.position({x:n.x()+dx,y:n.y()+dy})}objLayer.batchDraw();return;
    }
-   if(rightPan){const panStart=PerfDiagnostic.enabled?performance.now():0,dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){if(!(PerfDiagnostic.enabled&&PerfDiagnostic.panMove(p,rightPan))){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}}if(PerfDiagnostic.enabled)PerfDiagnostic.panHandler(panStart);return}
+   if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
    if(selectionRect&&selectStart){const a=screenWorld(selectStart),b=screenWorld(p);selectionRect.setAttrs({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});selLayer.batchDraw()}
    return;
   }
@@ -948,7 +862,7 @@ function initStage(){
   if(directDrag&&directDrag.lastPointer){
    scheduleCargoDrag(p);return;
   }
-  if(rightPan){const panStart=PerfDiagnostic.enabled?performance.now():0,dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){if(!(PerfDiagnostic.enabled&&PerfDiagnostic.panMove(p,rightPan))){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}}if(PerfDiagnostic.enabled)PerfDiagnostic.panHandler(panStart);return}
+  if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
   if(!selectStart)return;
   if(groupDrag&&groupDrag.canvas){
    scheduleCargoDrag(p);
@@ -963,7 +877,6 @@ function initStage(){
     if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;selectStart=null;renderAll();return;
    }
    if(ev.button===2&&rightPan){
-    if(PerfDiagnostic.enabled)PerfDiagnostic.flushPan();
     const moved=rightPan.moved;rightPan=null;
     if(!moved){
      if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList();updateButtons()}
@@ -981,13 +894,11 @@ function initStage(){
   }
 
   // Cargo mode only below this line.
-  if(PerfDiagnostic.enabled&&ev.button===0&&directDrag?.diagnostic){directDrag=null;selectStart=null;return}
   if(ev.button===0&&directDrag){
    let changed=false;for(const[id,st]of directDrag.starts){const n=cargoLayer.findOne('#'+id),q=floor.cargos.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
    if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;renderAll();return;
   }
   if(ev.button===2&&rightPan){
-   if(PerfDiagnostic.enabled)PerfDiagnostic.flushPan();
    const moved=rightPan.moved;rightPan=null;
    if(!moved){
     if(selected.size)clearSelection();
@@ -1466,7 +1377,7 @@ $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').oncl
 document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
 
 [...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
-initStage();PerfDiagnostic.init();
+initStage();
 loadWarehouseMaps().catch(error=>{console.error('[warehouse] bootstrap failed',error);alert(error.message||'Warehouse 数据加载失败')});
 })();
 </script>
