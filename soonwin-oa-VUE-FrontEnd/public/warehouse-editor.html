@@ -64,6 +64,7 @@ input:focus,select:focus{border-color:var(--red)}
 .cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}
 .cargo-item.other.locked .dot{background:#a8adb5!important}.cargo-item.other:not(.locked) .dot{background:#6f7680!important}.panel-footer .row{gap:8px}.ship-record-btn{border:1px solid #40516c;background:#101833;color:#cbd5e1}
 .other-head{display:flex;align-items:center;gap:7px}.other-head .other-count{margin-left:auto;float:none}.other-lock,.other-show{margin-left:6px;font-size:11px;display:flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap}.other-lock input,.other-show input{width:13px;height:13px}
+.import-template-btn{border-color:#16803c!important;background:#16803c!important;color:#fff!important}.import-template-btn:hover{background:#126b32!important}
 .batchbar.on{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}.batchbar .btn{padding:6px 7px}.batch-exit{background:#334155}.batch-delete{background:#7f1d2d!important;color:#fecdd3!important}.batch-ship{background:#166534!important;color:#dcfce7!important}.batchbar .btn:disabled{opacity:.35;cursor:not-allowed}
 .age-legend{display:none;margin:8px 0 2px 21px;font-size:10px;color:#aeb8c5;line-height:1.8}.age-legend.on{display:block}.legend-row{display:flex;align-items:center;gap:6px}.legend-swatch{width:12px;height:8px;border-radius:2px}.l1{background:#ffe1e1}.l2{background:#ffadad}.l3{background:#ff6868}.l4{background:#b91c3c}
 .modal2.wide{width:min(860px,92vw)}.modal-title-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}.modal-title-row h2{margin:0}.modal-pos{margin-left:auto;color:#ffd93d;font:12px Consolas}.ship-btn{margin-right:auto;background:#166534!important}.danger-btn{background:#7f1d2d!important}
@@ -319,7 +320,7 @@ input:focus,select:focus{border-color:var(--red)}
  <div class="field"><label>所属</label><select id="importOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
  <div class="field"><label>粘贴 Excel / WPS 数据（必须包含名称、尺寸表头，其它列可省略）</label><textarea class="import-input" id="importText" placeholder="名称&#9;尺寸&#9;位置&#9;入库时间&#9;备注&#10;货物A&#9;1200x800x1500&#9;A3&#9;20260919&#9;SW26-1127"></textarea></div>
  <div class="import-errors" id="importErrors"></div>
- <div class="modal-actions2"><button class="btn" id="importCancel">取消</button><button class="btn" id="importCopyTemplate">复制模板</button><button class="btn primary" id="importParse">检查并继续</button></div>
+ <div class="modal-actions2"><button class="btn import-template-btn" id="importCopyTemplate">复制模板</button><button class="btn" id="importCancel">取消</button><button class="btn primary" id="importParse">检查并继续</button></div>
 </div></div>
 <div class="modal-bg2" id="importPreviewModal"><div class="modal2 wide"><h2>确认入库列表</h2>
  <div id="importPreview"></div>
@@ -437,7 +438,7 @@ function warehouseSavePayload(){
  const baseItems=new Map((baseWarehouseSnapshot?.cargos||[]).map(item=>[String(item.id),item])),baseObjects=new Map((baseWarehouseSnapshot?.objects||[]).map(object=>[String(object.id),object]));
  const created=floor.cargos.filter(item=>!/^\d+$/.test(String(item.id))).map(item=>({...itemPayload(item),_client_id:String(item.id)}));
  const updated=floor.cargos.filter(item=>/^\d+$/.test(String(item.id))&&item.status!=='SHIPPED'&&baseItems.has(String(item.id))).filter(item=>JSON.stringify(itemPayload(item))!==JSON.stringify(itemPayload(baseItems.get(String(item.id))))).map(item=>({id:Number(item.id),...itemPayload(item)}));
- const outbound=floor.cargos.filter(item=>/^\d+$/.test(String(item.id))&&item.status==='SHIPPED'&&baseItems.get(String(item.id))?.status!=='SHIPPED').map(item=>({id:Number(item.id),shipped_date:item.shipped_date||today(),shipped_remark:item.shipped_remark||''}));
+ const outbound=floor.cargos.filter(item=>item.status==='SHIPPED'&&baseItems.get(String(item.id))?.status!=='SHIPPED').map(item=>({...( /^\d+$/.test(String(item.id))?{id:Number(item.id)}:{_client_id:String(item.id)} ),shipped_date:item.shipped_date||today(),shipped_remark:item.shipped_remark||''}));
  const deleted=[...baseItems.keys()].filter(id=>!floor.cargos.some(item=>String(item.id)===id&&item.status));
  const objectCreated=floor.objects.filter(object=>!/^\d+$/.test(String(object.id))).map(object=>({...objectPayload(object),_client_id:String(object.id)}));
  const objectUpdated=floor.objects.filter(object=>/^\d+$/.test(String(object.id))).filter(object=>JSON.stringify(objectPayload(object))!==JSON.stringify(objectPayload(baseObjects.get(String(object.id))))).map(object=>({id:Number(object.id),...objectPayload(object)}));
@@ -1255,7 +1256,7 @@ async function copyTextToClipboard(text){
  try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}
  const field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(field);field.focus();field.select();let copied=false;try{copied=document.execCommand('copy')}catch{}field.remove();return copied;
 }
-const importTemplate='名稱\t尺寸\t位置\t入庫時間\t備註\n貨物1\t1200x800x1500\tA1\t20260928\tSW26-1127\n貨物2\t1200x800x1500\tA1\t20260928\tSW26-1127\n貨物3\t1200x800x1500\tA1\t20260928\tSW26-1127';
+const importTemplate='名称\t尺寸\t位置\t入库时间\t备注\n货物1\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物2\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物3\t1200x800x1500\tA1\t20260928\tSW26-1127';
 $('importCopyTemplate').onclick=async()=>{const copied=await copyTextToClipboard(importTemplate);alert(copied?'已复制三条带表头的导入模板，可粘贴到 Excel 修改。':'复制失败，请检查浏览器剪贴板权限。')};
 function copyCargoList(){const cargos=floor.cargos.filter(visibleCargo).filter(c=>c.owner!=='OTHER'),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>alert(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。'))}
 $('cargoMenu').onclick=e=>{const a=e.target.dataset.act;if(!a)return;hideContext();if(a==='add')openCargoModal();if(a==='import'){$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open');}if(a==='copylist')copyCargoList();

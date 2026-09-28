@@ -363,6 +363,8 @@ def _save_items(warehouse_map, payload, uid, id_map, changes):
     for raw in item_payload.get('outbound') or []:
         raw = dict(raw)
         item_id = raw.get('id')
+        if item_id is None:
+            item_id = id_map.get(str(raw.get('_client_id')))
         item = WarehouseItem.query.filter_by(id=item_id, map_id=warehouse_map.id, is_deleted=0).first()
         if not item:
             raise ValueError(f'货物不存在: {item_id}')
