@@ -15,6 +15,16 @@ class DisplayFile(db.Model):
     created_by = db.Column(db.String(50), nullable=False, comment="上传者")
     created_at = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
+
+    @property
+    def normalized_file_path(self):
+        """Return the stored relative path with portable separators.
+
+        Older records may have been created on Windows and contain backslashes;
+        the display-file routes use this value on the current host to resolve
+        the image folder or PDF path.
+        """
+        return (self.file_path or "").replace("\\", "/")
     
     def to_dict(self):
         return {
