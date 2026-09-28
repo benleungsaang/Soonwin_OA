@@ -47,23 +47,23 @@ input:focus,select:focus{border-color:var(--red)}
 @media(max-width:1000px){#panel{width:360px;min-width:360px}}
 
 .settings-head{margin-bottom:0!important;cursor:pointer;user-select:none}.settings-body{display:none;padding-top:10px}.settings.open .settings-body{display:block}.settings-arrow{margin-left:auto;transition:.15s}.settings.open .settings-arrow{transform:rotate(180deg)}
-.cargo-menu-wrap{position:relative;margin-left:auto}.cargo-menu-btn{width:28px;height:28px;border-radius:50%;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:block;width:100%;border:0;background:transparent;color:#d9e1ea;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{background:#24304c}
+.cargo-menu-wrap{position:relative;margin-left:0}.cargo-menu-btn{width:28px;height:28px;border-radius:50%;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:block;width:100%;border:0;background:transparent;color:#d9e1ea;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{background:#24304c}
 .batchbar{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #303653;align-items:center;gap:7px;font-size:12px;color:#aeb8c5}.batchbar.on{display:flex}
 .ctx{display:none;position:fixed;z-index:120;width:180px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.ctx.open{display:block}.ctx button{display:block;width:100%;border:0;background:transparent;color:#e1e7ee;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.ctx button:hover{background:#28334e}.ctx .danger{color:#ff7b8d}
 .modal-bg2{display:none;position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.72);align-items:center;justify-content:center}.modal-bg2.open{display:flex}.modal2{width:430px;background:#1a1a3e;border:1px solid #2a2a5e;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.7)}.modal2 h2{font-size:18px;color:#a8d8ea;margin-bottom:16px}.modal2 .field{margin-bottom:10px}.modal2 .field label{display:block;color:#9ba8b6;font-size:12px;margin-bottom:4px}.modal-actions2{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 
-.other-head{margin-top:8px;padding:8px 7px;border-top:1px solid #303653;color:#aeb8c5;font-size:12px;cursor:pointer;user-select:none}.other-head:hover{color:#fff}.other-count{float:right;color:#74849a}.other-list{min-height:0!important;max-height:22vh!important;padding-top:2px}
+.cargo-group-head{margin:0!important;padding:3px 0 0;border:0;color:var(--cyan);font-size:13px}.cargo-group-name{font-weight:650;white-space:nowrap}.cargo-head-toggle{display:flex;align-items:center;gap:4px;font-size:10px;color:#aeb8c5;white-space:nowrap;cursor:pointer}.cargo-head-toggle input{width:13px;height:13px;margin:0;padding:0;border:0;background:transparent;accent-color:var(--red);flex:none}.cargo-head-icon{font-size:14px;line-height:1}.cargo-count{font-size:11px;color:#8191a4;padding:2px 1px 4px}.other-head{padding-top:6px;border-top:1px solid #303653}.object-mode-head .cargo-head-toggle{display:none}.other-list{min-height:0!important;max-height:22vh!important;padding-top:2px}
 
 .floor-menu-wrap{position:relative}.floor-menu{display:none;position:absolute;right:0;top:34px;width:130px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:90;box-shadow:0 12px 32px rgba(0,0,0,.55)}.floor-menu.open{display:block}.floor-menu button{display:block;width:100%;border:0;background:transparent;color:#d9e1ea;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.floor-menu button:hover{background:#24304c}
-.other-list{display:none!important;flex:0 0 auto!important;min-height:0!important;height:0!important}.other-list.open{display:flex!important;height:auto!important;min-height:48px!important;max-height:144px!important;overflow-y:auto!important}
+.other-list{flex:0 0 auto!important;min-height:0!important;max-height:144px!important;overflow-y:auto!important}
 .row-actions{grid-column:3;grid-row:1/3;align-self:center;display:flex;gap:4px}.row-action{border:0;background:transparent;color:#aeb8c5;cursor:pointer;font-size:14px;padding:4px;border-radius:5px}.row-action:hover{background:#27324b;color:#fff}.row-action.delete{color:#ff6577}.row-action:disabled{opacity:.25;cursor:not-allowed;background:transparent}
 
 .panel-footer{flex:0 0 auto}
 .floor-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.floor-stat{border-radius:9px;padding:8px 10px;font-size:11px}.floor-stat .k{color:#8fa0b4;display:block;margin-bottom:3px}.floor-stat .v{font:12px Consolas;color:#fff}.floor-stat.size{background:rgba(15,52,96,.55)}.floor-stat.grid{background:rgba(88,56,120,.42)}
 .settings-body .toggle{padding:8px 10px;border-radius:8px;margin-top:7px}.settings-body .toggle:nth-of-type(1){background:rgba(15,52,96,.42)}.settings-body .toggle:nth-of-type(2){background:rgba(88,56,120,.38)}.settings-body .toggle:nth-of-type(3){background:rgba(80,90,55,.34)}.settings-body .toggle:nth-of-type(4){background:rgba(105,65,35,.34)}.settings-body .toggle:nth-of-type(5){background:rgba(65,90,90,.30)}
-.cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}
+.cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}.cargo-item.locked{filter:grayscale(1)!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important;opacity:.78}.cargo-item.locked .name,.cargo-item.locked .meta{color:#c5c8cd!important}.cargo-item.locked .dot{background:#a8adb5!important}
 .cargo-item.other.locked .dot{background:#a8adb5!important}.cargo-item.other:not(.locked) .dot{background:#6f7680!important}.panel-footer .row{gap:8px}.ship-record-btn{border:1px solid #40516c;background:#101833;color:#cbd5e1}
-.other-head{display:flex;align-items:center;gap:7px}.other-head .other-count{margin-left:auto;float:none}.other-lock,.other-show{margin-left:6px;font-size:11px;display:flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap}.other-lock input,.other-show input{width:13px;height:13px}
+.other-head{display:flex;align-items:center;gap:7px}.other-head .cargo-menu-wrap{margin-left:0}.other-lock,.other-show{font-size:10px;display:flex;gap:3px;align-items:center;cursor:pointer;white-space:nowrap}.other-lock input,.other-show input{width:13px;height:13px}
 .import-template-btn{border-color:#16803c!important;background:#16803c!important;color:#fff!important}.import-template-btn:hover{background:#126b32!important}
 .batchbar.on{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}.batchbar .btn{padding:6px 7px}.batch-exit{background:#334155}.batch-delete{background:#7f1d2d!important;color:#fecdd3!important}.batch-ship{background:#166534!important;color:#dcfce7!important}.batchbar .btn:disabled{opacity:.35;cursor:not-allowed}
 .age-legend{display:none;margin:8px 0 2px 21px;font-size:10px;color:#aeb8c5;line-height:1.8}.age-legend.on{display:block}.legend-row{display:flex;align-items:center;gap:6px}.legend-swatch{width:12px;height:8px;border-radius:2px}.l1{background:#ffe1e1}.l2{background:#ffadad}.l3{background:#ff6868}.l4{background:#b91c3c}
@@ -174,7 +174,7 @@ input:focus,select:focus{border-color:var(--red)}
       <div class="row">
         <select id="floorSelect"></select>
         <div class="floor-menu-wrap"><button class="btn" id="floorManage">管理 ▾</button>
-<div class="floor-menu" id="floorMenu"><button data-floor-act="edit">修改楼层</button><button data-floor-act="create">创建楼层</button><button data-floor-act="delete" style="color:#ff6577">删除楼层</button><button data-floor-act="objects">进入障碍物修改模式</button></div></div>
+<div class="floor-menu" id="floorMenu"><button data-floor-act="edit">✎ 修改</button><button data-floor-act="objects">🚧 进入障碍</button><button data-floor-act="delete" style="color:#ff6577">🗑 删除</button><button data-floor-act="create">＋ 创建</button></div></div>
       </div>
       <div class="floor-stats">
         <div class="floor-stat size"><span class="k">尺寸 · 长 × 宽</span><span class="v" id="floorSizeStat"></span></div>
@@ -188,6 +188,9 @@ input:focus,select:focus{border-color:var(--red)}
 <section class="section settings" id="settingsSec">
   <div class="section-title settings-head" id="settingsHead">⚙ 设置 <span class="grow">点击展开</span><span class="settings-arrow">▾</span></div>
   <div class="settings-body">
+    <label class="toggle"><input type="checkbox" id="passObstaclesToggle">临时穿过障碍物</label>
+    <label class="toggle"><input type="checkbox" id="outsideToggle">允许超出边界</label>
+    <label class="toggle"><input type="checkbox" id="overlapToggle">允许重叠货物</label>
     <label class="toggle"><input type="checkbox" id="ageMode">检查货物存放时长</label>
     <div class="age-legend" id="ageLegend">
       <div class="legend-row"><span class="legend-swatch l1"></span>0–15 天</div>
@@ -196,16 +199,13 @@ input:focus,select:focus{border-color:var(--red)}
       <div class="legend-row"><span class="legend-swatch l4"></span>45 天以上</div>
     </div>
     <label class="toggle"><input type="checkbox" id="snapToggle" checked>辅助吸附</label>
-    <label class="toggle"><input type="checkbox" id="overlapToggle">允许重叠货物</label>
-    <label class="toggle"><input type="checkbox" id="outsideToggle">允许超出边界</label>
-    <label class="toggle"><input type="checkbox" id="passObstaclesToggle">临时允许穿过障碍物</label>
   </div>
 </section>
 
     <section class="section cargo-section">
-      <div class="section-title"><span id="listTitle">📋 库存货物</span><button class="btn exit-object-btn" id="exitObjectList">退出障碍物模式</button><span class="grow" id="cargoSummary"></span>
-        <div class="cargo-menu-wrap"><button class="cargo-menu-btn" id="cargoMenuBtn">⋯</button>
-          <div class="cargo-menu" id="cargoMenu">
+      <div class="section-title cargo-group-head" id="ownCargoHead"><span class="cargo-group-name" id="listTitle">📋 库存货物</span><label class="cargo-head-toggle" title="显示库存货物"><span class="cargo-head-icon">👁</span><span>显示货物</span><input type="checkbox" id="showOwn" checked></label><label class="cargo-head-toggle" title="锁定库存货物"><span class="cargo-head-icon">🔒</span><span>锁定货物</span><input type="checkbox" id="lockOwn"></label><button class="btn exit-object-btn" id="exitObjectList">退出障碍物模式</button>
+        <div class="cargo-menu-wrap" data-owner="OVERSEAS"><button class="cargo-menu-btn" id="cargoMenuBtn" data-owner="OVERSEAS" title="库存货物菜单">⋯</button>
+          <div class="cargo-menu" id="cargoMenu" data-owner="OVERSEAS">
             <button data-act="add">添加货物</button>
             <button data-act="import">导入货物</button>
             <button data-act="copylist">复制货物清单</button>
@@ -217,9 +217,11 @@ input:focus,select:focus{border-color:var(--red)}
           </div>
         </div>
       </div>
+      <div class="cargo-count" id="cargoSummary">当前有 0 件</div>
       <div class="search"><input id="searchInput" placeholder="🔎 名称 / 位置 / 备注"><span class="count" id="searchCount"></span></div>
       <div class="cargo-list" id="cargoList"></div>
-      <div class="other-head" id="otherHead"><span id="otherArrow">▶</span><span>其它部门货物</span><label class="other-show"><input type="checkbox" id="showOther" checked>显示</label><span class="other-count" id="otherCount">0</span><label class="other-lock" title="锁定其它部门货物"><input type="checkbox" id="lockOther" checked>锁定货物</label></div>
+      <div class="section-title cargo-group-head other-head" id="otherHead"><span class="cargo-group-name">其它部门货物</span><label class="cargo-head-toggle" title="显示其它部门货物"><span class="cargo-head-icon">👁</span><span>显示货物</span><input type="checkbox" id="showOther" checked></label><label class="cargo-head-toggle" title="锁定其它部门货物"><span class="cargo-head-icon">🔒</span><span>锁定货物</span><input type="checkbox" id="lockOther" checked></label><div class="cargo-menu-wrap" data-owner="OTHER"><button class="cargo-menu-btn" id="otherCargoMenuBtn" data-owner="OTHER" title="其它部门货物菜单">⋯</button><div class="cargo-menu" id="otherCargoMenu" data-owner="OTHER"><button data-act="add">添加货物</button><button data-act="import">导入货物</button><button data-act="copylist">复制货物清单</button></div></div></div>
+      <div class="cargo-count" id="otherCount">当前有 0 件</div>
       <div class="cargo-list other-list" id="otherCargoList"></div>
       <div class="batchbar" id="batchbar"><button class="btn batch-exit" id="batchDone">↩ 退出多选</button><button class="btn batch-delete" id="deleteBatch">✕ 删除</button><button class="btn batch-color" id="colorBatch">● 颜色</button><button class="btn batch-ship" id="shipBatch">⇥ 出货</button><span id="batchCount" style="grid-column:1/5;text-align:center">已选择 0 件</span></div>
     </section>
@@ -302,7 +304,7 @@ input:focus,select:focus{border-color:var(--red)}
  <div class="row"><div class="field"><label>长度 L (mm)</label><input id="mL" type="number"></div><div class="field"><label>宽度 W (mm)</label><input id="mW" type="number"></div><div class="field"><label>高度 H (mm)</label><input id="mH" type="number"></div></div>
  <div class="field"><label>入库日期</label><input id="mDate" type="date"></div>
  <div class="row"><div class="field"><label>备注</label><input id="mRemark"></div><div class="field" style="flex:0 0 90px"><label>颜色</label><input class="color-input" id="mColor" type="color"></div></div>
- <div class="field"><label>所属</label><select id="mOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
+<div class="field" id="cargoOwnerField"><label>所属</label><select id="mOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
  <div class="modal-actions2"><button class="btn ship-btn" id="mShip">⇥ 操作出库</button><button class="btn" id="mCancel">取消</button><button class="btn primary" id="mOk">确认修改</button></div>
 </div></div>
 <div class="modal-bg2" id="shipModal"><div class="modal2"><h2>操作出库</h2>
@@ -317,7 +319,6 @@ input:focus,select:focus{border-color:var(--red)}
  <div class="modal-actions2"><button class="btn primary" id="shipRecordsClose">关闭</button></div>
 </div></div>
 <div class="modal-bg2" id="importModal"><div class="modal2 wide"><h2>导入货物</h2>
- <div class="field"><label>所属</label><select id="importOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
  <div class="field"><label>粘贴 Excel / WPS 数据（必须包含名称、尺寸表头，其它列可省略）</label><textarea class="import-input" id="importText" placeholder="名称&#9;尺寸&#9;位置&#9;入库时间&#9;备注&#10;货物A&#9;1200x800x1500&#9;A3&#9;20260919&#9;SW26-1127"></textarea></div>
  <div class="import-errors" id="importErrors"></div>
  <div class="modal-actions2"><button class="btn import-template-btn" id="importCopyTemplate">复制模板</button><button class="btn" id="importCancel">取消</button><button class="btn primary" id="importParse">检查并继续</button></div>
@@ -390,9 +391,9 @@ const floors={};
 const floors={};
 const deep=o=>JSON.parse(JSON.stringify(o));
 let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContextId=null, objectClipboard=[];
-let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set();
+let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set(), cargoTargetOwner='OVERSEAS', importTargetOwner='OVERSEAS';
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
-let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false;
+let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null;
 const $=id=>document.getElementById(id);
 const warehouseToken=()=>localStorage.getItem('oa_token');
 async function warehouseApi(path,options={}){
@@ -419,10 +420,10 @@ async function loadWarehouseMaps(){
  if(!warehouseMaps.length){
   floor=null;baseWarehouseSnapshot=null;stagedObjectDeletes=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);
   select.disabled=true;$('floorSummary').textContent='暂无楼层';$('floorSizeStat').textContent='—';$('floorGridStat').textContent='—';$('saveBtn').disabled=true;$('reportBtn').disabled=true;$('shipRecords').disabled=true;
-  floorActions.forEach(button=>{button.disabled=button.dataset.floorAct!=='create'});
+  floorActions.forEach(button=>{button.style.display=button.dataset.floorAct==='create'?'':'none';button.disabled=button.dataset.floorAct!=='create'});
   return;
  }
- select.disabled=false;$('saveBtn').disabled=false;$('reportBtn').disabled=false;$('shipRecords').disabled=false;floorActions.forEach(button=>{button.disabled=false});
+ select.disabled=false;$('saveBtn').disabled=false;$('reportBtn').disabled=false;$('shipRecords').disabled=false;floorActions.forEach(button=>{button.style.display='';button.disabled=false});
  await loadWarehouseMap(Number(warehouseMaps[0].id));
 }
 async function deleteWarehouseMap(){
@@ -451,7 +452,7 @@ async function saveWarehouse(){
  try{const result=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/save`,{method:'PUT',body:JSON.stringify(warehouseSavePayload())});applyWarehouseSnapshot(result);alert('库存平面图已保存');}
  catch(error){if(error.status===409)alert('当前楼层已被其他用户修改，请重新加载后再保存。当前本地修改仍保留。');else{console.error('[warehouse] save failed',error);alert(error.message||'保存失败')}}
 }
-const visibleCargo=c=>c.status!=='SHIPPED'&&(c.owner!=='OTHER'||$('showOther').checked); const cargoLocked=c=>c.owner==='OTHER'&&$('lockOther').checked;
+const visibleCargo=c=>c.status!=='SHIPPED'&&(c.owner==='OTHER'?$('showOther').checked:$('showOwn').checked); const cargoLocked=c=>c.owner==='OTHER' ? $('lockOther').checked : $('lockOwn').checked;
 const dims=c=>c.r%180===0?{w:c.l,h:c.w}:{w:c.w,h:c.l};
 const cellW=()=>floor.width/floor.cols, cellH=()=>floor.length/floor.rows;
 const cellName=(c)=>{
@@ -543,13 +544,13 @@ function collision(candidate,ignoreIds){
  }
  return false;
 }
-function snapPos(c,x,y){
+function snapPos(c,x,y,excludedIds=new Set([c.id])){
  if(!$('snapToggle').checked)return{x,y};
  const d=dims(c),thr=9/scale; let xs=[0,floor.width-d.w],ys=[0,floor.length-d.h];
  for(let i=0;i<=floor.cols;i++)xs.push(i*cellW(),i*cellW()-d.w);
  for(let i=0;i<=floor.rows;i++)ys.push(i*cellH(),i*cellH()-d.h);
  floor.objects.forEach(o=>{xs.push(o.x,o.x+o.w,o.x-d.w,o.x+o.w-d.w);ys.push(o.y,o.y+o.h,o.y-d.h,o.y+o.h-d.h)});
- floor.cargos.filter(q=>q.id!==c.id).forEach(q=>{const b=dims(q);xs.push(q.x,q.x+b.w,q.x-d.w,q.x+b.w-d.w);ys.push(q.y,q.y+b.h,q.y-d.h,q.y+b.h-d.h)});
+ floor.cargos.filter(q=>!excludedIds.has(q.id)).forEach(q=>{const b=dims(q);xs.push(q.x,q.x+b.w,q.x-d.w,q.x+b.w-d.w);ys.push(q.y,q.y+b.h,q.y-d.h,q.y+b.h-d.h)});
  const nx=xs.reduce((best,v)=>Math.abs(v-x)<Math.abs(best-x)&&Math.abs(v-x)<=thr?v:best,x);
  const ny=ys.reduce((best,v)=>Math.abs(v-y)<Math.abs(best-y)&&Math.abs(v-y)<=thr?v:best,y);
  return{x:nx,y:ny};
@@ -561,13 +562,13 @@ function renderSelection(){if(objectMode){cargoLayer.destroyChildren();cargoLaye
 
 function rectOf(c,x=c.x,y=c.y){const d=dims(c);return{x,y,w:d.w,h:d.h}}
 function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
-function blockersFor(id, movingIds){
+function blockersFor(movingIds){
  const out=($('passObstaclesToggle').checked?[]:floor.objects.filter(o=>o.blocks!==false)).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
  if(!$('overlapToggle').checked)floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
  return out;
 }
-function clampAxis(c,fromX,fromY,toX,toY,axis,movingIds){
- const d=dims(c), blocks=blockersFor(c.id,movingIds); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
+function clampAxis(c,fromX,fromY,toX,toY,axis,blocks){
+ const d=dims(c); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
  if(!$('outsideToggle').checked){
    if(axis==='x'){x=Math.max(0,Math.min(floor.width-d.w,x))}
    else{y=Math.max(0,Math.min(floor.length-d.h,y))}
@@ -584,12 +585,36 @@ function clampAxis(c,fromX,fromY,toX,toY,axis,movingIds){
  }
  return axis==='x'?x:y;
 }
-function constrainedDelta(starts,rawDx,rawDy,movingIds){
+function constrainedDelta(starts,rawDx,rawDy,blocks,movingIds){
  let dx=rawDx,dy=rawDy;
  // X first, then Y. Each axis is constrained across the whole selected group.
- for(const [id,st] of starts){const c=floor.cargos.find(q=>q.id===id);const x=clampAxis(c,st.x,st.y,st.x+dx,st.y,'x',movingIds);dx=(dx>=0)?Math.min(dx,x-st.x):Math.max(dx,x-st.x)}
- for(const [id,st] of starts){const c=floor.cargos.find(q=>q.id===id);const y=clampAxis(c,st.x+dx,st.y,st.x+dx,st.y+dy,'y',movingIds);dy=(dy>=0)?Math.min(dy,y-st.y):Math.max(dy,y-st.y)}
+ for(const [,st] of starts){const x=clampAxis(st.cargo,st.x,st.y,st.x+dx,st.y,'x',blocks);dx=(dx>=0)?Math.min(dx,x-st.x):Math.max(dx,x-st.x)}
+ for(const [,st] of starts){const y=clampAxis(st.cargo,st.x+dx,st.y,st.x+dx,st.y+dy,'y',blocks);dy=(dy>=0)?Math.min(dy,y-st.y):Math.max(dy,y-st.y)}
  return{dx,dy};
+}
+function snapCargoGroup(starts,delta,movingIds,blocks){
+ if(!$('snapToggle').checked||!starts.size)return delta;
+ const anchor=starts.values().next().value,point=snapPos(anchor.cargo,anchor.x+delta.dx,anchor.y+delta.dy,movingIds),snapped={dx:point.x-anchor.x,dy:point.y-anchor.y};
+ if(snapped.dx===delta.dx&&snapped.dy===delta.dy)return delta;
+ const valid=constrainedDelta(starts,snapped.dx,snapped.dy,blocks,movingIds);if(Math.abs(valid.dx-snapped.dx)>.01||Math.abs(valid.dy-snapped.dy)>.01)return delta;
+ return snapped;
+}
+function cargoDragState(ids){
+ const starts=new Map([...ids].map(id=>{const cargo=floor.cargos.find(item=>item.id===id);return[id,{x:cargo.x,y:cargo.y,cargo}]})),movingIds=new Set(starts.keys());
+ return{starts,movingIds,blockers:blockersFor(movingIds)};
+}
+function processCargoDrag(pointer){
+ const drag=directDrag&&!directDrag.kind?directDrag:groupDrag?.canvas?groupDrag:null;
+ if(!drag||!drag.lastPointer)return;
+ const rawDx=(pointer.x-drag.lastPointer.x)/scale,rawDy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};
+ if(Math.abs(rawDx)+Math.abs(rawDy)>0&&directDrag)directDrag.moved=true;
+ const current=new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]}));
+ const constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds),delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);
+ for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();
+}
+function scheduleCargoDrag(pointer){
+ pendingCargoPointer={...pointer};if(dragRaf)return;
+ dragRaf=requestAnimationFrame(()=>{dragRaf=0;const next=pendingCargoPointer;pendingCargoPointer=null;if(next)processCargoDrag(next)});
 }
 
 function drawCargos(){
@@ -600,7 +625,7 @@ function drawCargos(){
   if(!visibleCargo(c))return;
   const d=dims(c),isSel=selected.has(c.id),locked=cargoLocked(c);
   const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo'});
-  group.add(new Konva.Rect({width:d.w,height:d.h,fill:ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
+  group.add(new Konva.Rect({width:d.w,height:d.h,fill:locked?'#737982':ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
   group.on('mousedown touchstart',e=>{
    if(e.evt.button===2)return;
    e.cancelBubble=true;
@@ -613,7 +638,7 @@ function drawCargos(){
     cargoLayer.find('.cargo').forEach(n=>{const r=n.findOne('Rect'),sel=selected.has(n.id());if(r){r.opacity(selected.size&&!sel?.35:.88);r.stroke(sel?'#ffd93d':'rgba(255,255,255,.75)');r.strokeWidth((sel?3:1)/scale)}});
     renderList();renderInfo();updateButtons();
     const p=stage.getPointerPosition();
-    directDrag={before:snapshot(),starts:new Map([...selected].map(id=>{const q=floor.cargos.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),lastPointer:p?{...p}:null,moved:false};
+    directDrag={before:snapshot(),...cargoDragState(selected),lastPointer:p?{...p}:null,moved:false};
    }else{
     if(ctrl)toggleSelect(c.id);else if(!selected.has(c.id))selectOnly(c.id);
    }
@@ -640,10 +665,10 @@ function renderList(){
  const q=$('searchInput').value.trim().toLowerCase(), own=$('cargoList'), other=$('otherCargoList');
  own.innerHTML=''; other.innerHTML='';
  const matches=c=>!q||[c.name,cellName(c),c.remark].join(' ').toLowerCase().includes(q);
- const ownArr=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner!=='OTHER').filter(matches);
- const otherArr=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner==='OTHER').filter(matches);
+ const ownItems=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner!=='OTHER').filter(matches),otherItems=floor.cargos.filter(c=>c.status!=='SHIPPED'&&c.owner==='OTHER').filter(matches);
+ const ownArr=$('showOwn').checked?ownItems:[],otherArr=$('showOther').checked?otherItems:[];
  $('searchCount').textContent=(ownArr.length+otherArr.length)+'/'+floor.cargos.length;
- $('otherCount').textContent=otherArr.length;
+ $('otherCount').textContent=`当前有 ${otherItems.length} 件`;
  const make=(c,target)=>{
   const el=document.createElement('div'),isLock=cargoLocked(c);el.dataset.cargoId=c.id;
   el.className='cargo-item'+(selected.has(c.id)?' selected':'')+((batchMode&&!selected.has(c.id))||(selected.size&&!selected.has(c.id))?' dimmed':'')+(c.owner==='OTHER'?' other':'')+(isLock?' locked':'');
@@ -658,7 +683,7 @@ function renderList(){
   target.appendChild(el);
  };
  ownArr.forEach(c=>make(c,own)); otherArr.forEach(c=>make(c,other));
- $('cargoSummary').textContent=selected.size?`当前有 ${ownArr.length} 件，选中 ${selected.size} 件`:`当前有 ${ownArr.length} 件`;
+ $('cargoSummary').textContent=selected.size?`当前有 ${ownItems.length} 件，选中 ${selected.size} 件`:`当前有 ${ownItems.length} 件`;
  if($('batchCount')){const n=objectMode?objectSelected.size:selected.size;$('batchCount').textContent='已选择 '+n+' 件';$('batchbar').classList.toggle('on',n>0);$('deleteBatch').disabled=!n;$('colorBatch').disabled=!n;$('shipBatch').disabled=!n||(!objectMode&&[...selected].some(id=>floor.cargos.find(c=>c.id===id)?.owner==='OTHER'));$('shipBatch').style.display=objectMode?'none':'';}
  scrollSelectedCargoIntoView();
 }
@@ -711,12 +736,12 @@ function renderObjectList(){
 function enterObjectMode(v){
  objectMode=v;selected.clear();objectSelected.clear();batchMode=false;directDrag=null;groupDrag=null;selectStart=null;selectionRect=null;rightPan=null;$('batchbar').classList.remove('on');
  if(objLayer)objLayer.listening(v);if(cargoLayer)cargoLayer.listening(!v);
- $('exitObjectTop').classList.toggle('on',v);$('exitObjectList').classList.toggle('on',v);$('objectOpacityControl').classList.toggle('on',v);
+ $('exitObjectTop').classList.toggle('on',v);$('exitObjectList').classList.toggle('on',v);$('objectOpacityControl').classList.toggle('on',v);$('ownCargoHead').classList.toggle('object-mode-head',v);
  $('objectOpacityRange').value=$('objectOpacityNumber').value=floor.objectOpacity??30;$('listTitle').textContent=v?'🧱 障碍物':'📋 库存货物';
- $('otherHead').style.display=v?'none':'';$('otherCargoList').style.display=v?'none':'';
+ $('otherHead').style.display=v?'none':'';$('otherCount').style.display=v?'none':'';$('otherCargoList').style.display=v?'none':'';$('otherCargoMenuBtn').style.display=v?'none':'';
  $('cargoMenu').classList.toggle('object-mode',v);
  [...$('cargoMenu').querySelectorAll('button')].forEach(b=>{const oa=['addobj','importobj','columns','copyobjlist','batchobj'].includes(b.dataset.act);b.style.display=v?(oa?'block':'none'):(oa?'none':'block')});
- const modeBtn=$('floorMenu').querySelector('[data-floor-act="objects"]');if(modeBtn)modeBtn.textContent=v?'退出障碍物修改模式':'进入障碍物修改模式';
+ const modeBtn=$('floorMenu').querySelector('[data-floor-act="objects"]');if(modeBtn)modeBtn.textContent=v?'🚧 退出障碍':'🚧 进入障碍';
  $('searchInput').placeholder=v?'🔎 障碍物名称 / 类型':'🔎 名称 / 位置 / 备注';
  renderAll();
 }
@@ -815,7 +840,7 @@ function initStage(){
   if(ev.button!==0||cargoHit)return;
   selectStart={...p};
   if(mode==='select'&&selected.size&&!batchMode){
-   groupDrag={before:snapshot(),starts:new Map([...selected].map(id=>{const q=floor.cargos.find(z=>z.id===id);return[id,{x:q.x,y:q.y}]})),canvas:true,lastPointer:{...p}};
+   groupDrag={before:snapshot(),...cargoDragState(selected),canvas:true,lastPointer:{...p}};
   }else{
    const w=screenWorld(p);selectionRect=new Konva.Rect({x:w.x,y:w.y,width:0,height:0,fill:'rgba(77,150,255,.14)',stroke:'#4d96ff',strokeWidth:1/scale,dash:[5/scale,3/scale]});selLayer.add(selectionRect);
   }
@@ -835,20 +860,17 @@ function initStage(){
 
   // Cargo mode only below this line.
   if(directDrag&&directDrag.lastPointer){
-   const rawDx=(p.x-directDrag.lastPointer.x)/scale,rawDy=(p.y-directDrag.lastPointer.y)/scale;directDrag.lastPointer={...p};if(Math.abs(rawDx)+Math.abs(rawDy)>0)directDrag.moved=true;
-   const current=new Map([...selected].map(id=>{const n=cargoLayer.findOne('#'+id);return[id,{x:n.x(),y:n.y()}]})),movingIds=new Set(current.keys()),cd=constrainedDelta(current,rawDx,rawDy,movingIds);
-   for(const[id,st]of current){const n=cargoLayer.findOne('#'+id);if(n)n.position({x:st.x+cd.dx,y:st.y+cd.dy})}cargoLayer.batchDraw();return;
+   scheduleCargoDrag(p);return;
   }
   if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
   if(!selectStart)return;
   if(groupDrag&&groupDrag.canvas){
-   const rawDx=(p.x-groupDrag.lastPointer.x)/scale,rawDy=(p.y-groupDrag.lastPointer.y)/scale;groupDrag.lastPointer={...p};
-   const current=new Map([...selected].map(id=>{const n=cargoLayer.findOne('#'+id);return[id,{x:n.x(),y:n.y()}]})),movingIds=new Set(current.keys()),cd=constrainedDelta(current,rawDx,rawDy,movingIds);
-   for(const[id,st]of current){const n=cargoLayer.findOne('#'+id);if(n)n.position({x:st.x+cd.dx,y:st.y+cd.dy})}cargoLayer.batchDraw();
+   scheduleCargoDrag(p);
   }else if(selectionRect){const a=screenWorld(selectStart),b=screenWorld(p);selectionRect.setAttrs({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});selLayer.batchDraw()}
  });
  stage.on('mouseup touchend',e=>{
   const ev=e.evt;
+  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;const p=stage.getPointerPosition()||pendingCargoPointer;pendingCargoPointer=null;if(p)processCargoDrag(p)}
   if(objectMode){
    if(ev.button===0&&directDrag&&directDrag.kind==='object'){
     let changed=false;for(const[id,st]of directDrag.starts){const n=objLayer.findOne('#'+id),q=floor.objects.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
@@ -903,7 +925,7 @@ window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidt
  fit();
 }
 $('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
-['showOther','lockOther','ageMode','snapToggle','overlapToggle','outsideToggle','passObstaclesToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);if(id==='showOther'||id==='lockOther'){for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}}renderAll()});
+['showOwn','lockOwn','showOther','lockOther','ageMode','snapToggle','overlapToggle','outsideToggle','passObstaclesToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);if(id.startsWith('show')||id.startsWith('lock')){for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}}renderAll()});
 
 function reportXml(s){return esc(s)}
 function reportAgeColor(c){
@@ -1065,7 +1087,7 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 
-function hideAllContexts(){['cargoContext','objectContext','blankContext','cargoMenu','cargoListBlankContext','objectListBlankContext'].forEach(id=>$(id)?.classList.remove('open'))}
+function hideAllContexts(){['cargoContext','objectContext','blankContext','cargoMenu','otherCargoMenu','cargoListBlankContext','objectListBlankContext'].forEach(id=>$(id)?.classList.remove('open'))}
 function showListBlankContext(x,y){
  hideAllContexts();const m=$(objectMode?'objectListBlankContext':'cargoListBlankContext');
  m.style.left=Math.min(x,innerWidth-210)+'px';m.style.top=Math.min(y,innerHeight-180)+'px';m.classList.add('open')
@@ -1131,12 +1153,12 @@ function resetCargoPosition(ids){if(!ids.length)return;pushHistory();const cx=fl
 function resetObjectPosition(ids){if(!ids.length)return;pushHistory();const cx=floor.width/2,cy=floor.length/2;ids.forEach(id=>{const o=floor.objects.find(x=>x.id===id);if(o){o.x=cx-o.w/2;o.y=cy-o.h/2}});setDirty(true);renderAll()}
 function showContext(x,y){const m=$('cargoContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
 function hideContext(){hideAllContexts()}
-function openCargoModal(id=null){
+function openCargoModal(id=null,owner='OVERSEAS'){
  editId=id;const c=id?floor.cargos.find(q=>q.id===id):null;
  $('cargoModalTitle2').textContent=c?'修改货物信息':'添加货物';
  $('mPosDisplay').textContent='位置 '+(c?cellName(c):'A1（默认）');
  $('mName').value=c?c.name:'';$('mL').value=c?c.l:2000;$('mW').value=c?c.w:1200;$('mH').value=c?(c.height_mm||1000):1000;
- $('mDate').value=c?c.stock:today();$('mOwner').value=c?c.owner:'OVERSEAS';$('mRemark').value=c?c.remark:'';$('mColor').value=c?(c.color||'#e94560'):palette[floor.cargos.length%palette.length];
+ cargoTargetOwner=c?c.owner:owner;$('mDate').value=c?c.stock:today();$('mOwner').value=c?c.owner:owner;$('cargoOwnerField').style.display=c?'':'none';$('mRemark').value=c?c.remark:'';$('mColor').value=c?(c.color||'#e94560'):palette[floor.cargos.length%palette.length];
  $('mShip').style.display=c&&c.owner!=='OTHER'?'inline-block':'none';
  $('mOk').textContent=c?'确认修改':'确认添加';$('cargoModal2').classList.add('open')
 }
@@ -1145,7 +1167,7 @@ function saveCargoModal(){
  const name=$('mName').value.trim(),l=+$('mL').value,w=+$('mW').value,height_mm=+$('mH').value;if(!name||l<=0||w<=0||height_mm<=0)return alert('请填写有效的货物名称和长、宽、高尺寸。');
  pushHistory();
  if(editId){const c=floor.cargos.find(q=>q.id===editId);Object.assign(c,{name,l,w,height_mm,stock:$('mDate').value||today(),owner:$('mOwner').value,remark:$('mRemark').value,color:$('mColor').value});}
- else{const c={id:'c'+Date.now(),name,l,w,height_mm,x:0,y:0,r:0,owner:$('mOwner').value,color:$('mColor').value,stock:$('mDate').value||today(),remark:$('mRemark').value,status:'ACTIVE'};floor.cargos.push(c);selected.clear();if(!cargoLocked(c))selected.add(c.id);}
+ else{const c={id:'c'+Date.now(),name,l,w,height_mm,x:0,y:0,r:0,owner:cargoTargetOwner,color:$('mColor').value,stock:$('mDate').value||today(),remark:$('mRemark').value,status:'ACTIVE'};floor.cargos.push(c);selected.clear();if(!cargoLocked(c))selected.add(c.id);}
  setDirty(true);$('cargoModal2').classList.remove('open');renderAll()
 }
 
@@ -1224,7 +1246,7 @@ function parseImport(){
  $('importConfirm').disabled=!!bad.length;
  $('importModal').classList.remove('open');$('importPreviewModal').classList.add('open');
 }function confirmImport(){
- if(!importRows.length)return;pushHistory();const owner=$('importOwner').value,stamp=Date.now();
+ if(!importRows.length)return;pushHistory();const owner=importTargetOwner,stamp=Date.now();
  importRows.forEach((r,i)=>floor.cargos.push({id:'imp'+stamp+'_'+i,name:r.name,l:r.size.l,w:r.size.w,height_mm:r.size.h,x:r.pos.x,y:r.pos.y,r:0,owner,color:palette[(floor.cargos.length+i)%palette.length],stock:r.date,remark:r.remark||'',status:'ACTIVE'}));
  setDirty(true);$('importPreviewModal').classList.remove('open');importRows=[];renderAll()
 }
@@ -1240,9 +1262,10 @@ $('cargoList').addEventListener('click',e=>{
  if(objectMode){if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList()}}
  else if(selected.size)clearSelection();
 });
+$('otherCargoList').addEventListener('click',e=>{if(e.target===$('otherCargoList')&&selected.size)clearSelection()});
 $('cargoList').addEventListener('contextmenu',e=>{
  if(e.target!==$('cargoList'))return;
- e.preventDefault();e.stopPropagation();
+ cargoTargetOwner='OVERSEAS';e.preventDefault();e.stopPropagation();
  if(objectMode){
   if(objectSelected.size){objectSelected.clear();drawObjects();renderObjectList();return}
  }else{
@@ -1250,21 +1273,24 @@ $('cargoList').addEventListener('contextmenu',e=>{
  }
  showListBlankContext(e.clientX,e.clientY);
 });
+$('otherCargoList').addEventListener('contextmenu',e=>{if(e.target!==$('otherCargoList'))return;e.preventDefault();e.stopPropagation();cargoTargetOwner='OTHER';if(selected.size){clearSelection();return}showListBlankContext(e.clientX,e.clientY)});
 $('settingsHead').onclick=()=>$('settingsSec').classList.toggle('open');
-$('cargoMenuBtn').onclick=e=>{e.stopPropagation();$('cargoMenu').classList.toggle('open')};
+document.querySelectorAll('.cargo-menu-btn').forEach(button=>button.onclick=e=>{e.stopPropagation();const menu=button.parentElement.querySelector('.cargo-menu');document.querySelectorAll('.cargo-menu').forEach(item=>{if(item!==menu)item.classList.remove('open')});menu.classList.toggle('open')});
 async function copyTextToClipboard(text){
  try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}
  const field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(field);field.focus();field.select();let copied=false;try{copied=document.execCommand('copy')}catch{}field.remove();return copied;
 }
 const importTemplate='名称\t尺寸\t位置\t入库时间\t备注\n货物1\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物2\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物3\t1200x800x1500\tA1\t20260928\tSW26-1127';
 $('importCopyTemplate').onclick=async()=>{const copied=await copyTextToClipboard(importTemplate);alert(copied?'已复制三条带表头的导入模板，可粘贴到 Excel 修改。':'复制失败，请检查浏览器剪贴板权限。')};
-function copyCargoList(){const cargos=floor.cargos.filter(visibleCargo).filter(c=>c.owner!=='OTHER'),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>alert(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。'))}
-$('cargoMenu').onclick=e=>{const a=e.target.dataset.act;if(!a)return;hideContext();if(a==='add')openCargoModal();if(a==='import'){$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open');}if(a==='copylist')copyCargoList();
+function copyCargoList(owner){const cargos=floor.cargos.filter(c=>c.status!=='SHIPPED'&&(c.owner==='OTHER'?'OTHER':'OVERSEAS')===owner),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>alert(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。'))}
+function openCargoImport(owner){importTargetOwner=owner;$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open')}
+function handleCargoMenu(e){const a=e.target.dataset.act;if(!a)return;hideContext();const owner=e.currentTarget.dataset.owner;if(a==='add')openCargoModal(null,owner);if(a==='import')openCargoImport(owner);if(a==='copylist')copyCargoList(owner);
  if(a==='addobj')openObjectModal();
  if(a==='importobj'){$('objectImportText').value='';$('objectImportErrors').innerHTML='';$('objectImportModal').classList.add('open')}
  if(a==='columns')openColumns();
  if(a==='copyobjlist'){const text=floor.objects.map(o=>`${o.name}\t${o.w}x${o.h}\t${cellName({x:o.x,y:o.y})}\t${o.type}`).join('\n');navigator.clipboard?.writeText(text)}
- };
+}
+$('cargoMenu').onclick=$('otherCargoMenu').onclick=handleCargoMenu;
 let batchColorBefore=null,batchColorTouched=false;
 $('colorBatch').onclick=()=>{batchColorBefore=snapshot();batchColorTouched=false;$('batchColorInput').click()};
 function applyBatchColorLive(){
@@ -1286,7 +1312,7 @@ $('batchColorInput').onchange=()=>{
  batchColorBefore=null;batchColorTouched=false;
 };
 $('batchDone').onclick=()=>{if(objectMode){objectSelected.clear();drawObjects();renderObjectList()}else clearSelection()};$('deleteBatch').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('shipBatch').onclick=()=>openShip(selected);
-$('cargoListBlankContext').onclick=e=>{const a=e.target.dataset.lc;if(!a)return;hideAllContexts();if(a==='add')openAdd();if(a==='import')openImport();if(a==='copylist')copyCargoList()};
+$('cargoListBlankContext').onclick=e=>{const a=e.target.dataset.lc;if(!a)return;hideAllContexts();if(a==='add')openCargoModal(null,cargoTargetOwner);if(a==='import')openCargoImport(cargoTargetOwner);if(a==='copylist')copyCargoList(cargoTargetOwner)};
 $('objectListBlankContext').onclick=e=>{const a=e.target.dataset.lo;if(!a)return;hideAllContexts();if(a==='add')openObjectModal();if(a==='import')openObjectImport();if(a==='columns')openBatchColumns()};
 $('blankContext').onclick=e=>{const a=e.target.dataset.b;if(!a||e.target.disabled)return;hideAllContexts();if(a==='undo')undo();if(a==='redo')redo();if(a==='paste'){objectMode?pasteObjects():paste()}if(a==='refreshsel')resetSelectionArtifacts()};
 $('cargoContext').onclick=e=>{
@@ -1348,7 +1374,6 @@ $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').oncl
  }
  $('floorModal2').classList.remove('open');fit();renderAll();
 };
- $('otherHead').onclick=e=>{if(e.target.closest('.other-lock,.other-show'))return;const list=$('otherCargoList');const open=list.classList.toggle('open');$('otherArrow').textContent=open?'▼':'▶';};
 document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
 
 [...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
