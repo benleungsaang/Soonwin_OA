@@ -63,7 +63,7 @@ input:focus,select:focus{border-color:var(--red)}
 .settings-body .toggle{padding:8px 10px;border-radius:8px;margin-top:7px}.settings-body .toggle:nth-of-type(1){background:rgba(15,52,96,.42)}.settings-body .toggle:nth-of-type(2){background:rgba(88,56,120,.38)}.settings-body .toggle:nth-of-type(3){background:rgba(80,90,55,.34)}.settings-body .toggle:nth-of-type(4){background:rgba(105,65,35,.34)}.settings-body .toggle:nth-of-type(5){background:rgba(65,90,90,.30)}
 .cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}
 .cargo-item.other.locked .dot{background:#a8adb5!important}.cargo-item.other:not(.locked) .dot{background:#6f7680!important}.panel-footer .row{gap:8px}.ship-record-btn{border:1px solid #40516c;background:#101833;color:#cbd5e1}
-.other-head{display:flex;align-items:center;gap:7px}.other-head .other-count{margin-left:auto;float:none}.other-lock{margin-left:6px;font-size:11px;display:flex;gap:4px;align-items:center;cursor:pointer}.other-lock input{width:13px;height:13px}
+.other-head{display:flex;align-items:center;gap:7px}.other-head .other-count{margin-left:auto;float:none}.other-lock,.other-show{margin-left:6px;font-size:11px;display:flex;gap:4px;align-items:center;cursor:pointer;white-space:nowrap}.other-lock input,.other-show input{width:13px;height:13px}
 .batchbar.on{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}.batchbar .btn{padding:6px 7px}.batch-exit{background:#334155}.batch-delete{background:#7f1d2d!important;color:#fecdd3!important}.batch-ship{background:#166534!important;color:#dcfce7!important}.batchbar .btn:disabled{opacity:.35;cursor:not-allowed}
 .age-legend{display:none;margin:8px 0 2px 21px;font-size:10px;color:#aeb8c5;line-height:1.8}.age-legend.on{display:block}.legend-row{display:flex;align-items:center;gap:6px}.legend-swatch{width:12px;height:8px;border-radius:2px}.l1{background:#ffe1e1}.l2{background:#ffadad}.l3{background:#ff6868}.l4{background:#b91c3c}
 .modal2.wide{width:min(860px,92vw)}.modal-title-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}.modal-title-row h2{margin:0}.modal-pos{margin-left:auto;color:#ffd93d;font:12px Consolas}.ship-btn{margin-right:auto;background:#166534!important}.danger-btn{background:#7f1d2d!important}
@@ -147,7 +147,7 @@ input:focus,select:focus{border-color:var(--red)}
 .ship-record-modal .ship-record-detail{margin-top:3px}
 .ship-record-modal .ship-record-detail b,.ship-record-modal .ship-cell b{color:#25313d!important;font-weight:700!important}
 
-.import-confirm-summary{padding:10px 12px;margin-bottom:10px;border-radius:8px;background:#202b38;color:#dce4ed;font-size:13px}.import-fail-count{color:#ff6b6b}.bad-row{background:#fff0f0!important}.import-error-param{display:inline-flex;align-items:center;gap:5px;color:#b91c1c;font-weight:700}.import-error-param::before{content:"!";display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:900}
+.import-confirm-summary{padding:10px 12px;margin-bottom:10px;border-radius:8px;background:#202b38;color:#dce4ed;font-size:13px}.import-fail-count{color:#ff6b6b}.bad-row{background:#fff0f0!important}.bad-row td{color:#111!important}.import-error-param{display:inline-flex;align-items:center;gap:5px;color:#b91c1c;font-weight:700}.import-error-param::before{content:"!";display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:900}
 .ship-record-columns,.ship-record-modal .ship-row{grid-template-columns:minmax(180px,.85fr) minmax(215px,1.15fr) minmax(215px,1.15fr) 92px!important}
 .ship-record-modal .cargo-title{color:#17212b!important;-webkit-text-fill-color:#17212b!important}
 .ship-record-actions{display:flex;justify-content:flex-end;align-items:center}.ship-record-restore{border:1px solid #8ca0b4;background:#fff;color:#304254;border-radius:7px;padding:6px 9px;font-size:12px;font-weight:700;cursor:pointer}.ship-record-restore:hover{background:#edf4fa}
@@ -187,7 +187,6 @@ input:focus,select:focus{border-color:var(--red)}
 <section class="section settings" id="settingsSec">
   <div class="section-title settings-head" id="settingsHead">⚙ 设置 <span class="grow">点击展开</span><span class="settings-arrow">▾</span></div>
   <div class="settings-body">
-    <label class="toggle"><input type="checkbox" id="showOther" checked>显示其它部门货物</label>
     <label class="toggle"><input type="checkbox" id="ageMode">检查货物存放时长</label>
     <div class="age-legend" id="ageLegend">
       <div class="legend-row"><span class="legend-swatch l1"></span>0–15 天</div>
@@ -198,6 +197,7 @@ input:focus,select:focus{border-color:var(--red)}
     <label class="toggle"><input type="checkbox" id="snapToggle" checked>辅助吸附</label>
     <label class="toggle"><input type="checkbox" id="overlapToggle">允许重叠货物</label>
     <label class="toggle"><input type="checkbox" id="outsideToggle">允许超出边界</label>
+    <label class="toggle"><input type="checkbox" id="passObstaclesToggle">临时允许穿过障碍物</label>
   </div>
 </section>
 
@@ -218,7 +218,7 @@ input:focus,select:focus{border-color:var(--red)}
       </div>
       <div class="search"><input id="searchInput" placeholder="🔎 名称 / 位置 / 备注"><span class="count" id="searchCount"></span></div>
       <div class="cargo-list" id="cargoList"></div>
-      <div class="other-head" id="otherHead"><span id="otherArrow">▶</span><span>其它部门货物</span><span class="other-count" id="otherCount">0</span><label class="other-lock" title="锁定其它部门货物"><input type="checkbox" id="lockOther" checked>锁定货物</label></div>
+      <div class="other-head" id="otherHead"><span id="otherArrow">▶</span><span>其它部门货物</span><label class="other-show"><input type="checkbox" id="showOther" checked>显示</label><span class="other-count" id="otherCount">0</span><label class="other-lock" title="锁定其它部门货物"><input type="checkbox" id="lockOther" checked>锁定货物</label></div>
       <div class="cargo-list other-list" id="otherCargoList"></div>
       <div class="batchbar" id="batchbar"><button class="btn batch-exit" id="batchDone">↩ 退出多选</button><button class="btn batch-delete" id="deleteBatch">✕ 删除</button><button class="btn batch-color" id="colorBatch">● 颜色</button><button class="btn batch-ship" id="shipBatch">⇥ 出货</button><span id="batchCount" style="grid-column:1/5;text-align:center">已选择 0 件</span></div>
     </section>
@@ -317,9 +317,9 @@ input:focus,select:focus{border-color:var(--red)}
 </div></div>
 <div class="modal-bg2" id="importModal"><div class="modal2 wide"><h2>导入货物</h2>
  <div class="field"><label>所属</label><select id="importOwner"><option value="OVERSEAS">海外部</option><option value="OTHER">其它</option></select></div>
- <div class="field"><label>粘贴 Excel / WPS 数据（名称、尺寸、位置、入库时间、备注）</label><textarea class="import-input" id="importText" placeholder="名称&#9;尺寸&#9;位置&#9;入库时间&#9;备注&#10;货物A&#9;1200x800&#9;A3&#9;20260919&#9;SW26-1127"></textarea></div>
+ <div class="field"><label>粘贴 Excel / WPS 数据（必须包含名称、尺寸表头，其它列可省略）</label><textarea class="import-input" id="importText" placeholder="名称&#9;尺寸&#9;位置&#9;入库时间&#9;备注&#10;货物A&#9;1200x800x1500&#9;A3&#9;20260919&#9;SW26-1127"></textarea></div>
  <div class="import-errors" id="importErrors"></div>
- <div class="modal-actions2"><button class="btn" id="importCancel">取消</button><button class="btn primary" id="importParse">检查并继续</button></div>
+ <div class="modal-actions2"><button class="btn" id="importCancel">取消</button><button class="btn" id="importCopyTemplate">复制模板</button><button class="btn primary" id="importParse">检查并继续</button></div>
 </div></div>
 <div class="modal-bg2" id="importPreviewModal"><div class="modal2 wide"><h2>确认入库列表</h2>
  <div id="importPreview"></div>
@@ -533,7 +533,7 @@ function collision(candidate,ignoreIds){
   const oldOutside=old?(old.x<0||old.y<0||old.x+od.w>floor.width||old.y+od.h>floor.length):false;
   if(!oldOutside)return true;
  }
- for(const o of floor.objects.filter(x=>x.blocks)){
+ for(const o of ( $('passObstaclesToggle').checked?[]:floor.objects.filter(x=>x.blocks) )){
   if(a.x<o.x+o.w&&a.x+a.w>o.x&&a.y<o.y+o.h&&a.y+a.h>o.y)return true;
  }
  if(!$('overlapToggle').checked)for(const c of floor.cargos){
@@ -561,7 +561,7 @@ function renderSelection(){if(objectMode){cargoLayer.destroyChildren();cargoLaye
 function rectOf(c,x=c.x,y=c.y){const d=dims(c);return{x,y,w:d.w,h:d.h}}
 function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function blockersFor(id, movingIds){
- const out=floor.objects.filter(o=>o.blocks!==false).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
+ const out=($('passObstaclesToggle').checked?[]:floor.objects.filter(o=>o.blocks!==false)).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
  if(!$('overlapToggle').checked)floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
  return out;
 }
@@ -902,7 +902,7 @@ window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidt
  fit();
 }
 $('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
-['showOther','lockOther','ageMode','snapToggle','overlapToggle','outsideToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);if(id==='showOther'||id==='lockOther'){for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}}renderAll()});
+['showOther','lockOther','ageMode','snapToggle','overlapToggle','outsideToggle','passObstaclesToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);if(id==='showOther'||id==='lockOther'){for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}}renderAll()});
 
 function reportXml(s){return esc(s)}
 function reportAgeColor(c){
@@ -1203,19 +1203,21 @@ function splitImportLine(line){
 }
 function parseImport(){
  const lines=$('importText').value.split(/\r?\n/).filter(x=>x.trim()),rows=[];
- lines.forEach((line,i)=>{
-  const cols=splitImportLine(line);if(i===0&&/名称|尺寸|位置|入库/.test(cols.join(' ')))return;
-  const [name='',sizeRaw='',posRaw='',dateRaw='',remark='']=cols,sz=parseSize(sizeRaw),fieldErrors={};
+ if(!lines.length){$('importErrors').innerHTML='<div class="import-error">请先粘贴包含表头的数据。</div>';return}
+ const headers=splitImportLine(lines[0]).map(x=>x.replace(/\s/g,'')),headerMap={name:headers.indexOf('名称'),size:headers.indexOf('尺寸'),pos:headers.indexOf('位置'),date:headers.indexOf('入库时间'),remark:headers.indexOf('备注')};
+ if(headerMap.name<0||headerMap.size<0){$('importErrors').innerHTML='<div class="import-error">缺少必需表头“名称”或“尺寸”，请使用模板中的表头后再检查。</div>';return}
+ lines.slice(1).forEach((line,index)=>{
+  const cols=splitImportLine(line),value=key=>headerMap[key]>=0?(cols[headerMap[key]]||''):'',name=value('name'),sizeRaw=value('size'),posRaw=value('pos'),dateRaw=value('date'),remark=value('remark'),sz=parseSize(sizeRaw),fieldErrors={};
   if(!name)fieldErrors.name='缺少名称';
   if(!sizeRaw)fieldErrors.size='缺少尺寸';else if(!sz)fieldErrors.size='尺寸格式无效';
   let pos=null;if(posRaw){const m=/^([A-Z])(\d+)$/i.exec(posRaw);if(!m)fieldErrors.pos='位置格式无效';else{const col=m[1].toUpperCase().charCodeAt(0)-65,row=+m[2]-1;if(col<0||col>=floor.cols||row<0||row>=floor.rows)fieldErrors.pos='位置超出当前楼层网格';else pos={label:m[1].toUpperCase()+m[2],x:col*cellW(),y:row*cellH()}}}
   let date=parseDate(dateRaw);if(dateRaw&&!date)fieldErrors.date='入库时间格式无效';
-  rows.push({line:i+1,name,size:sz,sizeRaw,pos,posRaw,date,dateRaw,remark,posDefault:!posRaw,dateDefault:!dateRaw,fieldErrors});
+  rows.push({line:index+2,name,size:sz,sizeRaw,pos,posRaw,date,dateRaw,remark,posDefault:!posRaw,dateDefault:!dateRaw,fieldErrors});
  });
  const bad=rows.filter(r=>Object.keys(r.fieldErrors).length),ok=rows.filter(r=>!Object.keys(r.fieldErrors).length);
- importRows=ok.map(r=>({...r,pos:r.pos||{label:'A1',x:0,y:0},date:r.date||today()}));
+ importRows=ok.map(r=>{const x=r.pos?r.pos.x:Math.max(0,(floor.width-r.size.l)/2),y=r.pos?r.pos.y:Math.max(0,(floor.length-r.size.w)/2);return{...r,pos:r.pos||{label:cellName({x,y}),x,y},date:r.date||today()}});
  const mark=(value,error)=>error?`<span class="import-error-param" title="${esc(error)}">${esc(value||'—')}</span>`:esc(value||'—');
- $('importPreview').innerHTML=`<div class="import-confirm-summary">当前准备导入 <b>${rows.length}</b> 件，成功 <b>${ok.length}</b> 件，失败 <b class="import-fail-count">${bad.length}</b> 件</div><table class="preview-table"><thead><tr><th>名称</th><th>尺寸</th><th>位置</th><th>入库时间</th><th>备注</th></tr></thead><tbody>${rows.map(r=>`<tr class="${Object.keys(r.fieldErrors).length?'bad-row':''}"><td>${mark(r.name,r.fieldErrors.name)}</td><td>${mark(r.size?`${r.size.l}×${r.size.w}×${r.size.h}`:r.sizeRaw,r.fieldErrors.size)}</td><td>${mark(r.pos?r.pos.label:(r.posDefault?'A1（默认）':r.posRaw),r.fieldErrors.pos)}</td><td>${mark(r.date||(r.dateDefault?today()+'（默认）':r.dateRaw),r.fieldErrors.date)}</td><td>${esc(r.remark||'')}</td></tr>`).join('')}</tbody></table>`;
+ $('importPreview').innerHTML=`<div class="import-confirm-summary">当前准备导入 <b>${rows.length}</b> 件，成功 <b>${ok.length}</b> 件，失败 <b class="import-fail-count">${bad.length}</b> 件</div><table class="preview-table"><thead><tr><th>名称</th><th>尺寸</th><th>位置</th><th>入库时间</th><th>备注</th></tr></thead><tbody>${rows.map(r=>`<tr class="${Object.keys(r.fieldErrors).length?'bad-row':''}"><td>${mark(r.name,r.fieldErrors.name)}</td><td>${mark(r.size?`${r.size.l}×${r.size.w}×${r.size.h}`:r.sizeRaw,r.fieldErrors.size)}</td><td>${mark(r.pos?r.pos.label:(r.posDefault?cellName({x:Math.max(0,(floor.width-(r.size?.l||0))/2),y:Math.max(0,(floor.length-(r.size?.w||0))/2)})+'（默认居中）':r.posRaw),r.fieldErrors.pos)}</td><td>${mark(r.date||(r.dateDefault?today()+'（默认）':r.dateRaw),r.fieldErrors.date)}</td><td>${esc(r.remark||'')}</td></tr>`).join('')}</tbody></table>`;
  $('importErrors').innerHTML=bad.length?`<div class="import-error">失败项目已在确认列表中用红色 ! 标记，请返回修正后重新检查。</div>`:'';
  $('importText').classList.toggle('has-error',!!bad.length);
  $('importConfirm').disabled=!!bad.length;
@@ -1249,7 +1251,14 @@ $('cargoList').addEventListener('contextmenu',e=>{
 });
 $('settingsHead').onclick=()=>$('settingsSec').classList.toggle('open');
 $('cargoMenuBtn').onclick=e=>{e.stopPropagation();$('cargoMenu').classList.toggle('open')};
-$('cargoMenu').onclick=e=>{const a=e.target.dataset.act;if(!a)return;hideContext();if(a==='add')openCargoModal();if(a==='import'){$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open');}if(a==='copylist'){const text=floor.cargos.filter(visibleCargo).filter(c=>c.owner!=='OTHER').map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock}\t${c.remark||''}`).join('\n');navigator.clipboard?.writeText(text).then(()=>alert('已复制当前货物清单。')).catch(()=>alert(text));}
+async function copyTextToClipboard(text){
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}
+ const field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(field);field.focus();field.select();let copied=false;try{copied=document.execCommand('copy')}catch{}field.remove();return copied;
+}
+const importTemplate='名稱\t尺寸\t位置\t入庫時間\t備註\n貨物1\t1200x800x1500\tA1\t20260928\tSW26-1127\n貨物2\t1200x800x1500\tA1\t20260928\tSW26-1127\n貨物3\t1200x800x1500\tA1\t20260928\tSW26-1127';
+$('importCopyTemplate').onclick=async()=>{const copied=await copyTextToClipboard(importTemplate);alert(copied?'已复制三条带表头的导入模板，可粘贴到 Excel 修改。':'复制失败，请检查浏览器剪贴板权限。')};
+function copyCargoList(){const cargos=floor.cargos.filter(visibleCargo).filter(c=>c.owner!=='OTHER'),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>alert(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。'))}
+$('cargoMenu').onclick=e=>{const a=e.target.dataset.act;if(!a)return;hideContext();if(a==='add')openCargoModal();if(a==='import'){$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open');}if(a==='copylist')copyCargoList();
  if(a==='addobj')openObjectModal();
  if(a==='importobj'){$('objectImportText').value='';$('objectImportErrors').innerHTML='';$('objectImportModal').classList.add('open')}
  if(a==='columns')openColumns();
@@ -1276,7 +1285,7 @@ $('batchColorInput').onchange=()=>{
  batchColorBefore=null;batchColorTouched=false;
 };
 $('batchDone').onclick=()=>{if(objectMode){objectSelected.clear();drawObjects();renderObjectList()}else clearSelection()};$('deleteBatch').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('shipBatch').onclick=()=>openShip(selected);
-$('cargoListBlankContext').onclick=e=>{const a=e.target.dataset.lc;if(!a)return;hideAllContexts();if(a==='add')openAdd();if(a==='import')openImport();if(a==='copylist')copyList()};
+$('cargoListBlankContext').onclick=e=>{const a=e.target.dataset.lc;if(!a)return;hideAllContexts();if(a==='add')openAdd();if(a==='import')openImport();if(a==='copylist')copyCargoList()};
 $('objectListBlankContext').onclick=e=>{const a=e.target.dataset.lo;if(!a)return;hideAllContexts();if(a==='add')openObjectModal();if(a==='import')openObjectImport();if(a==='columns')openBatchColumns()};
 $('blankContext').onclick=e=>{const a=e.target.dataset.b;if(!a||e.target.disabled)return;hideAllContexts();if(a==='undo')undo();if(a==='redo')redo();if(a==='paste'){objectMode?pasteObjects():paste()}if(a==='refreshsel')resetSelectionArtifacts()};
 $('cargoContext').onclick=e=>{
@@ -1338,7 +1347,7 @@ $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').oncl
  }
  $('floorModal2').classList.remove('open');fit();renderAll();
 };
-$('otherHead').onclick=e=>{if(e.target.closest('.other-lock'))return;const list=$('otherCargoList');const open=list.classList.toggle('open');$('otherArrow').textContent=open?'▼':'▶';};
+ $('otherHead').onclick=e=>{if(e.target.closest('.other-lock,.other-show'))return;const list=$('otherCargoList');const open=list.classList.toggle('open');$('otherArrow').textContent=open?'▼':'▶';};
 document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
 
 [...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
