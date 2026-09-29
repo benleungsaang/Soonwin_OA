@@ -164,7 +164,7 @@ input:focus,select:focus{border-color:var(--red)}
 
 #floorMapCaption{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:10;color:#aebaca;font-size:13px;font-weight:650;letter-spacing:.02em;pointer-events:none;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.75)}
 #perfPanel{position:absolute;right:20px;bottom:58px;z-index:18;width:292px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;color:#ccc;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
-#perfPanel .perf-head{display:flex;align-items:center;padding:8px 11px;cursor:pointer;user-select:none;color:var(--cyan);font-weight:650}.perf-head .perf-arrow{margin-left:auto;color:#8f9baa}.perf-body{padding:0 11px 10px}.perf-section{border-top:1px solid rgba(255,255,255,.09);padding-top:7px;margin-top:5px}.perf-section-title{font-size:10px;color:#8191a4;margin-bottom:5px}.perf-row{display:grid;grid-template-columns:1fr 94px;align-items:center;gap:8px;margin:5px 0}.perf-row select{padding:4px 6px;font-size:11px;background:#101833}.perf-check{display:flex;justify-content:flex-end}.perf-check input{width:14px;height:14px;accent-color:var(--red)}.perf-metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;font:11px Consolas;color:#9fb0c4}.perf-metrics b{color:#fff;font-weight:600}.perf-note{margin-top:7px;color:#718096;font-size:10px;line-height:1.45}.perf-reset{width:100%;margin-top:8px;padding:5px 8px}.perf-collapsed .perf-body{display:none}.perf-collapsed{width:210px}
+#perfPanel .perf-head{display:flex;align-items:center;padding:8px 11px;cursor:pointer;user-select:none;color:var(--cyan);font-weight:650}.perf-head .perf-arrow{margin-left:auto;color:#8f9baa}.perf-body{max-height:calc(100vh - 150px);overflow-y:auto;padding:0 11px 10px}.perf-section{border-top:1px solid rgba(255,255,255,.09);padding-top:7px;margin-top:5px}.perf-section-title{font-size:10px;color:#8191a4;margin-bottom:5px}.perf-row{display:grid;grid-template-columns:1fr 94px;align-items:center;gap:8px;margin:5px 0}.perf-row select{padding:4px 6px;font-size:11px;background:#101833}.perf-check{display:flex;justify-content:flex-end}.perf-check input{width:14px;height:14px;accent-color:var(--red)}.perf-metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;font:11px Consolas;color:#9fb0c4}.perf-metrics b{color:#fff;font-weight:600}.perf-note{margin-top:7px;color:#718096;font-size:10px;line-height:1.45}.perf-reset{width:100%;margin-top:8px;padding:5px 8px}.perf-collapsed .perf-body{display:none}.perf-collapsed{width:210px}
 </style>
 </head>
 <body>
@@ -262,9 +262,13 @@ input:focus,select:focus{border-color:var(--red)}
           <div class="perf-row"><span>Pixel Ratio</span><select id="perfPixelRatio"><option value="auto">Auto</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option></select></div>
           <div class="perf-row"><span>Perfect Draw</span><label class="perf-check"><input id="perfPerfectDraw" type="checkbox"></label></div>
           <div class="perf-row"><span>货物阴影</span><label class="perf-check"><input id="perfShadow" type="checkbox" checked></label></div>
+          <div class="perf-row"><span>Transforms Enabled</span><select id="perfTransforms"><option value="all">ALL</option><option value="position">POSITION</option></select></div>
+          <div class="perf-row"><span>Shadow For Stroke</span><select id="perfShadowStroke"><option value="on">ON</option><option value="off">OFF</option></select></div>
           <div class="perf-row"><span>障碍物纹理</span><select id="perfPattern"><option value="full">FULL</option><option value="simple">SIMPLE</option><option value="off">OFF</option></select></div>
         </div>
         <div class="perf-section"><div class="perf-section-title">交互</div>
+          <div class="perf-row"><span>Drag Motion</span><select id="perfDragMotion"><option value="raw">RAW</option><option value="raf" selected>RAF</option><option value="smooth">SMOOTH</option></select></div>
+          <div class="perf-row"><span>Smooth Factor</span><select id="perfSmoothFactor" disabled><option value="0.15">0.15</option><option value="0.25" selected>0.25</option><option value="0.35">0.35</option><option value="0.50">0.50</option></select></div>
           <div class="perf-row"><span>拖动最大 FPS</span><select id="perfDragFps"><option>60</option><option>45</option><option>30</option><option>20</option></select></div>
           <div class="perf-row"><span>碰撞检测 FPS</span><select id="perfCollisionFps"><option>60</option><option>30</option><option>20</option><option value="0">OFF</option></select></div>
           <div class="perf-row"><span>吸附检测 FPS</span><select id="perfSnapFps"><option>60</option><option>30</option><option>20</option><option value="0">OFF</option></select></div>
@@ -276,7 +280,8 @@ input:focus,select:focus{border-color:var(--red)}
           <span>FPS <b id="perfFps">--</b></span><span>Frame <b id="perfFrame">--</b> ms</span>
           <span>Cargo <b id="perfCargoNodes">--</b></span><span>Object <b id="perfObjectNodes">--</b></span>
           <span>Total <b id="perfTotalNodes">--</b></span><span>DPR <b id="perfDpr">--</b></span>
-        </div><button class="btn perf-reset" id="perfReset">恢复默认实验参数</button><div class="perf-note">仅当前页面临时生效，不写入 OA 数据；刷新页面恢复默认。</div></div>
+          <span>Drag Jitter <b id="perfDragJitter">--</b> ms</span>
+        </div><button class="btn perf-reset" id="perfReset">恢复默认实验参数</button><div class="perf-note">RAW 不受拖动最大 FPS 限制；Drag Jitter 为最近 30 次位置更新间隔的标准差。参数仅当前页面生效，刷新后恢复默认。</div></div>
       </div>
     </div>
     <div id="dirty">● 已保存状态</div>
@@ -422,9 +427,10 @@ const deep=o=>JSON.parse(JSON.stringify(o));
 let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContextId=null, objectClipboard=[];
 let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set(), cargoTargetOwner='OVERSEAS', importTargetOwner='OVERSEAS';
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
-let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null;
-const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:false,shadow:true,pattern:'full',dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
+let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null,smoothedCargoPointer=null;
+const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:false,shadow:true,transforms:'all',shadowStroke:'on',pattern:'full',dragMotion:'raf',smoothFactor:.25,dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
 let perf={...PERF_DEFAULTS},perfTiming={drag:0,collision:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
+let lastDragUpdate=0,dragIntervals=[];
 const $=id=>document.getElementById(id);
 const warehouseToken=()=>localStorage.getItem('oa_token');
 async function warehouseApi(path,options={}){
@@ -528,9 +534,9 @@ function drawGrid(){
 function drawObjects(){
  objLayer.destroyChildren();
  floor.objects.forEach(o=>{
-  const sel=objectSelected.has(o.id),g=new Konva.Group({x:o.x,y:o.y,id:o.id,name:'object',listening:objectMode,clipX:0,clipY:0,clipWidth:o.w,clipHeight:o.h});
+  const sel=objectSelected.has(o.id),g=new Konva.Group({x:o.x,y:o.y,id:o.id,name:'object',listening:objectMode,clipX:0,clipY:0,clipWidth:o.w,clipHeight:o.h,transformsEnabled:perf.transforms});
   const fill=sel&&objectMode?'#b68cff':(o.color||'#687386');
-  g.add(new Konva.Rect({width:o.w,height:o.h,fill,opacity:objectMode?.88:(Math.max(0,Math.min(100,floor.objectOpacity??30))/100),stroke:sel?'#ffd93d':'#aab3c0',strokeWidth:(sel?3:1)/scale,cornerRadius:2/scale,perfectDrawEnabled:perf.perfectDraw}));
+  g.add(new Konva.Rect({width:o.w,height:o.h,fill,opacity:objectMode?.88:(Math.max(0,Math.min(100,floor.objectOpacity??30))/100),stroke:sel?'#ffd93d':'#aab3c0',strokeWidth:(sel?3:1)/scale,cornerRadius:2/scale,perfectDrawEnabled:perf.perfectDraw,transformsEnabled:perf.transforms,shadowForStrokeEnabled:perf.shadowStroke==='on'}));
   const step=Math.max(120,10/scale),line='#303846';
   if(perf.pattern!=='off'&&o.pattern!=='solid'){
    const patternStep=perf.pattern==='simple'?step*3:step;
@@ -634,6 +640,13 @@ function cargoDragState(ids){
  const starts=new Map([...ids].map(id=>{const cargo=floor.cargos.find(item=>item.id===id);return[id,{x:cargo.x,y:cargo.y,cargo}]})),movingIds=new Set(starts.keys());
  return{starts,movingIds,blockers:blockersFor(movingIds)};
 }
+function beginCargoMotion(pointer){
+ pendingCargoPointer=null;smoothedCargoPointer=pointer?{...pointer}:null;lastDragUpdate=0;dragIntervals=[];$('perfDragJitter').textContent='--';
+}
+function recordDragJitter(now){
+ if(lastDragUpdate){dragIntervals.push(now-lastDragUpdate);if(dragIntervals.length>30)dragIntervals.shift();if(dragIntervals.length>1){const mean=dragIntervals.reduce((sum,dt)=>sum+dt,0)/dragIntervals.length;const variance=dragIntervals.reduce((sum,dt)=>sum+(dt-mean)**2,0)/dragIntervals.length;$('perfDragJitter').textContent=Math.sqrt(variance).toFixed(1)}}
+ lastDragUpdate=now;
+}
 function processCargoDrag(pointer){
  const drag=directDrag&&!directDrag.kind?directDrag:groupDrag?.canvas?groupDrag:null;
  if(!drag||!drag.lastPointer)return;
@@ -645,11 +658,23 @@ function processCargoDrag(pointer){
  if(collisionDue){constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds);perfTiming.collision=now}
  let delta=constrained;
  if(snapDue){delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);perfTiming.snap=now}
- for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();
+ if(Math.abs(delta.dx)+Math.abs(delta.dy)>.001){for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();recordDragJitter(now)}
 }
 function scheduleCargoDrag(pointer){
- pendingCargoPointer={...pointer};if(dragRaf)return;
- dragRaf=requestAnimationFrame(ts=>{dragRaf=0;if(ts-perfTiming.drag<1000/perf.dragFps){scheduleCargoDrag(pendingCargoPointer);return}perfTiming.drag=ts;const next=pendingCargoPointer;pendingCargoPointer=null;if(next)processCargoDrag(next)});
+ pendingCargoPointer={...pointer};
+ if(perf.dragMotion==='raw'){if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0}const next=pendingCargoPointer;pendingCargoPointer=null;processCargoDrag(next);return}
+ if(dragRaf)return;
+ const tick=ts=>{
+  dragRaf=0;const target=pendingCargoPointer;if(!target)return;
+  if(ts-perfTiming.drag<1000/perf.dragFps){dragRaf=requestAnimationFrame(tick);return}
+  perfTiming.drag=ts;
+  if(perf.dragMotion==='smooth'){
+   const from=smoothedCargoPointer||target;let next={x:from.x+(target.x-from.x)*perf.smoothFactor,y:from.y+(target.y-from.y)*perf.smoothFactor};
+   if(Math.hypot(target.x-next.x,target.y-next.y)<.25){next=target;pendingCargoPointer=null}
+   smoothedCargoPointer=next;processCargoDrag(next);if(pendingCargoPointer)dragRaf=requestAnimationFrame(tick);
+  }else{pendingCargoPointer=null;processCargoDrag(target)}
+ };
+ dragRaf=requestAnimationFrame(tick);
 }
 
 function drawCargos(){
@@ -659,8 +684,8 @@ function drawCargos(){
  floor.cargos.forEach((c,index)=>{
   if(!visibleCargo(c))return;
   const d=dims(c),isSel=selected.has(c.id),locked=cargoLocked(c);
-  const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo'});
-  group.add(new Konva.Rect({width:d.w,height:d.h,fill:locked?'#737982':ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,perfectDrawEnabled:perf.perfectDraw,shadowEnabled:perf.shadow,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
+  const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo',transformsEnabled:perf.transforms});
+  group.add(new Konva.Rect({width:d.w,height:d.h,fill,opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,perfectDrawEnabled:perf.perfectDraw,transformsEnabled:perf.transforms,shadowForStrokeEnabled:perf.shadowStroke==='on',shadowEnabled:perf.shadow,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
   group.on('mousedown touchstart',e=>{
    if(e.evt.button===2)return;
    e.cancelBubble=true;
@@ -674,6 +699,7 @@ function drawCargos(){
     renderList();renderInfo();updateButtons();
     const p=stage.getPointerPosition();
     directDrag={before:snapshot(),...cargoDragState(selected),lastPointer:p?{...p}:null,moved:false};
+    beginCargoMotion(p);
     if(perf.hit==='off-drag')cargoLayer.listening(false);
    }else{
     if(ctrl)toggleSelect(c.id);else if(!selected.has(c.id))selectOnly(c.id);
@@ -885,6 +911,7 @@ function initStage(){
   selectStart={...p};
   if(mode==='select'&&selected.size&&!batchMode){
    groupDrag={before:snapshot(),...cargoDragState(selected),canvas:true,lastPointer:{...p}};
+   beginCargoMotion(p);
    if(perf.hit==='off-drag')cargoLayer.listening(false);
   }else{
    const w=screenWorld(p);selectionRect=new Konva.Rect({x:w.x,y:w.y,width:0,height:0,fill:'rgba(77,150,255,.14)',stroke:'#4d96ff',strokeWidth:1/scale,dash:[5/scale,3/scale]});selLayer.add(selectionRect);
@@ -915,7 +942,9 @@ function initStage(){
  });
  stage.on('mouseup touchend',e=>{
   const ev=e.evt;
-  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0;const p=stage.getPointerPosition()||pendingCargoPointer;pendingCargoPointer=null;if(p)processCargoDrag(p)}
+  if(dragRaf){cancelAnimationFrame(dragRaf);dragRaf=0}
+  if((directDrag&&!directDrag.kind)||groupDrag?.canvas){const p=stage.getPointerPosition()||pendingCargoPointer;if(p)processCargoDrag(p)}
+  pendingCargoPointer=null;smoothedCargoPointer=null;
   if(objectMode){
    if(ev.button===0&&directDrag&&directDrag.kind==='object'){
     let changed=false;for(const[id,st]of directDrag.starts){const n=objLayer.findOne('#'+id),q=floor.objects.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
@@ -1455,12 +1484,12 @@ function bindPerfPanel(){
  try{if(JSON.parse(atob(token.split('.')[1])).user_role!=='admin')return}catch(error){console.error('[warehouse] role decode failed',error);return}
  panel.hidden=false;
  $('perfHead').onclick=()=>{panel.classList.toggle('perf-collapsed');panel.querySelector('.perf-arrow').textContent=panel.classList.contains('perf-collapsed')?'▴':'▾';updatePerfMetrics()};
- const binds=[['perfPixelRatio','pixelRatio'],['perfPattern','pattern'],['perfDragFps','dragFps'],['perfCollisionFps','collisionFps'],['perfSnapFps','snapFps'],['perfHit','hit'],['perfPanFps','panFps']];
- binds.forEach(([id,key])=>{$(id).onchange=()=>{perf[key]=['dragFps','collisionFps','snapFps','panFps'].includes(key)?Number($(id).value):$(id).value;if(key==='pixelRatio')applyPerfPixelRatio();else if((key==='pattern')&&floor)drawObjects();updatePerfMetrics()}});
+ const binds=[['perfPixelRatio','pixelRatio'],['perfTransforms','transforms'],['perfShadowStroke','shadowStroke'],['perfPattern','pattern'],['perfDragMotion','dragMotion'],['perfSmoothFactor','smoothFactor'],['perfDragFps','dragFps'],['perfCollisionFps','collisionFps'],['perfSnapFps','snapFps'],['perfHit','hit'],['perfPanFps','panFps']];
+ binds.forEach(([id,key])=>{$(id).onchange=()=>{perf[key]=['smoothFactor','dragFps','collisionFps','snapFps','panFps'].includes(key)?Number($(id).value):$(id).value;if(key==='pixelRatio')applyPerfPixelRatio();else if(key==='dragMotion'){$('perfSmoothFactor').disabled=perf.dragMotion!=='smooth';smoothedCargoPointer=stage?.getPointerPosition()||null}else if(floor){if(key==='pattern')drawObjects();if(key==='transforms'||key==='shadowStroke'){drawObjects();drawCargos()}}updatePerfMetrics()}});
  $('perfPerfectDraw').onchange=()=>{perf.perfectDraw=$('perfPerfectDraw').checked;if(floor){drawObjects();drawCargos()}updatePerfMetrics()};
  $('perfShadow').onchange=()=>{perf.shadow=$('perfShadow').checked;if(floor)drawCargos();updatePerfMetrics()};
  $('perfZoomRaf').onchange=()=>perf.zoomRaf=$('perfZoomRaf').checked;
- $('perfReset').onclick=()=>{perf={...PERF_DEFAULTS};$('perfPixelRatio').value='auto';$('perfPerfectDraw').checked=false;$('perfShadow').checked=true;$('perfPattern').value='full';$('perfDragFps').value='60';$('perfCollisionFps').value='60';$('perfSnapFps').value='60';$('perfHit').value='normal';$('perfPanFps').value='60';$('perfZoomRaf').checked=false;applyPerfPixelRatio()};
+ $('perfReset').onclick=()=>{perf={...PERF_DEFAULTS};$('perfPixelRatio').value='auto';$('perfPerfectDraw').checked=false;$('perfShadow').checked=true;$('perfTransforms').value='all';$('perfShadowStroke').value='on';$('perfPattern').value='full';$('perfDragMotion').value='raf';$('perfSmoothFactor').value='0.25';$('perfSmoothFactor').disabled=true;$('perfDragFps').value='60';$('perfCollisionFps').value='60';$('perfSnapFps').value='60';$('perfHit').value='normal';$('perfPanFps').value='60';$('perfZoomRaf').checked=false;applyPerfPixelRatio()};
  let last=performance.now(),frames=0;function meter(ts){frames++;const dt=ts-last;if(dt>=500){$('perfFps').textContent=Math.round(frames*1000/dt);$('perfFrame').textContent=(dt/frames).toFixed(1);frames=0;last=ts;updatePerfMetrics()}requestAnimationFrame(meter)}requestAnimationFrame(meter);
 }
 initStage();bindPerfPanel();
