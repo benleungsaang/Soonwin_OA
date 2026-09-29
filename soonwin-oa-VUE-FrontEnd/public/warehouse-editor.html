@@ -36,6 +36,7 @@ input:focus,select:focus{border-color:var(--red)}
 #stage{position:absolute;inset:0}
 #toolbar{position:absolute;left:20px;top:16px;z-index:10;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 300px)}
 .tb{background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border:1px solid var(--line);color:#ccc;padding:5px 13px;border-radius:18px;font-size:13px;cursor:pointer}.tb:hover{border-color:var(--red);color:#fff}.tb.active{background:rgba(233,69,96,.2);border-color:var(--red);color:var(--yellow)}.tb:disabled{opacity:.3;cursor:not-allowed}
+.tb.align-cargo{display:none}.tb.align-cargo.on{display:inline-block}
 .divider{width:1px;height:22px;background:rgba(255,255,255,.18);margin:0 3px}
 #info-stack{position:absolute;right:20px;top:16px;z-index:12;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
 .info{background:rgba(0,0,0,.72);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:12px;line-height:1.65;min-width:190px;text-align:right}.info .l{color:#8f9baa}.info .v{color:#fff}.info .namev{color:var(--yellow);font-weight:600}
@@ -247,6 +248,8 @@ input:focus,select:focus{border-color:var(--red)}
       <span class="divider"></span>
       <button class="tb" id="rotateBtn">↻ 旋转 90°</button>
       <button class="tb" id="copyBtn">⧉ 复制货物</button>
+      <button class="tb align-cargo" id="alignHorizontalBtn" title="统一所选货物的水平中心位置">↔ 水平居中</button>
+      <button class="tb align-cargo" id="alignVerticalBtn" title="统一所选货物的垂直中心位置">↕ 垂直居中</button>
       <button class="tb" id="deleteBtn">⌫ 删除</button>
     </div>
     <div id="info-stack">
@@ -514,7 +517,7 @@ function pushHistory(){undoStack.push(snapshot());if(undoStack.length>100)undoSt
 function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;stagedRestoreIds=new Set(d.restoreIds||[]);stagedObjectDeletes=new Set(d.objectDeleteIds||[]);selected.clear();setDirty(true);renderAll()}
 function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
 function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
-function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n}
+function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n;['alignHorizontalBtn','alignVerticalBtn'].forEach(id=>$(id).classList.toggle('on',!objectMode&&selected.size>1))}
 function applyView(){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo()}
 function fit(){
  if(!floor||!stage)return;
@@ -870,6 +873,18 @@ function setMode(m){
  if(cargoLayer)cargoLayer.listening(!objectMode);
  renderAll();
 }
+function alignSelectedCargos(axis){
+ if(objectMode||selected.size<2)return;
+ const cargos=floor.cargos.filter(c=>selected.has(c.id));
+ const start=Math.min(...cargos.map(c=>axis==='x'?c.x:c.y));
+ const end=Math.max(...cargos.map(c=>{const d=dims(c);return axis==='x'?c.x+d.w:c.y+d.h}));
+ const center=(start+end)/2;
+ const positions=new Map(cargos.map(c=>{const d=dims(c);return[c.id,{x:axis==='x'?Math.round(center-d.w/2):c.x,y:axis==='y'?Math.round(center-d.h/2):c.y}]}));
+ if(cargos.every(c=>{const p=positions.get(c.id);return c.x===p.x&&c.y===p.y}))return;
+ const invalid=cargos.some(c=>collision({...c,...positions.get(c.id)},selected))||(!$('overlapToggle').classList.contains('active')&&cargos.some((c,i)=>cargos.slice(i+1).some(other=>{const a=positions.get(c.id),b=positions.get(other.id);return overlaps(rectOf(c,a.x,a.y),rectOf(other,b.x,b.y))})));
+ if(invalid){alert('对齐后会超出边界或与障碍物、货物重叠，请检查当前设置。');return}
+ pushHistory();cargos.forEach(c=>Object.assign(c,positions.get(c.id)));setDirty(true);renderAll();
+}
 function rotate(){
  if(!selected.size)return;pushHistory();const ids=new Set(selected);let bad=false,old=new Map();
  for(const id of selected){const c=floor.cargos.find(x=>x.id===id);old.set(id,{r:c.r,x:c.x,y:c.y});c.r=(c.r+90)%360;if(collision(c,ids))bad=true}
@@ -1016,6 +1031,7 @@ window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidt
  fit();
 }
 $('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
+$('alignHorizontalBtn').onclick=()=>alignSelectedCargos('x');$('alignVerticalBtn').onclick=()=>alignSelectedCargos('y');
 ['showOwn','lockOwn','showOther','lockOther'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}renderAll()});
 ['passObstaclesToggle','outsideToggle','overlapToggle','ageMode'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));if(id==='ageMode')$('ageLegend').classList.toggle('on',active);renderAll()});
 
