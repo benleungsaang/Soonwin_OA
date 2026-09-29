@@ -685,7 +685,7 @@ function drawCargos(){
   if(!visibleCargo(c))return;
   const d=dims(c),isSel=selected.has(c.id),locked=cargoLocked(c);
   const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo',transformsEnabled:perf.transforms});
-  group.add(new Konva.Rect({width:d.w,height:d.h,fill,opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,perfectDrawEnabled:perf.perfectDraw,transformsEnabled:perf.transforms,shadowForStrokeEnabled:perf.shadowStroke==='on',shadowEnabled:perf.shadow,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
+  group.add(new Konva.Rect({width:d.w,height:d.h,fill:locked?'#737982':ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,perfectDrawEnabled:perf.perfectDraw,transformsEnabled:perf.transforms,shadowForStrokeEnabled:perf.shadowStroke==='on',shadowEnabled:perf.shadow,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
   group.on('mousedown touchstart',e=>{
    if(e.evt.button===2)return;
    e.cancelBubble=true;
