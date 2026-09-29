@@ -1001,7 +1001,7 @@
             color: #888;
         }
 
-        /* 右键上下文菜单（货物旋转/跌落） */
+        /* 货物右键上下文菜单 */
         #cargoContextMenu {
             position: fixed;
             z-index: 1000;
@@ -1016,9 +1016,13 @@
         }
 
         .ctx-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             padding: 8px 12px;
             font-size: 13px;
             color: #ccc;
+            text-align: center;
             border-radius: 4px;
             cursor: pointer;
             transition: background 0.15s;
@@ -1413,10 +1417,12 @@
             <!-- XYZ 轴指示器 -->
             <div id="axes-indicator"></div>
             <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
-            <!-- 右键上下文菜单（select 模式下命中货物时弹出） -->
+            <!-- 货物右键上下文菜单（画布和列表共用） -->
             <div id="cargoContextMenu" style="display:none;">
                 <div class="ctx-item" data-action="rotate" title="水平旋转 90°">↻ 水平旋转货物</div>
                 <div class="ctx-item" data-action="drop" title="沿 Y 轴下落至地面或下方货物">↓ 货物跌落</div>
+                <div class="ctx-item" data-action="edit" title="修改货物名称、尺寸、重量和颜色">✏️ 修改信息</div>
+                <div class="ctx-item" data-action="delete" title="删除当前货物">🗑️ 删除货物</div>
             </div>
             <!-- 顶部工具栏：所有按钮集中居左显示 -->
             <div id="view-toolbar">
@@ -1728,6 +1734,10 @@
                 } else if (action === 'drop') {
                     dropCargo(idx);
                     renderCargoList();
+                } else if (action === 'edit') {
+                    openEditModal(idx);
+                } else if (action === 'delete') {
+                    deleteCargo(idx);
                 }
             });
         });
@@ -3522,6 +3532,24 @@
             };
         }
 
+        function deleteCargo(idx) {
+            if (idx < 0 || idx >= state.cargos.length) return;
+            if (!confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) return;
+            state.cargos.splice(idx, 1);
+            if (state.selectedCargos.has(idx)) state.selectedCargos.delete(idx);
+            const shifted = new Set();
+            state.selectedCargos.forEach(v => shifted.add(v > idx ? v - 1 : v));
+            state.selectedCargos = shifted;
+            if (state.selectedCargo === idx) {
+                state.selectedCargo = state.selectedCargos.size > 0 ? Array.from(state.selectedCargos).pop() : null;
+            } else if (state.selectedCargo !== null && state.selectedCargo > idx) {
+                state.selectedCargo -= 1;
+            }
+            rebuildCargoMeshes();
+            updateStats();
+            saveState();
+        }
+
         function renderCargoList() {
             const list = cargoListEl;
             list.innerHTML = '';
@@ -3573,26 +3601,7 @@
             list.querySelectorAll('.cargo-delete').forEach(el => {
                 el.addEventListener('click', (e) => {
                     const idx = parseInt(el.dataset.index);
-                    if (!isNaN(idx)) {
-                        if (confirm(`确定删除 "${state.cargos[idx].name}" 吗？`)) {
-                            state.cargos.splice(idx, 1);
-                            // 同步清理多选集合
-                            if (state.selectedCargos.has(idx)) state.selectedCargos.delete(idx);
-                            // 把 > idx 的索引下移
-                            const shifted = new Set();
-                            state.selectedCargos.forEach(v => shifted.add(v > idx ? v - 1 : v));
-                            state.selectedCargos = shifted;
-                            if (state.selectedCargo === idx) {
-                                state.selectedCargo = state.selectedCargos.size > 0
-                                    ? Array.from(state.selectedCargos).pop() : null;
-                            } else if (state.selectedCargo !== null && state.selectedCargo > idx) {
-                                state.selectedCargo -= 1;
-                            }
-                            rebuildCargoMeshes();
-                            updateStats();
-                            saveState();
-                        }
-                    }
+                    if (!isNaN(idx)) deleteCargo(idx);
                     e.stopPropagation();
                 });
             });
@@ -3621,6 +3630,17 @@
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
+                });
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const idx = Number(item.dataset.index);
+                    if (!Number.isInteger(idx) || idx < 0 || idx >= state.cargos.length) return;
+                    setOnlySelection(idx);
+                    updateSelectionHighlight();
+                    renderCargoList();
+                    scrollListToSelected();
+                    showCargoContextMenu(e.clientX, e.clientY, idx);
                 });
             });
 
