@@ -1271,7 +1271,12 @@ function openShip(ids){
 }
 function confirmShip(){
  const date=$('shipDate').value||today(),shipRemark=$('shipRemark').value.trim();pushHistory();
- shipIds.forEach(id=>{const c=floor.cargos.find(q=>q.id===id);if(c){c.status='SHIPPED';c.shipped_date=date;c.shipped_remark=shipRemark;c.ship_x=c.x;c.ship_y=c.y}});
+ let operatorId='',operatorName='';
+ try{
+  const encoded=warehouseToken()?.split('.')[1];
+  if(encoded){const payload=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded.replace(/-/g,'+').replace(/_/g,'/')),char=>char.charCodeAt(0))));operatorId=payload.emp_id||'';operatorName=payload.name||payload.user_name||operatorId}
+ }catch(error){console.error('[warehouse] shipment operator decode failed',error)}
+ shipIds.forEach(id=>{const c=floor.cargos.find(q=>q.id===id);if(c){c.status='SHIPPED';c.shipped_date=date;c.shipped_by=operatorId;c.shipped_by_name=operatorName;c.shipped_remark=shipRemark;c.ship_x=c.x;c.ship_y=c.y}});
  selected.clear();setDirty(true);$('shipModal').classList.remove('open');$('cargoModal2').classList.remove('open');renderAll()
 }
 let confirmAction=null;
