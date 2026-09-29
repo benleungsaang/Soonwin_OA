@@ -1028,8 +1028,15 @@
             transition: background 0.15s;
         }
 
+        #cargoContextMenu .ctx-item[data-action="rotate"] { background: rgba(64, 145, 255, .18); }
+        #cargoContextMenu .ctx-item[data-action="drop"] { background: rgba(38, 190, 170, .18); }
+        #cargoContextMenu .ctx-item[data-action="edit"] { background: rgba(155, 105, 255, .20); }
+        #cargoContextMenu .ctx-item[data-action="delete"] { background: rgba(225, 75, 85, .22); }
+        #cargoContextMenu.list-context .ctx-item[data-action="rotate"],
+        #cargoContextMenu.list-context .ctx-item[data-action="drop"] { display: none; }
+
         .ctx-item:hover {
-            background: rgba(233, 69, 96, 0.25);
+            filter: brightness(1.35);
             color: #fff;
         }
 
@@ -1419,9 +1426,9 @@
             <div id="hint">🖱 左键拖拽旋转 · 按着 CTRL 多选货物 · 右键平移 · 点击货物选中拖动 · 按着 SHIFT 垂直移动</div>
             <!-- 货物右键上下文菜单（画布和列表共用） -->
             <div id="cargoContextMenu" style="display:none;">
-                <div class="ctx-item" data-action="rotate" title="水平旋转 90°">↻ 水平旋转货物</div>
-                <div class="ctx-item" data-action="drop" title="沿 Y 轴下落至地面或下方货物">↓ 货物跌落</div>
-                <div class="ctx-item" data-action="edit" title="修改货物名称、尺寸、重量和颜色">✏️ 修改信息</div>
+                <div class="ctx-item" data-action="rotate" title="水平旋转 90°">🔄 旋转货物</div>
+                <div class="ctx-item" data-action="drop" title="沿 Y 轴下落至地面或下方货物">⬇️ 货物跌落</div>
+                <div class="ctx-item" data-action="edit" title="修改货物名称、尺寸、重量和颜色">📝 修改信息</div>
                 <div class="ctx-item" data-action="delete" title="删除当前货物">🗑️ 删除货物</div>
             </div>
             <!-- 顶部工具栏：所有按钮集中居左显示 -->
@@ -1698,8 +1705,9 @@
         const cargoContextMenu = $('#cargoContextMenu');
         let cargoContextTargetIdx = -1;  // 菜单对应的货物索引
 
-        function showCargoContextMenu(clientX, clientY, cargoIdx) {
+        function showCargoContextMenu(clientX, clientY, cargoIdx, source = 'canvas') {
             cargoContextTargetIdx = cargoIdx;
+            cargoContextMenu.classList.toggle('list-context', source === 'list');
             cargoContextMenu.style.display = 'block';
             // 先显示以获取实际尺寸，再调整位置避免溢出窗口
             const rect = cargoContextMenu.getBoundingClientRect();
@@ -3640,7 +3648,7 @@
                     updateSelectionHighlight();
                     renderCargoList();
                     scrollListToSelected();
-                    showCargoContextMenu(e.clientX, e.clientY, idx);
+                    showCargoContextMenu(e.clientX, e.clientY, idx, 'list');
                 });
             });
 
