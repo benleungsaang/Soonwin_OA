@@ -52,6 +52,7 @@ input:focus,select:focus{border-color:var(--red)}
 .cargo-menu-wrap{position:relative;margin-left:0}.cargo-menu-btn{width:28px;height:28px;border-radius:8px;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:flex;align-items:center;justify-content:center;width:100%;border:0;color:#d9e1ea;text-align:center;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{filter:brightness(1.3)}
 .batchbar{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #303653;align-items:center;gap:7px;font-size:12px;color:#aeb8c5}.batchbar.on{display:flex}
 .ctx{display:none;position:fixed;z-index:120;width:180px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.ctx.open{display:block}.ctx button{display:block;width:100%;border:0;background:transparent;color:#e1e7ee;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.ctx button:hover{background:#28334e}.ctx .danger{color:#ff7b8d}
+#cargoContext button{display:flex;align-items:center;justify-content:center;margin:3px 0;text-align:center}#cargoContext button:hover{filter:brightness(1.3)}#cargoContext [data-c="rotate"]{background:#29445f}#cargoContext [data-c="edit"]{background:#3d3565}#cargoContext [data-c="ship"]{background:#315343}#cargoContext [data-c="duplicate"]{background:#3e4d6b}#cargoContext [data-c="resetpos"]{background:#514627}#cargoContext [data-c="delete"]{background:#5b3040}#cargoContext.list-context [data-c="rotate"]{display:none}
 .modal-bg2{display:none;position:fixed;inset:0;z-index:130;background:rgba(0,0,0,.72);align-items:center;justify-content:center}.modal-bg2.open{display:flex}.modal2{width:430px;background:#1a1a3e;border:1px solid #2a2a5e;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.7)}.modal2 h2{font-size:18px;color:#a8d8ea;margin-bottom:16px}.modal2 .field{margin-bottom:10px}.modal2 .field label{display:block;color:#9ba8b6;font-size:12px;margin-bottom:4px}.modal-actions2{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 
 .cargo-group-head{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:5px;margin:0!important;padding:3px 0 6px;border:0;color:var(--cyan);font-size:13px}.cargo-group-name{font-weight:650;white-space:nowrap}.cargo-head-actions,.cargo-head-toggles{display:flex;align-items:center;justify-content:flex-end;gap:6px}.cargo-head-actions{grid-column:2;grid-row:1}.cargo-head-toggles{grid-column:2;grid-row:2}.cargo-head-toggle{display:flex;align-items:center;justify-content:center;width:30px;height:26px;border:1px solid #354158;border-radius:8px;background:#172033;color:#68798d;cursor:pointer;font-size:15px;line-height:1}.cargo-head-toggle.active{border-color:#4d96ff;background:rgba(77,150,255,.23);color:#d5e8ff}.cargo-count{grid-column:1;grid-row:2;font-size:11px;color:#8191a4;font-weight:400}.other-head{padding-top:9px;border-top:1px solid #303653}.object-mode-head .cargo-head-toggles{display:none}.other-list{min-height:0!important;max-height:22vh!important;padding-top:2px}
@@ -248,7 +249,7 @@ input:focus,select:focus{border-color:var(--red)}
       <button class="tb" id="undoBtn">↶ 撤销</button>
       <button class="tb" id="redoBtn">↷ 重做</button>
       <span class="divider"></span>
-      <button class="tb" id="rotateBtn">↻ 旋转 90°</button>
+      <button class="tb" id="rotateBtn">🔄 水平旋转</button>
       <button class="tb" id="copyBtn">⧉ 复制货物</button>
       <button class="tb align-cargo" id="alignHorizontalBtn" title="统一所选货物的水平中心位置">↔ 水平居中</button>
       <button class="tb align-cargo" id="alignVerticalBtn" title="统一所选货物的垂直中心位置">↕ 垂直居中</button>
@@ -335,7 +336,7 @@ input:focus,select:focus{border-color:var(--red)}
  <button data-o="rotate">↻ 旋转 90°</button><button data-o="edit">✎ 修改障碍物</button><button data-o="duplicate">⧉ 复制障碍物</button><button data-o="resetpos">⌖ 位置复位</button><button class="danger" data-o="delete">⌫ 删除障碍物</button>
 </div>
 <div class="ctx" id="cargoContext">
- <button data-c="rotate">↻ 旋转 90°</button><button data-c="edit">✎ 修改货物信息</button><button data-c="duplicate">⧉ 复制货物</button><button data-c="ship">⇥ 出货</button><button data-c="resetpos">⌖ 位置复位</button><button class="danger" data-c="delete">⌫ 删除货物</button>
+ <button data-c="rotate">🔄 水平旋转</button><button data-c="edit">📝 修改货物</button><button data-c="ship">📤 操作出库</button><button data-c="duplicate">📋 复制货物</button><button data-c="resetpos">🎯 位置复位</button><button class="danger" data-c="delete">🗑️ 删除货物</button>
 </div>
 <div class="modal-bg2" id="cargoModal2"><div class="modal2">
  <div class="modal-title-row"><h2 id="cargoModalTitle2">添加货物</h2><span class="pos-pill" id="mPosDisplay"></span></div>
@@ -766,7 +767,7 @@ function renderList(){
   const d=dims(c);
   el.innerHTML=`<div class="c1"><span class="dot"></span><span class="idx">#${String(floor.cargos.indexOf(c)+1).padStart(2,'0')}</span><span class="name">${esc(c.name)}</span></div><div class="meta">${Math.round(d.w)}×${Math.round(d.h)} · ${cellName(c)} · ${esc(c.remark||'')}</div><span class="row-actions"><button class="row-action edit" title="修改" ${isLock?'disabled':''}>✎</button><button class="row-action delete" title="删除" ${isLock?'disabled':''}>✕</button></span>`;
   el.onclick=e=>{if(e.target.closest('.row-action'))return;if(isLock)return;if(e.ctrlKey||e.metaKey||batchMode)toggleSelect(c.id);else selectOnly(c.id)};
-  el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();if(isLock)return;if(!selected.has(c.id)){selected.clear();selected.add(c.id)}contextId=c.id;renderSelection();showContext(e.clientX,e.clientY)};
+  el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();if(isLock)return;if(!selected.has(c.id)){selected.clear();selected.add(c.id)}contextId=c.id;renderSelection();showContext(e.clientX,e.clientY,'list')};
   const eb=el.querySelector('.row-action.edit'),db=el.querySelector('.row-action.delete');
   eb.onclick=e=>{e.stopPropagation();if(!isLock)openCargoModal(c.id)};
   db.onclick=e=>{e.stopPropagation();if(isLock)return;selectOnly(c.id);del()};
@@ -1267,7 +1268,7 @@ $('bcCancel').onclick=()=>$('batchCargoEditModal').classList.remove('open');$('b
 $('boCancel').onclick=()=>$('batchObjectEditModal').classList.remove('open');$('boOk').onclick=applyBatchObjectEdit;
 function resetCargoPosition(ids){if(!ids.length)return;pushHistory();const cx=floor.width/2,cy=floor.length/2;ids.forEach(id=>{const c=floor.cargos.find(x=>x.id===id);if(c){const d=dims(c);c.x=cx-d.w/2;c.y=cy-d.h/2}});setDirty(true);renderAll()}
 function resetObjectPosition(ids){if(!ids.length)return;pushHistory();const cx=floor.width/2,cy=floor.length/2;ids.forEach(id=>{const o=floor.objects.find(x=>x.id===id);if(o){o.x=cx-o.w/2;o.y=cy-o.h/2}});setDirty(true);renderAll()}
-function showContext(x,y){const m=$('cargoContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
+function showContext(x,y,source='canvas'){const m=$('cargoContext');m.classList.toggle('list-context',source==='list');m.classList.add('open');m.style.left=Math.min(x,innerWidth-m.offsetWidth-4)+'px';m.style.top=Math.min(y,innerHeight-m.offsetHeight-4)+'px'}
 function hideContext(){hideAllContexts()}
 function openCargoModal(id=null,owner='OVERSEAS'){
  editId=id;const c=id?floor.cargos.find(q=>q.id===id):null;
