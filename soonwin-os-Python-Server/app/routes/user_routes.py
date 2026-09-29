@@ -537,7 +537,7 @@ def get_all_routes():
         # 用于前端权限分配页面（/api/user/permission/all-routes）展示
         # 未在此映射表中的路由将自动使用英文 fallback（下划线转空格+首字母大写）
         route_labels = {
-            "warehouse_manage": "库存位置平面图",
+            "warehouse_manage": "仓库查看",
             "display_file_manage": "展示文件管理",
             "photo_manage": "照片管理",
             "punch_manage": "打卡管理",

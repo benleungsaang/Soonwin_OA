@@ -192,7 +192,7 @@
                     </el-menu-item>
                     <el-menu-item index="24" @click="goToWarehouse" v-if="hasToken && permissions.warehouseManage && !hiddenModules.includes('warehouseManage')">
                       <el-icon><Location /></el-icon>
-                      <span>库存位置</span>
+                      <span>仓库查看</span>
                     </el-menu-item>
                     <el-menu-item index="22" @click="goToTaskTrack" v-if="hasToken && permissions.taskTrackManage && !hiddenModules.includes('taskTrackManage')">
                       <el-icon><List /></el-icon>
@@ -442,7 +442,7 @@ const permissionMap = {
   customerManage: { key: 'customer_manage', name: '客户信息管理', path: '/customer-management' },
   blogManage: { key: 'blog_manage', name: '工作记录', path: '/blog' },
   containerLayoutManage: { key: 'container_layout_manage', name: '货柜排布', path: '/container-layout' },
-  warehouseManage: { key: 'warehouse_manage', name: '库存位置', path: '/warehouse-editor.html' },
+  warehouseManage: { key: 'warehouse_manage', name: '仓库查看', path: '/warehouse-editor.html' },
   taskTrackManage: { key: 'task_track_manage', name: '任务跟踪', path: '/task-track' },
   todoManage: { key: 'todo_manage', name: '待办事项', path: '/todo' }
 };
@@ -502,7 +502,7 @@ const goToWarehouse = () => {
   if (hasRoutePermission('warehouse_manage')) {
     window.open('/warehouse-editor.html', '_blank', 'noopener');
   } else {
-    ElMessage.error('您没有权限访问库存位置页面！');
+    ElMessage.error('您没有权限访问仓库查看页面！');
   }
 };
 const goToTaskTrack = () => navigateToPage('taskTrackManage');
