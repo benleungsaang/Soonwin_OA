@@ -252,12 +252,12 @@ input:focus,select:focus{border-color:var(--red)}
     </div>
     <div id="floorMapCaption"></div>
     <div id="hint">滚轮缩放 · 右键空白拖动画布 / 单击取消选择 · 右键货物打开菜单 · Ctrl 多选 · Ctrl+C/V · Esc 取消</div>
-    <div id="perfPanel" class="perf-collapsed">
+    <div id="perfPanel" class="perf-collapsed" hidden>
       <div class="perf-head" id="perfHead">⚡ Konva 性能实验 <span class="perf-arrow">▴</span></div>
       <div class="perf-body">
         <div class="perf-section"><div class="perf-section-title">渲染</div>
           <div class="perf-row"><span>Pixel Ratio</span><select id="perfPixelRatio"><option value="auto">Auto</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option></select></div>
-          <div class="perf-row"><span>Perfect Draw</span><label class="perf-check"><input id="perfPerfectDraw" type="checkbox" checked></label></div>
+          <div class="perf-row"><span>Perfect Draw</span><label class="perf-check"><input id="perfPerfectDraw" type="checkbox"></label></div>
           <div class="perf-row"><span>货物阴影</span><label class="perf-check"><input id="perfShadow" type="checkbox" checked></label></div>
           <div class="perf-row"><span>障碍物纹理</span><select id="perfPattern"><option value="full">FULL</option><option value="simple">SIMPLE</option><option value="off">OFF</option></select></div>
         </div>
@@ -420,7 +420,7 @@ let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContext
 let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set(), cargoTargetOwner='OVERSEAS', importTargetOwner='OVERSEAS';
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null;
-const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:true,shadow:true,pattern:'full',dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
+const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:false,shadow:true,pattern:'full',dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
 let perf={...PERF_DEFAULTS},perfTiming={drag:0,collision:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
 const $=id=>document.getElementById(id);
 const warehouseToken=()=>localStorage.getItem('oa_token');
@@ -1426,13 +1426,17 @@ function updatePerfMetrics(){
  if(!stage)return;$('perfCargoNodes').textContent=cargoLayer?.getChildren()?.length??0;$('perfObjectNodes').textContent=objLayer?.getChildren()?.length??0;$('perfTotalNodes').textContent=stage.find('*').length;$('perfDpr').textContent=(perf.pixelRatio==='auto'?'Auto ':'')+(perf.pixelRatio==='auto'?(window.devicePixelRatio||1):perf.pixelRatio);
 }
 function bindPerfPanel(){
- const panel=$('perfPanel');$('perfHead').onclick=()=>{panel.classList.toggle('perf-collapsed');panel.querySelector('.perf-arrow').textContent=panel.classList.contains('perf-collapsed')?'▴':'▾';updatePerfMetrics()};
+ const panel=$('perfPanel'),token=warehouseToken();
+ if(!token)return;
+ try{if(JSON.parse(atob(token.split('.')[1])).user_role!=='admin')return}catch(error){console.error('[warehouse] role decode failed',error);return}
+ panel.hidden=false;
+ $('perfHead').onclick=()=>{panel.classList.toggle('perf-collapsed');panel.querySelector('.perf-arrow').textContent=panel.classList.contains('perf-collapsed')?'▴':'▾';updatePerfMetrics()};
  const binds=[['perfPixelRatio','pixelRatio'],['perfPattern','pattern'],['perfDragFps','dragFps'],['perfCollisionFps','collisionFps'],['perfSnapFps','snapFps'],['perfHit','hit'],['perfPanFps','panFps']];
  binds.forEach(([id,key])=>{$(id).onchange=()=>{perf[key]=['dragFps','collisionFps','snapFps','panFps'].includes(key)?Number($(id).value):$(id).value;if(key==='pixelRatio')applyPerfPixelRatio();else if((key==='pattern')&&floor)drawObjects();updatePerfMetrics()}});
  $('perfPerfectDraw').onchange=()=>{perf.perfectDraw=$('perfPerfectDraw').checked;if(floor){drawObjects();drawCargos()}updatePerfMetrics()};
  $('perfShadow').onchange=()=>{perf.shadow=$('perfShadow').checked;if(floor)drawCargos();updatePerfMetrics()};
  $('perfZoomRaf').onchange=()=>perf.zoomRaf=$('perfZoomRaf').checked;
- $('perfReset').onclick=()=>{perf={...PERF_DEFAULTS};$('perfPixelRatio').value='auto';$('perfPerfectDraw').checked=true;$('perfShadow').checked=true;$('perfPattern').value='full';$('perfDragFps').value='60';$('perfCollisionFps').value='60';$('perfSnapFps').value='60';$('perfHit').value='normal';$('perfPanFps').value='60';$('perfZoomRaf').checked=false;applyPerfPixelRatio()};
+ $('perfReset').onclick=()=>{perf={...PERF_DEFAULTS};$('perfPixelRatio').value='auto';$('perfPerfectDraw').checked=false;$('perfShadow').checked=true;$('perfPattern').value='full';$('perfDragFps').value='60';$('perfCollisionFps').value='60';$('perfSnapFps').value='60';$('perfHit').value='normal';$('perfPanFps').value='60';$('perfZoomRaf').checked=false;applyPerfPixelRatio()};
  let last=performance.now(),frames=0;function meter(ts){frames++;const dt=ts-last;if(dt>=500){$('perfFps').textContent=Math.round(frames*1000/dt);$('perfFrame').textContent=(dt/frames).toFixed(1);frames=0;last=ts;updatePerfMetrics()}requestAnimationFrame(meter)}requestAnimationFrame(meter);
 }
 initStage();bindPerfPanel();
