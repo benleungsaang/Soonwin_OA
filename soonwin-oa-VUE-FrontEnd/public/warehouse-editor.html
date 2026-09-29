@@ -45,7 +45,8 @@ input:focus,select:focus{border-color:var(--red)}
 #konvaError{display:none;position:absolute;inset:0;z-index:100;background:#0d0d1a;align-items:center;justify-content:center;text-align:center;color:#fff;padding:40px}
 @media(max-width:1000px){#panel{width:360px;min-width:360px}}
 
-.settings-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.settings-option{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;width:100%;border:1px solid #354158;border-radius:9px;background:#172033;color:#8493a8;font-size:11px;white-space:nowrap;cursor:pointer}.settings-option.active{border-color:#4d96ff;background:rgba(77,150,255,.24);color:#e4f0ff}.settings-option:hover{filter:brightness(1.3)}.settings-option .setting-icon{font-size:16px;line-height:1}.settings-body .age-legend{grid-column:1/-1;margin:2px 0 0}
+.section-toggle{width:100%;border:0;background:transparent;text-align:left;cursor:pointer}.section-toggle .collapse-arrow{margin-left:auto;transition:transform .15s}.section.open .collapse-arrow{transform:rotate(180deg)}.settings .section-toggle{margin-bottom:0}.settings.open .section-toggle{margin-bottom:9px}.settings-body{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.settings.open .settings-body{display:grid}.settings-option{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;width:100%;border:1px solid #354158;border-radius:9px;background:#172033;color:#8493a8;font-size:11px;white-space:nowrap;cursor:pointer}.settings-option.active{border-color:#4d96ff;background:rgba(77,150,255,.24);color:#e4f0ff}.settings-option:hover{filter:brightness(1.3)}.settings-option .setting-icon{font-size:16px;line-height:1}.settings-body .age-legend{grid-column:1/-1;margin:2px 0 0}
+.floor-section .section-toggle{margin-bottom:8px}.floor-section.open .section-toggle{margin-bottom:9px}.floor-body{display:none}.floor-section.open .floor-body{display:block}.floor-compact{display:flex;flex-wrap:wrap;gap:6px}.floor-section.open .floor-compact{display:none}.floor-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #355578;border-radius:8px;background:#1d3853;color:#d8eafa;padding:5px 8px;font-size:11px}.floor-chip.size{background:#2b3156;border-color:#514a7d}.floor-chip.grid{background:#304337;border-color:#4d7051}
 .cargo-menu-wrap{position:relative;margin-left:0}.cargo-menu-btn{width:28px;height:28px;border-radius:8px;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:flex;align-items:center;justify-content:center;width:100%;border:0;color:#d9e1ea;text-align:center;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{filter:brightness(1.3)}
 .batchbar{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #303653;align-items:center;gap:7px;font-size:12px;color:#aeb8c5}.batchbar.on{display:flex}
 .ctx{display:none;position:fixed;z-index:120;width:180px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.ctx.open{display:block}.ctx button{display:block;width:100%;border:0;background:transparent;color:#e1e7ee;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.ctx button:hover{background:#28334e}.ctx .danger{color:#ff7b8d}
@@ -172,8 +173,8 @@ input:focus,select:focus{border-color:var(--red)}
     <h1>📦 库存位置 <small>2D Editor · V0.18</small></h1>
 
     <section class="section settings" id="settingsSec">
-      <div class="section-title">⚙ 设置</div>
-      <div class="settings-body">
+      <button class="section-title section-toggle" id="settingsHead" type="button" aria-expanded="false" aria-controls="settingsBody">⚙ 设置 <span class="collapse-arrow">▾</span></button>
+      <div class="settings-body" id="settingsBody">
         <button class="settings-option active" id="passObstaclesToggle" type="button" aria-pressed="true"><span class="setting-icon">🚧</span>临时穿越障碍</button>
         <button class="settings-option active" id="outsideToggle" type="button" aria-pressed="true"><span class="setting-icon">🌐</span>允许超出边界</button>
         <button class="settings-option active" id="overlapToggle" type="button" aria-pressed="true"><span class="setting-icon">📦</span>允许重叠货物</button>
@@ -187,8 +188,10 @@ input:focus,select:focus{border-color:var(--red)}
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-title">🏢 楼层管理 <span class="grow" id="floorSummary"></span></div>
+    <section class="section floor-section" id="floorSec">
+      <button class="section-title section-toggle" id="floorHead" type="button" aria-expanded="false" aria-controls="floorBody">🏢 楼层管理 <span class="collapse-arrow">▾</span></button>
+      <div class="floor-compact"><span class="floor-chip" id="floorSummary">暂无楼层</span><span class="floor-chip size" id="floorSizeCompact">—</span><span class="floor-chip grid" id="floorGridCompact">—</span></div>
+      <div class="floor-body" id="floorBody">
       <div class="row">
         <select id="floorSelect"></select>
         <div class="floor-menu-wrap"><button class="btn" id="floorManage">管理 ▾</button>
@@ -201,6 +204,7 @@ input:focus,select:focus{border-color:var(--red)}
       <div class="object-opacity-control" id="objectOpacityControl">
         <span class="k" style="font-size:11px;color:#8fa0b4">普通模式障碍物透明度</span>
         <div class="line"><input id="objectOpacityRange" type="range" min="0" max="100" value="30"><input id="objectOpacityNumber" type="number" min="0" max="100" value="30"><span style="font-size:11px;color:#9fb0c4">%</span></div>
+      </div>
       </div>
     </section>
     <section class="section cargo-section">
@@ -446,7 +450,7 @@ async function loadWarehouseMaps(){
  const floorActions=[...$('floorMenu').querySelectorAll('[data-floor-act]')];
  if(!warehouseMaps.length){
   floor=null;baseWarehouseSnapshot=null;stagedObjectDeletes=new Set();selected.clear();objectSelected.clear();undoStack=[];future=[];setDirty(false);
-  select.disabled=true;$('floorSummary').textContent='暂无楼层';$('floorSizeStat').textContent='—';$('floorGridStat').textContent='—';$('saveBtn').disabled=true;$('reportBtn').disabled=true;$('shipRecords').disabled=true;
+  select.disabled=true;$('floorSummary').textContent='暂无楼层';$('floorSizeCompact').textContent='尺寸 —';$('floorGridCompact').textContent='网格 —';$('floorSizeStat').textContent='—';$('floorGridStat').textContent='—';$('saveBtn').disabled=true;$('reportBtn').disabled=true;$('shipRecords').disabled=true;
   floorActions.forEach(button=>{button.style.display=button.dataset.floorAct==='create'?'':'none';button.disabled=button.dataset.floorAct!=='create'});
   return;
  }
@@ -723,7 +727,9 @@ function renderList(){
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function renderInfo(){
  if(!floor)return;
- $('floorSummary').textContent=floor.name;
+ $('floorSummary').textContent=`楼层 ${floor.name}`;
+ $('floorSizeCompact').textContent=`尺寸 ${floor.width.toLocaleString()}×${floor.length.toLocaleString()} mm`;
+ $('floorGridCompact').textContent=`网格 ${floor.cols}×${floor.rows}`;
  $('floorSizeStat').textContent=`${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm`;
  $('floorGridStat').textContent=`${floor.cols} × ${floor.rows}`;
  $('mapInfo').innerHTML=`<span class=l>楼层</span> <span class=v>${floor.name}</span><br><span class=l>尺寸</span> <span class=v>${floor.width.toLocaleString()} × ${floor.length.toLocaleString()} mm</span><br><span class=l>网格</span> <span class=v>${floor.cols} × ${floor.rows}</span><br><span class=l>Revision</span> <span class=v>${floor.revision}</span>`;
@@ -1314,6 +1320,8 @@ $('cargoList').addEventListener('contextmenu',e=>{
  showListBlankContext(e.clientX,e.clientY);
 });
 $('otherCargoList').addEventListener('contextmenu',e=>{if(e.target!==$('otherCargoList'))return;e.preventDefault();e.stopPropagation();cargoTargetOwner='OTHER';if(selected.size){clearSelection();return}showListBlankContext(e.clientX,e.clientY)});
+$('settingsHead').onclick=()=>{const open=$('settingsSec').classList.toggle('open');$('settingsHead').setAttribute('aria-expanded',String(open))};
+$('floorHead').onclick=()=>{const open=$('floorSec').classList.toggle('open');$('floorHead').setAttribute('aria-expanded',String(open))};
 document.querySelectorAll('.cargo-menu-btn').forEach(button=>button.onclick=e=>{e.stopPropagation();const menu=button.parentElement.querySelector('.cargo-menu');document.querySelectorAll('.cargo-menu').forEach(item=>{if(item!==menu)item.classList.remove('open')});menu.classList.toggle('open')});
 async function copyTextToClipboard(text){
  try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}
