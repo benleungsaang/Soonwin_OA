@@ -25,7 +25,6 @@ input,select{width:100%;background:var(--deep);color:#fff;border:1px solid var(-
 input:focus,select:focus{border-color:var(--red)}
 .btn{border:0;border-radius:18px;padding:6px 13px;background:var(--blue);color:#ddd;cursor:pointer;transition:.15s;white-space:nowrap}
 .btn:hover{background:#1a4a7a;color:#fff}.btn.primary{background:var(--red);color:#fff}.btn.primary:hover{background:#ff6b81}.btn.warn{color:#ffd93d;border:1px solid rgba(255,170,68,.35);background:rgba(255,170,68,.08)}
-.toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:#aeb8c5;cursor:pointer;user-select:none}.toggle input{width:14px;height:14px;accent-color:var(--red)}
 .search{position:relative}.search input{padding-right:58px}.search .count{position:absolute;right:8px;top:7px;font-size:11px;color:#718096}
 .cargo-section{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}.cargo-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px;min-height:0;flex:1 1 auto;padding-right:3px}
 .cargo-item{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;background:var(--deep);border-left:4px solid var(--c,#e94560);border-radius:6px;padding:7px 8px;gap:2px 8px;cursor:pointer;transition:.15s}
@@ -46,7 +45,7 @@ input:focus,select:focus{border-color:var(--red)}
 #konvaError{display:none;position:absolute;inset:0;z-index:100;background:#0d0d1a;align-items:center;justify-content:center;text-align:center;color:#fff;padding:40px}
 @media(max-width:1000px){#panel{width:360px;min-width:360px}}
 
-.settings-head{margin-bottom:0!important;cursor:pointer;user-select:none}.settings-body{display:none;padding-top:10px}.settings.open .settings-body{display:block}.settings-arrow{margin-left:auto;transition:.15s}.settings.open .settings-arrow{transform:rotate(180deg)}
+.settings-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.settings-option{display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;width:100%;border:1px solid #354158;border-radius:9px;background:#172033;color:#8493a8;font-size:11px;white-space:nowrap;cursor:pointer}.settings-option.active{border-color:#4d96ff;background:rgba(77,150,255,.24);color:#e4f0ff}.settings-option:hover{filter:brightness(1.3)}.settings-option .setting-icon{font-size:16px;line-height:1}.settings-body .age-legend{grid-column:1/-1;margin:2px 0 0}
 .cargo-menu-wrap{position:relative;margin-left:0}.cargo-menu-btn{width:28px;height:28px;border-radius:8px;border:1px solid #40516c;background:#101833;color:#fff;cursor:pointer;font-size:18px}.cargo-menu{display:none;position:absolute;right:0;top:34px;width:170px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;z-index:80;box-shadow:0 12px 32px rgba(0,0,0,.55)}.cargo-menu.open{display:block}.cargo-menu button{display:flex;align-items:center;justify-content:center;width:100%;border:0;color:#d9e1ea;text-align:center;padding:8px 10px;border-radius:6px;cursor:pointer}.cargo-menu button:hover{filter:brightness(1.3)}
 .batchbar{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #303653;align-items:center;gap:7px;font-size:12px;color:#aeb8c5}.batchbar.on{display:flex}
 .ctx{display:none;position:fixed;z-index:120;width:180px;background:#15152f;border:1px solid #2a2a5e;border-radius:9px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.6)}.ctx.open{display:block}.ctx button{display:block;width:100%;border:0;background:transparent;color:#e1e7ee;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer}.ctx button:hover{background:#28334e}.ctx .danger{color:#ff7b8d}
@@ -63,7 +62,6 @@ input:focus,select:focus{border-color:var(--red)}
 
 .panel-footer{flex:0 0 auto}
 .floor-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.floor-stat{border-radius:9px;padding:8px 10px;font-size:11px}.floor-stat .k{color:#8fa0b4;display:block;margin-bottom:3px}.floor-stat .v{font:12px Consolas;color:#fff}.floor-stat.size{background:rgba(15,52,96,.55)}.floor-stat.grid{background:rgba(88,56,120,.42)}
-.settings-body .toggle{padding:8px 10px;border-radius:8px;margin-top:7px}.settings-body .toggle:nth-of-type(1){background:rgba(15,52,96,.42)}.settings-body .toggle:nth-of-type(2){background:rgba(88,56,120,.38)}.settings-body .toggle:nth-of-type(3){background:rgba(80,90,55,.34)}.settings-body .toggle:nth-of-type(4){background:rgba(105,65,35,.34)}.settings-body .toggle:nth-of-type(5){background:rgba(65,90,90,.30)}
 .cargo-item.other.locked{filter:none!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important}.cargo-item.other:not(.locked){filter:none!important;background:#454a52!important;border-left-color:#6f7680!important;color:#f0f1f2!important}.cargo-item.locked{filter:grayscale(1)!important;background:#2a2d33!important;border-left-color:#a8adb5!important;color:#c5c8cd!important;opacity:.78}.cargo-item.locked .name,.cargo-item.locked .meta{color:#c5c8cd!important}.cargo-item.locked .dot{background:#a8adb5!important}
 .cargo-item.other.locked .dot{background:#a8adb5!important}.cargo-item.other:not(.locked) .dot{background:#6f7680!important}.panel-footer .row{gap:8px}.ship-record-btn{border:1px solid #40516c;background:#101833;color:#cbd5e1}
 .import-template-btn{border-color:#16803c!important;background:#16803c!important;color:#fff!important}.import-template-btn:hover{background:#126b32!important}
@@ -173,6 +171,22 @@ input:focus,select:focus{border-color:var(--red)}
   <aside id="panel">
     <h1>📦 库存位置 <small>2D Editor · V0.18</small></h1>
 
+    <section class="section settings" id="settingsSec">
+      <div class="section-title">⚙ 设置</div>
+      <div class="settings-body">
+        <button class="settings-option active" id="passObstaclesToggle" type="button" aria-pressed="true"><span class="setting-icon">🚧</span>临时穿越障碍</button>
+        <button class="settings-option active" id="outsideToggle" type="button" aria-pressed="true"><span class="setting-icon">🌐</span>允许超出边界</button>
+        <button class="settings-option active" id="overlapToggle" type="button" aria-pressed="true"><span class="setting-icon">📦</span>允许重叠货物</button>
+        <button class="settings-option" id="ageMode" type="button" aria-pressed="false"><span class="setting-icon">📅</span>检查货物存期</button>
+        <div class="age-legend" id="ageLegend">
+          <div class="legend-row"><span class="legend-swatch l1"></span>0–15 天</div>
+          <div class="legend-row"><span class="legend-swatch l2"></span>16–30 天</div>
+          <div class="legend-row"><span class="legend-swatch l3"></span>31–45 天</div>
+          <div class="legend-row"><span class="legend-swatch l4"></span>45 天以上</div>
+        </div>
+      </div>
+    </section>
+
     <section class="section">
       <div class="section-title">🏢 楼层管理 <span class="grow" id="floorSummary"></span></div>
       <div class="row">
@@ -189,23 +203,6 @@ input:focus,select:focus{border-color:var(--red)}
         <div class="line"><input id="objectOpacityRange" type="range" min="0" max="100" value="30"><input id="objectOpacityNumber" type="number" min="0" max="100" value="30"><span style="font-size:11px;color:#9fb0c4">%</span></div>
       </div>
     </section>
-<section class="section settings" id="settingsSec">
-  <div class="section-title settings-head" id="settingsHead">⚙ 设置 <span class="grow">点击展开</span><span class="settings-arrow">▾</span></div>
-  <div class="settings-body">
-    <label class="toggle"><input type="checkbox" id="passObstaclesToggle">临时穿过障碍物</label>
-    <label class="toggle"><input type="checkbox" id="outsideToggle">允许超出边界</label>
-    <label class="toggle"><input type="checkbox" id="overlapToggle">允许重叠货物</label>
-    <label class="toggle"><input type="checkbox" id="ageMode">检查货物存放时长</label>
-    <div class="age-legend" id="ageLegend">
-      <div class="legend-row"><span class="legend-swatch l1"></span>0–15 天</div>
-      <div class="legend-row"><span class="legend-swatch l2"></span>16–30 天</div>
-      <div class="legend-row"><span class="legend-swatch l3"></span>31–45 天</div>
-      <div class="legend-row"><span class="legend-swatch l4"></span>45 天以上</div>
-    </div>
-    <label class="toggle"><input type="checkbox" id="snapToggle" checked>辅助吸附</label>
-  </div>
-</section>
-
     <section class="section cargo-section">
       <div class="section-title cargo-group-head" id="ownCargoHead"><span class="cargo-group-name" id="listTitle">📋 库存货物</span><div class="cargo-head-actions"><button class="btn exit-object-btn" id="exitObjectList">退出障碍物模式</button>
         <div class="cargo-menu-wrap" data-owner="OVERSEAS"><button class="cargo-menu-btn" id="cargoMenuBtn" data-owner="OVERSEAS" title="库存货物菜单">⚙</button>
@@ -497,7 +494,7 @@ const cellName=(c)=>{
  return best||'OUTSIDE';
 };
 const ageColor=c=>{
- if(!$('ageMode').checked||c.owner==='OTHER')return c.color;
+ if(!$('ageMode').classList.contains('active')||c.owner==='OTHER')return c.color;
  const days=Math.max(0,(Date.now()-new Date(c.stock+'T00:00:00').getTime())/86400000);
  if(days<30)return '#ffd6d6'; if(days<60)return '#ff9f9f'; if(days<120)return '#f45b69'; return '#b4233c';
 };
@@ -561,22 +558,21 @@ function drawObjects(){
 function collision(candidate,ignoreIds){
  const d=dims(candidate), a={x:candidate.x,y:candidate.y,w:d.w,h:d.h};
  const outside=a.x<0||a.y<0||a.x+a.w>floor.width||a.y+a.h>floor.length;
- if(!$('outsideToggle').checked && outside){
+ if(!$('outsideToggle').classList.contains('active') && outside){
   const old=floor.cargos.find(x=>x.id===candidate.id),od=old?dims(old):null;
   const oldOutside=old?(old.x<0||old.y<0||old.x+od.w>floor.width||old.y+od.h>floor.length):false;
   if(!oldOutside)return true;
  }
- for(const o of ( $('passObstaclesToggle').checked?[]:floor.objects.filter(x=>x.blocks) )){
+ for(const o of ( $('passObstaclesToggle').classList.contains('active')?[]:floor.objects.filter(x=>x.blocks) )){
   if(a.x<o.x+o.w&&a.x+a.w>o.x&&a.y<o.y+o.h&&a.y+a.h>o.y)return true;
  }
- if(!$('overlapToggle').checked)for(const c of floor.cargos){
+ if(!$('overlapToggle').classList.contains('active'))for(const c of floor.cargos){
   if(ignoreIds.has(c.id)||!visibleCargo(c))continue; const b=dims(c);
   if(a.x<c.x+b.w&&a.x+a.w>c.x&&a.y<c.y+b.h&&a.y+a.h>c.y)return true;
  }
  return false;
 }
 function snapPos(c,x,y,excludedIds=new Set([c.id])){
- if(!$('snapToggle').checked)return{x,y};
  const d=dims(c),thr=9/scale; let xs=[0,floor.width-d.w],ys=[0,floor.length-d.h];
  for(let i=0;i<=floor.cols;i++)xs.push(i*cellW(),i*cellW()-d.w);
  for(let i=0;i<=floor.rows;i++)ys.push(i*cellH(),i*cellH()-d.h);
@@ -594,13 +590,13 @@ function renderSelection(){if(objectMode){cargoLayer.destroyChildren();cargoLaye
 function rectOf(c,x=c.x,y=c.y){const d=dims(c);return{x,y,w:d.w,h:d.h}}
 function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function blockersFor(movingIds){
- const out=($('passObstaclesToggle').checked?[]:floor.objects.filter(o=>o.blocks!==false)).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
- if(!$('overlapToggle').checked)floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
+ const out=($('passObstaclesToggle').classList.contains('active')?[]:floor.objects.filter(o=>o.blocks!==false)).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
+ if(!$('overlapToggle').classList.contains('active'))floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
  return out;
 }
 function clampAxis(c,fromX,fromY,toX,toY,axis,blocks){
  const d=dims(c); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
- if(!$('outsideToggle').checked){
+ if(!$('outsideToggle').classList.contains('active')){
    if(axis==='x'){x=Math.max(0,Math.min(floor.width-d.w,x))}
    else{y=Math.max(0,Math.min(floor.length-d.h,y))}
  }
@@ -624,7 +620,7 @@ function constrainedDelta(starts,rawDx,rawDy,blocks,movingIds){
  return{dx,dy};
 }
 function snapCargoGroup(starts,delta,movingIds,blocks){
- if(!$('snapToggle').checked||!starts.size)return delta;
+ if(!starts.size)return delta;
  const anchor=starts.values().next().value,point=snapPos(anchor.cargo,anchor.x+delta.dx,anchor.y+delta.dy,movingIds),snapped={dx:point.x-anchor.x,dy:point.y-anchor.y};
  if(snapped.dx===delta.dx&&snapped.dy===delta.dy)return delta;
  const valid=constrainedDelta(starts,snapped.dx,snapped.dy,blocks,movingIds);if(Math.abs(valid.dx-snapped.dx)>.01||Math.abs(valid.dy-snapped.dy)>.01)return delta;
@@ -969,11 +965,11 @@ window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidt
 }
 $('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
 ['showOwn','lockOwn','showOther','lockOther'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}renderAll()});
-['ageMode','snapToggle','overlapToggle','outsideToggle','passObstaclesToggle'].forEach(id=>$(id).onchange=()=>{if(id==='ageMode')$('ageLegend').classList.toggle('on',$('ageMode').checked);renderAll()});
+['passObstaclesToggle','outsideToggle','overlapToggle','ageMode'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));if(id==='ageMode')$('ageLegend').classList.toggle('on',active);renderAll()});
 
 function reportXml(s){return esc(s)}
 function reportAgeColor(c){
- if(!$('ageMode').checked||c.owner==='OTHER')return c.owner==='OTHER'?'#8b929b':c.color;
+ if(!$('ageMode').classList.contains('active')||c.owner==='OTHER')return c.owner==='OTHER'?'#8b929b':c.color;
  const days=Math.max(0,(Date.now()-new Date(c.stock+'T00:00:00').getTime())/86400000);
  if(days<=15)return '#ffe1e1';if(days<=30)return '#ffadad';if(days<=45)return '#ff6868';return '#b91c3c';
 }
@@ -1318,7 +1314,6 @@ $('cargoList').addEventListener('contextmenu',e=>{
  showListBlankContext(e.clientX,e.clientY);
 });
 $('otherCargoList').addEventListener('contextmenu',e=>{if(e.target!==$('otherCargoList'))return;e.preventDefault();e.stopPropagation();cargoTargetOwner='OTHER';if(selected.size){clearSelection();return}showListBlankContext(e.clientX,e.clientY)});
-$('settingsHead').onclick=()=>$('settingsSec').classList.toggle('open');
 document.querySelectorAll('.cargo-menu-btn').forEach(button=>button.onclick=e=>{e.stopPropagation();const menu=button.parentElement.querySelector('.cargo-menu');document.querySelectorAll('.cargo-menu').forEach(item=>{if(item!==menu)item.classList.remove('open')});menu.classList.toggle('open')});
 async function copyTextToClipboard(text){
  try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}
