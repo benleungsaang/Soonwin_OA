@@ -11,6 +11,7 @@
 html,body,#app{width:100%;height:100%;overflow:hidden}
 body{font-family:'Segoe UI','PingFang SC',Roboto,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--text)}
 button,input,select{font:inherit}
+#toastStack{position:fixed;right:20px;top:18px;z-index:300;display:flex;flex-direction:column;gap:9px;width:min(390px,calc(100vw - 40px));pointer-events:none}.toast{display:flex;align-items:flex-start;gap:9px;padding:11px 12px;border:1px solid;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.3);backdrop-filter:blur(10px);pointer-events:auto;animation:toast-in .18s ease-out}.toast-icon{font-size:16px;line-height:1.35}.toast-text{flex:1;font-size:13px;line-height:1.5}.toast-close{border:0;background:transparent;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:1px 0 1px 6px}.toast.success{background:rgba(20,83,45,.94);border-color:#4ade80;color:#dcfce7}.toast.info{background:rgba(20,63,99,.94);border-color:#67b7ef;color:#e0f2fe}.toast.warning{background:rgba(113,72,9,.95);border-color:#fbbf24;color:#fef3c7}.toast.danger{background:rgba(127,29,29,.95);border-color:#fb7185;color:#ffe4e6}@keyframes toast-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 #app{display:flex}
 #panel{width:420px;min-width:420px;height:100vh;background:var(--panel);border-right:2px solid var(--blue);padding:18px;overflow:hidden;display:flex;flex-direction:column;gap:12px;z-index:20}
 #panel::-webkit-scrollbar,.cargo-list::-webkit-scrollbar{width:4px}#panel::-webkit-scrollbar-thumb,.cargo-list::-webkit-scrollbar-thumb{background:var(--blue);border-radius:4px}
@@ -169,6 +170,7 @@ input:focus,select:focus{border-color:var(--red)}
 </style>
 </head>
 <body>
+<div id="toastStack" aria-live="polite" aria-relevant="additions"></div>
 <div id="app">
   <aside id="panel">
     <h1>📦 库存位置 <small>2D Editor · V0.18</small></h1>
@@ -435,6 +437,12 @@ const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:false,shadow:true,transforms:
 let perf={...PERF_DEFAULTS},perfTiming={drag:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
 let lastDragUpdate=0,dragIntervals=[];
 const $=id=>document.getElementById(id);
+function notify(message,level='info'){
+ const stack=$('toastStack'),toast=document.createElement('div'),icon={success:'✓',info:'i',warning:'!',danger:'✕'}[level]||'i';
+ toast.className=`toast ${level}`;toast.setAttribute('role',level==='danger'?'alert':'status');
+ const iconEl=document.createElement('span'),text=document.createElement('span'),close=document.createElement('button');iconEl.className='toast-icon';iconEl.textContent=icon;text.className='toast-text';text.textContent=String(message);close.className='toast-close';close.type='button';close.setAttribute('aria-label','关闭提示');close.textContent='×';close.onclick=()=>toast.remove();toast.append(iconEl,text,close);stack.appendChild(toast);
+ window.setTimeout(()=>toast.remove(),level==='danger'?7000:4200);
+}
 const warehouseToken=()=>localStorage.getItem('oa_token');
 async function warehouseApi(path,options={}){
  const token=warehouseToken();
@@ -473,7 +481,7 @@ async function deleteWarehouseMap(){
  try{
   await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}`,{method:'DELETE'});
   await loadWarehouseMaps();
- }catch(error){console.error('[warehouse] delete map failed',error);alert(error.message||'删除楼层失败')}
+ }catch(error){console.error('[warehouse] delete map failed',error);notify(error.message||'删除楼层失败','danger')}
 }
 function warehouseSavePayload(){
  const baseItems=new Map((baseWarehouseSnapshot?.cargos||[]).map(item=>[String(item.id),item])),baseObjects=new Map((baseWarehouseSnapshot?.objects||[]).map(object=>[String(object.id),object]));
@@ -488,9 +496,9 @@ function warehouseSavePayload(){
  return {base_revision:baseWarehouseSnapshot.revision,map:mapChanged?{name:floor.name,width_mm:floor.width,length_mm:floor.length,grid_columns:floor.cols,grid_rows:floor.rows}:{},items:{created,updated,deleted:deleted.map(Number),outbound,restore:[...stagedRestoreIds].map(Number)},objects:{created:objectCreated,updated:objectUpdated,deleted:objectDeleted.map(Number)}};
 }
 async function saveWarehouse(){
- if(!floor){alert('当前暂无楼层，请先创建楼层。');return}
- try{const result=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/save`,{method:'PUT',body:JSON.stringify(warehouseSavePayload())});applyWarehouseSnapshot(result);alert('库存平面图已保存');}
- catch(error){if(error.status===409)alert('当前楼层已被其他用户修改，请重新加载后再保存。当前本地修改仍保留。');else{console.error('[warehouse] save failed',error);alert(error.message||'保存失败')}}
+ if(!floor){notify('当前暂无楼层，请先创建楼层。','warning');return}
+ try{const result=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/save`,{method:'PUT',body:JSON.stringify(warehouseSavePayload())});applyWarehouseSnapshot(result);notify('库存平面图已保存','success');}
+ catch(error){if(error.status===409)notify('当前楼层已被其他用户修改，请重新加载后再保存。当前本地修改仍保留。','danger');else{console.error('[warehouse] save failed',error);notify(error.message||'保存失败','danger')}}
 }
 const visibleCargo=c=>c.status!=='SHIPPED'&&(c.owner==='OTHER'?$('showOther').classList.contains('active'):$('showOwn').classList.contains('active')); const cargoLocked=c=>c.owner==='OTHER' ? $('lockOther').classList.contains('active') : $('lockOwn').classList.contains('active');
 const dims=c=>c.r%180===0?{w:c.l,h:c.w}:{w:c.w,h:c.l};
@@ -835,7 +843,7 @@ function openObjectModal(id=null){
  $('oPosDisplay').textContent='位置 '+(o?cellName({x:o.x,y:o.y}):'A1（默认）');$('oName').value=o?o.name:'';$('oL').value=o?o.w:1000;$('oW').value=o?o.h:1000;$('oType').value=o?o.type:'OTHER';$('oBlocks').checked=o?o.blocks:true;$('oShowText').checked=o?o.showText:false;$('oPattern').value=o?o.pattern:'solid';$('oColor').value=o?(o.color||'#687386'):'#687386';$('objectModal').classList.add('open')
 }
 function saveObject(){
- const name=$('oName').value.trim(),w=+$('oL').value,h=+$('oW').value;if(!name||w<=0||h<=0)return alert('请填写有效的名称和尺寸。');pushHistory();
+ const name=$('oName').value.trim(),w=+$('oL').value,h=+$('oW').value;if(!name||w<=0||h<=0)return notify('请填写有效的名称和尺寸。','warning');pushHistory();
  if(objectEditId){Object.assign(floor.objects.find(x=>x.id===objectEditId),{name,w,h,type:$('oType').value,blocks:$('oBlocks').checked,showText:$('oShowText').checked,pattern:$('oPattern').value,color:$('oColor').value})}
  else{const o={id:'o'+Date.now(),name,w,h,x:0,y:0,type:$('oType').value,blocks:$('oBlocks').checked,showText:$('oShowText').checked,pattern:$('oPattern').value,color:$('oColor').value};floor.objects.push(o);objectSelected.clear();objectSelected.add(o.id)}
  setDirty(true);$('objectModal').classList.remove('open');renderAll()
@@ -854,13 +862,13 @@ function parseObjectImport(){
 }
 function openColumns(){$('columnsModal').classList.add('open')}
 function addColumns(){
- const w=+$('colL').value,h=+$('colW').value;if(w<=0||h<=0)return alert('请输入有效的柱尺寸。');
+ const w=+$('colL').value,h=+$('colW').value;if(w<=0||h<=0)return notify('请输入有效的柱尺寸。','warning');
  const points=[];for(let r=0;r<=floor.rows;r++)for(let c=0;c<=floor.cols;c++){
    const cx=c*cellW(),cy=r*cellH();
    const occupied=floor.objects.some(o=>o.type==='COLUMN'&&Math.abs((o.x+o.w/2)-cx)<1&&Math.abs((o.y+o.h/2)-cy)<1);
    if(!occupied)points.push({cx,cy});
  }
- if(!points.length)return alert('当前所有网格交叉点都已有柱。');
+ if(!points.length)return notify('当前所有网格交叉点都已有柱。','warning');
  pushHistory();const stamp=Date.now();points.forEach((p,i)=>floor.objects.push({id:'col'+stamp+'_'+i,name:'柱 '+(floor.objects.length+1),w,h,x:p.cx-w/2,y:p.cy-h/2,type:'COLUMN',pattern:'solid',blocks:true,showText:false,color:'#687386'}));
  setDirty(true);$('columnsModal').classList.remove('open');renderAll()
 }
@@ -882,7 +890,7 @@ function alignSelectedCargos(axis){
  const positions=new Map(cargos.map(c=>{const d=dims(c);return[c.id,{x:axis==='x'?Math.round(center-d.w/2):c.x,y:axis==='y'?Math.round(center-d.h/2):c.y}]}));
  if(cargos.every(c=>{const p=positions.get(c.id);return c.x===p.x&&c.y===p.y}))return;
  const invalid=cargos.some(c=>collision({...c,...positions.get(c.id)},selected))||(!$('overlapToggle').classList.contains('active')&&cargos.some((c,i)=>cargos.slice(i+1).some(other=>{const a=positions.get(c.id),b=positions.get(other.id);return overlaps(rectOf(c,a.x,a.y),rectOf(other,b.x,b.y))})));
- if(invalid){alert('对齐后会超出边界或与障碍物、货物重叠，请检查当前设置。');return}
+ if(invalid){notify('对齐后会超出边界或与障碍物、货物重叠，请检查当前设置。','danger');return}
  pushHistory();cargos.forEach(c=>Object.assign(c,positions.get(c.id)));setDirty(true);renderAll();
 }
 function rotate(){
@@ -908,7 +916,7 @@ function paste(){
 */
 function switchFloor(){
  if(dirty&&!confirm('当前有未保存的位置修改。放弃修改并切换楼层？')){$('floorSelect').value=floor.id;return}
- loadWarehouseMap(Number($('floorSelect').value)).catch(error=>{console.error('[warehouse] load map failed',error);alert(error.message||'楼层加载失败')})
+ loadWarehouseMap(Number($('floorSelect').value)).catch(error=>{console.error('[warehouse] load map failed',error);notify(error.message||'楼层加载失败','danger')})
 }
 function schedulePan(p){
  pendingPanPointer={...p};if(panRaf)return;
@@ -1126,7 +1134,7 @@ function openInventoryReport(){
    .sheet:last-child{break-after:auto;page-break-after:auto}
  }
  </style></head><body><div class="bar"><button onclick="window.print()">打印 / 另存为 PDF</button></div><div id="printRoot"></div></body></html>`;
- const win=window.open('','_blank');if(!win){alert('浏览器阻止了报告窗口，请允许此页面打开新窗口。');return}
+ const win=window.open('','_blank');if(!win){notify('浏览器阻止了报告窗口，请允许此页面打开新窗口。','warning');return}
  win.document.open();win.document.write(html);win.document.close();
 
  // 与正式报告完全相同的隐藏 A4 页：让浏览器先排版，再读取左右两个表格区域的真实高度。
@@ -1231,7 +1239,7 @@ function openBatchCargoEdit(){
 }
 function applyBatchCargoEdit(){
  const ids=selectedCargoIds(),name=$('bcName').value.trim(),l=$('bcL').value,w=$('bcW').value,h=$('bcH').value,date=$('bcDate').value,remark=$('bcRemark').value.trim(),owner=$('bcOwner').value,useColor=$('bcUseColor').checked,color=$('bcColor').value,changes=[];
- if(l&&+l<=0||w&&+w<=0)return alert('尺寸必须大于 0。');
+ if(l&&+l<=0||w&&+w<=0)return notify('尺寸必须大于 0。','warning');
  if(name)changes.push('名称 = '+name);if(l)changes.push('长度 = '+l+' mm');if(w)changes.push('宽度 = '+w+' mm');if(date)changes.push('入库日期 = '+date);if(remark)changes.push('备注 = '+remark);if(owner)changes.push('所属 = '+(owner==='OVERSEAS'?'海外部':'其它'));if(useColor)changes.push('颜色 = '+color);
  if(!changes.length)return $('batchCargoEditModal').classList.remove('open');
  askConfirm('确认统一修改',`确定给选中的 ${ids.length} 件货物统一分配以下参数：\n${changes.join('\n')}\n\n未填写的参数保持各货物原值。`,()=>{
@@ -1247,7 +1255,7 @@ function openBatchObjectEdit(){
 }
 function applyBatchObjectEdit(){
  const ids=selectedObjectIds(),name=$('boName').value.trim(),w=$('boL').value,h=$('boW').value,type=$('boType').value,pattern=$('boPattern').value,show=$('boShowText').value,blocks=$('boBlocks').value,useColor=$('boUseColor').checked,color=$('boColor').value,changes=[];
- if(w&&+w<=0||h&&+h<=0)return alert('尺寸必须大于 0。');
+ if(w&&+w<=0||h&&+h<=0)return notify('尺寸必须大于 0。','warning');
  if(name)changes.push('名称 = '+name);if(w)changes.push('长度 = '+w+' mm');if(h)changes.push('宽度 = '+h+' mm');if(type)changes.push('类型 = '+type);if(pattern)changes.push('底纹 = '+pattern);if(show)changes.push('显示名称 = '+(show==='true'?'是':'否'));if(blocks)changes.push('阻挡货物 = '+(blocks==='true'?'是':'否'));if(useColor)changes.push('颜色 = '+color);
  if(!changes.length)return $('batchObjectEditModal').classList.remove('open');
  askConfirm('确认统一修改',`确定给选中的 ${ids.length} 个障碍物统一分配以下参数：\n${changes.join('\n')}\n\n未填写的参数保持各障碍物原值。`,()=>{
@@ -1272,7 +1280,7 @@ function openCargoModal(id=null,owner='OVERSEAS'){
 }
 function posXY(v){const m=/^([A-Z])(\d+)$/i.exec(v.trim());return m?{x:(m[1].toUpperCase().charCodeAt(0)-65)*cellW(),y:(+m[2]-1)*cellH()}:{x:0,y:0}}
 function saveCargoModal(){
- const name=$('mName').value.trim(),l=+$('mL').value,w=+$('mW').value,height_mm=+$('mH').value;if(!name||l<=0||w<=0||height_mm<=0)return alert('请填写有效的货物名称和长、宽、高尺寸。');
+ const name=$('mName').value.trim(),l=+$('mL').value,w=+$('mW').value,height_mm=+$('mH').value;if(!name||l<=0||w<=0||height_mm<=0)return notify('请填写有效的货物名称和长、宽、高尺寸。','warning');
  pushHistory();
  if(editId){const c=floor.cargos.find(q=>q.id===editId);Object.assign(c,{name,l,w,height_mm,stock:$('mDate').value||today(),owner:$('mOwner').value,remark:$('mRemark').value,color:$('mColor').value});}
  else{const c={id:'c'+Date.now(),name,l,w,height_mm,x:0,y:0,r:0,owner:cargoTargetOwner,color:$('mColor').value,stock:$('mDate').value||today(),remark:$('mRemark').value,status:'ACTIVE'};floor.cargos.push(c);selected.clear();if(!cargoLocked(c))selected.add(c.id);}
@@ -1306,7 +1314,7 @@ async function renderShipRecords(){
   const shipped=await warehouseApi(`/api/warehouse/maps/${floor.dbId||floor.id}/shipments`);
   const activeIds=new Set(floor.cargos.map(c=>String(c.id)));
   shipped.map(toEditorItem).forEach(item=>{if(!activeIds.has(String(item.id)))floor.cargos.push(item)});
- }catch(error){console.error('[warehouse] shipments load failed',error);alert(error.message||'出库记录加载失败');return}
+ }catch(error){console.error('[warehouse] shipments load failed',error);notify(error.message||'出库记录加载失败','danger');return}
  const arr=floor.cargos.filter(c=>c.status==='SHIPPED').sort((a,b)=>(b.shipped_date||'').localeCompare(a.shipped_date||''));
  [...shipRecordSelected].forEach(id=>{if(!arr.some(c=>c.id===id))shipRecordSelected.delete(id)});
  $('shipRecordsList').innerHTML=arr.length?arr.map(c=>{
@@ -1395,8 +1403,8 @@ async function copyTextToClipboard(text){
  const field=document.createElement('textarea');field.value=text;field.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(field);field.focus();field.select();let copied=false;try{copied=document.execCommand('copy')}catch{}field.remove();return copied;
 }
 const importTemplate='名称\t尺寸\t位置\t入库时间\t备注\n货物1\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物2\t1200x800x1500\tA1\t20260928\tSW26-1127\n货物3\t1200x800x1500\tA1\t20260928\tSW26-1127';
-$('importCopyTemplate').onclick=async()=>{const copied=await copyTextToClipboard(importTemplate);alert(copied?'已复制三条带表头的导入模板，可粘贴到 Excel 修改。':'复制失败，请检查浏览器剪贴板权限。')};
-function copyCargoList(owner){const cargos=floor.cargos.filter(c=>c.status!=='SHIPPED'&&(c.owner==='OTHER'?'OTHER':'OVERSEAS')===owner),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>alert(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。'))}
+$('importCopyTemplate').onclick=async()=>{const copied=await copyTextToClipboard(importTemplate);notify(copied?'已复制三条带表头的导入模板，可粘贴到 Excel 修改。':'复制失败，请检查浏览器剪贴板权限。',copied?'success':'warning')};
+function copyCargoList(owner){const cargos=floor.cargos.filter(c=>c.status!=='SHIPPED'&&(c.owner==='OTHER'?'OTHER':'OVERSEAS')===owner),text=['名称\t尺寸\t位置\t入库时间\t备注',...cargos.map(c=>`${c.name}\t${c.l}x${c.w}x${c.height_mm||1000}\t${cellName(c)}\t${c.stock||''}\t${c.remark||''}`)].join('\n');copyTextToClipboard(text).then(copied=>notify(copied?'已复制当前货物清单。':'复制失败，请检查浏览器剪贴板权限。',copied?'success':'warning'))}
 function openCargoImport(owner){importTargetOwner=owner;$('importText').value='';$('importErrors').innerHTML='';$('importText').classList.remove('has-error');$('importModal').classList.add('open')}
 function handleCargoMenu(e){const a=e.target.closest('button[data-act]')?.dataset.act;if(!a)return;hideContext();const owner=e.currentTarget.dataset.owner;if(a==='add')openCargoModal(null,owner);if(a==='import')openCargoImport(owner);if(a==='copylist')copyCargoList(owner);
  if(a==='addobj')openObjectModal();
@@ -1484,7 +1492,7 @@ $('floorMenu').onclick=e=>{
 };
 $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').onclick=async()=>{
  const w=+$('fW').value,l=+$('fL').value,co=+$('fCols').value,ro=+$('fRows').value,name=$('fName').value.trim();
- if(!name||w<=0||l<=0||co<1||ro<1)return alert('请填写有效的楼层名称、尺寸和网格数量。');
+ if(!name||w<=0||l<=0||co<1||ro<1)return notify('请填写有效的楼层名称、尺寸和网格数量。','warning');
  if(floorModalMode==='edit'){pushHistory();Object.assign(floor,{name,width:w,length:l,cols:Math.floor(co),rows:Math.floor(ro)});setDirty(true);}
  else if(floorModalMode==='copy'){
   let created=null,copied=false;
@@ -1495,14 +1503,14 @@ $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').oncl
    copied=true;$('floorModal2').classList.remove('open');await loadWarehouseMaps();await loadWarehouseMap(Number(created.id));
   }catch(error){
    console.error('[warehouse] copy map failed',error);
-   if(created&&!copied){try{await warehouseApi(`/api/warehouse/maps/${created.id}`,{method:'DELETE'})}catch(cleanupError){console.error('[warehouse] copy cleanup failed',cleanupError);alert('复制失败，且新楼层清理失败，请在楼层列表中检查。');return}}
-   alert(copied?'楼层已复制，但加载副本失败，请从楼层列表选择。':error.message||'复制楼层失败');
+   if(created&&!copied){try{await warehouseApi(`/api/warehouse/maps/${created.id}`,{method:'DELETE'})}catch(cleanupError){console.error('[warehouse] copy cleanup failed',cleanupError);notify('复制失败，且新楼层清理失败，请在楼层列表中检查。','danger');return}}
+   notify(copied?'楼层已复制，但加载副本失败，请从楼层列表选择。':error.message||'复制楼层失败','danger');
   }finally{$('fOk').disabled=false}
   return;
  }
  else{
    try{const created=await warehouseApi('/api/warehouse/maps',{method:'POST',body:JSON.stringify({name,width_mm:w,length_mm:l,grid_columns:Math.floor(co),grid_rows:Math.floor(ro)})});$('floorModal2').classList.remove('open');await loadWarehouseMaps();await loadWarehouseMap(Number(created.id));return}
-   catch(error){console.error('[warehouse] create map failed',error);alert(error.message||'创建楼层失败');return}
+   catch(error){console.error('[warehouse] create map failed',error);notify(error.message||'创建楼层失败','danger');return}
  }
  $('floorModal2').classList.remove('open');fit();renderAll();
 };
@@ -1532,7 +1540,7 @@ function bindPerfPanel(){
  let last=performance.now(),frames=0;function meter(ts){frames++;const dt=ts-last;if(dt>=500){$('perfFps').textContent=Math.round(frames*1000/dt);$('perfFrame').textContent=(dt/frames).toFixed(1);frames=0;last=ts;updatePerfMetrics()}requestAnimationFrame(meter)}requestAnimationFrame(meter);
 }
 initStage();bindPerfPanel();
-loadWarehouseMaps().catch(error=>{console.error('[warehouse] bootstrap failed',error);alert(error.message||'Warehouse 数据加载失败')});
+loadWarehouseMaps().catch(error=>{console.error('[warehouse] bootstrap failed',error);notify(error.message||'Warehouse 数据加载失败','danger')});
 })();
 </script>
 </body>
