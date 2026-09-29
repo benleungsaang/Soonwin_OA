@@ -251,8 +251,8 @@ input:focus,select:focus{border-color:var(--red)}
       <span class="divider"></span>
       <button class="tb" id="rotateBtn">🔄 水平旋转</button>
       <button class="tb" id="copyBtn">⧉ 复制货物</button>
-      <button class="tb align-cargo" id="alignHorizontalBtn" title="统一所选货物的水平中心位置">↔ 水平居中</button>
-      <button class="tb align-cargo" id="alignVerticalBtn" title="统一所选货物的垂直中心位置">↕ 垂直居中</button>
+      <button class="tb align-cargo" id="alignHorizontalBtn" title="统一所选项目的水平中心位置">↔ 水平居中</button>
+      <button class="tb align-cargo" id="alignVerticalBtn" title="统一所选项目的垂直中心位置">↕ 垂直居中</button>
       <button class="tb" id="deleteBtn">⌫ 删除</button>
     </div>
     <div id="info-stack">
@@ -526,7 +526,7 @@ function pushHistory(){undoStack.push(snapshot());if(undoStack.length>100)undoSt
 function restore(s){const d=JSON.parse(s);floor.cargos=d.cargos;floor.objects=d.objects;stagedRestoreIds=new Set(d.restoreIds||[]);stagedObjectDeletes=new Set(d.objectDeleteIds||[]);selected.clear();setDirty(true);renderAll()}
 function undo(){if(!undoStack.length)return;future.push(snapshot());restore(undoStack.pop());updateButtons()}
 function redo(){if(!future.length)return;undoStack.push(snapshot());restore(future.pop());updateButtons()}
-function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n;['alignHorizontalBtn','alignVerticalBtn'].forEach(id=>$(id).classList.toggle('on',!objectMode&&selected.size>1))}
+function updateButtons(){const n=objectMode?objectSelected.size:selected.size;$('undoBtn').disabled=!undoStack.length;$('redoBtn').disabled=!future.length;$('rotateBtn').disabled=!n;$('deleteBtn').disabled=!n;$('copyBtn').disabled=!n;['alignHorizontalBtn','alignVerticalBtn'].forEach(id=>$(id).classList.toggle('on',n>1))}
 function applyView(){[gridLayer,objLayer,cargoLayer,selLayer].forEach(l=>{l.position(origin);l.scale({x:scale,y:scale})});stage.batchDraw();renderInfo()}
 function fit(){
  if(!floor||!stage)return;
@@ -853,6 +853,15 @@ function deleteObjects(ids){pushHistory();const set=new Set(ids);ids.forEach(id=
 function copyObjects(){objectClipboard=[...objectSelected].map(id=>deep(floor.objects.find(o=>o.id===id))).filter(Boolean);updateButtons()}
 function pasteObjects(){if(!objectClipboard.length)return;pushHistory();const stamp=Date.now(),gap=Math.max(100,10/scale);objectSelected.clear();objectClipboard.forEach((o,i)=>{const n=deep(o);n.id='op'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x+=gap;n.y+=gap;floor.objects.push(n);objectSelected.add(n.id)});setDirty(true);renderAll()}
 function rotateObjects(){if(!objectSelected.size)return;pushHistory();for(const id of objectSelected){const o=floor.objects.find(x=>x.id===id);[o.w,o.h]=[o.h,o.w]}setDirty(true);renderAll()}
+function alignSelectedObjects(axis){
+ if(!objectMode||objectSelected.size<2)return;
+ const objects=floor.objects.filter(o=>objectSelected.has(o.id));if(objects.length<2)return;
+ const start=Math.min(...objects.map(o=>axis==='x'?o.x:o.y));
+ const end=Math.max(...objects.map(o=>axis==='x'?o.x+o.w:o.y+o.h));
+ const center=(start+end)/2,positions=new Map(objects.map(o=>[o.id,{x:axis==='x'?Math.round(center-o.w/2):o.x,y:axis==='y'?Math.round(center-o.h/2):o.y}]));
+ if(objects.every(o=>{const p=positions.get(o.id);return o.x===p.x&&o.y===p.y}))return;
+ pushHistory();objects.forEach(o=>Object.assign(o,positions.get(o.id)));setDirty(true);renderAll();
+}
 function duplicateObjects(){if(!objectSelected.size)return;pushHistory();const old=[...objectSelected].map(id=>floor.objects.find(x=>x.id===id)).filter(Boolean),stamp=Date.now();objectSelected.clear();old.forEach((o,i)=>{const n=deep(o);n.id='o'+stamp+'_'+i;n.name=baseCopyName(o.name);n.x+=Math.max(100,10/scale);floor.objects.push(n);objectSelected.add(n.id)});setDirty(true);renderAll()}
 function showObjectContext(x,y){const m=$('objectContext');m.style.left=Math.min(x,innerWidth-190)+'px';m.style.top=Math.min(y,innerHeight-170)+'px';m.classList.add('open')}
 function parseObjectImport(){
@@ -1040,7 +1049,7 @@ window.addEventListener('resize',()=>{stage.size({width:$('viewport').clientWidt
  fit();
 }
 $('directBtn').onclick=()=>setMode('direct');$('selectBtn').onclick=()=>setMode('select');$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('rotateBtn').onclick=()=>objectMode?rotateObjects():rotate();$('deleteBtn').onclick=()=>{if(objectMode){const ids=[...objectSelected];if(ids.length)askConfirm('确认删除障碍物',ids.length===1?`确定删除“${floor.objects.find(o=>o.id===ids[0])?.name||''}”吗？`:`确定删除选中的 ${ids.length} 个障碍物吗？`,()=>deleteObjects(ids))}else del()};$('copyBtn').onclick=()=>{if(objectMode)duplicateObjects();else{copy();paste()}};$('floorSelect').onchange=switchFloor;$('searchInput').oninput=()=>objectMode?renderObjectList():renderList();
-$('alignHorizontalBtn').onclick=()=>alignSelectedCargos('x');$('alignVerticalBtn').onclick=()=>alignSelectedCargos('y');
+$('alignHorizontalBtn').onclick=()=>objectMode?alignSelectedObjects('x'):alignSelectedCargos('x');$('alignVerticalBtn').onclick=()=>objectMode?alignSelectedObjects('y'):alignSelectedCargos('y');
 ['showOwn','lockOwn','showOther','lockOther'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));for(const sid of [...selected]){const c=floor.cargos.find(x=>x.id===sid);if(c&&(!visibleCargo(c)||cargoLocked(c)))selected.delete(sid)}renderAll()});
 ['passObstaclesToggle','outsideToggle','overlapToggle','ageMode'].forEach(id=>$(id).onclick=()=>{const active=$(id).classList.toggle('active');$(id).setAttribute('aria-pressed',String(active));if(id==='ageMode')$('ageLegend').classList.toggle('on',active);renderAll()});
 
