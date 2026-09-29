@@ -281,7 +281,7 @@ input:focus,select:focus{border-color:var(--red)}
           <span>Cargo <b id="perfCargoNodes">--</b></span><span>Object <b id="perfObjectNodes">--</b></span>
           <span>Total <b id="perfTotalNodes">--</b></span><span>DPR <b id="perfDpr">--</b></span>
           <span>Drag Jitter <b id="perfDragJitter">--</b> ms</span>
-        </div><button class="btn perf-reset" id="perfReset">恢复默认实验参数</button><div class="perf-note">RAW 不受拖动最大 FPS 限制；Drag Jitter 为最近 30 次位置更新间隔的标准差。参数仅当前页面生效，刷新后恢复默认。</div></div>
+        </div><button class="btn perf-reset" id="perfReset">恢复默认实验参数</button><div class="perf-note">RAW 不受拖动最大 FPS 限制；碰撞检测 FPS 只限制 RAF/SMOOTH 的更新频率，OFF 表示不额外限速，关闭穿越或重叠后仍会检测碰撞。Drag Jitter 为最近 30 次位置更新间隔的标准差。参数仅当前页面生效，刷新后恢复默认。</div></div>
       </div>
     </div>
     <div id="dirty">● 已保存状态</div>
@@ -429,7 +429,7 @@ let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), cl
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null,smoothedCargoPointer=null;
 const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:false,shadow:true,transforms:'all',shadowStroke:'on',pattern:'full',dragMotion:'raf',smoothFactor:.25,dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
-let perf={...PERF_DEFAULTS},perfTiming={drag:0,collision:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
+let perf={...PERF_DEFAULTS},perfTiming={drag:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
 let lastDragUpdate=0,dragIntervals=[];
 const $=id=>document.getElementById(id);
 const warehouseToken=()=>localStorage.getItem('oa_token');
@@ -573,11 +573,11 @@ function collision(candidate,ignoreIds){
   const oldOutside=old?(old.x<0||old.y<0||old.x+od.w>floor.width||old.y+od.h>floor.length):false;
   if(!oldOutside)return true;
  }
- for(const o of ( $('passObstaclesToggle').classList.contains('active')?[]:floor.objects.filter(x=>x.blocks) )){
+ for(const o of ( $('passObstaclesToggle').classList.contains('active')?[]:floor.objects.filter(x=>x.blocks!==false) )){
   if(a.x<o.x+o.w&&a.x+a.w>o.x&&a.y<o.y+o.h&&a.y+a.h>o.y)return true;
  }
  if(!$('overlapToggle').classList.contains('active'))for(const c of floor.cargos){
-  if(ignoreIds.has(c.id)||!visibleCargo(c))continue; const b=dims(c);
+  if(ignoreIds.has(c.id)||c.status==='SHIPPED')continue; const b=dims(c);
   if(a.x<c.x+b.w&&a.x+a.w>c.x&&a.y<c.y+b.h&&a.y+a.h>c.y)return true;
  }
  return false;
@@ -601,24 +601,38 @@ function rectOf(c,x=c.x,y=c.y){const d=dims(c);return{x,y,w:d.w,h:d.h}}
 function overlaps(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function blockersFor(movingIds){
  const out=($('passObstaclesToggle').classList.contains('active')?[]:floor.objects.filter(o=>o.blocks!==false)).map(o=>({x:o.x,y:o.y,w:o.w,h:o.h}));
- if(!$('overlapToggle').classList.contains('active'))floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&visibleCargo(q)){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
+ if(!$('overlapToggle').classList.contains('active'))floor.cargos.forEach(q=>{if(!movingIds.has(q.id)&&q.status!=='SHIPPED'){const d=dims(q);out.push({x:q.x,y:q.y,w:d.w,h:d.h})}});
  return out;
 }
 function clampAxis(c,fromX,fromY,toX,toY,axis,blocks){
- const d=dims(c); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
- if(!$('outsideToggle').classList.contains('active')){
+ const d=dims(c),outsideAllowed=$('outsideToggle').classList.contains('active'); let x=axis==='x'?toX:fromX, y=axis==='y'?toY:fromY;
+ if(!outsideAllowed){
    if(axis==='x'){x=Math.max(0,Math.min(floor.width-d.w,x))}
    else{y=Math.max(0,Math.min(floor.length-d.h,y))}
  }
  const start=rectOf(c,fromX,fromY);
  if(axis==='x'){
-   const dx=x-fromX;
-   if(dx>0) for(const b of blocks){if(start.y<b.y+b.h&&start.y+d.h>b.y&&fromX+d.w<=b.x&&x+d.w>b.x)x=Math.min(x,b.x-d.w)}
-   if(dx<0) for(const b of blocks){if(start.y<b.y+b.h&&start.y+d.h>b.y&&fromX>=b.x+b.w&&x<b.x+b.w)x=Math.max(x,b.x+b.w)}
+   for(const b of blocks){
+    if(start.y>=b.y+b.h||start.y+d.h<=b.y)continue;
+    if(overlaps(start,b)){
+     const leftExit=b.x-d.w,rightExit=b.x+b.w;
+     const canExitLeft=outsideAllowed||leftExit>=0,canExitRight=outsideAllowed||rightExit<=floor.width-d.w;
+     if(x>fromX&&canExitLeft&&(!canExitRight||rightExit-fromX>fromX-leftExit))x=fromX;
+     if(x<fromX&&canExitRight&&(!canExitLeft||fromX-leftExit>rightExit-fromX))x=fromX;
+    }else if(x>fromX&&fromX+d.w<=b.x&&x+d.w>b.x)x=Math.min(x,b.x-d.w);
+    else if(x<fromX&&fromX>=b.x+b.w&&x<b.x+b.w)x=Math.max(x,b.x+b.w);
+   }
  } else {
-   const dy=y-fromY;
-   if(dy>0) for(const b of blocks){if(start.x<b.x+b.w&&start.x+d.w>b.x&&fromY+d.h<=b.y&&y+d.h>b.y)y=Math.min(y,b.y-d.h)}
-   if(dy<0) for(const b of blocks){if(start.x<b.x+b.w&&start.x+d.w>b.x&&fromY>=b.y+b.h&&y<b.y+b.h)y=Math.max(y,b.y+b.h)}
+   for(const b of blocks){
+    if(start.x>=b.x+b.w||start.x+d.w<=b.x)continue;
+    if(overlaps(start,b)){
+     const topExit=b.y-d.h,bottomExit=b.y+b.h;
+     const canExitTop=outsideAllowed||topExit>=0,canExitBottom=outsideAllowed||bottomExit<=floor.length-d.h;
+     if(y>fromY&&canExitTop&&(!canExitBottom||bottomExit-fromY>fromY-topExit))y=fromY;
+     if(y<fromY&&canExitBottom&&(!canExitTop||fromY-topExit>bottomExit-fromY))y=fromY;
+    }else if(y>fromY&&fromY+d.h<=b.y&&y+d.h>b.y)y=Math.min(y,b.y-d.h);
+    else if(y<fromY&&fromY>=b.y+b.h&&y<b.y+b.h)y=Math.max(y,b.y+b.h);
+   }
  }
  return axis==='x'?x:y;
 }
@@ -653,9 +667,8 @@ function processCargoDrag(pointer){
  const rawDx=(pointer.x-drag.lastPointer.x)/scale,rawDy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};
  if(Math.abs(rawDx)+Math.abs(rawDy)>0&&directDrag)directDrag.moved=true;
  const current=new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]}));
- const now=performance.now(),collisionDue=perf.collisionFps>0&&(now-perfTiming.collision>=1000/perf.collisionFps),snapDue=perf.snapFps>0&&(now-perfTiming.snap>=1000/perf.snapFps);
- let constrained={dx:rawDx,dy:rawDy};
- if(collisionDue){constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds);perfTiming.collision=now}
+ const now=performance.now(),snapDue=perf.snapFps>0&&(now-perfTiming.snap>=1000/perf.snapFps);
+ const constrained=drag.blockers.length||!$('outsideToggle').classList.contains('active')?constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds):{dx:rawDx,dy:rawDy};
  let delta=constrained;
  if(snapDue){delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);perfTiming.snap=now}
  if(Math.abs(delta.dx)+Math.abs(delta.dy)>.001){for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();recordDragJitter(now)}
@@ -666,7 +679,10 @@ function scheduleCargoDrag(pointer){
  if(dragRaf)return;
  const tick=ts=>{
   dragRaf=0;const target=pendingCargoPointer;if(!target)return;
-  if(ts-perfTiming.drag<1000/perf.dragFps){dragRaf=requestAnimationFrame(tick);return}
+  const drag=directDrag&&!directDrag.kind?directDrag:groupDrag?.canvas?groupDrag:null;
+  const constrained=drag&&(!$('outsideToggle').classList.contains('active')||drag.blockers.length);
+  const maxFps=constrained&&perf.collisionFps>0?Math.min(perf.dragFps,perf.collisionFps):perf.dragFps;
+  if(ts-perfTiming.drag<1000/maxFps){dragRaf=requestAnimationFrame(tick);return}
   perfTiming.drag=ts;
   if(perf.dragMotion==='smooth'){
    const from=smoothedCargoPointer||target;let next={x:from.x+(target.x-from.x)*perf.smoothFactor,y:from.y+(target.y-from.y)*perf.smoothFactor};
