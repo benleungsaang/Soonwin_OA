@@ -208,7 +208,7 @@ input:focus,select:focus{border-color:var(--red)}
       </div>
     </section>
     <section class="section cargo-section">
-      <div class="section-title cargo-group-head" id="ownCargoHead"><span class="cargo-group-name" id="listTitle">📋 库存货物</span><div class="cargo-head-actions"><button class="btn exit-object-btn" id="exitObjectList">退出障碍物模式</button>
+      <div class="section-title cargo-group-head" id="ownCargoHead"><span class="cargo-group-name" id="listTitle">📋 库存货物</span><div class="cargo-head-actions"><button class="btn exit-object-btn" id="exitObjectList">退出结构编辑</button>
         <div class="cargo-menu-wrap" data-owner="OVERSEAS"><button class="cargo-menu-btn" id="cargoMenuBtn" data-owner="OVERSEAS" title="库存货物菜单">⚙</button>
           <div class="cargo-menu" id="cargoMenu" data-owner="OVERSEAS">
             <button data-act="add"><span class="menu-item-content"><span class="menu-icon">📦</span><span>添加货物</span></span></button>
@@ -239,7 +239,7 @@ input:focus,select:focus{border-color:var(--red)}
   <main id="viewport">
     <div id="stage"></div>
     <div id="toolbar">
-      <button class="tb exit-object-btn" id="exitObjectTop">← 退出障碍物模式</button><button class="tb active" id="directBtn">🖱 即点即拖</button>
+      <button class="tb exit-object-btn" id="exitObjectTop">← 退出结构编辑</button><button class="tb active" id="directBtn">🖱 即点即拖</button>
       <button class="tb" id="selectBtn">▣ 点击选中</button>
       <span class="divider"></span>
       <button class="tb" id="undoBtn">↶ 撤销</button>
@@ -460,7 +460,7 @@ async function loadWarehouseMaps(){
   floorActions.forEach(button=>{button.style.display=button.dataset.floorAct==='create'?'':'none';button.disabled=button.dataset.floorAct!=='create'});
   return;
  }
- select.disabled=false;$('saveBtn').disabled=false;$('reportBtn').disabled=false;$('shipRecords').disabled=false;floorActions.forEach(button=>{button.style.display='';button.disabled=false});
+ select.disabled=false;$('saveBtn').disabled=false;$('reportBtn').disabled=false;$('shipRecords').disabled=false;floorActions.forEach(button=>{button.style.display=objectMode&&!['edit','objects'].includes(button.dataset.floorAct)?'none':'';button.disabled=false});
  await loadWarehouseMap(Number(warehouseMaps[0].id));
 }
 async function deleteWarehouseMap(){
@@ -823,6 +823,7 @@ function enterObjectMode(v){
  $('cargoMenu').classList.toggle('object-mode',v);
  [...$('cargoMenu').querySelectorAll('button')].forEach(b=>{const oa=['addobj','importobj','columns','copyobjlist','batchobj'].includes(b.dataset.act);b.style.display=v?(oa?'flex':'none'):(oa?'none':'flex')});
  const modeLabel=$('floorMenu').querySelector('[data-floor-act="objects"] .menu-item-label');if(modeLabel)modeLabel.textContent=v?'退出结构编辑':'修改结构';
+ [...$('floorMenu').querySelectorAll('[data-floor-act]')].forEach(button=>{button.style.display=v&&!['edit','objects'].includes(button.dataset.floorAct)?'none':''});
  $('searchInput').placeholder=v?'🔎 障碍物名称 / 类型':'🔎 名称 / 位置 / 备注';
  renderAll();
 }
@@ -1449,6 +1450,7 @@ $('floorMenu').onclick=e=>{
  const a=e.target.closest('button[data-floor-act]')?.dataset.floorAct;if(!a)return;
  $('floorMenu').classList.remove('open');
  if(!floor&&a!=='create')return;
+ if(objectMode&&!['edit','objects'].includes(a))return;
  if(a==='objects'){enterObjectMode(!objectMode);return}
  if(a==='delete'){deleteWarehouseMap();return}
  if(a==='copy'&&dirty&&!confirm('当前楼层有未保存修改。复制会包含当前的楼层结构，但切换到副本后原楼层的未保存修改将丢失。确定继续吗？'))return;
