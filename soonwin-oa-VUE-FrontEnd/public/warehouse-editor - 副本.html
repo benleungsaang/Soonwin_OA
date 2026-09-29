@@ -162,8 +162,6 @@ input:focus,select:focus{border-color:var(--red)}
 .ship-record-modal .cargo-origin b{color:#25313d;font-weight:700}
 
 #floorMapCaption{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:10;color:#aebaca;font-size:13px;font-weight:650;letter-spacing:.02em;pointer-events:none;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.75)}
-#perfPanel{position:absolute;right:20px;bottom:58px;z-index:18;width:292px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:10px;color:#ccc;font-size:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
-#perfPanel .perf-head{display:flex;align-items:center;padding:8px 11px;cursor:pointer;user-select:none;color:var(--cyan);font-weight:650}.perf-head .perf-arrow{margin-left:auto;color:#8f9baa}.perf-body{padding:0 11px 10px}.perf-section{border-top:1px solid rgba(255,255,255,.09);padding-top:7px;margin-top:5px}.perf-section-title{font-size:10px;color:#8191a4;margin-bottom:5px}.perf-row{display:grid;grid-template-columns:1fr 94px;align-items:center;gap:8px;margin:5px 0}.perf-row select{padding:4px 6px;font-size:11px;background:#101833}.perf-check{display:flex;justify-content:flex-end}.perf-check input{width:14px;height:14px;accent-color:var(--red)}.perf-metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;font:11px Consolas;color:#9fb0c4}.perf-metrics b{color:#fff;font-weight:600}.perf-note{margin-top:7px;color:#718096;font-size:10px;line-height:1.45}.perf-reset{width:100%;margin-top:8px;padding:5px 8px}.perf-collapsed .perf-body{display:none}.perf-collapsed{width:210px}
 </style>
 </head>
 <body>
@@ -252,30 +250,6 @@ input:focus,select:focus{border-color:var(--red)}
     </div>
     <div id="floorMapCaption"></div>
     <div id="hint">滚轮缩放 · 右键空白拖动画布 / 单击取消选择 · 右键货物打开菜单 · Ctrl 多选 · Ctrl+C/V · Esc 取消</div>
-    <div id="perfPanel" class="perf-collapsed">
-      <div class="perf-head" id="perfHead">⚡ Konva 性能实验 <span class="perf-arrow">▴</span></div>
-      <div class="perf-body">
-        <div class="perf-section"><div class="perf-section-title">渲染</div>
-          <div class="perf-row"><span>Pixel Ratio</span><select id="perfPixelRatio"><option value="auto">Auto</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option></select></div>
-          <div class="perf-row"><span>Perfect Draw</span><label class="perf-check"><input id="perfPerfectDraw" type="checkbox" checked></label></div>
-          <div class="perf-row"><span>货物阴影</span><label class="perf-check"><input id="perfShadow" type="checkbox" checked></label></div>
-          <div class="perf-row"><span>障碍物纹理</span><select id="perfPattern"><option value="full">FULL</option><option value="simple">SIMPLE</option><option value="off">OFF</option></select></div>
-        </div>
-        <div class="perf-section"><div class="perf-section-title">交互</div>
-          <div class="perf-row"><span>拖动最大 FPS</span><select id="perfDragFps"><option>60</option><option>45</option><option>30</option><option>20</option></select></div>
-          <div class="perf-row"><span>碰撞检测 FPS</span><select id="perfCollisionFps"><option>60</option><option>30</option><option>20</option><option value="0">OFF</option></select></div>
-          <div class="perf-row"><span>吸附检测 FPS</span><select id="perfSnapFps"><option>60</option><option>30</option><option>20</option><option value="0">OFF</option></select></div>
-          <div class="perf-row"><span>拖动时 Hit Detection</span><select id="perfHit"><option value="normal">正常</option><option value="off-drag">关闭</option></select></div>
-          <div class="perf-row"><span>Pan 最大 FPS</span><select id="perfPanFps"><option>60</option><option>30</option><option>20</option></select></div>
-          <div class="perf-row"><span>Zoom RAF 合帧</span><label class="perf-check"><input id="perfZoomRaf" type="checkbox"></label></div>
-        </div>
-        <div class="perf-section"><div class="perf-section-title">诊断</div><div class="perf-metrics">
-          <span>FPS <b id="perfFps">--</b></span><span>Frame <b id="perfFrame">--</b> ms</span>
-          <span>Cargo <b id="perfCargoNodes">--</b></span><span>Object <b id="perfObjectNodes">--</b></span>
-          <span>Total <b id="perfTotalNodes">--</b></span><span>DPR <b id="perfDpr">--</b></span>
-        </div><button class="btn perf-reset" id="perfReset">恢复默认实验参数</button><div class="perf-note">仅当前页面临时生效，不写入 OA 数据；刷新页面恢复默认。</div></div>
-      </div>
-    </div>
     <div id="dirty">● 已保存状态</div>
     <div id="konvaError"><div><h2 style="margin-bottom:12px">Konva 未加载</h2><p>此 V0.1 使用 Konva CDN。请联网打开，或后续由 W 将 Konva 放入 OA 本地静态资源。</p></div></div>
   </main>
@@ -420,8 +394,6 @@ let objectMode=false, objectSelected=new Set(), objectEditId=null, objectContext
 let floorModalMode='edit'; let floor=null, mode='direct', selected=new Set(), clipboard=[], undoStack=[], future=[], dirty=false, stagedObjectDeletes=new Set(), cargoTargetOwner='OVERSEAS', importTargetOwner='OVERSEAS';
 let baseWarehouseSnapshot=null, stagedRestoreIds=new Set(), warehouseMaps=[];
 let stage,gridLayer,objLayer,cargoLayer,selLayer,scale=1,origin={x:0,y:0},selectionRect=null,selectStart=null,selectAdditive=false,groupDrag=null,rightPan=null,directDrag=null,contextId=null,editId=null,batchMode=false,dragRaf=0,pendingCargoPointer=null;
-const PERF_DEFAULTS={pixelRatio:'auto',perfectDraw:true,shadow:true,pattern:'full',dragFps:60,collisionFps:60,snapFps:60,hit:'normal',panFps:60,zoomRaf:false};
-let perf={...PERF_DEFAULTS},perfTiming={drag:0,collision:0,snap:0,pan:0},panRaf=0,pendingPanPointer=null,zoomRaf=0,pendingWheel=null;
 const $=id=>document.getElementById(id);
 const warehouseToken=()=>localStorage.getItem('oa_token');
 async function warehouseApi(path,options={}){
@@ -527,13 +499,12 @@ function drawObjects(){
  floor.objects.forEach(o=>{
   const sel=objectSelected.has(o.id),g=new Konva.Group({x:o.x,y:o.y,id:o.id,name:'object',listening:objectMode,clipX:0,clipY:0,clipWidth:o.w,clipHeight:o.h});
   const fill=sel&&objectMode?'#b68cff':(o.color||'#687386');
-  g.add(new Konva.Rect({width:o.w,height:o.h,fill,opacity:objectMode?.88:(Math.max(0,Math.min(100,floor.objectOpacity??30))/100),stroke:sel?'#ffd93d':'#aab3c0',strokeWidth:(sel?3:1)/scale,cornerRadius:2/scale,perfectDrawEnabled:perf.perfectDraw}));
+  g.add(new Konva.Rect({width:o.w,height:o.h,fill,opacity:objectMode?.88:(Math.max(0,Math.min(100,floor.objectOpacity??30))/100),stroke:sel?'#ffd93d':'#aab3c0',strokeWidth:(sel?3:1)/scale,cornerRadius:2/scale}));
   const step=Math.max(120,10/scale),line='#303846';
-  if(perf.pattern!=='off'&&o.pattern!=='solid'){
-   const patternStep=perf.pattern==='simple'?step*3:step;
-   if(o.pattern==='dots'){for(let x=patternStep/2;x<o.w;x+=patternStep)for(let y=patternStep/2;y<o.h;y+=patternStep)g.add(new Konva.Circle({x,y,r:Math.max(12,1.4/scale),fill:line,opacity:.4,listening:false,perfectDrawEnabled:perf.perfectDraw}))}
+  if(o.pattern!=='solid'){
+   if(o.pattern==='dots'){for(let x=step/2;x<o.w;x+=step)for(let y=step/2;y<o.h;y+=step)g.add(new Konva.Circle({x,y,r:Math.max(12,1.4/scale),fill:line,opacity:.4,listening:false}))}
    else{
-    const addDiag=back=>{for(let k=-o.h;k<o.w;k+=patternStep){const pts=back?[k,0,k+o.h,o.h]:[k,o.h,k+o.h,0];g.add(new Konva.Line({points:pts,stroke:line,opacity:.4,strokeWidth:1/scale,listening:false,perfectDrawEnabled:perf.perfectDraw}))}};
+    const addDiag=back=>{for(let k=-o.h;k<o.w;k+=step){const pts=back?[k,0,k+o.h,o.h]:[k,o.h,k+o.h,0];g.add(new Konva.Line({points:pts,stroke:line,opacity:.4,strokeWidth:1/scale,listening:false}))}};
     if(o.pattern==='diag'||o.pattern==='cross')addDiag(false);if(o.pattern==='backdiag'||o.pattern==='cross')addDiag(true);
    }
   }
@@ -638,16 +609,12 @@ function processCargoDrag(pointer){
  const rawDx=(pointer.x-drag.lastPointer.x)/scale,rawDy=(pointer.y-drag.lastPointer.y)/scale;drag.lastPointer={...pointer};
  if(Math.abs(rawDx)+Math.abs(rawDy)>0&&directDrag)directDrag.moved=true;
  const current=new Map([...drag.starts].map(([id,st])=>{const node=cargoLayer.findOne('#'+id);return[id,{...st,x:node.x(),y:node.y()}]}));
- const now=performance.now(),collisionDue=perf.collisionFps>0&&(now-perfTiming.collision>=1000/perf.collisionFps),snapDue=perf.snapFps>0&&(now-perfTiming.snap>=1000/perf.snapFps);
- let constrained={dx:rawDx,dy:rawDy};
- if(collisionDue){constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds);perfTiming.collision=now}
- let delta=constrained;
- if(snapDue){delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);perfTiming.snap=now}
+ const constrained=constrainedDelta(current,rawDx,rawDy,drag.blockers,drag.movingIds),delta=snapCargoGroup(current,constrained,drag.movingIds,drag.blockers);
  for(const[id,st]of current){const node=cargoLayer.findOne('#'+id);if(node)node.position({x:st.x+delta.dx,y:st.y+delta.dy})}cargoLayer.batchDraw();
 }
 function scheduleCargoDrag(pointer){
  pendingCargoPointer={...pointer};if(dragRaf)return;
- dragRaf=requestAnimationFrame(ts=>{dragRaf=0;if(ts-perfTiming.drag<1000/perf.dragFps){scheduleCargoDrag(pendingCargoPointer);return}perfTiming.drag=ts;const next=pendingCargoPointer;pendingCargoPointer=null;if(next)processCargoDrag(next)});
+ dragRaf=requestAnimationFrame(()=>{dragRaf=0;const next=pendingCargoPointer;pendingCargoPointer=null;if(next)processCargoDrag(next)});
 }
 
 function drawCargos(){
@@ -658,7 +625,7 @@ function drawCargos(){
   if(!visibleCargo(c))return;
   const d=dims(c),isSel=selected.has(c.id),locked=cargoLocked(c);
   const group=new Konva.Group({x:c.x,y:c.y,draggable:false,id:c.id,name:'cargo'});
-  group.add(new Konva.Rect({width:d.w,height:d.h,fill:locked?'#737982':ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,perfectDrawEnabled:perf.perfectDraw,shadowEnabled:perf.shadow,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
+  group.add(new Konva.Rect({width:d.w,height:d.h,fill:locked?'#737982':ageColor(c),opacity:(batchMode&&!isSel)||(any&&!isSel)?.35:.88,stroke:isSel?'#ffd93d':locked?'#a8adb5':'rgba(255,255,255,.75)',strokeWidth:(isSel?3:1)/scale,cornerRadius:3/scale,shadowColor:isSel?'#ffd93d':'black',shadowBlur:(isSel?8:2)/scale,shadowOpacity:isSel?.35:.18}));
   group.on('mousedown touchstart',e=>{
    if(e.evt.button===2)return;
    e.cancelBubble=true;
@@ -672,7 +639,6 @@ function drawCargos(){
     renderList();renderInfo();updateButtons();
     const p=stage.getPointerPosition();
     directDrag={before:snapshot(),...cargoDragState(selected),lastPointer:p?{...p}:null,moved:false};
-    if(perf.hit==='off-drag')cargoLayer.listening(false);
    }else{
     if(ctrl)toggleSelect(c.id);else if(!selected.has(c.id))selectOnly(c.id);
    }
@@ -847,16 +813,11 @@ function switchFloor(){
  if(dirty&&!confirm('当前有未保存的位置修改。放弃修改并切换楼层？')){$('floorSelect').value=floor.id;return}
  loadWarehouseMap(Number($('floorSelect').value)).catch(error=>{console.error('[warehouse] load map failed',error);alert(error.message||'楼层加载失败')})
 }
-function schedulePan(p){
- pendingPanPointer={...p};if(panRaf)return;
- panRaf=requestAnimationFrame(ts=>{panRaf=0;if(ts-perfTiming.pan<1000/perf.panFps){schedulePan(pendingPanPointer);return}perfTiming.pan=ts;const q=pendingPanPointer;pendingPanPointer=null;if(!q||!rightPan)return;const dx=q.x-rightPan.p0.x,dy=q.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}})
-}
 function initStage(){
  stage=new Konva.Stage({container:'stage',width:$('viewport').clientWidth,height:$('viewport').clientHeight});
  gridLayer=new Konva.Layer({listening:false});objLayer=new Konva.Layer({listening:false});cargoLayer=new Konva.Layer({listening:true});selLayer=new Konva.Layer({listening:false});stage.add(gridLayer,objLayer,cargoLayer,selLayer);
  stage.container().addEventListener('contextmenu',e=>e.preventDefault());
- const applyWheelZoom=(p,deltaY)=>{const world=screenWorld(p),old=scale,factor=1.12;scale=deltaY<0?old*factor:old/factor;scale=Math.max(.003,Math.min(.25,scale));origin={x:p.x-world.x*scale,y:p.y-world.y*scale};applyView()};
- stage.on('wheel',e=>{e.evt.preventDefault();const p=stage.getPointerPosition();if(!p)return;if(!perf.zoomRaf){applyWheelZoom(p,e.evt.deltaY);return}pendingWheel={p:{...p},deltaY:e.evt.deltaY};if(!zoomRaf)zoomRaf=requestAnimationFrame(()=>{zoomRaf=0;const z=pendingWheel;pendingWheel=null;if(z)applyWheelZoom(z.p,z.deltaY)})});
+ stage.on('wheel',e=>{e.evt.preventDefault();const p=stage.getPointerPosition(),world=screenWorld(p),old=scale,factor=1.12;scale=e.evt.deltaY<0?old*factor:old/factor;scale=Math.max(.003,Math.min(.25,scale));origin={x:p.x-world.x*scale,y:p.y-world.y*scale};applyView();});
  stage.on('mousedown touchstart',e=>{
   hideContext();
   const ev=e.evt,p=stage.getPointerPosition();selectAdditive=!!(ev.ctrlKey||ev.metaKey);
@@ -880,7 +841,6 @@ function initStage(){
   selectStart={...p};
   if(mode==='select'&&selected.size&&!batchMode){
    groupDrag={before:snapshot(),...cargoDragState(selected),canvas:true,lastPointer:{...p}};
-   if(perf.hit==='off-drag')cargoLayer.listening(false);
   }else{
    const w=screenWorld(p);selectionRect=new Konva.Rect({x:w.x,y:w.y,width:0,height:0,fill:'rgba(77,150,255,.14)',stroke:'#4d96ff',strokeWidth:1/scale,dash:[5/scale,3/scale]});selLayer.add(selectionRect);
   }
@@ -893,7 +853,7 @@ function initStage(){
     if(Math.abs(dx)+Math.abs(dy)>.01)directDrag.moved=true;
     for(const[id]of directDrag.starts){const n=objLayer.findOne('#'+id);if(n)n.position({x:n.x()+dx,y:n.y()+dy})}objLayer.batchDraw();return;
    }
-   if(rightPan){schedulePan(p);return}
+   if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
    if(selectionRect&&selectStart){const a=screenWorld(selectStart),b=screenWorld(p);selectionRect.setAttrs({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});selLayer.batchDraw()}
    return;
   }
@@ -902,7 +862,7 @@ function initStage(){
   if(directDrag&&directDrag.lastPointer){
    scheduleCargoDrag(p);return;
   }
-  if(rightPan){schedulePan(p);return}
+  if(rightPan){const dx=p.x-rightPan.p0.x,dy=p.y-rightPan.p0.y;if(Math.hypot(dx,dy)>4)rightPan.moved=true;if(rightPan.moved){origin={x:rightPan.o0.x+dx,y:rightPan.o0.y+dy};applyView()}return}
   if(!selectStart)return;
   if(groupDrag&&groupDrag.canvas){
    scheduleCargoDrag(p);
@@ -936,7 +896,7 @@ function initStage(){
   // Cargo mode only below this line.
   if(ev.button===0&&directDrag){
    let changed=false;for(const[id,st]of directDrag.starts){const n=cargoLayer.findOne('#'+id),q=floor.cargos.find(z=>z.id===id);if(n&&q){q.x=n.x();q.y=n.y();if(q.x!==st.x||q.y!==st.y)changed=true}}
-   if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;cargoLayer.listening(true);renderAll();return;
+   if(changed){undoStack.push(directDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}directDrag=null;renderAll();return;
   }
   if(ev.button===2&&rightPan){
    const moved=rightPan.moved;rightPan=null;
@@ -949,7 +909,7 @@ function initStage(){
   if(ev.button!==0||!selectStart)return;
   if(groupDrag&&groupDrag.canvas){
    let changed=false;for(const[id,st]of groupDrag.starts){const n=cargoLayer.findOne('#'+id),q=floor.cargos.find(z=>z.id===id);if(n&&(n.x()!==st.x||n.y()!==st.y)){q.x=n.x();q.y=n.y();changed=true}}
-   if(changed){undoStack.push(groupDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}groupDrag=null;cargoLayer.listening(true);renderAll();
+   if(changed){undoStack.push(groupDrag.before);if(undoStack.length>100)undoStack.shift();future=[];setDirty(true)}groupDrag=null;renderAll();
   }else if(selectionRect){
    const r=selectionRect.getClientRect({relativeTo:selLayer}),tiny=r.width<5/scale&&r.height<5/scale;selectionRect.destroy();selectionRect=null;
    if(tiny){if(!selectAdditive)selected.clear()}else{if(!selectAdditive)selected.clear();floor.cargos.filter(c=>visibleCargo(c)&&!cargoLocked(c)).forEach(c=>{const d=dims(c);if(Konva.Util.haveIntersection(r,{x:c.x,y:c.y,width:d.w,height:d.h}))selected.add(c.id)})}renderSelection();
@@ -1417,25 +1377,7 @@ $('fCancel').onclick=()=>$('floorModal2').classList.remove('open');$('fOk').oncl
 document.addEventListener('click',e=>{if(!e.target.closest('.cargo-menu-wrap')&&!e.target.closest('#cargoContext')&&!e.target.closest('#objectContext'))hideContext();if(!e.target.closest('.floor-menu-wrap'))$('floorMenu').classList.remove('open')});
 
 [...$('cargoMenu').querySelectorAll('.object-only')].forEach(b=>b.style.display='none');
-function applyPerfPixelRatio(){
- const ratio=perf.pixelRatio==='auto'?(window.devicePixelRatio||1):Number(perf.pixelRatio);Konva.pixelRatio=ratio;
- [gridLayer,objLayer,cargoLayer,selLayer].forEach(layer=>{if(!layer)return;const scene=layer.getCanvas?.(),hit=layer.getHitCanvas?.();scene?.setPixelRatio?.(ratio);hit?.setPixelRatio?.(ratio)});
- if(floor)renderAll();updatePerfMetrics();
-}
-function updatePerfMetrics(){
- if(!stage)return;$('perfCargoNodes').textContent=cargoLayer?.getChildren()?.length??0;$('perfObjectNodes').textContent=objLayer?.getChildren()?.length??0;$('perfTotalNodes').textContent=stage.find('*').length;$('perfDpr').textContent=(perf.pixelRatio==='auto'?'Auto ':'')+(perf.pixelRatio==='auto'?(window.devicePixelRatio||1):perf.pixelRatio);
-}
-function bindPerfPanel(){
- const panel=$('perfPanel');$('perfHead').onclick=()=>{panel.classList.toggle('perf-collapsed');panel.querySelector('.perf-arrow').textContent=panel.classList.contains('perf-collapsed')?'▴':'▾';updatePerfMetrics()};
- const binds=[['perfPixelRatio','pixelRatio'],['perfPattern','pattern'],['perfDragFps','dragFps'],['perfCollisionFps','collisionFps'],['perfSnapFps','snapFps'],['perfHit','hit'],['perfPanFps','panFps']];
- binds.forEach(([id,key])=>{$(id).onchange=()=>{perf[key]=['dragFps','collisionFps','snapFps','panFps'].includes(key)?Number($(id).value):$(id).value;if(key==='pixelRatio')applyPerfPixelRatio();else if((key==='pattern')&&floor)drawObjects();updatePerfMetrics()}});
- $('perfPerfectDraw').onchange=()=>{perf.perfectDraw=$('perfPerfectDraw').checked;if(floor){drawObjects();drawCargos()}updatePerfMetrics()};
- $('perfShadow').onchange=()=>{perf.shadow=$('perfShadow').checked;if(floor)drawCargos();updatePerfMetrics()};
- $('perfZoomRaf').onchange=()=>perf.zoomRaf=$('perfZoomRaf').checked;
- $('perfReset').onclick=()=>{perf={...PERF_DEFAULTS};$('perfPixelRatio').value='auto';$('perfPerfectDraw').checked=true;$('perfShadow').checked=true;$('perfPattern').value='full';$('perfDragFps').value='60';$('perfCollisionFps').value='60';$('perfSnapFps').value='60';$('perfHit').value='normal';$('perfPanFps').value='60';$('perfZoomRaf').checked=false;applyPerfPixelRatio()};
- let last=performance.now(),frames=0;function meter(ts){frames++;const dt=ts-last;if(dt>=500){$('perfFps').textContent=Math.round(frames*1000/dt);$('perfFrame').textContent=(dt/frames).toFixed(1);frames=0;last=ts;updatePerfMetrics()}requestAnimationFrame(meter)}requestAnimationFrame(meter);
-}
-initStage();bindPerfPanel();
+initStage();
 loadWarehouseMaps().catch(error=>{console.error('[warehouse] bootstrap failed',error);alert(error.message||'Warehouse 数据加载失败')});
 })();
 </script>
