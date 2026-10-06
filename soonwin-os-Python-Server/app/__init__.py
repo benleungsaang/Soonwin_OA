@@ -88,8 +88,6 @@ def create_app(port=5000):
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
 
-        # 初始化数据库表（如果不存在）
-        db.create_all()
         # 注册路由蓝图
         from .routes.punch_routes import punch_bp
         app.register_blueprint(punch_bp)
@@ -169,8 +167,8 @@ def create_app(port=5000):
         from .routes.container_layout_routes import container_layout_bp
         app.register_blueprint(container_layout_bp, url_prefix='/api')
 
-        # Warehouse route imports its models after db.create_all(); the three
-        # Warehouse tables are created by the explicit DEV schema bootstrap.
+        # Warehouse route imports its models here; its tables are managed by
+        # Alembic like the rest of the application schema.
         from .routes.warehouse_routes import warehouse_bp
         app.register_blueprint(warehouse_bp)
 

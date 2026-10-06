@@ -1,9 +1,11 @@
 import logging
+import os
 from logging.config import fileConfig
 
 from flask import current_app
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -42,6 +44,13 @@ def get_metadata():
         return target_db.metadata
 
 
+def active_flask_app():
+    try:
+        return current_app._get_current_object()
+    except RuntimeError:
+        return None
+
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
 
@@ -54,12 +63,18 @@ def run_migrations_offline():
     script output.
 
     """
-    # 设置数据库URL
-    config.set_main_option('sqlalchemy.url', get_engine_url())
+    app = active_flask_app()
+    if app is not None:
+        config.set_main_option('sqlalchemy.url', get_engine_url())
+    elif os.environ.get('OA_DATABASE_URL'):
+        config.set_main_option(
+            'sqlalchemy.url', os.environ['OA_DATABASE_URL'].replace('%', '%%')
+        )
     
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url, target_metadata=get_metadata(), literal_binds=True
+        url=url, target_metadata=get_metadata() if app is not None else None,
+        literal_binds=True, version_table_pk=False
     )
 
     with context.begin_transaction():
@@ -73,30 +88,40 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    from flask import current_app
-    
-    # 从应用上下文中获取数据库配置
-    with current_app.app_context():
-        # this callback is used to prevent an auto-migration from being generated
-        # when there are no changes to the schema
-        # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-        def process_revision_directives(context, revision, directives):
-            if getattr(config.cmd_opts, 'autogenerate', False):
-                script = directives[0]
-                if script.upgrade_ops.is_empty():
-                    directives[:] = []
-                    logger.info('No changes in schema detected.')
+    app = active_flask_app()
+    if app is not None:
+        # Preserve the Flask-Migrate workflow when invoked by the app CLI.
+        with app.app_context():
+            def process_revision_directives(context, revision, directives):
+                if getattr(config.cmd_opts, 'autogenerate', False):
+                    script = directives[0]
+                    if script.upgrade_ops.is_empty():
+                        directives[:] = []
+                        logger.info('No changes in schema detected.')
 
-        conf_args = current_app.extensions['migrate'].configure_args
-        if conf_args.get("process_revision_directives") is None:
-            conf_args["process_revision_directives"] = process_revision_directives
-
-        connectable = get_engine()
+            conf_args = app.extensions['migrate'].configure_args
+            if conf_args.get("process_revision_directives") is None:
+                conf_args["process_revision_directives"] = process_revision_directives
+            connectable = get_engine()
+            metadata = get_metadata()
+    else:
+        # Standalone Alembic lets an empty DB bootstrap without constructing
+        # Flask or invoking application startup side effects.
+        section = config.get_section(config.config_ini_section) or {}
+        database_url = os.environ.get('OA_DATABASE_URL')
+        if database_url:
+            section['sqlalchemy.url'] = database_url
+        connectable = engine_from_config(
+            section, prefix='sqlalchemy.', poolclass=pool.NullPool
+        )
+        conf_args = {}
+        metadata = None
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=get_metadata(),
+            target_metadata=metadata,
+            version_table_pk=False,
             **conf_args
         )
 
