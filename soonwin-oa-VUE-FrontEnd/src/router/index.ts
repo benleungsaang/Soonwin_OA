@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
+import { isTokenValid } from '@/utils/request';
 
 // 懒加载页面组件以优化性能（按需加载）
 const HomeView = () => import('@/views/HomeView.vue');
@@ -237,6 +238,18 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   // 设置页面标题
   document.title = to.meta.title as string || 'SoonWin OA系统';
+
+  // 已登录用户无需再次进入登录页；无效或已过期的本地 token 则保留登录页。
+  if (to.path === '/login') {
+    const token = localStorage.getItem('oa_token');
+    if (token && isTokenValid(token)) {
+      next({ path: '/', replace: true });
+      return;
+    }
+    if (token) {
+      localStorage.removeItem('oa_token');
+    }
+  }
 
   // 验证是否需要登录
   if (to.meta.requiresAuth) {

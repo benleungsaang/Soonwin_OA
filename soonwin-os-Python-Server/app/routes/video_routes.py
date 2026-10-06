@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from werkzeug.exceptions import RequestEntityTooLarge
 import os
 import uuid
 from datetime import datetime
@@ -356,6 +357,9 @@ def get_videos():
 @route_permission(ROUTE_VIDEO)
 def upload_video():
     """Save, commit, then asynchronously prepare every newly uploaded video."""
+    # This endpoint accepts large video uploads. Keep the global Flask request
+    # limit for other endpoints, then enforce the uncompressed file limit below.
+    request.max_content_length = 1024 * 1024 * 1024
     process_result = None
     committed = False
     try:
@@ -381,6 +385,12 @@ def upload_video():
         compress_enabled = request.form.get('compress_video', 'true').strip().lower() in {
             'true', '1', 'yes', 'on'
         }
+        if not compress_enabled:
+            file.stream.seek(0, os.SEEK_END)
+            file_size = file.stream.tell()
+            file.stream.seek(0)
+            if file_size > 500 * 1024 * 1024:
+                return jsonify({'success': False, 'message': '未启用压缩时，视频大小不能超过500MB'}), 413
         watermark_position_raw = request.form.get('watermark_position', '2')
         try:
             watermark_position = int(watermark_position_raw)
@@ -491,6 +501,11 @@ def upload_video():
                 'compress_status': video.compress_status
             }
         }), 200
+    except RequestEntityTooLarge as e:
+        if not committed:
+            db.session.rollback()
+        print(f'视频上传请求体超过限制: {str(e)}')
+        return jsonify({'success': False, 'message': '上传请求体超过允许大小'}), 413
     except Exception as e:
         if not committed:
             db.session.rollback()

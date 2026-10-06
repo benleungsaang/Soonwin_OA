@@ -165,6 +165,8 @@ const handleLogin = async () => {
     const res: any = await request.post<LoginResponse>('/api/totp/login', {
       emp_id: loginForm.empId.replace(/\s+/g, '').toLowerCase(),
       totp_code: loginForm.totpCode,
+    }, {
+      _skipAuthRefresh: true,
     });
 
     // 检查响应结构并提取token

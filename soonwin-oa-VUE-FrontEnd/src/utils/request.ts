@@ -37,6 +37,15 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number = 300): boolea
   return expTime - currentTime < bufferSeconds;
 };
 
+// 用于路由跳转前确认本地 JWT 可解析且尚未过期。
+export const isTokenValid = (token: string): boolean => {
+  const payload = decodeToken(token);
+  if (!payload || typeof payload.exp !== 'number') {
+    return false;
+  }
+  return payload.exp > Math.floor(Date.now() / 1000);
+};
+
 // 创建Axios实例
 const getBaseURL = () => {
   // 开发环境：使用相对路径（由vite proxy转发，避免localhost硬编码）
@@ -91,8 +100,12 @@ const refreshToken = async (): Promise<string> => {
     localStorage.setItem('oa_token', newToken);
     return newToken;
   } catch (error) {
-    localStorage.removeItem('oa_token');
-    window.location.href = '/login';
+    // Only invalidate the token if it is still the one used for this refresh.
+    // A concurrent login may have replaced it with a new session token.
+    if (localStorage.getItem('oa_token') === token) {
+      localStorage.removeItem('oa_token');
+      window.location.href = '/login';
+    }
     throw error;
   }
 };
@@ -301,19 +314,19 @@ service.interceptors.response.use(
 
 // 封装请求方法（GET/POST/PUT/DELETE）
 const request = {
-  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  async get<T = any>(url: string, config?: ExtendedAxiosRequestConfig): Promise<T> {
     const response = await service.get<T>(url, config);
     return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async post<T = any>(url: string, data?: any, config?: ExtendedAxiosRequestConfig): Promise<T> {
     const response = await service.post<T>(url, data, config);
     return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async put<T = any>(url: string, data?: any, config?: ExtendedAxiosRequestConfig): Promise<T> {
     const response = await service.put<T>(url, data, config);
     return response as any as T; // 拦截器已处理，response是解包后的数据
   },
-  async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  async delete<T = any>(url: string, config?: ExtendedAxiosRequestConfig): Promise<T> {
     const response = await service.delete<T>(url, config);
     return response as any as T; // 拦截器已处理，response是解包后的数据
   },

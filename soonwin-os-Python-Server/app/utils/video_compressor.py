@@ -175,14 +175,35 @@ def _probe_logo(path):
     return width, height
 
 
-def _logo_geometry(info, position):
+def _scale_output_dimensions(frame_width, frame_height, scale_filter):
+    """Return the dimensions produced by this module's scale filters."""
+    if not scale_filter:
+        return int(frame_width), int(frame_height)
+
+    if scale_filter == f"scale={MAX_720_SHORT_EDGE}:-2":
+        width = MAX_720_SHORT_EDGE
+        height = math.floor(frame_height * width / frame_width / 2) * 2
+    elif scale_filter == f"scale=-2:{MAX_720_SHORT_EDGE}":
+        height = MAX_720_SHORT_EDGE
+        width = math.floor(frame_width * height / frame_height / 2) * 2
+    else:
+        raise RuntimeError(f"unsupported video scale filter: {scale_filter}")
+
+    if width <= 0 or height <= 0:
+        raise RuntimeError("video scale produced invalid dimensions")
+    return width, height
+
+
+def _logo_geometry(info, position, frame_width, frame_height):
     if position not in (1, 2, 3, 4, 5):
         raise RuntimeError("watermark position must be one of 1, 2, 3, 4, 5")
 
     logo = _logo_path()
     logo_width, logo_height = _probe_logo(logo)
-    frame_width = info["display_width"]
-    frame_height = info["display_height"]
+    frame_width = int(frame_width)
+    frame_height = int(frame_height)
+    if frame_width <= 0 or frame_height <= 0:
+        raise RuntimeError("watermark base frame dimensions must be positive")
     portrait = frame_height > frame_width
     multiplier = (
         PORTRAIT_CENTER_MULTIPLIER if position == 3 else PORTRAIT_CORNER_MULTIPLIER
@@ -290,7 +311,10 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
             "output_fps": info["fps"],
             "scale_filter": None,
             "watermark_enabled": True,
-            "watermark_geometry": _logo_geometry(info, watermark_position),
+            "watermark_geometry": _logo_geometry(
+                info, watermark_position,
+                info["display_width"], info["display_height"],
+            ),
         }
 
     output = _output_path_for(source)
@@ -337,7 +361,12 @@ def _build_plan(source, info, watermark_enabled=False, watermark_position=2,
         "watermark_enabled": watermark_enabled,
     }
     if watermark_enabled:
-        plan["watermark_geometry"] = _logo_geometry(info, watermark_position)
+        base_width, base_height = _scale_output_dimensions(
+            info["display_width"], info["display_height"], scale_filter,
+        )
+        plan["watermark_geometry"] = _logo_geometry(
+            info, watermark_position, base_width, base_height,
+        )
     return plan
 
 

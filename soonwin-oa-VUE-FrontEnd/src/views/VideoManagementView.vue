@@ -364,7 +364,7 @@
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                只能上传 mp4/avi/mov/mkv/wmv 格式视频，大小不超过500MB
+                只能上传 mp4/avi/mov/mkv/wmv 格式视频，{{ compressVideoEnabled ? '压缩时文件大小不超过1GB' : '不压缩时大小不超过500MB' }}
               </div>
             </template>
           </el-upload>
@@ -895,9 +895,9 @@ const handleFileChange = (file: any) => {
     return;
   }
 
-  // 检查文件大小
+  // 未启用压缩时限制文件大小；压缩模式不设应用层文件大小限制
   const maxSize = 500 * 1024 * 1024; // 500MB
-  if (file.raw.size > maxSize) {
+  if (!compressVideoEnabled.value && file.raw.size > maxSize) {
     ElMessage.error('文件大小不能超过500MB');
     return;
   }

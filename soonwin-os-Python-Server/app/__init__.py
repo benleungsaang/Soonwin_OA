@@ -83,6 +83,7 @@ def create_app(port=5000):
         from .models.todo_visibility import TodoVisibility
         # 模块可见性配置（管理员可在主页隐藏某些模块菜单项）
         from .models.module_visibility import ModuleVisibility
+        from .models.app_version_history import AppVersionHistory
         # from .models.permission import RolePermission, init_default_permissions  # 已删除，使用简化版权限模型
         # 导入简化权限模型
         from .models.simple_permission import SimpleRole as Role, SimpleRolePermission as SimpleRolePermission
@@ -210,25 +211,23 @@ def create_app(port=5000):
     @app.route('/api/version', methods=['GET'])
     def app_version():
         """返回后端服务版本号（日期+当日序号，如 2026.08.03-1）"""
-        from app.constants.app_version import APP_VERSION
-        return {"version": APP_VERSION}
+        from .models.app_version_history import AppVersionHistory
+        latest = AppVersionHistory.query.order_by(AppVersionHistory.id.desc()).first()
+        return {"version": latest.version if latest else None}
 
     @app.route('/api/version/history', methods=['GET'])
     def version_history():
         """版本历史分页列表（最新在前），供前端弹窗展示"""
-        import json
+        from .models.app_version_history import AppVersionHistory
         page = max(1, request.args.get('page', 1, type=int))
         per_page = max(1, min(request.args.get('per_page', 10, type=int), 50))
-        hist_path = os.path.join(os.path.dirname(__file__), 'constants', 'version_history.json')
-        try:
-            with open(hist_path, encoding='utf-8') as f:
-                records = json.load(f) or []
-        except Exception:
-            records = []
+        query = AppVersionHistory.query.order_by(AppVersionHistory.id.desc())
+        total = query.count()
         start = (page - 1) * per_page
+        records = query.offset(start).limit(per_page).all()
         return {
-            "list": records[start:start + per_page],
-            "total": len(records),
+            "list": [record.to_api_dict() for record in records],
+            "total": total,
             "page": page,
             "per_page": per_page,
         }
