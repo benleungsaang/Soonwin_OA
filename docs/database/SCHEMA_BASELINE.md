@@ -18,15 +18,34 @@ repair the database. Schema ownership belongs to explicit Alembic operations.
 
 ## Cross-platform entry point
 
-Use the repository-level command from any working directory:
+For ordinary interactive use, run the script without a subcommand. It opens a
+Chinese menu for the configured development database. You can also select a
+database explicitly:
+
+```text
+Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py
+Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py --database D:\OA\test.db
+
+Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py
+Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py --database /tmp/test.db
+```
+
+The menu offers status, verify and upgrade. Interactive upgrade requires an
+explicit `y` confirmation after its normal safety preflight. Legacy, unknown
+and nonempty unversioned databases remain refused.
+
+For advanced or automated use, the existing CLI subcommands remain available
+from any working directory:
 
 ```text
 Windows: git pull
 Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py status
+Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py verify
 Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py upgrade
 
 Linux:   git pull
 Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py status
+Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py verify
 Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py upgrade
 ```
 

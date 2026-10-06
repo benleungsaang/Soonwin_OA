@@ -306,17 +306,24 @@ def command_verify(database: Path, topology: dict[str, Any]) -> int:
     return 0
 
 
-def backup_database(database: Path) -> Path:
+def _backup_root() -> Path:
     if os.name == "nt":
         # Existing Windows OA backups live here; the root is already gitignored.
-        backup_root = REPO_ROOT / "windows-backup" / "database"
-    else:
-        data_root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-        backup_root = data_root / "soonwin-oa" / "db-backups"
-    backup_root = backup_root.expanduser().resolve()
-    backup_root.mkdir(parents=True, exist_ok=True)
+        return (REPO_ROOT / "windows-backup" / "database").expanduser().resolve()
+    data_root = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return (data_root / "soonwin-oa" / "db-backups").expanduser().resolve()
+
+
+def planned_backup_path(database: Path) -> Path:
+    backup_root = _backup_root()
     timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S_%f")
-    final_path = backup_root / f"{database.stem}.pre-upgrade-{timestamp}{database.suffix or '.db'}"
+    return backup_root / f"{database.stem}.pre-upgrade-{timestamp}{database.suffix or '.db'}"
+
+
+def backup_database(database: Path, final_path: Path | None = None) -> Path:
+    backup_root = _backup_root()
+    backup_root.mkdir(parents=True, exist_ok=True)
+    final_path = final_path or planned_backup_path(database)
     temp_path = backup_root / f".{final_path.name}.{uuid.uuid4().hex}.tmp"
     try:
         source = sqlite3.connect(_sqlite_uri(database), uri=True, timeout=30)
@@ -345,37 +352,62 @@ def backup_database(database: Path) -> Path:
         raise
 
 
-def command_upgrade(database: Path, topology: dict[str, Any], command: Any, Config: Any, URL: Any) -> int:
+def prepare_upgrade(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
+    """Run every read-only upgrade preflight and return its reusable result."""
     if not topology.get("valid"):
         print(f"Database: {database}")
         print(f"REFUSED: active Alembic topology is invalid: {topology.get('error', topology)}")
-        return 2
+        return {"eligible": False, "exit_code": 2}
     if not database.parent.is_dir():
         print(f"Database: {database}")
         print(f"REFUSED: database parent directory does not exist: {database.parent}")
-        return 2
+        return {"eligible": False, "exit_code": 2}
 
     before = inspect_database(database, topology)
     _print_status(database, before)
     state = before.get("state")
     if state in {"LEGACY", "UNKNOWN", "NONEMPTY_UNVERSIONED", "INVALID / ERROR"}:
         print(f"REFUSED: {state}; reconciliation/adoption required. No stamp or automatic repair is performed.")
-        return 2
+        return {"eligible": False, "exit_code": 2, "before": before}
     if state == "CURRENT":
         print("Database already up to date.")
-        return 0
+        return {"eligible": False, "exit_code": 0, "before": before}
 
     if state == "UPGRADE_AVAILABLE" and before.get("revision") == BASELINE_REVISION:
         if not _verify_canonical(database):
             print("REFUSED: baseline database does not match canonical schema.")
-            return 2
+            return {"eligible": False, "exit_code": 2, "before": before}
 
-    target = topology["heads"][0]
+    return {
+        "eligible": True,
+        "exit_code": 0,
+        "before": before,
+        "target": topology["heads"][0],
+        "backup_path": planned_backup_path(database)
+        if before.get("exists") and (before.get("application_tables") or before.get("revision"))
+        else None,
+    }
+
+
+def command_upgrade(
+    database: Path,
+    topology: dict[str, Any],
+    command: Any,
+    Config: Any,
+    URL: Any,
+    prepared: dict[str, Any] | None = None,
+) -> int:
+    prepared = prepared or prepare_upgrade(database, topology)
+    if not prepared.get("eligible"):
+        return int(prepared.get("exit_code", 2))
+
+    before = prepared["before"]
+    target = prepared["target"]
     print(f"Target: {target}")
     backup_path = None
     if before.get("exists") and (before.get("application_tables") or before.get("revision")):
         try:
-            backup_path = backup_database(database)
+            backup_path = backup_database(database, prepared.get("backup_path"))
         except Exception as exc:
             print(f"FAILED at backup; migration was not run: {exc}")
             return 2
@@ -416,12 +448,15 @@ def command_upgrade(database: Path, topology: dict[str, Any], command: Any, Conf
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Cross-platform Soonwin OA SQLite migration manager. Relative --database "
+            "Soonwin OA 数据库维护。最简单的方式：直接运行脚本进入中文菜单。\n"
+            "高级/自动化可使用 status、verify、upgrade 子命令。Relative --database "
             "paths are resolved from the Git repository root, never from the current directory. "
             "Database selection priority: --database, explicit OA_DATABASE_URL, then the "
             "backend's configured port-5001 development database; production is never a default."
         ),
         epilog=(
+            "人工使用：直接运行 python oa_db.py，然后按菜单操作。\n"
+            "无子命令时可用 --database PATH 指定菜单操作的数据库。\n\n"
             "Examples:\n"
             "  Windows: python .\\soonwin-os-Python-Server\\migrations\\tools\\oa_db.py status\n"
             "  Windows: python .\\soonwin-os-Python-Server\\migrations\\tools\\oa_db.py verify --database D:\\OA\\test.db\n"
@@ -430,7 +465,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    subparsers = parser.add_subparsers(dest="action", required=True)
+    subparsers = parser.add_subparsers(dest="action")
     for action, help_text in (
         ("status", "Read-only database state, revision, head and integrity status."),
         ("verify", "Verify baseline schema or future revision/integrity topology."),
@@ -444,9 +479,139 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+STATE_GUIDANCE = {
+    "CURRENT": "数据库已经是当前最新版本，无需操作。",
+    "UPGRADE_AVAILABLE": "检测到新的数据库迁移，可以安全升级。",
+    "LEGACY": "当前数据库属于旧版迁移体系，不能直接升级。请先进行数据库 baseline adoption/reconciliation。",
+    "UNKNOWN": "当前数据库版本无法识别，为避免损坏数据库，已停止。",
+    "NONEMPTY_UNVERSIONED": "数据库已有数据或表，但没有 Alembic 版本记录。为避免误判，不能自动升级。",
+    "EMPTY": "当前为空数据库，可以通过 migration 创建完整 Schema。",
+    "INVALID / ERROR": "数据库或迁移配置无效，已停止操作。请先检查错误详情。",
+}
+
+
+def print_state_guidance(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
+    result = inspect_database(database, topology)
+    state = result.get("state", "INVALID / ERROR")
+    print(STATE_GUIDANCE.get(state, "数据库状态无法识别，已停止操作。"))
+    return result
+
+
+def _menu_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="指定数据库后进入 Soonwin OA 数据库维护菜单。"
+    )
+    parser.add_argument(
+        "--database", metavar="PATH",
+        help="菜单操作的 SQLite 文件；相对路径按仓库根目录解析。",
+    )
+    return parser
+
+
+def _confirm_interactive_upgrade(
+    database: Path,
+    topology: dict[str, Any],
+    command: Any,
+    Config: Any,
+    URL: Any,
+) -> int:
+    prepared = prepare_upgrade(database, topology)
+    if not prepared.get("eligible"):
+        state = prepared.get("before", {}).get("state")
+        if state:
+            print(STATE_GUIDANCE.get(state, "数据库状态无法识别，已停止操作。"))
+        return int(prepared.get("exit_code", 2))
+
+    before = prepared["before"]
+    print(f"Database: {database}")
+    print(f"Current revision: {before.get('revision') or 'none'}")
+    print(f"Target revision: {prepared['target']}")
+    if before.get("exists") and (before.get("application_tables") or before.get("revision")):
+        print(f"Backup: {prepared['backup_path']}（确认后创建）")
+    else:
+        print("Backup: 空数据库，无需备份")
+    try:
+        answer = input("确认升级数据库？[y/N]: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("已取消升级。")
+        return 0
+    if answer not in {"y", "Y"}:
+        print("已取消升级。")
+        return 0
+    return command_upgrade(database, topology, command, Config, URL, prepared=prepared)
+
+
+def run_interactive(database_argument: str | None) -> int:
+    command, Config, ScriptDirectory, sqlalchemy_url = _dependencies()
+    URL, make_url = sqlalchemy_url
+    database = resolve_database(database_argument, make_url)
+    topology = migration_topology(Config, ScriptDirectory)
+    print("Soonwin OA 数据库维护")
+    print("========================================")
+    print(f"当前数据库：\n{database}")
+    while True:
+        print("\n1. 查看数据库状态")
+        print("2. 验证数据库")
+        print("3. 升级数据库")
+        print("0. 退出")
+        try:
+            choice = input("请选择 [0-3]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n已退出。")
+            return 0
+
+        if choice == "0":
+            print("已退出。")
+            return 0
+        if choice not in {"1", "2", "3"}:
+            print("无效选项，请重新选择。")
+            continue
+        if not topology.get("valid"):
+            print(f"迁移拓扑无效：{topology.get('error', topology)}")
+        if choice == "1":
+            command_status(database, topology)
+            print_state_guidance(database, topology)
+        elif choice == "2":
+            command_verify(database, topology)
+            print_state_guidance(database, topology)
+        else:
+            _confirm_interactive_upgrade(database, topology, command, Config, URL)
+
+
 def main(argv: list[str] | None = None) -> int:
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if not raw_args:
+        try:
+            return run_interactive(None)
+        except KeyboardInterrupt:
+            print("\n已退出。")
+            return 0
+        except OADatabaseError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            print(f"ERROR during interactive menu: {exc}", file=sys.stderr)
+            return 2
+
+    if raw_args[0] in {"--database"} or raw_args[0].startswith("--database="):
+        args = _menu_parser().parse_args(raw_args)
+        try:
+            return run_interactive(args.database)
+        except KeyboardInterrupt:
+            print("\n已退出。")
+            return 0
+        except OADatabaseError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            print(f"ERROR during interactive menu: {exc}", file=sys.stderr)
+            return 2
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_args)
+    if args.action is None:
+        parser.print_help()
+        return 0
     try:
         command, Config, ScriptDirectory, sqlalchemy_url = _dependencies()
         URL, make_url = sqlalchemy_url
