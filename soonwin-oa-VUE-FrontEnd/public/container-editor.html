@@ -4100,7 +4100,7 @@
             });
             const invalidCount = rows.filter(row => row.errors.length).length;
             checkedCargoImportRows = invalidCount ? [] : rows;
-            $('#cargoImportPreview').innerHTML = `<div>准备导入 ${rows.length} 件；有效 ${rows.length - invalidCount} 件；错误 ${invalidCount} 件</div><table><thead><tr><th>行号</th><th>序号</th><th>名称</th><th>尺寸 (长×宽×高 mm)</th><th>重量 (kg)</th><th>检查结果</th></tr></thead><tbody>${rows.map(row => `<tr class="${row.errors.length ? 'invalid' : ''}"><td>${row.line}</td><td>${escapeCargoImportHtml(row.no)}</td><td>${escapeCargoImportHtml(row.name || '—')}</td><td>${escapeCargoImportHtml(row.sizeRaw || '—')}</td><td>${escapeCargoImportHtml(row.weightRaw || '0')}</td><td class="${row.errors.length ? 'error' : ''}">${escapeCargoImportHtml(row.errors.join('；') || '通过')}</td></tr>`).join('')}</tbody></table>`;
+            $('#cargoImportPreview').innerHTML = `<div>准备导入 ${rows.length} 件；有效 ${rows.length - invalidCount} 件；错误 ${invalidCount} 件</div><table><thead><tr><th>序号</th><th>名称</th><th>尺寸 (长×宽×高 mm)</th><th>重量 (kg)</th><th>检查结果</th></tr></thead><tbody>${rows.map(row => `<tr class="${row.errors.length ? 'invalid' : ''}"><td>${escapeCargoImportHtml(row.no)}</td><td>${escapeCargoImportHtml(row.name || '—')}</td><td>${escapeCargoImportHtml(row.sizeRaw || '—')}</td><td>${escapeCargoImportHtml(row.weightRaw || '0')}</td><td class="${row.errors.length ? 'error' : ''}">${escapeCargoImportHtml(row.errors.join('；') || '通过')}</td></tr>`).join('')}</tbody></table>`;
             $('#cargoImportConfirmBtn').disabled = invalidCount > 0;
             cargoInput.classList.toggle('has-error', invalidCount > 0);
             $('#cargoImportModal').classList.remove('active');
@@ -4118,6 +4118,15 @@
             appendCargos(newCargos);
             checkedCargoImportRows = [];
             cargoInput.value = '';
+            $('#cargoImportPreviewModal').classList.remove('active');
+        }
+
+        function closeCargoImportFlow() {
+            if (cargoInput.value.trim() && !confirm('输入框中已有内容，确定放弃导入并关闭吗？')) return;
+            checkedCargoImportRows = [];
+            cargoInput.value = '';
+            $('#cargoImportErrors').innerHTML = '';
+            $('#cargoImportModal').classList.remove('active');
             $('#cargoImportPreviewModal').classList.remove('active');
         }
 
@@ -5457,9 +5466,12 @@
 
         $('#cargoImportCheckBtn').addEventListener('click', checkCargoImport);
         $('#cargoImportConfirmBtn').addEventListener('click', confirmCargoImport);
-        $('#cargoImportCancelBtn').addEventListener('click', () => {
-            checkedCargoImportRows = [];
-            $('#cargoImportModal').classList.remove('active');
+        $('#cargoImportCancelBtn').addEventListener('click', closeCargoImportFlow);
+        ['cargoImportModal', 'cargoImportPreviewModal'].forEach(id => {
+            const overlay = document.getElementById(id);
+            overlay.addEventListener('click', event => {
+                if (event.target === overlay) closeCargoImportFlow();
+            });
         });
         $('#cargoImportBackBtn').addEventListener('click', () => {
             checkedCargoImportRows = [];
