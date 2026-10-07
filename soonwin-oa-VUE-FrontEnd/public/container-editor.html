@@ -2221,7 +2221,7 @@
                 dragObjects.push(mesh);
 
                 // 文字标签
-                const label = createLabel(`#${cargo.no} ${name}`, color);
+                const label = createLabel(cargo.no, name, color);
                 label.position.set(0, sy / 2 + 60, 0);
                 label.visible = showCargoLabels;
                 mesh.userData.cargoNameLabel = label;
@@ -2265,7 +2265,7 @@
         }
 
         // ---- 文字标签 ----
-        function createLabel(text, color) {
+        function createLabel(number, name, color) {
             const canvas = document.createElement('canvas');
             canvas.width = 256;
             canvas.height = 96;
@@ -2281,14 +2281,21 @@
             ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 34px "Segoe UI", "PingFang SC", sans-serif';
+            ctx.font = 'bold 28px "Segoe UI", "PingFang SC", sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
+            const fitText = value => {
+                const chars = Array.from(String(value ?? ''));
+                if (ctx.measureText(chars.join('')).width <= 224) return chars.join('');
+                while (chars.length && ctx.measureText(`${chars.join('')}…`).width > 224) chars.pop();
+                return `${chars.join('')}…`;
+            };
             ctx.save();
             ctx.beginPath();
             ctx.rect(16, 11, 224, 74);
             ctx.clip();
-            ctx.fillText(text, 16, 48);
+            ctx.fillText(fitText(`#${number}`), 16, 32);
+            ctx.fillText(fitText(name), 16, 64);
             ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
