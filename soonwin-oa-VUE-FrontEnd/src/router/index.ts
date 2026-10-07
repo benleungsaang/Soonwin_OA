@@ -38,7 +38,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'home',
     component: HomeView,
-    meta: { title: '首页' } // 页面标题（可选）
+    meta: { title: '首页', requiresAuth: true } // 首页需要登录后访问
   },
   {
     path: '/login',
@@ -254,28 +254,31 @@ router.beforeEach((to, _from, next) => {
   // 验证是否需要登录
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('oa_token');
-    if (token) {
-      // 检查是否需要管理员权限
-      if (to.meta.requiresAdmin) {
-        try {
-          // 解码JWT token获取用户角色信息
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload.user_role === 'admin') {
-            next(); // 管理员权限，放行
-          } else {
-            // 非管理员用户尝试访问管理员页面
-            alert('您没有权限访问此页面！');
-            next('/'); // 返回首页
-          }
-        } catch (error) {
-          console.error('解析用户信息失败:', error);
-          next('/login'); // 解析失败，跳转登录页
+    if (!token || !isTokenValid(token)) {
+      if (token) localStorage.removeItem('oa_token');
+      next('/login'); // 未登录或 token 无效/过期，跳转登录页
+      return;
+    }
+
+    // 检查是否需要管理员权限
+    if (to.meta.requiresAdmin) {
+      try {
+        // 解码JWT token获取用户角色信息
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.user_role === 'admin') {
+          next(); // 管理员权限，放行
+        } else {
+          // 非管理员用户尝试访问管理员页面
+          alert('您没有权限访问此页面！');
+          next('/'); // 返回首页
         }
-      } else {
-        next(); // 已登录，放行
+      } catch (error) {
+        console.error('解析用户信息失败:', error);
+        localStorage.removeItem('oa_token');
+        next('/login'); // 解析失败，跳转登录页
       }
     } else {
-      next('/login'); // 未登录，跳转登录页
+      next(); // 已登录，放行
     }
   } else {
     next(); // 不需要登录的页面直接放行
