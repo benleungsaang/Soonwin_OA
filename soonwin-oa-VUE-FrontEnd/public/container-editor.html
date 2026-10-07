@@ -2223,7 +2223,7 @@
                 // 文字标签
                 const label = createLabel(cargo.no, name, color);
                 label.position.set(0, sy / 2 + 60, 0);
-                label.visible = showCargoLabels;
+                label.visible = showCargoLabels || isSelected(idx);
                 mesh.userData.cargoNameLabel = label;
                 mesh.add(label);
 
@@ -2349,6 +2349,7 @@
                 }
                 const cargoNameLabel = obj.userData.cargoNameLabel;
                 if (cargoNameLabel && cargoNameLabel.material) {
+                    cargoNameLabel.visible = showCargoLabels || selected;
                     cargoNameLabel.material.opacity = hasSelection && !selected ? 0.28 : 1;
                     cargoNameLabel.material.color.set(selected ? 0xffd93d : (hasSelection ? 0x778196 : 0xffffff));
                     cargoNameLabel.renderOrder = selected ? 10000 : 0;
@@ -5587,8 +5588,8 @@
             const title = showCargoLabels ? '隐藏全部货物编号和名称' : '显示全部货物编号和名称';
             toggleCargoLabelsBtn.title = title;
             toggleCargoLabelsBtn.setAttribute('aria-label', title);
-            cargoGroup.children.forEach(mesh => {
-                if (mesh.userData.cargoNameLabel) mesh.userData.cargoNameLabel.visible = showCargoLabels;
+            cargoGroup.children.forEach((mesh, index) => {
+                if (mesh.userData.cargoNameLabel) mesh.userData.cargoNameLabel.visible = showCargoLabels || isSelected(index);
             });
         });
 
