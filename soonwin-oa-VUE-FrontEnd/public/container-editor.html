@@ -2344,6 +2344,7 @@
                 if (cargoNameLabel && cargoNameLabel.material) {
                     cargoNameLabel.material.opacity = hasSelection && !selected ? 0.28 : 1;
                     cargoNameLabel.material.color.set(selected ? 0xffd93d : (hasSelection ? 0x778196 : 0xffffff));
+                    cargoNameLabel.renderOrder = selected ? 10000 : 0;
                 }
                 if (obj.userData.selectionOutline) {
                     const abnormal = !!(obj.userData.outOverlay && obj.userData.outOverlay.visible);
