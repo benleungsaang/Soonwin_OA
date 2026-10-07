@@ -2282,7 +2282,7 @@
 
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 28px "Segoe UI", "PingFang SC", sans-serif';
-            ctx.textAlign = 'left';
+            ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const fitText = value => {
                 const chars = Array.from(String(value ?? ''));
@@ -2294,7 +2294,8 @@
             ctx.beginPath();
             ctx.rect(16, 11, 224, 74);
             ctx.clip();
-            ctx.fillText(fitText(`#${number}`), 16, 32);
+            ctx.fillText(fitText(`#${number}`), 128, 32);
+            ctx.textAlign = 'left';
             ctx.fillText(fitText(name), 16, 64);
             ctx.restore();
 
