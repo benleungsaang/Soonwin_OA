@@ -252,7 +252,9 @@ def _print_status(database: Path, result: dict[str, Any]) -> None:
     state = result.get("state", "INVALID / ERROR")
     if state in {"EMPTY", "UPGRADE_AVAILABLE"}:
         required = "YES"
-    elif state in {"LEGACY", "UNKNOWN", "NONEMPTY_UNVERSIONED", "INVALID / ERROR"}:
+    elif state in {"LEGACY", "NONEMPTY_UNVERSIONED"}:
+        required = "CHECK BASELINE"
+    elif state in {"UNKNOWN", "INVALID / ERROR"}:
         required = "REFUSED"
     else:
         required = "NO"
@@ -267,17 +269,40 @@ def _print_status(database: Path, result: dict[str, Any]) -> None:
         print(f"Details: {result['error']}")
 
 
-def _verify_canonical(database: Path) -> bool:
+def _canonical_differences(
+    database: Path,
+    *,
+    allow_missing_version_table: bool = False,
+) -> list[str]:
     differences_fn, capture_fn = _schema_verifier()
     import json
     expected = json.loads(CANONICAL_SCHEMA.read_text(encoding="utf-8"))
-    differences = differences_fn(expected, capture_fn(database))
+    actual = capture_fn(database)
+    if allow_missing_version_table and "alembic_version" not in actual["tables"]:
+        expected = dict(expected)
+        expected["tables"] = {
+            name: value for name, value in expected["tables"].items()
+            if name != "alembic_version"
+        }
+    return differences_fn(expected, actual)
+
+
+def _verify_canonical(
+    database: Path,
+    *,
+    allow_missing_version_table: bool = False,
+    exact_label: str = "Canonical schema: EXACT MATCH",
+) -> bool:
+    differences = _canonical_differences(
+        database,
+        allow_missing_version_table=allow_missing_version_table,
+    )
     if differences:
-        print("Canonical schema: DRIFT")
+        print("Verification: SCHEMA DRIFT")
         for difference in differences:
             print(f"- {difference}")
         return False
-    print("Canonical schema: EXACT MATCH")
+    print(exact_label)
     return True
 
 
@@ -291,9 +316,17 @@ def command_verify(database: Path, topology: dict[str, Any]) -> int:
     result = inspect_database(database, topology)
     _print_status(database, result)
     state = result["state"]
-    if state in {"INVALID / ERROR", "UNKNOWN", "LEGACY", "NONEMPTY_UNVERSIONED", "EMPTY"}:
+    if state in {"INVALID / ERROR", "UNKNOWN", "EMPTY"}:
         print("Verification: REFUSED for this database state")
         return 2
+    if state in {"LEGACY", "NONEMPTY_UNVERSIONED"}:
+        exact = _verify_canonical(
+            database,
+            allow_missing_version_table=(state == "NONEMPTY_UNVERSIONED"),
+            exact_label="Verification: EXACT MATCH WITH BASELINE",
+        )
+        print(f"Update readiness: {'READY' if exact else 'BLOCKED'}")
+        return 0 if exact else 1
     if result.get("integrity") != "ok":
         print("Verification: FAIL (SQLite integrity check failed)")
         return 2
@@ -352,7 +385,7 @@ def backup_database(database: Path, final_path: Path | None = None) -> Path:
         raise
 
 
-def prepare_upgrade(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
+def prepare_update(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
     """Run every read-only upgrade preflight and return its reusable result."""
     if not topology.get("valid"):
         print(f"Database: {database}")
@@ -366,12 +399,27 @@ def prepare_upgrade(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
     before = inspect_database(database, topology)
     _print_status(database, before)
     state = before.get("state")
-    if state in {"LEGACY", "UNKNOWN", "NONEMPTY_UNVERSIONED", "INVALID / ERROR"}:
-        print(f"REFUSED: {state}; reconciliation/adoption required. No stamp or automatic repair is performed.")
-        return {"eligible": False, "exit_code": 2, "before": before}
     if state == "CURRENT":
-        print("Database already up to date.")
-        return {"eligible": False, "exit_code": 0, "before": before}
+        print("数据库已经是最新版本，无需更新。")
+        return {"eligible": False, "exit_code": 0, "before": before, "reason": "current"}
+
+    if state in {"UNKNOWN", "INVALID / ERROR"}:
+        print(f"REFUSED: {state}; database state or migration topology is not safe to update.")
+        return {"eligible": False, "exit_code": 2, "before": before}
+
+    adopts_baseline = state in {"LEGACY", "NONEMPTY_UNVERSIONED"}
+    if adopts_baseline:
+        exact = _verify_canonical(
+            database,
+            allow_missing_version_table=(state == "NONEMPTY_UNVERSIONED"),
+            exact_label="Verification: EXACT MATCH WITH BASELINE",
+        )
+        if not exact:
+            print("Update readiness: BLOCKED")
+            print("检测到旧版数据库，但数据库结构与当前升级基线存在差异。为避免数据损坏，无法自动更新。")
+            return {"eligible": False, "exit_code": 2, "before": before, "reason": "schema-drift"}
+        print("Update readiness: READY")
+        print("检测到旧版数据库。数据库结构符合当前升级基线，可以安全更新。")
 
     if state == "UPGRADE_AVAILABLE" and before.get("revision") == BASELINE_REVISION:
         if not _verify_canonical(database):
@@ -383,9 +431,13 @@ def prepare_upgrade(database: Path, topology: dict[str, Any]) -> dict[str, Any]:
         "exit_code": 0,
         "before": before,
         "target": topology["heads"][0],
-        "backup_path": planned_backup_path(database)
-        if before.get("exists") and (before.get("application_tables") or before.get("revision"))
-        else None,
+        "adopts_baseline": adopts_baseline,
+        "path_label": (
+            "旧版数据库 → 当前最新版本" if adopts_baseline
+            else "空数据库 → 当前最新版本" if state == "EMPTY"
+            else f"{before.get('revision') or BASELINE_REVISION} → {topology['heads'][0]}"
+        ),
+        "backup_path": planned_backup_path(database) if before.get("exists") else None,
     }
 
 
@@ -397,7 +449,7 @@ def command_upgrade(
     URL: Any,
     prepared: dict[str, Any] | None = None,
 ) -> int:
-    prepared = prepared or prepare_upgrade(database, topology)
+    prepared = prepared or prepare_update(database, topology)
     if not prepared.get("eligible"):
         return int(prepared.get("exit_code", 2))
 
@@ -405,7 +457,7 @@ def command_upgrade(
     target = prepared["target"]
     print(f"Target: {target}")
     backup_path = None
-    if before.get("exists") and (before.get("application_tables") or before.get("revision")):
+    if before.get("exists"):
         try:
             backup_path = backup_database(database, prepared.get("backup_path"))
         except Exception as exc:
@@ -417,7 +469,13 @@ def command_upgrade(
     cfg.set_main_option("script_location", str(MIGRATIONS_DIR))
     try:
         with temporary_database_url(database_url(database, URL)):
-            command.upgrade(cfg, "head")
+            if prepared.get("adopts_baseline"):
+                # Controlled adoption: only after EXACT baseline verification
+                # and a successful consistent backup. This changes Alembic
+                # bookkeeping only; it does not run baseline DDL.
+                command.stamp(cfg, BASELINE_REVISION, purge=True)
+            if not (prepared.get("adopts_baseline") and target == BASELINE_REVISION):
+                command.upgrade(cfg, "head")
     except Exception as exc:
         print(f"FAILED at migration execution: {exc}")
         if backup_path:
@@ -481,10 +539,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 STATE_GUIDANCE = {
     "CURRENT": "数据库已经是当前最新版本，无需操作。",
-    "UPGRADE_AVAILABLE": "检测到新的数据库迁移，可以安全升级。",
-    "LEGACY": "当前数据库属于旧版迁移体系，不能直接升级。请先进行数据库 baseline adoption/reconciliation。",
+    "UPGRADE_AVAILABLE": "检测到新的数据库迁移，可以安全更新。",
+    "LEGACY": "当前数据库属于旧版迁移体系；结构与升级基线完全一致时可以安全更新，否则会停止并报告差异。",
     "UNKNOWN": "当前数据库版本无法识别，为避免损坏数据库，已停止。",
-    "NONEMPTY_UNVERSIONED": "数据库已有数据或表，但没有 Alembic 版本记录。为避免误判，不能自动升级。",
+    "NONEMPTY_UNVERSIONED": "数据库已有表但没有版本记录；只有结构与升级基线完全一致时才可安全更新。",
     "EMPTY": "当前为空数据库，可以通过 migration 创建完整 Schema。",
     "INVALID / ERROR": "数据库或迁移配置无效，已停止操作。请先检查错误详情。",
 }
@@ -515,7 +573,7 @@ def _confirm_interactive_upgrade(
     Config: Any,
     URL: Any,
 ) -> int:
-    prepared = prepare_upgrade(database, topology)
+    prepared = prepare_update(database, topology)
     if not prepared.get("eligible"):
         state = prepared.get("before", {}).get("state")
         if state:
@@ -524,19 +582,20 @@ def _confirm_interactive_upgrade(
 
     before = prepared["before"]
     print(f"Database: {database}")
-    print(f"Current revision: {before.get('revision') or 'none'}")
-    print(f"Target revision: {prepared['target']}")
+    print(f"Current: {before.get('revision') or 'none'}")
+    print(f"Target: {prepared['target']}")
+    print(f"Update path: {prepared['path_label']}")
     if before.get("exists") and (before.get("application_tables") or before.get("revision")):
         print(f"Backup: {prepared['backup_path']}（确认后创建）")
     else:
         print("Backup: 空数据库，无需备份")
     try:
-        answer = input("确认升级数据库？[y/N]: ").strip()
+        answer = input("确认更新数据库？[y/N]: ").strip()
     except (EOFError, KeyboardInterrupt):
-        print("已取消升级。")
+        print("已取消更新。")
         return 0
     if answer not in {"y", "Y"}:
-        print("已取消升级。")
+        print("已取消更新。")
         return 0
     return command_upgrade(database, topology, command, Config, URL, prepared=prepared)
 
@@ -552,7 +611,7 @@ def run_interactive(database_argument: str | None) -> int:
     while True:
         print("\n1. 查看数据库状态")
         print("2. 验证数据库")
-        print("3. 升级数据库")
+        print("3. 更新数据库到最新版本")
         print("0. 退出")
         try:
             choice = input("请选择 [0-3]: ").strip()

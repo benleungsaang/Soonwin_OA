@@ -18,9 +18,11 @@ repair the database. Schema ownership belongs to explicit Alembic operations.
 
 ## Cross-platform entry point
 
-For ordinary interactive use, run the script without a subcommand. It opens a
-Chinese menu for the configured development database. You can also select a
-database explicitly:
+For ordinary development use, pull the latest Git changes, run the script
+without a subcommand, and choose “更新数据库到最新版本”. The menu opens for
+the configured development database. Exact-baseline legacy databases are
+backed up and safely connected to the active migration chain automatically;
+schema drift is reported and blocks the update.
 
 ```text
 Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py
@@ -30,9 +32,22 @@ Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py
 Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py --database /tmp/test.db
 ```
 
-The menu offers status, verify and upgrade. Interactive upgrade requires an
-explicit `y` confirmation after its normal safety preflight. Legacy, unknown
-and nonempty unversioned databases remain refused.
+The menu offers status, verify and update. Before writing, it displays the
+current revision, target, update path and backup path, then requires `y`
+confirmation. Unknown revisions and databases with schema drift remain
+blocked.
+
+Recommended daily workflow:
+
+```text
+Windows: git pull
+Windows: python .\soonwin-os-Python-Server\migrations\tools\oa_db.py
+         选择“3. 更新数据库到最新版本”
+
+Linux:   git pull
+Linux:   python3 ./soonwin-os-Python-Server/migrations/tools/oa_db.py
+         选择“3. 更新数据库到最新版本”
+```
 
 For advanced or automated use, the existing CLI subcommands remain available
 from any working directory:
@@ -58,8 +73,10 @@ absolute paths are used as given. Every command prints the resolved absolute
 path.
 
 The repository's currently tracked development seed database may report
-`LEGACY`; the tool will refuse to upgrade it automatically. Do not stamp it;
-use the reviewed legacy reconciliation/adoption process.
+`LEGACY`. The status command reports its actual state. `verify` checks it
+against the canonical baseline; the update command adopts it automatically
+only when that schema is an exact match and a consistent backup succeeds.
+Do not manually stamp or purge databases.
 
 For an explicitly selected database:
 
@@ -74,11 +91,14 @@ does not install dependencies. Run it in the existing OA backend Python
 environment. Do not call `create_app()` as a schema bootstrap.
 
 `status` distinguishes `EMPTY`, `CURRENT`, `UPGRADE_AVAILABLE`, `LEGACY`,
-`UNKNOWN`, `NONEMPTY_UNVERSIONED`, and `INVALID / ERROR`. `upgrade` only runs
-for a truly empty database or a revision on the current active lineage. It
-refuses legacy, unknown, nonempty-unversioned, invalid databases and invalid
-Alembic topology. It never stamps, purges, reconciles, restores a backup, or
-runs archived revisions.
+`UNKNOWN`, `NONEMPTY_UNVERSIONED`, and `INVALID / ERROR`. `upgrade` / menu
+update creates a fresh schema for an empty database, advances an active
+revision after backup, and adopts a `LEGACY` or `NONEMPTY_UNVERSIONED`
+database only after exact baseline schema verification and a successful
+backup. `UNKNOWN`, invalid topology and schema drift are refused. The
+controlled Alembic stamp is internal to the guarded update path; no user
+facing stamp or purge command is provided, and archived revisions are never
+run.
 
 For an existing nonempty database that can safely upgrade, the script first
 creates a consistent SQLite backup with `sqlite3.Connection.backup()` under
@@ -115,12 +135,12 @@ expected head schema.
 
 ## Existing databases
 
-Manual baseline adoption is a separate reviewed operation. Before stamping an
-existing database, take a consistent SQLite backup and run the verifier
-against both the target and backup. Only `EXACT MATCH` permits a baseline
-stamp. For databases carrying an unknown/archived revision marker, the
-operator-managed adoption procedure may use Alembic's purge option to replace
-migration bookkeeping only:
+The normal update path handles exact-baseline legacy adoption after a
+consistent SQLite backup and schema verification. This replaces Alembic
+bookkeeping only; it does not run baseline DDL. Schema drift, unknown
+revisions, or failed backups stop the operation. There is no user-facing
+stamp or purge command. For exceptional operator recovery, the underlying
+Alembic purge technique is:
 
 ```text
 OA_DATABASE_URL=sqlite:////absolute/path/to/verified.db alembic -c migrations/alembic.ini stamp --purge baseline_20261006
@@ -128,8 +148,8 @@ OA_DATABASE_URL=sqlite:////absolute/path/to/verified.db alembic -c migrations/al
 
 Immediately verify schema and integrity again, and compare application table
 row counts before and after. `stamp --purge` is not a schema repair tool; it
-must never bypass a failed verifier. The `oa_db.py` script intentionally does
-not expose stamp or purge.
+must never bypass a failed verifier. Ordinary users should run the menu's
+“更新数据库到最新版本” action instead.
 
 Classify an older remote database before acting:
 
