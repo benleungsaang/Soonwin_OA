@@ -94,6 +94,24 @@
             gap: 6px;
         }
 
+        #toggleCargoLabelsBtn {
+            width: 30px;
+            height: 28px;
+            padding: 0;
+            display: inline-grid;
+            place-items: center;
+            border: 1px solid #34415b;
+            border-radius: 6px;
+            background: #172033;
+            color: #8290a5;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            transition: .2s;
+        }
+        #toggleCargoLabelsBtn:hover { border-color: #7c8da8; color: #d7e0ec; }
+        #toggleCargoLabelsBtn.active { border-color: #ffd93d; background: rgba(255,217,61,.18); color: #ffd93d; box-shadow: 0 0 8px rgba(255,217,61,.22); }
+
         .btn-sm {
             font-size: 12px;
             padding: 3px 10px;
@@ -1361,6 +1379,7 @@
             <div class="section flex-grow">
                 <div class="section-title">📦 货物列表 (<span id="cargoCount">0</span>)
                     <span class="section-actions">
+                        <button class="btn-sm" id="toggleCargoLabelsBtn" type="button" title="显示全部货物编号和名称" aria-label="显示全部货物编号和名称" aria-pressed="false">👁</button>
                         <div class="tb-dropdown" id="cargoActionDropdown">
                             <span class="btn btn-sm" id="cargoActionBtn">⚙️ 操作 ▾</span>
                             <div class="tb-dropdown-menu" id="cargoActionMenu" style="display:none;right:0;left:auto;">
@@ -1615,6 +1634,8 @@
             maxOverhangMM: 0, // 跌落后底部允许凸出支撑面的最大距离（0=0 容忍）
             interactionMode: 'direct', // 'direct'=即点即拖  'select'=点击选中
         };
+
+        let showCargoLabels = false;
 
         // ========== 撤销/重做 ==========
         const MAX_UNDO = 100;
@@ -2195,8 +2216,10 @@
                 dragObjects.push(mesh);
 
                 // 文字标签
-                const label = createLabel(name, color);
+                const label = createLabel(`#${cargo.no} ${name}`, color);
                 label.position.set(0, sy / 2 + 60, 0);
+                label.visible = showCargoLabels;
+                mesh.userData.cargoNameLabel = label;
                 mesh.add(label);
 
                 // ---- 异常高亮子节点（持续检测用） ----
@@ -2254,9 +2277,14 @@
 
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 34px "Segoe UI", "PingFang SC", sans-serif';
-            ctx.textAlign = 'center';
+            ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 128, 48);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(11, 11, 234, 74);
+            ctx.clip();
+            ctx.fillText(text, 17, 48);
+            ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
             texture.needsUpdate = true;
@@ -5532,6 +5560,19 @@
         // ============================================================
         const cargoActionBtn = $('#cargoActionBtn');
         const cargoActionMenu = $('#cargoActionMenu');
+        const toggleCargoLabelsBtn = $('#toggleCargoLabelsBtn');
+
+        toggleCargoLabelsBtn.addEventListener('click', () => {
+            showCargoLabels = !showCargoLabels;
+            toggleCargoLabelsBtn.classList.toggle('active', showCargoLabels);
+            toggleCargoLabelsBtn.setAttribute('aria-pressed', String(showCargoLabels));
+            const title = showCargoLabels ? '隐藏全部货物编号和名称' : '显示全部货物编号和名称';
+            toggleCargoLabelsBtn.title = title;
+            toggleCargoLabelsBtn.setAttribute('aria-label', title);
+            cargoGroup.children.forEach(mesh => {
+                if (mesh.userData.cargoNameLabel) mesh.userData.cargoNameLabel.visible = showCargoLabels;
+            });
+        });
 
         cargoActionBtn.addEventListener('click', (e) => {
             e.stopPropagation();
