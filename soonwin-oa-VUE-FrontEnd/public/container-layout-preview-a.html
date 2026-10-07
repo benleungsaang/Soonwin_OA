@@ -217,20 +217,31 @@ const hexRgba = (hex, a) => {
 };
 // 带圈数字（序号显示）
 const CIRC_NUM = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
-const circNum = n => CIRC_NUM[n - 1] || n;
+const circNum = n => /^[1-9]\d*$/.test(String(n)) ? (CIRC_NUM[Number(n) - 1] || String(n)) : String(n);
+const compareCargoNumbers = (a, b) => String(a).localeCompare(String(b), 'zh-CN', { numeric: true });
 
 // 固定编号来自编辑器；排序只控制清单/绘制顺序，不再生成新编号。
-// 兼容旧数据：缺号、重复号或非法号时，按当前数组顺序一次性补为 1..N。
+// 兼容旧数据：只为缺号或重复号的货物补号，保留字母和连接号编号。
 function normalizeCargoNumbers(cargos) {
   const used = new Set();
-  let repair = false;
+  const missing = [];
+  let maxNumeric = 0;
   for (const c of cargos) {
-    const n = Number(c.no);
-    if (!Number.isInteger(n) || n <= 0 || used.has(n)) { repair = true; break; }
-    used.add(n);
+    const no = c.no === undefined || c.no === null ? '' : String(c.no).trim();
+    if (!no || used.has(no)) { missing.push(c); continue; }
+    c.no = no;
+    used.add(no);
+    if (/^[1-9]\d*$/.test(no)) {
+      const numeric = Number(no);
+      if (Number.isSafeInteger(numeric)) maxNumeric = Math.max(maxNumeric, numeric);
+    }
   }
-  if (repair) cargos.forEach((c,i)=>{ c.no=i+1; });
-  else cargos.forEach(c=>{ c.no=Number(c.no); });
+  let next = maxNumeric + 1;
+  for (const c of missing) {
+    while (used.has(String(next))) next++;
+    c.no = String(next++);
+    used.add(c.no);
+  }
 }
 normalizeCargoNumbers(CARGOS);
 
@@ -240,7 +251,7 @@ const SPATIAL_INDEX = CARGOS.map((c,i)=>i).sort((a,b)=>
   CARGOS[a].px - CARGOS[b].px ||
   CARGOS[a].pz - CARGOS[b].pz ||
   CARGOS[a].py - CARGOS[b].py ||
-  CARGOS[a].no - CARGOS[b].no
+  compareCargoNumbers(CARGOS[a].no, CARGOS[b].no)
 );
 
 // “同一栋”识别：把直接/间接承托关系视为同一连通组。
@@ -263,16 +274,16 @@ function buildTowerLayout(cargos, stack) {
       cargos[a].py-cargos[b].py ||
       cargos[a].px-cargos[b].px ||
       cargos[a].pz-cargos[b].pz ||
-      cargos[a].no-cargos[b].no
+      compareCargoNumbers(cargos[a].no,cargos[b].no)
     );
     return {
       members,
       minPx:Math.min(...members.map(i=>cargos[i].px)),
       minPz:Math.min(...members.map(i=>cargos[i].pz)),
       minPy:Math.min(...members.map(i=>cargos[i].py)),
-      minNo:Math.min(...members.map(i=>cargos[i].no)),
+      minNo:members.map(i=>cargos[i].no).sort(compareCargoNumbers)[0],
     };
-  }).sort((a,b)=>a.minPx-b.minPx || a.minPz-b.minPz || a.minPy-b.minPy || a.minNo-b.minNo);
+  }).sort((a,b)=>a.minPx-b.minPx || a.minPz-b.minPz || a.minPy-b.minPy || compareCargoNumbers(a.minNo,b.minNo));
 
   const towerId=Array(n).fill(-1);
   towers.forEach((t,id)=>t.members.forEach(i=>towerId[i]=id));
@@ -440,9 +451,9 @@ function draw() {
     ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.fill();
     ctx.strokeStyle = isHover ? '#e94560' : (st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#2b6cb0'));
     ctx.lineWidth = isHover ? 3 : 2; ctx.stroke();
-    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${r + 4}px sans-serif`;
+    ctx.fillStyle = '#1a1a1a'; ctx.font = `bold ${Math.min(r + 4, 16)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(CARGOS[i].no, bx, by + 1);
+    ctx.fillText(String(CARGOS[i].no), bx, by + 1, r * 1.8);
     ctx.restore();
   }
 
@@ -492,7 +503,7 @@ function draw() {
     ctx.strokeStyle = st.stacked ? '#c62828' : (st.suspended ? '#b26a00' : '#8aa0b8'); ctx.lineWidth = 1.6; ctx.stroke();
     ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(c.no, numCx, yc);
+    ctx.fillText(String(c.no), numCx, yc, 23);
     ctx.restore();
     // 名称（空两格；超 12 字截断）
     ctx.fillStyle = '#1a1a1a'; ctx.font = '16px "Segoe UI","PingFang SC",sans-serif'; ctx.textAlign = 'left';
@@ -808,8 +819,8 @@ function drawPrintBadge(g, x, y, n, color, r = 17, cargoFill = null) {
   g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
   g.fillStyle = cargoFill || '#fff'; g.fill(); g.strokeStyle = color; g.lineWidth = cargoFill ? 2 : 3; g.stroke();
   g.fillStyle = cargoFill ? readableTextColor(cargoFill) : '#111827';
-  g.font = `800 ${n >= 10 ? 17 : 19}px Arial,sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n, x, y + 1);
+  g.font = `800 ${String(n).length > 2 ? 15 : 19}px Arial,sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), x, y + 1, r * 1.8);
   g.restore();
 }
 

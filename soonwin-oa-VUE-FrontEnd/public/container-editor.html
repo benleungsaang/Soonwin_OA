@@ -1503,8 +1503,8 @@
     <div class="modal-overlay" id="cargoImportModal">
         <div class="modal cargo-import-modal">
             <h2>导入货物</h2>
-            <div class="field"><label for="cargoInput">粘贴 Excel / WPS 数据（必须包含“名称”“尺寸”表头，重量可省略；尺寸为长×宽×高，单位 mm）</label>
-                <textarea id="cargoInput" placeholder="名称&#9;尺寸&#9;重量(kg)&#10;货物1&#9;1200x800x1500&#9;100"></textarea>
+            <div class="field"><label for="cargoInput">粘贴 Excel / WPS 数据（必须包含“名称”“尺寸”表头；序号留空则自动分配，重量可省略；尺寸为长×宽×高，单位 mm）</label>
+                <textarea id="cargoInput" placeholder="序号&#9;名称&#9;尺寸&#9;重量(kg)&#10;26A&#9;货物1&#9;1200x800x1500&#9;100"></textarea>
             </div>
             <div class="cargo-import-errors" id="cargoImportErrors"></div>
             <div class="modal-actions">
@@ -3516,27 +3516,42 @@
         // ============================================================
         //  固定货物编号
         // ============================================================
+        function cargoNumberKey(value) {
+            return value === undefined || value === null ? '' : String(value).trim();
+        }
+
         function normalizeCargoNumbers(cargos) {
             const used = new Set();
-            let needsRepair = false;
+            const missing = [];
+            let maxNumeric = 0;
             for (const c of cargos) {
-                const n = Number(c.no);
-                if (!Number.isInteger(n) || n <= 0 || used.has(n)) {
-                    needsRepair = true;
-                    break;
+                const no = cargoNumberKey(c.no);
+                if (!no || used.has(no)) {
+                    missing.push(c);
+                    continue;
                 }
-                used.add(n);
+                c.no = no;
+                used.add(no);
+                if (/^[1-9]\d*$/.test(no)) {
+                    const numeric = Number(no);
+                    if (Number.isSafeInteger(numeric)) maxNumeric = Math.max(maxNumeric, numeric);
+                }
             }
-            if (needsRepair) {
-                cargos.forEach((c, idx) => { c.no = idx + 1; });
-            } else {
-                cargos.forEach(c => { c.no = Number(c.no); });
+            let next = maxNumeric + 1;
+            for (const c of missing) {
+                while (used.has(String(next))) next++;
+                c.no = String(next++);
+                used.add(c.no);
             }
-            return needsRepair;
+            return missing.length > 0;
         }
 
         function getNextCargoNumber() {
-            return state.cargos.reduce((maxNo, c) => Math.max(maxNo, Number(c.no) || 0), 0) + 1;
+            return state.cargos.reduce((maxNo, c) => {
+                const no = cargoNumberKey(c.no);
+                const numeric = /^[1-9]\d*$/.test(no) ? Number(no) : 0;
+                return Number.isSafeInteger(numeric) ? Math.max(maxNo, numeric) : maxNo;
+            }, 0) + 1;
         }
 
         function renumberCargos() {
@@ -3608,7 +3623,7 @@
                     <div class="cargo-row1">
                         ${doorWarn ? `<span class="cargo-door-warn" title="⚠️ 超出柜门限制（宽${doorCheck.narrowW}mm > 门洞宽${doorCheck.limitW}mm${doorCheck.tooTall ? ` 或 高${c.sy}mm > 门洞高${doorCheck.limitH}mm` : ''}）" style="color:#ff6b6b;cursor:help;font-size:14px;">🚪</span>` : ''}
                         <span class="color-dot" style="background:${c.color}"></span>
-                        <span class="cargo-index">#${c.no}</span>
+                        <span class="cargo-index">#${escapeCargoImportHtml(c.no)}</span>
                         <span class="cargo-name">${c.name}</span>
                     </div>
                     <div class="cargo-row2">
@@ -4017,7 +4032,7 @@
             saveState();
         }
 
-        const cargoImportTemplate = '名称\t尺寸\t重量(kg)\n货物1\t1200x800x1500\t100\n货物2\t1000x600x1200\t80\n货物3\t900x700x1100\t';
+        const cargoImportTemplate = '序号\t名称\t尺寸\t重量(kg)\n26A\t货物1\t1200x800x1500\t100\n27-B\t货物2\t1000x600x1200\t80\n\t货物3\t900x700x1100\t';
         let checkedCargoImportRows = [];
 
         function splitCargoImportLine(line) {
@@ -4040,6 +4055,7 @@
                 return;
             }
             const headers = splitCargoImportLine(lines[0].text).map(value => value.replace(/\s/g, '').toLowerCase());
+            const numberIndex = headers.indexOf('序号');
             const nameIndex = headers.indexOf('名称');
             const sizeIndex = headers.indexOf('尺寸');
             const weightIndex = headers.findIndex(value => /^(重量|重量\(kg\)|重量kg)$/.test(value));
@@ -4055,6 +4071,7 @@
             }
             const rows = lines.slice(1).map(item => {
                 const columns = splitCargoImportLine(item.text);
+                const no = numberIndex < 0 ? '' : (columns[numberIndex] || '');
                 const name = columns[nameIndex] || '';
                 const sizeRaw = columns[sizeIndex] || '';
                 const weightRaw = weightIndex < 0 ? '' : (columns[weightIndex] || '');
@@ -4066,11 +4083,24 @@
                 if (!name) errors.push('缺少名称');
                 if (!size || size.some(value => !Number.isFinite(value) || value <= 0)) errors.push('尺寸须为正数：长×宽×高 (mm)');
                 if (weightRaw && (!weightMatch || !Number.isFinite(weight))) errors.push('重量须为非负数 (kg)');
-                return { line: item.line, name, sizeRaw, size, weightRaw, weight, errors };
+                return { line: item.line, no, name, sizeRaw, size, weightRaw, weight, errors };
+            });
+            const usedNumbers = new Set(state.cargos.map(c => cargoNumberKey(c.no)));
+            rows.forEach(row => {
+                if (!row.no) return;
+                if (usedNumbers.has(row.no)) row.errors.push('序号与已有货物或本批其它货物重复');
+                else usedNumbers.add(row.no);
+            });
+            let nextNumber = getNextCargoNumber();
+            rows.forEach(row => {
+                if (row.no) return;
+                while (usedNumbers.has(String(nextNumber))) nextNumber++;
+                row.no = String(nextNumber++);
+                usedNumbers.add(row.no);
             });
             const invalidCount = rows.filter(row => row.errors.length).length;
             checkedCargoImportRows = invalidCount ? [] : rows;
-            $('#cargoImportPreview').innerHTML = `<div>准备导入 ${rows.length} 件；有效 ${rows.length - invalidCount} 件；错误 ${invalidCount} 件</div><table><thead><tr><th>行号</th><th>名称</th><th>尺寸 (长×宽×高 mm)</th><th>重量 (kg)</th><th>检查结果</th></tr></thead><tbody>${rows.map(row => `<tr class="${row.errors.length ? 'invalid' : ''}"><td>${row.line}</td><td>${escapeCargoImportHtml(row.name || '—')}</td><td>${escapeCargoImportHtml(row.sizeRaw || '—')}</td><td>${escapeCargoImportHtml(row.weightRaw || '0')}</td><td class="${row.errors.length ? 'error' : ''}">${escapeCargoImportHtml(row.errors.join('；') || '通过')}</td></tr>`).join('')}</tbody></table>`;
+            $('#cargoImportPreview').innerHTML = `<div>准备导入 ${rows.length} 件；有效 ${rows.length - invalidCount} 件；错误 ${invalidCount} 件</div><table><thead><tr><th>行号</th><th>序号</th><th>名称</th><th>尺寸 (长×宽×高 mm)</th><th>重量 (kg)</th><th>检查结果</th></tr></thead><tbody>${rows.map(row => `<tr class="${row.errors.length ? 'invalid' : ''}"><td>${row.line}</td><td>${escapeCargoImportHtml(row.no)}</td><td>${escapeCargoImportHtml(row.name || '—')}</td><td>${escapeCargoImportHtml(row.sizeRaw || '—')}</td><td>${escapeCargoImportHtml(row.weightRaw || '0')}</td><td class="${row.errors.length ? 'error' : ''}">${escapeCargoImportHtml(row.errors.join('；') || '通过')}</td></tr>`).join('')}</tbody></table>`;
             $('#cargoImportConfirmBtn').disabled = invalidCount > 0;
             cargoInput.classList.toggle('has-error', invalidCount > 0);
             $('#cargoImportModal').classList.remove('active');
@@ -4079,10 +4109,9 @@
 
         function confirmCargoImport() {
             if (!checkedCargoImportRows.length) return;
-            let nextCargoNo = getNextCargoNumber();
             const newCargos = checkedCargoImportRows.map(row => ({
                 id: `cargo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                no: nextCargoNo++, name: row.name,
+                no: row.no, name: row.name,
                 sx: row.size[0], sz: row.size[1], sy: row.size[2], weight: row.weight,
                 px: 0, py: 0, pz: 0, color: getNextColor(),
             }));
