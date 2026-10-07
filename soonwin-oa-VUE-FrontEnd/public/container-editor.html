@@ -823,6 +823,20 @@
             padding: 8px 24px;
         }
 
+        .cargo-import-modal { box-sizing: border-box; width: min(860px, 92vw); min-width: 0; max-width: none; }
+        .cargo-import-modal textarea { width: 100%; height: 220px; resize: vertical; background: #0a0a2a; color: #e0e0e0; border: 1px solid #2a2a5e; border-radius: 8px; padding: 10px; font: 12px Consolas, monospace; }
+        .cargo-import-modal textarea.has-error { border-color: #e94560; }
+        .cargo-import-errors { max-height: 130px; overflow-y: auto; margin-top: 8px; color: #ff9aaa; font-size: 12px; }
+        .cargo-import-errors div { padding: 5px 8px; margin: 3px 0; border-radius: 5px; background: rgba(233, 69, 96, .16); }
+        .cargo-import-preview { max-height: 55vh; overflow: auto; color: #e0e0e0; font-size: 13px; }
+        .cargo-import-preview table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .cargo-import-preview th, .cargo-import-preview td { padding: 7px 9px; border: 1px solid #354064; text-align: left; }
+        .cargo-import-preview tr.invalid { background: rgba(233, 69, 96, .18); }
+        .cargo-import-preview .error { color: #ff9aaa; }
+        .cargo-import-modal .modal-actions { flex-wrap: wrap; }
+        .cargo-import-modal .template-btn { margin-right: auto; background: #16803c; }
+        .cargo-import-modal .btn:disabled { opacity: .4; cursor: not-allowed; }
+
         /* -------------------- 3D视图 -------------------- */
         #viewport {
             flex: 1;
@@ -1362,15 +1376,6 @@
                 </div>
                 <div class="cargo-list-container" id="cargoList"></div>
 
-                <div id="importCargoPanel" style="display:none;padding:8px;background:#0d1b33;border-radius:6px;margin-top:4px;">
-                    <textarea id="cargoInput"
-                        style="width:100%;height:120px;max-height:120px;background:#0a0a2a;border:1px solid #2a2a5e;border-radius:6px;color:#e0e0e0;padding:8px;font-size:12px;resize:none;font-family:Consolas,monospace;line-height:1.6;"
-                        placeholder="每行一个：名称, 长*宽*高 (mm), 重量kg（可选）"></textarea>
-                    <div style="display:flex;gap:6px;margin-top:6px;">
-                        <button class="btn btn-primary" id="loadCargoBtn" style="font-size:12px;padding:4px 12px;">📥 添加货物</button>
-                        <button class="btn" id="closeImportBtn" style="font-size:12px;padding:4px 12px;">关闭</button>
-                    </div>
-                </div>
             </div>
 
             <!-- 方案保存区 -->
@@ -1490,6 +1495,32 @@
             <div class="modal-actions">
                 <button class="btn" id="editCancelBtn">取消</button>
                 <button class="btn btn-primary" id="editSaveBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 货物导入弹窗 -->
+    <div class="modal-overlay" id="cargoImportModal">
+        <div class="modal cargo-import-modal">
+            <h2>导入货物</h2>
+            <div class="field"><label for="cargoInput">粘贴 Excel / WPS 数据（必须包含“名称”“尺寸”表头，重量可省略；尺寸为长×宽×高，单位 mm）</label>
+                <textarea id="cargoInput" placeholder="名称&#9;尺寸&#9;重量(kg)&#10;货物1&#9;1200x800x1500&#9;100"></textarea>
+            </div>
+            <div class="cargo-import-errors" id="cargoImportErrors"></div>
+            <div class="modal-actions">
+                <button class="btn template-btn" id="cargoCopyTemplateBtn">复制模板</button>
+                <button class="btn" id="cargoImportCancelBtn">取消</button>
+                <button class="btn btn-primary" id="cargoImportCheckBtn">检查并继续</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="cargoImportPreviewModal">
+        <div class="modal cargo-import-modal">
+            <h2>确认导入列表</h2>
+            <div class="cargo-import-preview" id="cargoImportPreview"></div>
+            <div class="modal-actions">
+                <button class="btn" id="cargoImportBackBtn">返回修改</button>
+                <button class="btn btn-primary" id="cargoImportConfirmBtn">确认导入</button>
             </div>
         </div>
     </div>
@@ -1660,7 +1691,6 @@
         const flatStackingToggleLabel = $('#flatStackingToggleLabel');
         const maxOverhangMM = $('#maxOverhangMM');
         const cargoInput = $('#cargoInput');
-        const loadCargoBtn = $('#loadCargoBtn');
         // clearCargoBtn 和 resetLayoutBtn 已移至 ⚙️ 操作下拉菜单，不再需要独立元素
         const cargoListEl = $('#cargoList');
         const cargoCount = $('#cargoCount');
@@ -3951,6 +3981,15 @@
                 return false;
             }
 
+            appendCargos(newCargos);
+            // 全部成功 → 清空输入框以便下次输入；部分成功已在 errors 分支设置 failedLines
+            if (!errors.length) {
+                cargoInput.value = '';
+            }
+            return true;
+        }
+
+        function appendCargos(newCargos) {
             const existingCount = state.cargos.length;
             state.cargos.push(...newCargos);
 
@@ -3976,11 +4015,81 @@
             rebuildCargoMeshes();
             updateStats();
             saveState();
-            // 全部成功 → 清空输入框以便下次输入；部分成功已在 errors 分支设置 failedLines
-            if (!errors.length) {
-                cargoInput.value = '';
+        }
+
+        const cargoImportTemplate = '名称\t尺寸\t重量(kg)\n货物1\t1200x800x1500\t100\n货物2\t1000x600x1200\t80\n货物3\t900x700x1100\t';
+        let checkedCargoImportRows = [];
+
+        function splitCargoImportLine(line) {
+            return (line.includes('\t') ? line.split('\t') : line.trim().split(/\s{2,}/)).map(value => value.trim());
+        }
+
+        function escapeCargoImportHtml(value) {
+            return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        }
+
+        function checkCargoImport() {
+            const lines = cargoInput.value.split(/\r?\n/).map((text, index) => ({ text, line: index + 1 })).filter(item => item.text.trim());
+            const errorsEl = $('#cargoImportErrors');
+            errorsEl.innerHTML = '';
+            checkedCargoImportRows = [];
+            cargoInput.classList.remove('has-error');
+            if (!lines.length) {
+                errorsEl.textContent = '请先粘贴包含表头的货物数据。';
+                cargoInput.classList.add('has-error');
+                return;
             }
-            return true;
+            const headers = splitCargoImportLine(lines[0].text).map(value => value.replace(/\s/g, '').toLowerCase());
+            const nameIndex = headers.indexOf('名称');
+            const sizeIndex = headers.indexOf('尺寸');
+            const weightIndex = headers.findIndex(value => /^(重量|重量\(kg\)|重量kg)$/.test(value));
+            if (nameIndex < 0 || sizeIndex < 0) {
+                errorsEl.textContent = '缺少必需表头“名称”或“尺寸”，请先复制模板。';
+                cargoInput.classList.add('has-error');
+                return;
+            }
+            if (lines.length === 1) {
+                errorsEl.textContent = '表头下方没有货物数据。';
+                cargoInput.classList.add('has-error');
+                return;
+            }
+            const rows = lines.slice(1).map(item => {
+                const columns = splitCargoImportLine(item.text);
+                const name = columns[nameIndex] || '';
+                const sizeRaw = columns[sizeIndex] || '';
+                const weightRaw = weightIndex < 0 ? '' : (columns[weightIndex] || '');
+                const sizeMatch = /^(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*(?:mm)?$/i.exec(sizeRaw);
+                const size = sizeMatch ? sizeMatch.slice(1, 4).map(Number) : null;
+                const weightMatch = weightRaw ? /^(\d+(?:\.\d+)?)\s*(?:kg)?$/i.exec(weightRaw) : null;
+                const weight = weightMatch ? Number(weightMatch[1]) : 0;
+                const errors = [];
+                if (!name) errors.push('缺少名称');
+                if (!size || size.some(value => !Number.isFinite(value) || value <= 0)) errors.push('尺寸须为正数：长×宽×高 (mm)');
+                if (weightRaw && (!weightMatch || !Number.isFinite(weight))) errors.push('重量须为非负数 (kg)');
+                return { line: item.line, name, sizeRaw, size, weightRaw, weight, errors };
+            });
+            const invalidCount = rows.filter(row => row.errors.length).length;
+            checkedCargoImportRows = invalidCount ? [] : rows;
+            $('#cargoImportPreview').innerHTML = `<div>准备导入 ${rows.length} 件；有效 ${rows.length - invalidCount} 件；错误 ${invalidCount} 件</div><table><thead><tr><th>行号</th><th>名称</th><th>尺寸 (长×宽×高 mm)</th><th>重量 (kg)</th><th>检查结果</th></tr></thead><tbody>${rows.map(row => `<tr class="${row.errors.length ? 'invalid' : ''}"><td>${row.line}</td><td>${escapeCargoImportHtml(row.name || '—')}</td><td>${escapeCargoImportHtml(row.sizeRaw || '—')}</td><td>${escapeCargoImportHtml(row.weightRaw || '0')}</td><td class="${row.errors.length ? 'error' : ''}">${escapeCargoImportHtml(row.errors.join('；') || '通过')}</td></tr>`).join('')}</tbody></table>`;
+            $('#cargoImportConfirmBtn').disabled = invalidCount > 0;
+            cargoInput.classList.toggle('has-error', invalidCount > 0);
+            $('#cargoImportModal').classList.remove('active');
+            $('#cargoImportPreviewModal').classList.add('active');
+        }
+
+        function confirmCargoImport() {
+            if (!checkedCargoImportRows.length) return;
+            let nextCargoNo = getNextCargoNumber();
+            const newCargos = checkedCargoImportRows.map(row => ({
+                id: `cargo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                no: nextCargoNo++, name: row.name,
+                sx: row.size[0], sz: row.size[1], sy: row.size[2], weight: row.weight,
+                px: 0, py: 0, pz: 0, color: getNextColor(),
+            }));
+            appendCargos(newCargos);
+            checkedCargoImportRows = [];
+            cargoInput.value = '';
+            $('#cargoImportPreviewModal').classList.remove('active');
         }
 
         function clearAllCargos() {
@@ -5317,9 +5426,24 @@
             saveState();
         });
 
-        loadCargoBtn.addEventListener('click', () => {
-            const text = cargoInput.value;
-            loadCargosFromText(text);
+        $('#cargoImportCheckBtn').addEventListener('click', checkCargoImport);
+        $('#cargoImportConfirmBtn').addEventListener('click', confirmCargoImport);
+        $('#cargoImportCancelBtn').addEventListener('click', () => {
+            checkedCargoImportRows = [];
+            $('#cargoImportModal').classList.remove('active');
+        });
+        $('#cargoImportBackBtn').addEventListener('click', () => {
+            checkedCargoImportRows = [];
+            $('#cargoImportPreviewModal').classList.remove('active');
+            $('#cargoImportModal').classList.add('active');
+        });
+        $('#cargoCopyTemplateBtn').addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(cargoImportTemplate);
+                alert('已复制导入模板，可粘贴到 Excel / WPS 修改。');
+            } catch {
+                fallbackCopy(cargoImportTemplate);
+            }
         });
 
         // 阻止 cargoInput 的 keydown 事件冒泡到文档快捷键监听器
@@ -5335,10 +5459,6 @@
                     e.stopPropagation();
                 }
             });
-        });
-
-        $('#closeImportBtn').addEventListener('click', () => {
-            $('#importCargoPanel').style.display = 'none';
         });
 
         exportBtn.addEventListener('click', exportLayout);
@@ -5388,9 +5508,12 @@
                 } else if (action === 'smartPacking') {
                     openPackParamModal();
                 } else if (action === 'importCargo') {
-                    const panel = $('#importCargoPanel');
-                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                    if (panel.style.display === 'block') cargoInput.focus();
+                    cargoInput.value = '';
+                    cargoInput.classList.remove('has-error');
+                    $('#cargoImportErrors').innerHTML = '';
+                    checkedCargoImportRows = [];
+                    $('#cargoImportModal').classList.add('active');
+                    cargoInput.focus();
                 } else if (action === 'resetLayout') {
                     resetLayout();
                 } else if (action === 'renumberCargo') {
@@ -5575,8 +5698,6 @@
                 }
             }
             buildScene();
-            const defaultText = cargoInput.value;
-            loadCargosFromText(defaultText);
         }
 
         async function init() {
