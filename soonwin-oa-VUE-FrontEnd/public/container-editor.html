@@ -91,8 +91,13 @@
         .section-title .section-actions {
             margin-left: auto;
             display: flex;
+            align-items: center;
             gap: 6px;
+            line-height: 1;
         }
+
+        #cargoActionDropdown { display: inline-flex; align-items: center; }
+        #cargoActionBtn { height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; line-height: 1; }
 
         #toggleCargoLabelsBtn {
             width: 30px;
@@ -2334,6 +2339,11 @@
                 }
                 if (obj.userData.baseWireframe && obj.userData.baseWireframe.material) {
                     obj.userData.baseWireframe.material.opacity = selected ? 0.9 : 0.22;
+                }
+                const cargoNameLabel = obj.userData.cargoNameLabel;
+                if (cargoNameLabel && cargoNameLabel.material) {
+                    cargoNameLabel.material.opacity = hasSelection && !selected ? 0.28 : 1;
+                    cargoNameLabel.material.color.set(selected ? 0xffd93d : (hasSelection ? 0x778196 : 0xffffff));
                 }
                 if (obj.userData.selectionOutline) {
                     const abnormal = !!(obj.userData.outOverlay && obj.userData.outOverlay.visible);
