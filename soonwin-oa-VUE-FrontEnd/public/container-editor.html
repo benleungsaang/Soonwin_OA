@@ -2295,8 +2295,7 @@
             ctx.rect(16, 11, 224, 74);
             ctx.clip();
             ctx.fillText(fitText(`#${number}`), 128, 32);
-            ctx.textAlign = 'left';
-            ctx.fillText(fitText(name), 16, 64);
+            ctx.fillText(fitText(name), 128, 64);
             ctx.restore();
 
             const texture = new THREE.CanvasTexture(canvas);
