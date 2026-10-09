@@ -294,66 +294,38 @@
         </template>
       </el-dialog>
 
-      <!-- 设备更换申请审批对话框 -->
-      <el-dialog v-model="showDeviceChangeApprovalDialog" title="设备更换申请审批" width="700px">
-        <div v-if="deviceChangeRequests.length === 0 && !loadingDeviceChangeRequests" class="no-data">
-          <el-empty description="暂无设备更换申请" :image-size="100" />
-          <p style="text-align: center; margin-top: 10px; color: #909399;">
-            员工需要在打卡页面申请更换设备后，才会显示在此处进行审批
-          </p>
+      <!-- 管理员二维码设备绑定审批 -->
+      <el-dialog v-model="showDeviceChangeApprovalDialog" title="设备绑定二维码审批" width="680px" class="binding-dialog" @closed="closeBindingDialog">
+        <div class="binding-panel">
+          <div class="binding-selector">
+            <span>员工</span>
+            <el-select v-model="bindingEmpId" filterable placeholder="选择有效员工" class="binding-select">
+              <el-option v-for="employee in employees.filter(employee => employee.status === 'active')" :key="employee.emp_id" :label="`${employee.name} (${employee.emp_id})`" :value="employee.emp_id" />
+            </el-select>
+            <el-button type="primary" @click="generateBindingQr" :loading="bindingGenerating">生成绑定二维码</el-button>
+          </div>
+          <div v-if="bindingSession" class="qr-section">
+            <div class="qr-frame">
+              <canvas ref="bindingQrCanvas"></canvas>
+              <div v-if="bindingSession.status !== 'waiting_scan'" class="qr-cover">
+                <div class="qr-tick" :class="{ success: bindingSession.status === 'approved' }">✓</div>
+                <span>{{ bindingStatusText }}</span>
+              </div>
+            </div>
+            <div class="binding-status"><span class="status-dot"></span>{{ bindingStatusText }}</div>
+            <p class="binding-hint">{{ bindingHint }}</p>
+            <div v-if="bindingSession.status === 'waiting_scan'" class="binding-countdown">二维码剩余 <b>{{ bindingCountdown }}</b></div>
+          </div>
+          <div v-if="bindingSession && bindingSession.status !== 'waiting_scan'" class="binding-info">
+            <div><span>申请员工</span><strong>{{ bindingSession.name }}（{{ bindingSession.emp_id }}）</strong></div>
+            <div v-if="bindingSession.device_info"><span>扫码设备</span><strong>{{ displayDeviceInfo(bindingSession.device_info) }}</strong></div>
+            <div><span>申请状态</span><strong>{{ bindingStatusText }}</strong></div>
+            <div v-if="bindingSession.status === 'pending'" class="binding-actions"><el-button class="reject-button" @click="rejectBindingSession">拒绝</el-button><el-button type="primary" @click="approveBindingSession">批准绑定</el-button></div>
+          </div>
+          <p class="binding-note">二维码由服务器生成；倒计时基于服务器 expires_at。扫码后二维码将失效，管理员每 2 秒同步真实状态。</p>
         </div>
-        <el-table
-          v-else
-          :data="deviceChangeRequests"
-          v-loading="loadingDeviceChangeRequests"
-          style="width: 100%"
-          stripe
-          border
-          :header-cell-style="{ 'text-align': 'center' }"
-          :cell-style="{ 'text-align': 'center', 'vertical-align': 'middle' }"
-        >
-          <el-table-column prop="emp_id" label="员工ID" width="120" align="center" header-align="center" />
-          <el-table-column prop="name" label="员工姓名" width="120" align="center" header-align="center" />
-          <el-table-column prop="punch_type" label="申请类型" width="150" align="center" header-align="center">
-            <template #default="scope">
-              <el-tag type="warning">{{ scope.row.punch_type }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="punch_time" label="申请时间" width="160" align="center" header-align="center" />
-          <el-table-column prop="device_id" label="新设备ID" width="200" align="center" header-align="center">
-            <template #default="scope">
-              <el-tooltip :content="scope.row.device_id" placement="top" :disabled="!scope.row.device_id || scope.row.device_id.length <= 20">
-                <span class="device-text">{{ scope.row.device_id && scope.row.device_id.length > 20 ? scope.row.device_id.substring(0, 20) + '...' : scope.row.device_id || '无设备ID' }}</span>
-              </el-tooltip>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="150" align="center" header-align="center">
-            <template #default="scope">
-              <el-button
-                size="small"
-                type="success"
-                @click="approveDeviceChange(scope.row.id)"
-                :icon="CircleCheck"
-                circle
-              />
-              <el-button
-                size="small"
-                type="danger"
-                @click="rejectDeviceChange(scope.row.id)"
-                :icon="Delete"
-                circle
-              />
-            </template>
-          </el-table-column>
-        </el-table>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="showDeviceChangeApprovalDialog = false">关闭</el-button>
-          </span>
-        </template>
+        <template #footer><el-button @click="showDeviceChangeApprovalDialog = false">关闭</el-button></template>
       </el-dialog>
-
-
 
       <!-- 角色管理对话框 -->
       <el-dialog
@@ -504,7 +476,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
+import { bindingStatusText as bindingStatusTextLabels, formatBindingCountdown, isTerminalBindingStatus, secondsToExpiry, type BindingStatus } from '@/utils/deviceBindingState';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Warning, View, Edit, Delete, Position, CircleCheck, Setting } from '@element-plus/icons-vue';
@@ -800,6 +773,8 @@ const goBack = () => {
 };
 
 // 组件挂载时获取数据
+onBeforeUnmount(() => { stopBindingTimers(); });
+
 onMounted(async () => {
   // 先获取员工列表
   await fetchEmployees();
@@ -903,93 +878,28 @@ const closeDetailDialog = () => {
   selectedEmployee.value = null;
 };
 
-// 获取设备更换申请列表
-const fetchDeviceChangeRequests = async () => {
-  loadingDeviceChangeRequests.value = true;
-  try {
-    // 获取所有打卡记录，然后筛选出设备更换申请
-    const response: any = await request.get('/api/punch-records', {
-      params: {
-        punch_type: '设备更换申请',
-        page: 1,
-        size: 100  // 获取所有申请
-      }
-    });
-
-    if (response && response.list) {
-      deviceChangeRequests.value = response.list;
-    } else {
-      deviceChangeRequests.value = [];
-    }
-  } catch (error) {
-    ElMessage.error('获取设备更换申请列表失败');
-    console.error('Error fetching device change requests:', error);
-    deviceChangeRequests.value = [];
-  } finally {
-    loadingDeviceChangeRequests.value = false;
-  }
-};
-
-// 显示设备更换申请审批对话框
-const showDeviceChangeApprovalDialogFunc = async () => {
-  await fetchDeviceChangeRequests();
-  showDeviceChangeApprovalDialog.value = true;
-};
-
-// 批准设备更换申请
-const approveDeviceChange = async (requestId: number) => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要批准此设备更换申请吗？',
-      '确认批准',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    await request.post('/api/approve-device-change', {
-      request_id: requestId
-    });
-
-    ElMessage.success('设备更换申请已批准');
-    await fetchDeviceChangeRequests(); // 刷新列表
-    fetchEmployees(); // 也刷新员工列表以确保最新状态
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('批准设备更换申请失败');
-    }
-  }
-};
-
-// 拒绝设备更换申请
-const rejectDeviceChange = async (requestId: number) => {
-  try {
-    await ElMessageBox.confirm(
-      '确定要拒绝此设备更换申请吗？',
-      '确认拒绝',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    await request.post('/api/reject-device-change', {
-      request_id: requestId
-    });
-
-    ElMessage.success('设备更换申请已拒绝');
-    await fetchDeviceChangeRequests(); // 刷新列表
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('拒绝设备更换申请失败');
-    }
-  }
-};
-
-
+// 二维码会话由服务器保存；轮询只合并状态，绝不丢失前端持有的 token。
+const bindingEmpId = ref('');
+const bindingSession = ref<any>(null);
+const bindingQrCanvas = ref<HTMLCanvasElement | null>(null);
+const bindingGenerating = ref(false);
+const bindingCountdown = ref('02:00');
+let bindingPollTimer: number | undefined;
+let bindingCountdownTimer: number | undefined;
+let renewingExpiredQr = false;
+const bindingStatusText = computed(() => bindingSession.value ? bindingStatusTextMap[bindingSession.value.status as BindingStatus] || '处理中' : '');
+const bindingHint = computed(() => ({ waiting_scan:'请员工使用日常打卡手机扫描二维码', scanned:'员工正在手机上确认绑定申请', pending:'员工已提交申请，请现场核实', approved:'新设备已完成绑定', rejected:'可重新生成二维码', expired:'正在生成新的二维码', cancelled:'该二维码已失效' }[bindingSession.value?.status] || ''));
+const bindingStatusTextMap = bindingStatusTextLabels;
+const stopBindingTimers = () => { if (bindingPollTimer) window.clearInterval(bindingPollTimer); if (bindingCountdownTimer) window.clearInterval(bindingCountdownTimer); bindingPollTimer = undefined; bindingCountdownTimer = undefined; };
+const displayDeviceInfo = (value: string) => value.replace('移动设备', '手机').replace(/\//g, ' · ');
+const updateBindingCountdown = () => { if (!bindingSession.value || bindingSession.value.status !== 'waiting_scan') return; const seconds = secondsToExpiry(bindingSession.value.expires_at); bindingCountdown.value = formatBindingCountdown(seconds); if (seconds === 0 && !renewingExpiredQr) { renewingExpiredQr = true; window.setTimeout(async () => { if (bindingSession.value?.status === 'waiting_scan') await refreshBindingSession(); if (bindingSession.value?.status === 'expired') await generateBindingQr(); renewingExpiredQr = false; }, 0); } };
+const refreshBindingSession = async () => { if (!bindingSession.value?.token) return; try { const state:any = await request.get(`/api/device-binding-sessions/${bindingSession.value.token}/admin-status`); bindingSession.value = { ...bindingSession.value, ...state }; updateBindingCountdown(); if (isTerminalBindingStatus(bindingSession.value.status)) stopBindingTimers(); } catch (error) { console.error('二维码状态轮询失败', error); /* transport failures must not be rendered as expiry */ } };
+const startBindingTimers = () => { stopBindingTimers(); updateBindingCountdown(); bindingPollTimer = window.setInterval(refreshBindingSession, 2000); bindingCountdownTimer = window.setInterval(updateBindingCountdown, 1000); };
+const generateBindingQr = async () => { if (!bindingEmpId.value) { ElMessage.warning('请选择员工'); return; } bindingGenerating.value = true; try { const created:any = await request.post('/api/device-binding-sessions', { emp_id: bindingEmpId.value }); bindingSession.value = created; const QRCode = (await import('qrcode')).default; await nextTick(); if (bindingQrCanvas.value) await QRCode.toCanvas(bindingQrCanvas.value, `${window.location.origin}${created.binding_url}`, { width: 182, margin: 1 }); startBindingTimers(); } catch (error:any) { ElMessage.error(error.response?.data?.msg || '生成二维码失败'); } finally { bindingGenerating.value = false; } };
+const approveBindingSession = async () => { try { await request.post(`/api/device-binding-sessions/${bindingSession.value.token}/approve`); await refreshBindingSession(); await fetchEmployees(); } catch (error:any) { ElMessage.error(error.response?.data?.msg || '批准失败'); } };
+const rejectBindingSession = async () => { try { await request.post(`/api/device-binding-sessions/${bindingSession.value.token}/reject`); await refreshBindingSession(); } catch (error:any) { ElMessage.error(error.response?.data?.msg || '拒绝失败'); } };
+const closeBindingDialog = () => stopBindingTimers();
+const showDeviceChangeApprovalDialogFunc = async () => { showDeviceChangeApprovalDialog.value = true; };
 
 // 显示角色管理对话框
 const showRoleManager = async () => {
@@ -1362,4 +1272,6 @@ const closeRoleDialog = () => {
 }
 
 
+
+.binding-panel{padding:4px 4px 0}.binding-selector{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.binding-selector>span{font-size:14px;color:#687386}.binding-select{width:220px}.qr-section{text-align:center;padding:24px 0 16px}.qr-frame{width:212px;height:212px;padding:15px;border:1px solid #edf1f5;border-radius:14px;background:#fff;margin:auto;position:relative;box-shadow:0 3px 18px #182c4510}.qr-frame canvas{width:100%!important;height:100%!important}.qr-cover{position:absolute;inset:0;border-radius:14px;background:rgba(255,255,255,.84);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#3479e6;font-size:13px;font-weight:600}.qr-tick{height:58px;width:58px;border-radius:50%;display:grid;place-items:center;background:#3479e6;color:#fff;font-size:34px}.qr-tick.success{background:#16a36b}.binding-status{display:flex;justify-content:center;align-items:center;gap:8px;font-weight:700;margin-top:17px}.status-dot{width:9px;height:9px;border-radius:50%;background:#3988f6}.binding-hint{color:#8993a3;font-size:13px;margin:9px 0}.binding-countdown{color:#6c7788;font-size:13px;margin:12px 0}.binding-countdown b{color:#e28b35;font-variant-numeric:tabular-nums}.binding-info{background:#f6f8fc;border-radius:10px;padding:12px 18px;margin-top:8px;font-size:14px}.binding-info>div:not(.binding-actions){display:flex;justify-content:space-between;gap:15px;margin:9px 0}.binding-info span{color:#7c8797}.binding-info strong{text-align:right}.binding-actions{display:flex;gap:12px;margin-top:16px}.binding-actions .el-button{flex:1}.reject-button{color:#e05252;border-color:#f0c9c9}.binding-note{font-size:12px;color:#8a95a6;line-height:1.7;margin:18px 0 0}@media(max-width:600px){.binding-select{width:100%}.binding-selector .el-button{width:100%}}
 </style>

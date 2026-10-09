@@ -42,6 +42,8 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Clock } from '@element-plus/icons-vue';
 import request from '@/utils/request';
+import { getOrCreatePunchDeviceId } from '@/utils/punchDeviceId';
+import { classifyPunchResponse, ConfirmedPunchRecord, isDeviceBindingRequiredHttpError } from '@/utils/punchResponse';
 import CommonHeader from '@/components/CommonHeader.vue';
 
 // ===================== 类型定义 =====================
@@ -52,39 +54,11 @@ interface UserInfo {
   dept: string;
 }
 
-/** 打卡响应数据类型 */
-interface PunchResponse {
-  code: number;
-  msg: string;
-  data: {
-    emp_id: string;
-    name: string;
-    punch_type: string;
-    punch_time: string;
-    device_id?: string;
-    status?: 'device_change_required' | 'pending_approval';
-  };
-}
-
 /** 设备更换申请响应类型 */
-interface DeviceChangeResponse {
-  code: number;
-  msg: string;
-  data: {
-    request_id: string;
-    emp_id: string;
-    old_device_id?: string;
-    new_device_id?: string;
-    request_time: string;
-    status: 'pending';
-  };
-}
 
 // ===================== 常量定义 =====================
 const MOBILE_KEYWORDS = ['mobile', 'android', 'iphone', 'ipad', 'tablet', 'phone', 'ios', 'blackberry', 'windows phone', 'opera mini', 'mobile safari', 'mobile web', 'android mobile', 'iphone os'];
-const DEVICE_ID_STORAGE_KEY = 'auth_device_id';
 const TOKEN_STORAGE_KEY = 'oa_token';
-const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1年有效期
 
 // ===================== 状态管理 =====================
 // 路由实例
@@ -105,19 +79,6 @@ const punchButtonText = ref('开始打卡');
 
 // 定时器ID
 let timeInterval: NodeJS.Timeout | null = null;
-
-// ===================== 本地存储工具函数 =====================
-/** 获取本地存储的设备ID */
-const getDeviceId = (): string | null => {
-  return localStorage.getItem(DEVICE_ID_STORAGE_KEY) || null;
-};
-
-/** 保存设备ID到本地存储和Cookie */
-const saveDeviceId = (deviceId: string): void => {
-  localStorage.setItem(DEVICE_ID_STORAGE_KEY, deviceId);
-  // 设置Cookie，有效期1年
-  document.cookie = `${DEVICE_ID_STORAGE_KEY}=${deviceId}; path=/; max-age=${COOKIE_MAX_AGE}`;
-};
 
 // ===================== 时间处理函数 =====================
 /** 更新当前显示时间 */
@@ -159,83 +120,37 @@ const loadUserInfo = async (): Promise<void> => {
 };
 
 // ===================== 打卡核心逻辑函数 =====================
-/** 处理首次打卡（无设备ID） */
-const handleFirstPunch = async (empId: string): Promise<PunchResponse['data'] | null> => {
-  try {
-    // request自动解包data，直接返回data层数据
-    const response = await request.post<PunchResponse['data']>('/api/device-clock-in',
-      { emp_id: empId },
-      { headers: { 'X-Device-ID': null } }
-    );
-
-    if (response.device_id) {
-      saveDeviceId(response.device_id);
-      ElMessage.success(`首次打卡成功！设备ID已保存: ${response.device_id.substring(0, 8)}...`);
-      jumpToPunchSuccess(response);
-    }
-    return response;
-  } catch (error: any) {
-    console.error('首次打卡处理失败:', error);
-    ElMessage.error(error.response?.data?.msg || '首次打卡绑定设备失败，请稍后重试');
-    return null;
-  }
+/** 未授权设备必须由管理员二维码现场授权。 */
+const confirmDeviceChange = async (_empId: string): Promise<void> => {
+  ElMessage.warning('当前设备尚未授权，请联系管理员现场生成绑定二维码后使用微信扫码申请。');
 };
 
-/** 处理设备更换申请 */
-const handleDeviceChange = async (empId: string, newDeviceId: string | null): Promise<DeviceChangeResponse['data'] | null> => {
-  if (!newDeviceId) {
-    ElMessage.error('设备ID未获取到，请稍后重试');
-    return null;
-  }
-
-  try {
-    const response = await request.post<DeviceChangeResponse['data']>('/api/request-device-change', {
-      emp_id: empId,
-      new_device_id: newDeviceId
-    });
-
-    if (response?.request_id) {
-      ElMessage.success('设备更换申请已提交，请等待管理员审批');
+const showDeviceBindingRequired = async (): Promise<void> => {
+  await ElMessageBox.alert(
+    '当前设备未进行绑定，请联系管理员操作绑定。',
+    '当前设备未绑定',
+    {
+      confirmButtonText: '我知道了',
+      center: true,
+      closeOnClickModal: false,
+      customClass: 'device-binding-alert',
+      showClose: false
     }
-    return response;
-  } catch (error: any) {
-    console.error('发送设备更换申请失败:', error);
-    ElMessage.error(error.response?.data?.msg || '设备更换申请发送失败，请稍后重试');
-    return null;
-  }
+  );
 };
 
 /** 打卡成功跳转页面 */
-const jumpToPunchSuccess = (response: PunchResponse['data']): void => {
+const jumpToPunchSuccess = (response: ConfirmedPunchRecord): void => {
   router.push({
     name: 'punchSuccess',
     query: {
+      record_id: response.record_id,
       name: response.name,
       emp_id: response.emp_id,
       punch_type: response.punch_type,
       punch_time: response.punch_time
     }
   });
-};
-
-/** 处理设备变更确认弹窗 */
-const confirmDeviceChange = async (empId: string): Promise<void> => {
-  try {
-    await ElMessageBox.confirm(
-      '检测到设备ID发生变化，是否申请更换设备？',
-      '设备变更提示',
-      {
-        confirmButtonText: '申请更换',
-        cancelButtonText: '暂不更换',
-        type: 'warning',
-      }
-    );
-    // 用户确认更换设备
-    await handleDeviceChange(empId, getDeviceId());
-  } catch (cancelError) {
-    // 用户取消操作
-    ElMessage.info('已取消设备更换申请');
-  }
 };
 
 /** 打卡主处理函数 */
@@ -255,7 +170,7 @@ const handlePunch = async (): Promise<void> => {
 
   try {
     // 4. 基础参数校验
-    const deviceId = getDeviceId();
+    const deviceId = getOrCreatePunchDeviceId();
     const empId = userInfo.value.emp_id;
 
     if (!empId) {
@@ -264,7 +179,7 @@ const handlePunch = async (): Promise<void> => {
     }
 
     // 5. 调用打卡接口（request自动解包data）
-    const response = await request.post<PunchResponse['data']>('/api/device-clock-in', {
+    const response = await request.post<unknown>('/api/device-clock-in', {
       emp_id: empId,
       device_id: deviceId
     }, {
@@ -273,23 +188,25 @@ const handlePunch = async (): Promise<void> => {
       }
     });
 
-    // 6. 处理不同响应场景
-    if (response.device_id) {
-      // 首次打卡成功
-      saveDeviceId(response.device_id);
-      ElMessage.success(`首次打卡成功！设备ID已保存: ${response.device_id.substring(0, 8)}...`);
-      jumpToPunchSuccess(response);
-    } else if (response.status === 'device_change_required') {
-      // 设备ID变化，询问是否更换
+    // 6. 只有后端回传已持久化记录的 ID 和完整字段才显示成功。
+    const outcome = classifyPunchResponse(response, empId);
+    if (outcome.kind === 'binding-required') {
       await confirmDeviceChange(empId);
-    } else if (response.status === 'pending_approval') {
-      // 设备更换申请已提交
+      return;
+    } else if (outcome.kind === 'pending-approval') {
       ElMessage.success('设备更换申请已提交，请等待管理员审批');
-    } else {
-      // 正常打卡成功
-      ElMessage.success('打卡成功！');
-      jumpToPunchSuccess(response);
+      return;
+    } else if (outcome.kind !== 'confirmed') {
+      ElMessage.error('服务器未确认有效的打卡记录，未显示打卡成功');
+      return;
     }
+
+    if (outcome.record.status === 'already_punched') {
+      ElMessage.success(outcome.record.msg || '已存在有效的打卡记录');
+    } else {
+      ElMessage.success('打卡成功！');
+    }
+    jumpToPunchSuccess(outcome.record);
   } catch (error: any) {
     // 7. 异常处理逻辑
     console.error('打卡失败:', error);
@@ -305,14 +222,21 @@ const handlePunch = async (): Promise<void> => {
       return;
     }
 
+    if (isDeviceBindingRequiredHttpError(error)) {
+      await showDeviceBindingRequired();
+      return;
+    }
+
     // 8. 服务器返回错误，根据错误信息执行对应恢复流程（request.ts已显示具体错误消息）
     const errorMsg = error.response?.data?.msg || '';
     const errorStatus = error.response?.data?.data?.status;
 
-    if (errorMsg.includes('设备ID未提供') || errorMsg.includes('需要绑定设备')) {
-      // 首次打卡绑定设备
-      await handleFirstPunch(empId);
-    } else if (errorMsg.includes('设备ID变化') || errorStatus === 'device_change_required') {
+    // 请求拦截器已显示后端的二维码重新绑定指引，禁止再按成功响应处理。
+    if (errorStatus === 'device_binding_required' || errorStatus === 'device_change_required') {
+      return;
+    }
+
+    if (errorMsg.includes('设备ID变化') || errorMsg.includes('设备ID缺失') || errorStatus === 'device_change_required') {
       // 设备ID变化确认
       await confirmDeviceChange(empId);
     }
@@ -386,5 +310,16 @@ onUnmounted((): void => {
   width: 100%;
   height: 60px;
   font-size: 18px;
+}
+
+:global(.device-binding-alert.el-message-box) {
+  width: 420px !important;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+
+:global(.device-binding-alert .el-message-box__message p) {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 </style>

@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosError, AxiosProgressEvent } from 'axios';
 import { ElMessage } from 'element-plus';
+import { isDeviceBindingRequiredHttpError } from '@/utils/punchResponse';
 
 // 定义接口响应通用类型
 interface ApiResponse<T = any> {
@@ -104,7 +105,8 @@ const refreshToken = async (): Promise<string> => {
     // A concurrent login may have replaced it with a new session token.
     if (localStorage.getItem('oa_token') === token) {
       localStorage.removeItem('oa_token');
-      window.location.href = '/login';
+      const redirect = window.location.pathname.startsWith('/device-binding/') ? `?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}` : '';
+      window.location.href = `/login${redirect}`;
     }
     throw error;
   }
@@ -203,6 +205,11 @@ service.interceptors.response.use(
   },
   (error: AxiosError) => {
     const originalRequest = error.config as ExtendedAxiosRequestConfig;
+
+    // 设备授权拒绝由打卡页显示居中指引弹框，避免先弹全局红色通知。
+    if (isDeviceBindingRequiredHttpError(error)) {
+      return Promise.reject(error);
+    }
 
     // 跳过认证刷新的请求
     if (originalRequest._skipAuthRefresh) {

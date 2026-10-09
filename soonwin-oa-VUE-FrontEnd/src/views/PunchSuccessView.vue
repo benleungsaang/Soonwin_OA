@@ -1,6 +1,6 @@
 <template>
   <div class="punch-success-container">
-    <el-card shadow="hover" class="success-card">
+    <el-card v-if="hasValidPunchResult" shadow="hover" class="success-card">
       <div class="success-icon">
         <el-icon class="icon"><Check /></el-icon>
       </div>
@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
 
 // 路由实例
@@ -33,14 +34,32 @@ const name = ref('');
 const empId = ref('');
 const punchType = ref('');
 const punchTime = ref('');
+const hasValidPunchResult = ref(false);
 
 // 页面挂载时解析参数
 onMounted(() => {
   const query = route.query;
-  name.value = query.name as string || '未知用户';
-  empId.value = query.emp_id as string || '未知工号';
-  punchType.value = query.punch_type as string || '未知类型';
-  punchTime.value = query.punch_time as string || new Date().toLocaleString();
+  const recordId = typeof query.record_id === 'string' ? Number(query.record_id) : NaN;
+  const queryName = typeof query.name === 'string' ? query.name.trim() : '';
+  const queryEmpId = typeof query.emp_id === 'string' ? query.emp_id.trim() : '';
+  const queryPunchType = typeof query.punch_type === 'string' ? query.punch_type : '';
+  const queryPunchTime = typeof query.punch_time === 'string' ? query.punch_time : '';
+  const validPunchTypes = ['上班打卡', '下班打卡', '非打卡时间打卡'];
+
+  if (
+    !Number.isSafeInteger(recordId) || recordId <= 0 || !queryName || !queryEmpId || !validPunchTypes.includes(queryPunchType) ||
+    !queryPunchTime || !Number.isFinite(Date.parse(queryPunchTime))
+  ) {
+    ElMessage.error('未收到有效的打卡记录确认，请重新打卡');
+    router.replace({ name: 'punch' });
+    return;
+  }
+
+  name.value = queryName;
+  empId.value = queryEmpId;
+  punchType.value = queryPunchType;
+  punchTime.value = queryPunchTime;
+  hasValidPunchResult.value = true;
 });
 
 // 返回首页

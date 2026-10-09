@@ -195,8 +195,9 @@ const handleLogin = async () => {
     // 加载用户权限
     await loadUserPermissions();
 
-    // 跳转首页
-    router.push('/');
+    // 保留扫码二维码链接，登录后继续设备授权流程
+    const redirect = typeof router.currentRoute.value.query.redirect === 'string' ? router.currentRoute.value.query.redirect : '/';
+    router.push(redirect);
   } catch (error: any) {
     console.error('登录失败：', error);
     ElMessage.error(error.message || '登录失败');

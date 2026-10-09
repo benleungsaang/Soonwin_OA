@@ -54,6 +54,7 @@ def create_app(port=5000):
         from .models.employee import Employee
         from .models.employee_device import EmployeeDevice
         from .models.punch_record import PunchRecord
+        from .models.device_binding_session import DeviceBindingSession
         from .models.order import Order
         from .models.cost_allocation import CostAllocation
         from .models.totp_user import TotpUser

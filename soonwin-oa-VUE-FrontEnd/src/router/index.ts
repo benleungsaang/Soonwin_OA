@@ -6,6 +6,7 @@ const HomeView = () => import('@/views/HomeView.vue');
 const LoginView = () => import('@/views/LoginView.vue');
 const PunchView = () => import('@/views/PunchView.vue');
 const PunchSuccessView = () => import('@/views/PunchSuccessView.vue');
+const DeviceBindingView = () => import('@/views/DeviceBindingView.vue');
 const PunchRecordsView = () => import('@/views/PunchRecordsView.vue');
 const EmployeeManagementView = () => import('@/views/EmployeeManagementView.vue');
 const ExpenseManagementView = () => import('@/views/ExpenseManagementView.vue');
@@ -52,6 +53,7 @@ const routes: RouteRecordRaw[] = [
     component: PunchView,
     meta: { title: '打卡', requiresAuth: true } // requiresAuth 标记需要登录才能访问
   },
+  { path: '/device-binding/:token', name: 'deviceBinding', component: DeviceBindingView, meta: { title: '设备绑定授权', requiresAuth: true } },
   {
     path: '/punch-success',
     name: 'punchSuccess',
@@ -243,7 +245,7 @@ router.beforeEach((to, _from, next) => {
   if (to.path === '/login') {
     const token = localStorage.getItem('oa_token');
     if (token && isTokenValid(token)) {
-      next({ path: '/', replace: true });
+      next({ path: String(to.query.redirect || '/'), replace: true });
       return;
     }
     if (token) {
@@ -256,7 +258,7 @@ router.beforeEach((to, _from, next) => {
     const token = localStorage.getItem('oa_token');
     if (!token || !isTokenValid(token)) {
       if (token) localStorage.removeItem('oa_token');
-      next('/login'); // 未登录或 token 无效/过期，跳转登录页
+      next({ path: '/login', query: { redirect: to.fullPath } }); // 保留二维码会话地址
       return;
     }
 
@@ -275,7 +277,7 @@ router.beforeEach((to, _from, next) => {
       } catch (error) {
         console.error('解析用户信息失败:', error);
         localStorage.removeItem('oa_token');
-        next('/login'); // 解析失败，跳转登录页
+        next({ path: '/login', query: { redirect: to.fullPath } });
       }
     } else {
       next(); // 已登录，放行

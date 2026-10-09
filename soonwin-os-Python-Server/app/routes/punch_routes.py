@@ -2,6 +2,7 @@ import re
 import json
 import socket
 import uuid
+import secrets
 import jwt
 import config
 from flask import Blueprint, request, jsonify, redirect, Response
@@ -9,7 +10,8 @@ from extensions import db
 from app.models.employee import Employee, UserStatus
 from app.models.employee_device import EmployeeDevice
 from app.models.punch_record import PunchRecord
-from app.utils.auth_utils import require_admin, require_auth
+from app.models.device_binding_session import DeviceBindingSession
+from app.utils.auth_utils import require_admin, require_auth, get_user_id_from_token
 from app.utils.simple_auth_utils import route_permission
 from app.constants.simple_permission_constants import ROUTE_PUNCH
 from datetime import datetime, timedelta
@@ -67,7 +69,7 @@ def get_client_info():
 
 def detect_device_info(user_agent=None):
     """解析设备信息：设备类型/操作系统/浏览器"""
-    user_agent = user_agent or request.headers.get('User-Agent', '').lower()
+    user_agent = (user_agent or request.headers.get('User-Agent', '')).lower()
 
     # 1. 解析操作系统
     os_info = _parse_os_info(user_agent)
@@ -80,50 +82,68 @@ def detect_device_info(user_agent=None):
 
 def _parse_os_info(user_agent):
     """内部函数：解析操作系统信息"""
-    if 'windows nt 10.0' in user_agent:
+    # iPhone/iPad UA 通常同时包含 "like Mac OS X"，必须先于 macOS 判断。
+    if 'ipad' in user_agent:
+        return "iPadOS"
+    elif 'iphone' in user_agent or 'ipod' in user_agent:
+        return "iOS"
+    elif 'android' in user_agent:
+        android_match = re.search(r'android[ /](\d+)', user_agent)
+        return f"Android {android_match.group(1)}" if android_match else "Android"
+    elif 'windows nt 10.0' in user_agent:
         return "Windows 10"
     elif 'windows nt 11.0' in user_agent:
         return "Windows 11"
     elif 'windows nt' in user_agent:
         win_match = re.search(r'windows nt (\d+\.\d+)', user_agent)
         return f"Windows {win_match.group(1)}" if win_match else "Windows"
-    elif 'mac os x' in user_agent:
+    elif 'mac os x' in user_agent or 'macintosh' in user_agent:
         mac_match = re.search(r'mac os x (\d+[._]\d+)', user_agent)
         return f"macOS {mac_match.group(1).replace('_', '.')}" if mac_match else "macOS"
-    elif 'android' in user_agent:
-        android_match = re.search(r'android[ /](\d+)', user_agent)
-        return f"Android {android_match.group(1)}" if android_match else "Android"
-    elif 'ipad' in user_agent:
-        return "iPad"
-    elif 'iphone' in user_agent:
-        return "iPhone"
     elif 'linux' in user_agent:
         return "Linux"
     return "未知系统"
 
 def _parse_device_type(user_agent):
     """内部函数：解析设备类型"""
+    if 'ipad' in user_agent or 'tablet' in user_agent:
+        return "平板设备"
     if any(keyword in user_agent for keyword in MOBILE_KEYWORDS):
         return "移动设备"
-    elif 'tablet' in user_agent:
-        return "平板设备"
-    return "PC"
+    if any(keyword in user_agent for keyword in ('windows nt', 'macintosh', 'x11', 'linux x86_64')):
+        return "PC"
+    return "未知设备"
 
 def _parse_browser_info(user_agent):
     """内部函数：解析浏览器信息"""
-    if 'headlesschrome' in user_agent:
+    # 内置浏览器优先于其底层 Chromium/WebKit 标记。
+    if 'wxwork' in user_agent:
+        return "企业微信"
+    elif 'micromessenger' in user_agent:
+        return "微信"
+    elif 'headlesschrome' in user_agent:
         chrome_match = re.search(r'chrome/(\d+)', user_agent)
         return f"HeadlessChrome {chrome_match.group(1)}" if chrome_match else "HeadlessChrome"
     elif 'edg' in user_agent:
         edge_match = re.search(r'edg[ /](\d+)', user_agent)
         return f"Edge {edge_match.group(1)}" if edge_match else "Edge"
-    elif 'chrome' in user_agent and 'edg' not in user_agent and 'opr' not in user_agent and 'whale' not in user_agent:
-        chrome_match = re.search(r'chrome/(\d+)', user_agent)
+    elif ('chrome' in user_agent or 'crios' in user_agent) and 'edg' not in user_agent and 'opr' not in user_agent and 'whale' not in user_agent:
+        chrome_match = re.search(r'(?:chrome|crios)/(\d+)', user_agent)
         return f"Chrome {chrome_match.group(1)}" if chrome_match else "Chrome"
     elif 'safari' in user_agent and 'chrome' not in user_agent and 'android' not in user_agent:
         safari_match = re.search(r'version/(\d+)', user_agent)
         return f"Safari {safari_match.group(1)}" if safari_match else "Safari"
     return "未知浏览器"
+
+
+def get_token_employee_id(requested_emp_id):
+    """返回经过 JWT 验证且与请求工号一致的员工工号。"""
+    token_emp_id = get_user_id_from_token()
+    if not token_emp_id:
+        return None, (jsonify({"code": 401, "msg": "认证失败，请重新登录", "data": None}), 401)
+    if not requested_emp_id or token_emp_id.lower() != requested_emp_id.lower():
+        return None, (jsonify({"code": 403, "msg": "打卡员工与当前登录员工不一致", "data": None}), 403)
+    return token_emp_id, None
 
 def get_punch_type():
     """根据当前时间判断打卡类型"""
@@ -207,7 +227,9 @@ def create_punch_record_entry(employee, punch_type, user_ip, device_id, device_i
                     "emp_id": employee.emp_id,
                     "name": employee.name,
                     "punch_type": existing_punch.punch_type,
-                    "punch_time": existing_punch.punch_time.strftime("%Y-%m-%d %H:%M:%S")
+                    "punch_time": existing_punch.punch_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "record_id": existing_punch.id,
+                    "status": "already_punched"
                 }
             }
 
@@ -232,7 +254,9 @@ def create_punch_record_entry(employee, punch_type, user_ip, device_id, device_i
             "emp_id": employee.emp_id,
             "name": employee.name,
             "punch_type": punch_type,
-            "punch_time": current_time.strftime("%Y-%m-%d %H:%M:%S")
+            "punch_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "record_id": new_punch.id,
+            "status": "created"
         }
     }
 
@@ -262,16 +286,20 @@ def check_employee_permission(payload, target_emp_id):
 
 # ===================== 核心业务接口 =====================
 @punch_bp.route('/api/device-clock-in', methods=['POST'])
+@require_auth
 def device_clock_in():
     """打卡核心接口：设备验证、绑定、打卡记录创建"""
     try:
         # 1. 基础参数获取与校验
         data = request.get_json() or {}
-        emp_id = data.get('emp_id')
-        request_device_change = data.get('request_device_change', False)
+        requested_emp_id = data.get('emp_id')
 
-        if not emp_id:
+        if not requested_emp_id:
             return jsonify({"code": 400, "msg": "员工ID未提供"}), 400
+
+        emp_id, auth_error = get_token_employee_id(requested_emp_id)
+        if auth_error:
+            return auth_error
 
         # 2. 获取客户端信息
         device_id, user_ip = get_client_info()
@@ -292,20 +320,22 @@ def device_clock_in():
         punch_type = get_punch_type()
 
         # 6. 设备ID处理逻辑
+        employee = get_employee_by_id(emp_id)
+        if not employee:
+            return jsonify({"code": 404, "msg": "员工未找到"}), 404
+
         if not device_id:
-            # 首次打卡：生成新设备ID并绑定
+            # 只有尚未绑定的员工可以首次绑定；已绑定员工必须走审批流程。
+            if employee.device_id:
+                return _binding_required_response(emp_id)
             return _handle_first_punch(emp_id, punch_type, user_ip, device_info)
 
         # 已有设备ID：验证设备合法性
         is_valid, msg = validate_employee_device(emp_id, device_id)
         if not is_valid:
-            return _handle_invalid_device(emp_id, device_id, punch_type, user_ip, device_info, msg, request_device_change)
+            return _handle_invalid_device(emp_id, device_id, punch_type, user_ip, device_info, msg)
 
         # 设备验证成功：创建打卡记录
-        employee = get_employee_by_id(emp_id)
-        if not employee:
-            return jsonify({"code": 404, "msg": "员工未找到"}), 404
-
         result = create_punch_record_entry(employee, punch_type, user_ip, device_id, device_info)
         return jsonify(result)
 
@@ -313,51 +343,23 @@ def device_clock_in():
         db.session.rollback()
         return jsonify({"code": 500, "msg": f"打卡失败: {str(e)}"}), 500
 
+def _binding_required_response(emp_id):
+    return jsonify({
+        "code": 403,
+        "msg": "当前浏览器的设备未授权或设备标识缺失，请联系管理员生成二维码并在此浏览器扫码申请。",
+        "data": {"emp_id": emp_id, "status": "device_binding_required"}
+    }), 403
+
+
 def _handle_first_punch(emp_id, punch_type, user_ip, device_info):
-    """处理首次打卡（无设备ID）"""
-    new_device_id = str(uuid.uuid4())
-    bind_success, bind_msg = bind_device(emp_id, new_device_id)
+    """首次绑定必须经管理员二维码会话审批，打卡接口绝不自动绑定。"""
+    return _binding_required_response(emp_id)
 
-    if not bind_success:
-        return jsonify({"code": 500, "msg": f"设备绑定失败: {bind_msg}"}), 500
 
-    employee = get_employee_by_id(emp_id)
-    if not employee:
-        return jsonify({"code": 404, "msg": "员工未找到"}), 404
-
-    result = create_punch_record_entry(employee, punch_type, user_ip, new_device_id, device_info)
-    result["msg"] = "首次打卡成功"
-    result["data"]["device_id"] = new_device_id
-    return jsonify(result)
-
-def _handle_invalid_device(emp_id, device_id, punch_type, user_ip, device_info, msg, request_device_change):
-    """处理设备验证失败的情况"""
-    # 首次绑定设备（设备未绑定任何员工）
-    if "需要绑定设备" in msg:
-        return _handle_first_punch(emp_id, punch_type, user_ip, device_info)
-
-    # 设备ID变化：处理更换申请
-    elif "设备ID变化" in msg:
-        if request_device_change:
-            return _handle_device_change_apply(emp_id, punch_type, user_ip, device_id, device_info)
-        else:
-            return jsonify({
-                "code": 200,
-                "msg": "设备ID发生变化，请申请更换设备",
-                "data": {"emp_id": emp_id, "status": "device_change_required"}
-            })
-
-    # 其他验证失败（如设备绑定其他员工）
-    else:
-        # 检查是否是设备被其他员工绑定的情况，如果是，则返回设备更换申请状态
-        if "设备已被员工" in msg and "绑定，请申请更换设备" in msg:
-            return jsonify({
-                "code": 200,
-                "msg": msg,
-                "data": {"emp_id": emp_id, "status": "device_change_required"}
-            })
-        else:
-            return jsonify({"code": 403, "msg": msg}), 403
+def _handle_invalid_device(emp_id, device_id, punch_type, user_ip, device_info, msg):
+    if "需要绑定设备" in msg or "设备ID变化" in msg or "设备已被员工" in msg:
+        return _binding_required_response(emp_id)
+    return jsonify({"code": 403, "msg": msg}), 403
 
 def _handle_device_change_apply(emp_id, punch_type, user_ip, device_id, device_info):
     """处理设备更换申请"""
@@ -395,139 +397,216 @@ def _handle_device_change_apply(emp_id, punch_type, user_ip, device_id, device_i
     })
 
 # ===================== 设备管理接口 =====================
-@punch_bp.route('/api/request-device-change', methods=['POST'])
-@route_permission(ROUTE_PUNCH)
-def request_device_change():
-    """提交设备更换申请"""
+def _session_expire_if_needed(binding_session):
+    # The QR is valid for two minutes until the intended employee scans it.
+    # A scan claims the one-time session; do not expire an in-progress employee
+    # confirmation or pending on-site approval merely because the display timer ends.
+    if binding_session.status == 'waiting_scan' and binding_session.expires_at <= datetime.now():
+        binding_session.status = 'expired'
+        db.session.commit()
+    return binding_session.status == 'expired'
+
+
+def _token_emp_id():
+    return get_user_id_from_token()
+
+
+def _session_payload(binding_session, include_device=True):
+    employee = get_employee_by_id(binding_session.emp_id)
+    payload = {
+        'status': binding_session.status,
+        'emp_id': binding_session.emp_id,
+        'name': employee.name if employee else '',
+        'expires_at': binding_session.expires_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'scanned_at': binding_session.scanned_at.strftime('%Y-%m-%d %H:%M:%S') if binding_session.scanned_at else None,
+        'submitted_at': binding_session.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if binding_session.submitted_at else None,
+    }
+    if include_device:
+        payload.update({'device_info': binding_session.device_info, 'device_id': binding_session.device_id})
+    return payload
+
+
+@punch_bp.route('/api/device-binding-sessions', methods=['POST'])
+@require_admin
+def create_device_binding_session():
+    data = request.get_json() or {}
+    emp_id = data.get('emp_id')
+    admin_id = _token_emp_id()
+    employee = get_employee_by_id(emp_id) if emp_id else None
+    if not employee:
+        return jsonify({'code': 404, 'msg': '员工未找到'}), 404
+    if employee.status != UserStatus.ACTIVE:
+        return jsonify({'code': 400, 'msg': '只能为有效员工生成绑定二维码'}), 400
+    # Same employee has one active invitation; stale tokens cannot be reused.
+    DeviceBindingSession.query.filter(
+        DeviceBindingSession.emp_id == emp_id,
+        DeviceBindingSession.status.in_(['waiting_scan', 'scanned', 'pending'])
+    ).update({'status': 'cancelled'}, synchronize_session=False)
+    binding_session = DeviceBindingSession(
+        token=secrets.token_urlsafe(32), emp_id=emp_id, created_by=admin_id,
+        status='waiting_scan', expires_at=datetime.now() + timedelta(minutes=2),
+    )
+    db.session.add(binding_session)
+    db.session.commit()
+    return jsonify({'code': 200, 'data': {
+        **_session_payload(binding_session, include_device=False),
+        'token': binding_session.token,
+        'binding_url': f'/device-binding/{binding_session.token}',
+    }})
+
+
+@punch_bp.route('/api/device-binding-sessions/<token>/admin-status', methods=['GET'])
+@require_admin
+def get_device_binding_admin_status(token):
+    binding_session = DeviceBindingSession.query.filter_by(token=token).first()
+    if not binding_session or binding_session.created_by != _token_emp_id():
+        return jsonify({'code': 404, 'msg': '绑定会话不存在'}), 404
+    _session_expire_if_needed(binding_session)
+    return jsonify({'code': 200, 'data': _session_payload(binding_session)})
+
+
+def _employee_session(token):
+    binding_session = DeviceBindingSession.query.filter_by(token=token).first()
+    if not binding_session:
+        return None, (jsonify({'code': 404, 'msg': '绑定二维码无效'}), 404)
+    if _session_expire_if_needed(binding_session):
+        return None, (jsonify({'code': 410, 'msg': '绑定二维码已过期'}), 410)
+    if binding_session.status == 'cancelled':
+        return None, (jsonify({'code': 410, 'msg': '绑定二维码已失效'}), 410)
+    if _token_emp_id().lower() != binding_session.emp_id.lower():
+        return None, (jsonify({'code': 403, 'msg': '当前登录员工与二维码指定员工不一致'}), 403)
+    return binding_session, None
+
+
+@punch_bp.route('/api/device-binding-sessions/<token>/scan', methods=['POST'])
+@require_auth
+def scan_device_binding_session(token):
+    binding_session, error = _employee_session(token)
+    if error:
+        return error
+    if binding_session.status == 'waiting_scan':
+        binding_session.status = 'scanned'
+        binding_session.scanned_at = datetime.now()
+        db.session.commit()
+    return jsonify({'code': 200, 'data': _session_payload(binding_session, include_device=False)})
+
+
+@punch_bp.route('/api/device-binding-sessions/<token>/status', methods=['GET'])
+@require_auth
+def get_device_binding_employee_status(token):
+    binding_session, error = _employee_session(token)
+    if error:
+        return error
+    return jsonify({'code': 200, 'data': _session_payload(binding_session, include_device=False)})
+
+
+@punch_bp.route('/api/device-binding-sessions/<token>/submit', methods=['POST'])
+@require_auth
+def submit_device_binding_session(token):
+    binding_session, error = _employee_session(token)
+    if error:
+        return error
+    if binding_session.status not in ('waiting_scan', 'scanned'):
+        return jsonify({'code': 409, 'msg': '该绑定会话不能重复提交'}), 409
+    device_id, _ = get_client_info()
+    user_agent = request.headers.get('User-Agent', '')
+    if not device_id:
+        return jsonify({'code': 400, 'msg': '当前设备ID缺失'}), 400
+    if REQUIRE_MOBILE_DEVICE_PUNCH and not is_mobile_device(user_agent):
+        return jsonify({'code': 403, 'msg': '请使用个人手机提交绑定申请'}), 403
+    occupied = Employee.query.filter_by(device_id=device_id).first()
+    if occupied and occupied.emp_id != binding_session.emp_id:
+        return jsonify({'code': 409, 'msg': '当前设备已被其他员工绑定'}), 409
+    binding_session.device_id = device_id
+    binding_session.device_info = detect_device_info(user_agent)
+    binding_session.status = 'pending'
+    binding_session.submitted_at = datetime.now()
+    db.session.commit()
+    return jsonify({'code': 200, 'msg': '绑定申请已提交，等待管理员现场审批', 'data': _session_payload(binding_session, include_device=False)})
+
+
+@punch_bp.route('/api/device-binding-sessions/<token>/approve', methods=['POST'])
+@require_admin
+def approve_device_binding_session(token):
     try:
-        data = request.get_json() or {}
-        emp_id = data.get('emp_id')
-        new_device_id = data.get('new_device_id')
+        binding_session = DeviceBindingSession.query.filter_by(token=token).first()
+        admin_id = _token_emp_id()
+        if not binding_session or binding_session.created_by != admin_id:
+            return jsonify({'code': 404, 'msg': '绑定会话不存在'}), 404
+        if _session_expire_if_needed(binding_session):
+            return jsonify({'code': 410, 'msg': '绑定二维码已过期'}), 410
+        if binding_session.status != 'pending' or not binding_session.device_id:
+            return jsonify({'code': 409, 'msg': '当前会话尚未提交，不能批准'}), 409
 
-        if not emp_id or not new_device_id:
-            return jsonify({"code": 400, "msg": "员工ID和新设备ID不能为空"}), 400
-
-        employee = get_employee_by_id(emp_id)
+        employee = get_employee_by_id(binding_session.emp_id)
         if not employee:
-            return jsonify({"code": 404, "msg": "员工未找到"}), 404
+            return jsonify({'code': 404, 'msg': '员工未找到'}), 404
+        occupied = Employee.query.filter_by(device_id=binding_session.device_id).first()
+        if occupied and occupied.emp_id != employee.emp_id:
+            return jsonify({'code': 409, 'msg': '新设备ID已被其他员工绑定'}), 409
 
-        # 检查新设备是否被占用（如果是被自己占用则允许）
-        existing_employee = Employee.query.filter_by(device_id=new_device_id).first()
-        conflict_info = None
-        if existing_employee and existing_employee.emp_id != emp_id:
-            conflict_info = f"新设备ID已被员工 {existing_employee.name}({existing_employee.emp_id}) 使用，需要管理员处理冲突"
-            # 继续处理，允许创建申请，让管理员处理冲突
-        elif existing_employee and existing_employee.emp_id == emp_id:
-            # 设备已经是自己的，无需更换
-            return jsonify({
-                "code": 400,
-                "msg": "设备已经是您的设备，无需更换"
-            }), 400
+        decided_at = datetime.now()
+        # Conditional state transition is the idempotency guard. It serializes
+        # concurrent approvals in SQLite; only one request can change pending.
+        transitioned = DeviceBindingSession.query.filter_by(
+            id=binding_session.id, status='pending'
+        ).update({
+            'status': 'approved',
+            'decided_at': decided_at,
+            'decided_by': admin_id,
+        }, synchronize_session=False)
+        if transitioned != 1:
+            db.session.rollback()
+            return jsonify({'code': 409, 'msg': '绑定申请已处理'}), 409
 
-        # 创建更换申请记录
-        current_time = datetime.now()
-        change_request = PunchRecord(
-            emp_id=emp_id,
+        previous_device_id = employee.device_id
+        employee.device_id = binding_session.device_id
+
+        # Match the legacy approval record shape and timestamps. First binds
+        # have their own label; replacements retain the established label.
+        operation_time = binding_session.submitted_at or decided_at
+        operation_type = '设备更换已批准' if previous_device_id else '设备绑定已批准'
+        db.session.add(PunchRecord(
+            emp_id=employee.emp_id,
             name=employee.name,
-            punch_type="设备更换申请",
-            punch_time=current_time,
-            inner_ip=request.remote_addr,
-            device_id=new_device_id,
-            last_login_time=current_time,
-            login_device=detect_device_info()
-        )
-        db.session.add(change_request)
+            punch_type=operation_type,
+            punch_time=operation_time,
+            inner_ip=None,  # QR sessions do not persist the employee source IP.
+            device_id=binding_session.device_id,
+            last_login_time=operation_time,
+            login_device=binding_session.device_info,
+        ))
         db.session.commit()
-
-        return jsonify({
-            "code": 200,
-            "msg": "设备更换申请已提交",
-            "data": {
-                "request_id": change_request.id,
-                "emp_id": emp_id,
-                "old_device_id": employee.device_id,
-                "new_device_id": new_device_id,
-                "request_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
-                "status": "pending"
-            }
-        })
-    except Exception as e:
+        return jsonify({'code': 200, 'msg': '设备绑定已批准', 'data': _session_payload(binding_session)})
+    except Exception as exc:
         db.session.rollback()
-        return jsonify({"code": 500, "msg": f"提交设备更换申请失败: {str(e)}"}), 500
+        return jsonify({'code': 500, 'msg': f'设备绑定批准失败: {str(exc)}'}), 500
 
+
+@punch_bp.route('/api/device-binding-sessions/<token>/reject', methods=['POST'])
+@require_admin
+def reject_device_binding_session(token):
+    binding_session = DeviceBindingSession.query.filter_by(token=token).first()
+    if not binding_session or binding_session.created_by != _token_emp_id():
+        return jsonify({'code': 404, 'msg': '绑定会话不存在'}), 404
+    if _session_expire_if_needed(binding_session):
+        return jsonify({'code': 410, 'msg': '绑定二维码已过期'}), 410
+    if binding_session.status not in ('waiting_scan', 'scanned', 'pending'):
+        return jsonify({'code': 409, 'msg': '当前会话不能拒绝'}), 409
+    binding_session.status = 'rejected'
+    binding_session.decided_at = datetime.now()
+    binding_session.decided_by = _token_emp_id()
+    db.session.commit()
+    return jsonify({'code': 200, 'msg': '设备绑定申请已拒绝', 'data': _session_payload(binding_session)})
+
+
+# Legacy parameter-only flow is deliberately disabled; a valid QR session is mandatory.
+@punch_bp.route('/api/request-device-change', methods=['POST'])
 @punch_bp.route('/api/approve-device-change', methods=['POST'])
-@route_permission(ROUTE_PUNCH)
-def approve_device_change():
-    """批准设备更换申请"""
-    try:
-        data = request.get_json() or {}
-        request_id = data.get('request_id')
-
-        if not request_id:
-            return jsonify({"code": 400, "msg": "申请ID不能为空"}), 400
-
-        punch_record = PunchRecord.query.get(request_id)
-        if not punch_record or punch_record.punch_type != "设备更换申请":
-            return jsonify({"code": 404, "msg": "未找到设备更换申请"}), 404
-
-        employee = get_employee_by_id(punch_record.emp_id)
-        if not employee:
-            return jsonify({"code": 404, "msg": "员工未找到"}), 404
-
-        # 检查新设备是否被其他员工绑定，如果有则先解绑
-        existing_employee = Employee.query.filter_by(device_id=punch_record.device_id).first()
-        old_device_id = employee.device_id
-        conflict_employee_info = None
-        
-        if existing_employee and existing_employee.emp_id != employee.emp_id:
-            # 记录冲突员工信息
-            conflict_employee_info = {
-                "emp_id": existing_employee.emp_id,
-                "name": existing_employee.name,
-                "old_device_id": existing_employee.device_id
-            }
-            # 将设备从原员工解绑（设置为None或临时值）
-            existing_employee.device_id = None
-
-        # 将设备绑定到申请员工
-        employee.device_id = punch_record.device_id
-        punch_record.punch_type = "设备更换已批准"
-        db.session.commit()
-
-        return jsonify({
-            "code": 200,
-            "msg": "设备更换申请已批准",
-            "data": {
-                "emp_id": employee.emp_id,
-                "old_device_id": old_device_id,
-                "new_device_id": punch_record.device_id
-            }
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"code": 500, "msg": f"批准设备更换申请失败: {str(e)}"}), 500
-
 @punch_bp.route('/api/reject-device-change', methods=['POST'])
-@route_permission(ROUTE_PUNCH)
-def reject_device_change():
-    """拒绝设备更换申请"""
-    try:
-        data = request.get_json() or {}
-        request_id = data.get('request_id')
+def legacy_device_change_disabled():
+    return jsonify({'code': 410, 'msg': '设备绑定请使用管理员二维码授权流程'}), 410
 
-        if not request_id:
-            return jsonify({"code": 400, "msg": "申请ID不能为空"}), 400
-
-        punch_record = PunchRecord.query.get(request_id)
-        if not punch_record or punch_record.punch_type != "设备更换申请":
-            return jsonify({"code": 404, "msg": "未找到设备更换申请"}), 404
-
-        db.session.delete(punch_record)
-        db.session.commit()
-        return jsonify({"code": 200, "msg": "设备更换申请已拒绝"})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"code": 500, "msg": f"拒绝设备更换申请失败: {str(e)}"}), 500
 
 @punch_bp.route('/api/device-management/devices', methods=['GET'])
 @route_permission(ROUTE_PUNCH)
