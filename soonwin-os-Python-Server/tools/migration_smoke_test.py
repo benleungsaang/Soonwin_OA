@@ -16,7 +16,7 @@ from verify_schema import _differences, capture_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
-BASELINE = REPO_ROOT / "docs/database/schema_baseline_20261006.json"
+BASELINE = REPO_ROOT / "docs/database/schema_baseline_20261009.json"
 
 
 def main() -> int:

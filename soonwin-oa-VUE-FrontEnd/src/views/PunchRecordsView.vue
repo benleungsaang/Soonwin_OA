@@ -426,6 +426,7 @@ const exportToXlsx = async () => {
 
     // 建立"员工+日期"索引：已批准的请假/出差（用于备注与时间列），当天全部请假/出差单据（用于状态列）
     const approvedDayMap = new Map<string, Set<string>>();
+    const halfDayLeaveMap = new Set<string>();
     const leaveTripDayMap = new Map<string, AttendanceOperation[]>();
 
     sortedEmpKeys.forEach(empId => {
@@ -439,6 +440,15 @@ const exportToXlsx = async () => {
           if (op.operation_status === 'approved') {
             if (!approvedDayMap.has(dayKey)) approvedDayMap.set(dayKey, new Set());
             approvedDayMap.get(dayKey)!.add(op.operation_type);
+            // 时长按工作小时记录；同一天且不超过 4 小时的请假按半天处理。
+            // 跨天单据不能用总时长判断单日请假，因此不在这里标为半天。
+            if (
+              op.operation_type === 'leave' &&
+              op.start_time?.slice(0, 10) === op.end_time?.slice(0, 10) &&
+              op.duration != null && op.duration > 0 && op.duration <= 4
+            ) {
+              halfDayLeaveMap.add(dayKey);
+            }
           }
         });
       });
@@ -479,7 +489,8 @@ const exportToXlsx = async () => {
         const approvedTypes = approvedDayMap.get(dayKey);
         const approvedLeave = !!approvedTypes?.has('leave');
         const approvedTrip = !!approvedTypes?.has('business_trip');
-        const hasApproved = approvedLeave || approvedTrip;
+        const halfDayLeave = approvedLeave && halfDayLeaveMap.has(dayKey);
+        const hasFullDayApproved = approvedTrip || (approvedLeave && !halfDayLeave);
 
         // 备注信息：周日未出勤记"周末"；否则按已批准单据标注请假/出差
         let note = '';
@@ -487,6 +498,8 @@ const exportToXlsx = async () => {
           note = '周末';
         } else if (approvedLeave && approvedTrip) {
           note = '请假/出差';
+        } else if (halfDayLeave) {
+          note = '请假半天';
         } else if (approvedLeave) {
           note = '请假';
         } else if (approvedTrip) {
@@ -499,7 +512,7 @@ const exportToXlsx = async () => {
         if (isSun && !hasPunch) {
           inDisplay = '-';
           outDisplay = '-';
-        } else if (!isSun && hasApproved) {
+        } else if (!isSun && hasFullDayApproved) {
           inDisplay = '-';
           outDisplay = '-';
         } else {

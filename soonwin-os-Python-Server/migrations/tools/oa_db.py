@@ -130,7 +130,7 @@ def migration_topology(Config: Any, ScriptDirectory: Any) -> dict[str, Any]:
         bases = script.get_bases()
         if len(heads) != 1 or len(bases) != 1 or bases[0] != BASELINE_REVISION:
             return {"valid": False, "heads": heads, "bases": bases, "lineage": set()}
-        revisions = list(script.walk_revisions(heads[0]))
+        revisions = list(script.walk_revisions('base', heads[0]))
         lineage = {item.revision for item in revisions}
         if BASELINE_REVISION not in lineage:
             return {"valid": False, "heads": heads, "bases": bases, "lineage": lineage}

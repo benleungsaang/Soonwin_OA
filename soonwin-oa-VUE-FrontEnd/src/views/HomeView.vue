@@ -11,8 +11,9 @@
     <!-- 版本记录弹窗 -->
     <VersionHistoryDialog v-model:visible="showVersionDialog" />
 
-    <!-- 模块管理弹窗（admin only）：勾选要隐藏的模块，保存后全员下次刷新生效 -->
-    <el-dialog v-model="showModuleManageDialog" title="模块管理（勾选即隐藏）" width="900px" align-center @opened="onModuleDialogOpened">
+    <!-- 模块管理弹窗（admin only）：勾选要显示的模块，保存后全员下次刷新生效 -->
+    <el-dialog v-model="showModuleManageDialog" title="模块管理（勾选显示）" width="900px" align-center @opened="onModuleDialogOpened">
+      <p class="module-manage-hint">勾选的模块会显示在主页，未勾选的模块不显示。页面访问权限仍由角色权限控制。</p>
       <div v-if="loadingModuleList" style="text-align: center; padding: 40px;">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span style="margin-left: 10px;">正在加载模块列表...</span>
@@ -20,7 +21,7 @@
       <div v-else class="module-manage-grid">
         <div class="module-manage-column" v-for="group in moduleGroupColumns" :key="group.key">
           <h4 class="module-manage-column-title">{{ group.title }}</h4>
-          <el-checkbox-group v-model="hiddenModulesChecked" class="module-manage-list">
+          <el-checkbox-group v-model="visibleModulesChecked" class="module-manage-list">
             <el-checkbox
               v-for="m in group.modules"
               :key="m.camelKey"
@@ -338,8 +339,8 @@ async function loadModuleVisibility() {
 const showModuleManageDialog = ref(false);
 const loadingModuleList = ref(false);
 const savingModuleSettings = ref(false);
-/** 弹窗里勾选的模块（camelCase）—— 等价于"要隐藏的模块" */
-const hiddenModulesChecked = ref<string[]>([]);
+/** 弹窗里勾选的模块（camelCase）—— 代表允许在主页显示 */
+const visibleModulesChecked = ref<string[]>([]);
 
 /** 把后端返回的所有路由列表填进 moduleGroups（用于弹窗渲染） */
 function buildGroupColumns(routes: Array<{ route_name: string; route_label: string }>) {
@@ -385,8 +386,11 @@ async function onModuleDialogOpened() {
     // request.ts 自动解包 data 字段 → data 直接是数组
     const routes: Array<{ route_name: string; route_label: string }> = Array.isArray(data) ? data : [];
     moduleGroupColumns.value = buildGroupColumns(routes);
-    // 初始化勾选状态：等于当前 hiddenModules
-    hiddenModulesChecked.value = [...hiddenModules.value];
+    // 兼容现有后端 hidden 配置：只把未隐藏的模块设为勾选。
+    visibleModulesChecked.value = moduleGroupColumns.value
+      .flatMap(group => group.modules)
+      .map(module => module.camelKey)
+      .filter(moduleKey => !hiddenModules.value.includes(moduleKey));
   } catch (e) {
     console.error('[模块管理] 加载模块列表失败:', e);
     ElMessage.error('加载模块列表失败，请稍后重试');
@@ -395,16 +399,16 @@ async function onModuleDialogOpened() {
   }
 }
 
-/** 保存模块可见性：把当前勾选 (即 hiddenModulesChecked) 作为"要隐藏"提交给后端 */
+/** 保存模块可见性：UI 勾选代表显示，提交时转换为后端原有 hidden 布尔值。 */
 async function saveModuleVisibility() {
   savingModuleSettings.value = true;
   try {
     const request = (await import('@/utils/request')).default;
-    // 把当前所有可能的模块 key 都提交，hidden=true 隐藏，其余 false 显示
+    // 保持现有 API 和数据库语义：hidden=true 隐藏，故与 UI 勾选状态相反。
     const payload: Record<string, boolean> = {};
     for (const group of moduleGroupColumns.value) {
       for (const m of group.modules) {
-        payload[m.camelKey] = hiddenModulesChecked.value.includes(m.camelKey);
+        payload[m.camelKey] = !visibleModulesChecked.value.includes(m.camelKey);
       }
     }
     const res: any = await request.post('/api/admin/module-visibility/batch', payload);
@@ -833,6 +837,13 @@ const logout = async () => {
 }
 
 /* ========== 模块管理弹窗布局 ========== */
+.module-manage-hint {
+  margin: 0 0 12px;
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .module-manage-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

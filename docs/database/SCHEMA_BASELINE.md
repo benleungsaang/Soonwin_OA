@@ -158,6 +158,10 @@ Classify an older remote database before acting:
 3. **Unknown drift**: stop for manual investigation. Never blind-stamp or use
    `db.create_all()` to make it appear compatible.
 
+## Current head snapshot
+
+The active head `device_binding_qr_sessions_20261009` is represented by `schema_baseline_20261009.json`. The original 2026-10-06 snapshot remains the adoption verifier for legacy production databases at `baseline_20261006`.
+
 ## Future schema changes
 
 Every schema change after `baseline_20261006` must be represented by a reviewed
