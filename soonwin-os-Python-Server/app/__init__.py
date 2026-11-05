@@ -113,6 +113,10 @@ def create_app(port=5000):
         from .routes.upload_routes import upload_bp
         app.register_blueprint(upload_bp, url_prefix='/api')
 
+        # Isolated NAS upload API; anonymous endpoints use only scoped signed tokens.
+        from .routes.nas_upload_routes import nas_upload_bp
+        app.register_blueprint(nas_upload_bp, url_prefix='/api/nas-upload')
+
         # 注册展示文件相关路由蓝图
         from .routes.display_file_routes import display_file_bp
         app.register_blueprint(display_file_bp, url_prefix='/api')

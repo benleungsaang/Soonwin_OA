@@ -17,6 +17,8 @@ class Config:
     # JWT配置（密钥需自定义，建议使用随机字符串）
     JWT_SECRET_KEY = "OA_System_JWT_Secret_Key_2024"  # 生产环境需更换为更复杂密钥
     JWT_ACCESS_TOKEN_EXPIRES = 7200  # JWT有效期（2小时，单位：秒）
+    # Separate signing key for public NAS upload links; production must inject a random value.
+    NAS_UPLOAD_SIGNING_KEY = os.environ.get('OA_NAS_UPLOAD_SIGNING_KEY', '')
 
     # TOTP配置
     TOTP_INTERVAL = 30  # 动态码有效期（30秒）

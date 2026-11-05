@@ -542,6 +542,7 @@ def get_all_routes():
             "photo_manage": "照片管理",
             "punch_manage": "打卡管理",
             "upload_manage": "上传管理",
+            "nas_mobile_upload_manage": "手机扫码上传 NAS",
             "video_manage": "视频管理",
             "inquiry_manage": "询盘管理",
             "order_manage": "订单管理",

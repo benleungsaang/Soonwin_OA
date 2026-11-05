@@ -1,5 +1,6 @@
 ﻿<template>
   <div class="home-container">
+    <NasMobileUploadDialog v-model="showNasUploadDialog" :is-admin="userRole === 'admin'" />
     <!-- 二维码弹窗 -->
     <el-dialog v-model="showQrCodeDialog" title="网站二维码" width="300px" align-center>
       <div style="display: flex; flex-direction: column; align-items: center;">
@@ -51,6 +52,10 @@
             v-if="hasToken && userRole === 'admin'"
           >
             <el-icon><Setting /></el-icon><span class="btn-text">模块管理</span>
+          </el-button>
+          <!-- Avoid evaluating the non-reactive permission cache before refresh-time loading completes. -->
+          <el-button type="primary" @click="showNasUploadDialog = true" v-if="permissionsLoaded && hasToken && permissions.nasMobileUpload">
+            <span class="btn-text">手机上传</span>
           </el-button>
           <el-button
             class="qr-btn"
@@ -239,6 +244,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
 import VersionHistoryDialog from '@/components/VersionHistoryDialog.vue';
+import NasMobileUploadDialog from '@/components/NasMobileUploadDialog.vue';
 // 导入权限工具函数
 import {
   hasToken as checkHasToken,
@@ -282,6 +288,7 @@ const currentUserEmpId = ref<string | null>(null);
 
 // 二维码弹窗
 const showQrCodeDialog = ref(false);
+const showNasUploadDialog = ref(false);
 const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 watch(showQrCodeDialog, async (newVal) => {
@@ -428,6 +435,7 @@ async function saveModuleVisibility() {
 // ========== 优化1：统一管理权限标识，动态生成权限判断 ==========
 // 定义权限标识与功能名称的映射表（核心：把所有权限集中管理）
 const permissionMap = {
+  nasMobileUpload: { key: 'nas_mobile_upload_manage', name: '手机扫码上传 NAS', path: '/' },
   employeeManage: { key: 'user_manage', name: '员工管理', path: '/employee-management' },
   expenseManage: { key: 'expense_manage', name: '运营费用', path: '/expense-management' },
   photoManage: { key: 'photo_manage', name: '照片管理', path: '/photo-management' },

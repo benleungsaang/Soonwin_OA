@@ -24,6 +24,7 @@ export type RouteName =
   | 'photo_manage'             // 照片管理 - 全员共有
   | 'punch_manage'             // 打卡 - 全员共有
   | 'upload_manage'            // 文件上传 - 全员共有
+  | 'nas_mobile_upload_manage' // 手机扫码上传 NAS - 按角色分配
   | 'video_manage'             // 视频管理 - 全员共有
   | 'inquiry_manage'           // 询盘管理 - 销售
   | 'order_manage'             // 订单管理 - 销售

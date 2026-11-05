@@ -30,6 +30,7 @@ const TaskTrackView = () => import('@/views/TaskTrackView.vue');
 const TodoListView = () => import('@/views/todo/TodoListView.vue');
 const TabStylesDemo = () => import('@/views/todo/TabStylesDemo.vue');
 const TodoFinalPreview = () => import('@/views/todo/TodoFinalPreview.vue');
+const NasMobileUploadView = () => import('@/views/NasMobileUploadView.vue');
 
 
 
@@ -46,6 +47,12 @@ const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { title: '登录' }
+  },
+  {
+    path: '/mobile-upload',
+    name: 'nasMobileUpload',
+    component: NasMobileUploadView,
+    meta: { title: '手机文件上传' }
   },
   {
     path: '/punch',

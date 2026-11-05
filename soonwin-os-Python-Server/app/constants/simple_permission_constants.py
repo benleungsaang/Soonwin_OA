@@ -22,6 +22,7 @@ ROUTE_DISPLAY_FILE_MANAGE = "display_file_manage"  # 文件展示
 ROUTE_PHOTO_MANAGE = "photo_manage"                # 照片管理
 ROUTE_PUNCH_MANAGE = "punch_manage"                # 打卡
 ROUTE_UPLOAD_MANAGE = "upload_manage"              # 文件上传模块
+ROUTE_NAS_MOBILE_UPLOAD_MANAGE = "nas_mobile_upload_manage"  # NAS 手机扫码上传
 ROUTE_VIDEO_MANAGE = "video_manage"                # 视频管理
 ROUTE_MACHINE_LIST = "machine_list"                # 设备列表
 ROUTE_ATTENDANCE_MANAGE = "attendance_manage"      # 考勤管理
@@ -80,6 +81,7 @@ ALL_ROUTES = [
     ROUTE_PHOTO_MANAGE,
     ROUTE_PUNCH_MANAGE,
     ROUTE_UPLOAD_MANAGE,
+    ROUTE_NAS_MOBILE_UPLOAD_MANAGE,
     ROUTE_VIDEO_MANAGE,
     ROUTE_INQUIRY_MANAGE,
     ROUTE_ORDER_MANAGE,
