@@ -66,6 +66,7 @@ def create_app(port=5000):
         from .models.photo import Photo
         from .models.video import Video
         from .models.business_operation_log import BusinessOperationLog
+        from .models.nas_upload_log import NasUploadLog
         from .models.data_change_stats import DataChangeStats
         from .models.order_status import OrderStatus, OrderStatusLog, StatusTask, TaskMediaFile
         from .models.attendance_operation import AttendanceOperation

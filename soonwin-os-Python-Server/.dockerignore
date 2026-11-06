@@ -9,3 +9,6 @@ __pycache__/
 *.py[cod]
 
 .git/
+
+# Local browser upload diagnostics are registered only by the DEV app.
+app/routes/dev_diagnostics_routes.py

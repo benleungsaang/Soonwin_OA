@@ -54,16 +54,22 @@
             <el-icon><Setting /></el-icon><span class="btn-text">模块管理</span>
           </el-button>
           <!-- Avoid evaluating the non-reactive permission cache before refresh-time loading completes. -->
-          <el-button type="primary" @click="showNasUploadDialog = true" v-if="permissionsLoaded && hasToken && permissions.nasMobileUpload">
-            <span class="btn-text">手机上传</span>
-          </el-button>
-          <el-button
-            class="qr-btn"
-            @click="showQrCodeDialog = true"
+          <el-dropdown
             v-if="hasToken"
+            class="qr-dropdown"
+            trigger="click"
+            @command="handleQrMenuCommand"
           >
-            <el-icon><Grid /></el-icon><span class="btn-text">二维码</span>
-          </el-button>
+            <el-button class="qr-btn">
+              <el-icon><Grid /></el-icon><span class="btn-text">二维码</span><el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="website">网站二维码</el-dropdown-item>
+                <el-dropdown-item v-if="permissionsLoaded && permissions.nasMobileUpload" command="mobile-upload">快速上传文件</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button
             class="logout-btn"
             @click="logout"
@@ -290,6 +296,11 @@ const currentUserEmpId = ref<string | null>(null);
 const showQrCodeDialog = ref(false);
 const showNasUploadDialog = ref(false);
 const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
+
+function handleQrMenuCommand(command: string) {
+  if (command === 'website') showQrCodeDialog.value = true;
+  if (command === 'mobile-upload') showNasUploadDialog.value = true;
+}
 
 watch(showQrCodeDialog, async (newVal) => {
   if (newVal) {

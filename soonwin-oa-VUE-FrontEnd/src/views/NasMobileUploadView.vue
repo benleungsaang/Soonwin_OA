@@ -32,10 +32,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { UploadFilled } from '@element-plus/icons-vue';
-import { completeNasUploadTask, createNasUploadTask, getNasUploadTaskStatus, getNasUploadTasksStatus, uploadNasChunk, validateNasUploadToken, type NasUploadTask } from '@/api/nasUpload';
+import { acknowledgeNasUploadTask, createNasUploadTask, getNasUploadTaskStatus, getNasUploadTasksStatus, uploadNasFile, validateNasUploadToken, type NasUploadTask } from '@/api/nasUpload';
 import { createNasUploadDeadline, nasUploadRemainingMs } from '@/utils/nasUploadExpiry';
 
-type UploadItem = { key: string; file: File; progress: number; status: 'queued' | 'uploading' | 'waiting' | 'success' | 'failed'; message: string; task?: NasUploadTask; nextChunk?: number; pollErrors?: number; restartOnRetry?: boolean };
+type UploadItem = { key: string; file: File; progress: number; status: 'queued' | 'uploading' | 'waiting' | 'success' | 'failed'; message: string; task?: NasUploadTask; pollErrors?: number; restartOnRetry?: boolean };
 const route = useRoute();
 const token = ref('');
 let fileKeySequence = 0;
@@ -101,7 +101,7 @@ onMounted(() => {
   window.addEventListener('hashchange', handleHashChange);
   refreshTokenFromUrl();
   clock = setInterval(() => { now.value = performance.now(); }, 1000);
-  pollClock = setInterval(pollPendingTasks, 4000);
+  pollClock = setInterval(pollPendingTasks, 1000);
 });
 onBeforeUnmount(() => {
   clearInterval(clock); clearInterval(pollClock);
@@ -143,7 +143,7 @@ async function startUploads() {
 async function retryItem(item: UploadItem) {
   if (busy.value || !item.task) return;
   if (item.restartOnRetry) {
-    item.task = undefined; item.nextChunk = 0; item.progress = 0; item.restartOnRetry = false;
+    item.task = undefined; item.progress = 0; item.restartOnRetry = false;
   }
   busy.value = true;
   try {
@@ -153,61 +153,58 @@ async function retryItem(item: UploadItem) {
   }
 }
 
+function markUploadSuccess(item: UploadItem) {
+  item.progress = 100; item.status = 'success'; item.message = '上传完成';
+  if (item.task) {
+    // Cleanup is best-effort; failed acknowledgements retain the normal expiry fallback.
+    void acknowledgeNasUploadTask(item.task).catch(() => console.warn('上传状态清理失败，将在过期后处理'));
+  }
+}
+
 async function uploadItem(item: UploadItem) {
-  item.status = 'uploading'; item.message = '正在传输分片';
+  item.status = 'uploading'; item.message = '正在上传文件';
   try {
     if (!item.task) {
       item.task = await createNasUploadTask(token.value, item.file);
-      item.nextChunk = item.task.next_chunk;
     }
-    // Refresh in-memory state after a dropped response; the upload grant remains valid
-    // even if the QR itself expires after task creation.
     const state = await getNasUploadTaskStatus(item.task);
-    item.nextChunk = state.next_chunk;
     if (state.status === 'completed') {
-      item.progress = 100; item.status = 'success'; item.message = '上传完成'; return;
+      markUploadSuccess(item); return;
     }
     if (state.status === 'failed') {
       item.restartOnRetry = true;
       throw new Error(state.error || '文件处理失败，请重新上传');
     }
     if (state.status === 'pending' || state.status === 'processing') {
-      item.progress = 100; item.status = 'waiting'; item.message = state.status === 'processing' ? '等待文件处理完成' : '数据已传完，等待文件处理'; return;
+      item.progress = 100; item.status = 'waiting'; item.message = state.status === 'processing' ? '等待文件处理完成' : '数据已传完，等待文件处理';
+      void pollPendingTasks(); return;
     }
-    const totalChunks = Math.ceil(item.file.size / state.chunk_size);
-    for (let index = item.nextChunk || 0; index < totalChunks; index++) {
-      const start = index * state.chunk_size;
-      const chunk = item.file.slice(start, Math.min(item.file.size, start + state.chunk_size));
-      let lastError: any;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          await uploadNasChunk(item.task, index, chunk, loaded => {
-            item.progress = item.file.size ? Math.min(99, Math.round((start + loaded) * 100 / item.file.size)) : 0;
-          });
-          lastError = undefined;
-          break;
-        } catch (error: any) {
-          lastError = error;
-          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    try {
+      await uploadNasFile(item.task, item.file, loaded => {
+        item.progress = item.file.size ? Math.min(99, Math.round(loaded * 100 / item.file.size)) : 0;
+      });
+    } catch (error: any) {
+      // If the response was lost after the NAS write, reconcile before retrying
+      // the complete file body.
+      const serverState = await getNasUploadTaskStatus(item.task).catch(() => undefined);
+      if (serverState?.file_size === item.file.size && ['pending', 'processing', 'completed'].includes(serverState.status)) {
+        if (serverState.status === 'completed') {
+          markUploadSuccess(item); return;
         }
+        item.progress = 100; item.status = 'waiting'; item.message = '数据已传完，等待文件处理';
+        void pollPendingTasks(); return;
       }
-      if (lastError) throw new Error(`分片请求重试 3 次仍失败：${errorMessage(lastError)}`);
-      item.nextChunk = index + 1;
+      if (serverState?.status === 'failed') throw new Error(serverState.error || '文件处理失败，请重新上传');
+      throw error;
     }
     item.progress = 100; item.status = 'waiting'; item.message = '数据已传完，等待文件处理';
-    try {
-      const response = await completeNasUploadTask(item.task);
-      if (response.data?.data?.status === 'completed') {
-        item.status = 'success'; item.message = '上传完成';
-      }
-    } catch {
-      // Polling can reconcile a complete task if the queue request or its response was lost.
-      item.message = '数据已传完，正在确认后端处理状态';
-    }
+    void pollPendingTasks();
   } catch (error: any) {
     if (!item.task && error.response?.status === 410) setQrExpiredFromServer();
     item.status = 'failed';
-    item.message = error.response?.data?.msg || error.message || (item.task ? '上传失败，可在本页面重试当前文件' : '任务未能创建，请稍后重新选择文件');
+    item.message = error.code === 'ECONNABORTED'
+      ? '整体上传超时，可在本页面重试当前文件'
+      : error.response?.data?.msg || error.message || (item.task ? '上传失败，可在本页面重试当前文件' : '任务未能创建，请稍后重新选择文件');
   }
 }
 
@@ -224,7 +221,7 @@ async function pollPendingTasks() {
       if (!state) continue;
       item.pollErrors = 0;
       if (state.status === 'completed') {
-        item.progress = 100; item.status = 'success'; item.message = '上传完成';
+        markUploadSuccess(item);
       } else if (state.status === 'failed') {
         item.status = 'failed'; item.restartOnRetry = true; item.message = state.error || '文件处理失败，请重新上传';
       } else if (state.status === 'processing') {
@@ -251,10 +248,6 @@ function formatSize(size: number) {
   return `${(size / 1024 ** 2).toFixed(2)} MB`;
 }
 
-function errorMessage(error: any) {
-  if (error.code === 'ECONNABORTED') return '单片请求超时';
-  return error.response?.data?.msg || error.message || '网络请求失败';
-}
 </script>
 
 <style scoped>

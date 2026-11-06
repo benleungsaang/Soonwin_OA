@@ -160,7 +160,7 @@ Classify an older remote database before acting:
 
 ## Current head snapshot
 
-The active head `device_binding_qr_sessions_20261009` is represented by `schema_baseline_20261009.json`. The original 2026-10-06 snapshot remains the adoption verifier for legacy production databases at `baseline_20261006`.
+The active head `nas_upload_log_20261106` is represented by `schema_baseline_20261106.json`. The preceding `device_binding_qr_sessions_20261009` revision is represented by `schema_baseline_20261009.json`; the migration smoke check verifies upgrade and downgrade between these revisions. The original 2026-10-06 snapshot remains the adoption verifier for legacy production databases at `baseline_20261006`.
 
 ## Future schema changes
 
