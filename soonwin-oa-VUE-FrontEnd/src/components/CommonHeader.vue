@@ -2,13 +2,23 @@
   <div class="common-header">
     <el-page-header :content="title" @back="goBack">
       <template #extra>
+        <div class="header-actions">
         <span v-if="isAdmin && appVersion" class="version-badge" :title="'点击查看版本记录'" @click="showVersionDialog = true">v{{ appVersion }}</span>
-        <el-button @click="showQrCodeDialog = true">
-          <el-icon><Grid /></el-icon><span class="btn-text">二维码</span>
-        </el-button>
+        <el-dropdown trigger="click" @command="handleQrMenuCommand">
+          <el-button>
+            <el-icon><Grid /></el-icon><span class="btn-text">二维码</span><el-icon><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="website">网站二维码</el-dropdown-item>
+              <el-dropdown-item v-if="canUseNasUpload" command="mobile-upload">快速上传文件</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button @click="logout">
           <el-icon><SwitchButton /></el-icon><span class="btn-text">用户 {{ currentUserEmpId && currentUserName ? currentUserEmpId + ' [ ' + currentUserName + ' ]' : (currentUserEmpId ? currentUserEmpId : '登录') }} 登出</span>
         </el-button>
+        </div>
       </template>
     </el-page-header>
     <el-divider></el-divider>
@@ -20,6 +30,8 @@
       </div>
     </el-dialog>
 
+    <NasMobileUploadDialog v-model="showNasUploadDialog" :is-admin="isAdmin" />
+
     <!-- 版本记录弹窗 -->
     <VersionHistoryDialog v-model:visible="showVersionDialog" />
   </div>
@@ -29,13 +41,16 @@
 import { ref, computed, onMounted, provide, onUnmounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { SwitchButton, Grid } from '@element-plus/icons-vue';
+import { SwitchButton, Grid, ArrowDown } from '@element-plus/icons-vue';
 import QRCode from 'qrcode';
 import VersionHistoryDialog from './VersionHistoryDialog.vue';
+import NasMobileUploadDialog from './NasMobileUploadDialog.vue';
 import {
   getCurrentUserEmpId,
   getCurrentUserName,
-  getCurrentUserRole
+  getCurrentUserRole,
+  hasRoutePermission,
+  loadUserPermissions
 } from '@/utils/authUtils';
 import {
   getCurrentUserInfo,
@@ -64,6 +79,13 @@ provide('currentUserRole', currentUserRole);
 
 // 二维码弹窗
 const showQrCodeDialog = ref(false);
+const showNasUploadDialog = ref(false);
+const canUseNasUpload = ref(false);
+
+function handleQrMenuCommand(command: string) {
+  if (command === 'website') showQrCodeDialog.value = true;
+  if (command === 'mobile-upload' && canUseNasUpload.value) showNasUploadDialog.value = true;
+}
 const qrCodeCanvasRef = ref<HTMLCanvasElement | null>(null);
 
 // 管理员判断
@@ -170,12 +192,14 @@ const logout = async () => {
 };
 
 // 组件挂载时获取用户信息
-onMounted(() => {
+onMounted(async () => {
   getUserInfo();
   loadAppVersion();
 
   // 监听storage事件，以便在其他标签页登录/登出时更新信息
   window.addEventListener('storage', handleStorageChange);
+  await loadUserPermissions();
+  canUseNasUpload.value = hasRoutePermission('nas_mobile_upload_manage');
 });
 
 // 组件卸载时移除事件监听
@@ -187,6 +211,14 @@ onUnmounted(() => {
 <style scoped>
 .common-header {
   padding: 0 20px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-actions > .el-button {
+  margin-left: 0;
 }
 .el-icon {
   margin-right: 5px;
@@ -202,7 +234,6 @@ onUnmounted(() => {
 .version-badge {
   display: inline-flex;
   align-items: center;
-  margin-right: 8px;
   padding: 4px 10px;
   background: rgba(59, 130, 246, 0.08);
   color: #3b82f6;
@@ -219,8 +250,7 @@ onUnmounted(() => {
   .common-header {
     padding: 0 10px;
   }
-  .common-header :deep(.el-page-header__extra) {
-    display: flex;
+  .header-actions {
     gap: 4px;
   }
   .common-header :deep(.el-page-header__extra) .el-button {
