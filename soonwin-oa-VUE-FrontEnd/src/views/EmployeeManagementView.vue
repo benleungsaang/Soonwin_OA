@@ -51,7 +51,7 @@
         <el-table-column prop="name" label="姓名" width="120" align="center" header-align="center" />
         <el-table-column prop="user_role" label="角色" width="100" align="center" header-align="center">
           <template #default="scope">
-            <el-tag :type="getRoleType(scope.row.user_role)">
+            <el-tag :style="getRoleStyle(scope.row.user_role)" effect="dark" class="employee-role-tag">
               {{ getRoleText(scope.row.user_role) }}
             </el-tag>
           </template>
@@ -61,7 +61,7 @@
             {{ scope.row.last_login_time ? formatDateTime(scope.row.last_login_time) : '无记录' }}
           </template>
         </el-table-column>
-        <el-table-column label="设备" width="180" align="center" header-align="center">
+        <el-table-column label="最后登录设备" width="180" align="center" header-align="center">
           <template #default="scope">
             <el-tooltip :content="scope.row.login_device" placement="top" :disabled="!scope.row.login_device || scope.row.login_device.length <= 20">
               <span class="device-text">{{ scope.row.login_device && scope.row.login_device.length > 20 ? scope.row.login_device.substring(0, 20) + '...' : scope.row.login_device || '无设备' }}</span>
@@ -135,7 +135,7 @@
           <el-descriptions-item label="姓名">{{ selectedEmployee.name }}</el-descriptions-item>
           <el-descriptions-item label="部门">{{ selectedEmployee.dept || '无部门' }}</el-descriptions-item>
           <el-descriptions-item label="角色">
-            <el-tag :type="getRoleType(selectedEmployee.user_role)">
+            <el-tag :style="getRoleStyle(selectedEmployee.user_role)" effect="dark" class="employee-role-tag">
               {{ getRoleText(selectedEmployee.user_role) }}
             </el-tag>
           </el-descriptions-item>
@@ -177,9 +177,6 @@
           </el-form-item>
           <el-form-item label="员工ID" prop="emp_id">
             <el-input v-model="newEmployee.emp_id" placeholder="请输入员工ID" />
-          </el-form-item>
-          <el-form-item label="部门" prop="dept">
-            <el-input v-model="newEmployee.dept" placeholder="请输入部门" />
           </el-form-item>
           <el-form-item label="角色" prop="user_role">
             <el-select v-model="newEmployee.user_role" placeholder="请选择角色">
@@ -359,7 +356,9 @@
             <el-table-column prop="description" label="角色" width="200" align="center" header-align="center">
               <template #default="scope">
                 <el-tag
-                  :type="scope.row.role_name === 'admin' ? 'success' :  'warning' "
+                  :style="getRoleStyle(scope.row.role_name)"
+                  effect="dark"
+                  class="employee-role-tag"
                 >
                   {{ scope.row.description }}（{{scope.row.role_name}}）
                 </el-tag>
@@ -550,7 +549,7 @@ const allBtnText = ref('全选'); // 全选角色权限按钮
 const newEmployee = ref({
   name: '',
   emp_id: '',
-  dept: '',
+  dept: 'Soonwin Overseas Dept.',
   user_role: 'user' as 'user' | 'admin' | 'sales',
   remarks: ''
 });
@@ -623,7 +622,7 @@ const createEmployee = async () => {
     newEmployee.value = {
       name: '',
       emp_id: '',
-      dept: '',
+      dept: 'Soonwin Overseas Dept.',
       user_role: 'user' as 'user' | 'admin' | 'sales',
       remarks: ''
     };
@@ -856,14 +855,17 @@ const getRoleText = (role: string) => {
   return roleMap.value[role] || role;
 };
 
-// 获取角色类型
-const getRoleType = (role: string) => {
-  switch (role) {
-    case 'admin': return 'danger';
-    case 'sales': return 'warning';
-    case 'user': return 'success';
-    default: return 'info';
-  }
+// 所有视图按角色名称共享颜色，排序后分配以避免常见角色的哈希碰撞。
+const roleColors = [
+  '#2563eb', '#00857f', '#a038b5', '#528000', '#d04e75', '#087ca7',
+  '#7652c6', '#00865a', '#b15b1b', '#bd3f9a', '#5b6cce', '#53737c'
+];
+const getRoleStyle = (role: string) => {
+  const roleNames = Array.from(new Set(roles.value.map((item: any) => String(item.role_name)))).sort();
+  const index = roleNames.indexOf(role);
+  const fallback = Array.from(role || '').reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0);
+  const color = roleColors[(index >= 0 ? index : fallback) % roleColors.length];
+  return { backgroundColor: color, borderColor: color };
 };
 
 // 显示详情
@@ -1255,6 +1257,10 @@ const closeRoleDialog = () => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.employee-role-tag {
+  color: #fff;
 }
 
 .device-text {
