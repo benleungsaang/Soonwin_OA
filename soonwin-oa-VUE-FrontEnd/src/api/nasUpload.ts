@@ -5,12 +5,16 @@ export function getNasUploadSettings() {
   return request.get('/api/nas-upload/settings');
 }
 
+export function listNasUploadDirectories(relative_dir: string) {
+  return request.get('/api/nas-upload/directories', { params: { relative_dir } });
+}
+
 export function checkNasUploadDirectory(relative_dir: string) {
   return request.post('/api/nas-upload/check', { relative_dir });
 }
 
-export function saveNasUploadDirectory(relative_dir: string) {
-  return request.put('/api/nas-upload/settings', { relative_dir });
+export function saveNasUploadDirectory(relative_dir: string, emp_id: string) {
+  return request.put('/api/nas-upload/settings', { relative_dir, emp_id });
 }
 
 export function getNasUploadLogs(params: { page: number; page_size: number; keyword?: string }) {

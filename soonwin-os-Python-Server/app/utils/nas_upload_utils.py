@@ -19,8 +19,16 @@ class InvalidUploadPath(Exception):
     pass
 
 
-def ensure_mount():
-    root = os.path.abspath(NAS_UPLOAD_ROOT)
+def ensure_mount(business=False, art_share=False):
+    if business:
+        root = os.path.abspath(os.environ.get('OA_NAS_BUSINESS_ROOT', '/mnt/oa-dev-business'))
+        expected_source = '//192.168.110.229/业务资料'
+    elif art_share:
+        root = os.path.abspath(os.environ.get('OA_NAS_ART_ROOT', '/mnt/nas-recovery'))
+        expected_source = '//192.168.110.229/美工资料'
+    else:
+        root = os.path.abspath(NAS_UPLOAD_ROOT)
+        expected_source = EXPECTED_NAS_SOURCE
     try:
         # The container bind mount itself is not proof that the SMB mount is live:
         # require the actual CIFS filesystem/source in mountinfo to prevent local fallback.
@@ -40,7 +48,7 @@ def ensure_mount():
                 source = details[1]
                 for encoded, decoded in (('\\040', ' '), ('\\011', '\t'), ('\\012', '\n'), ('\\134', '\\')):
                     source = source.replace(encoded, decoded)
-                if mountpoint == root and details[0] == 'cifs' and source == EXPECTED_NAS_SOURCE:
+                if mountpoint == root and details[0] == 'cifs' and source == expected_source:
                     found = True
                     break
         if not found or not os.path.isdir(root):
@@ -54,6 +62,16 @@ def clean_relative_path(value):
     if not isinstance(value, str) or not value or len(value) > 1024:
         raise InvalidUploadPath('请输入有效的共享内相对目录')
     value = unicodedata.normalize('NFC', value.strip()).replace('\\', '/')
+    # The public address is an interface prefix; filesystem access uses the
+    # separately verified CIFS mounts, never an arbitrary network path.
+    for host in ('//192.168.110.229/',):
+        if value.startswith(host):
+            value = value[len(host):]
+            break
+    if value == '业务资料' or value.startswith('业务资料/'):
+        value = '@business' + value[len('业务资料'):]
+    elif value == '美工资料' or value.startswith('美工资料/'):
+        value = '@art' + value[len('美工资料'):]
     parts = value.split('/')
     if any(not p or p in ('.', '..') or not _COMPONENT.fullmatch(p) or ':' in p for p in parts):
         raise InvalidUploadPath('目录只能是授权共享根目录下的相对路径')
@@ -61,15 +79,21 @@ def clean_relative_path(value):
 
 
 def open_target_dir(relative_dir):
-    root = ensure_mount()
     relative_dir = clean_relative_path(relative_dir)
+    business = relative_dir == '@business' or relative_dir.startswith('@business/')
+    art_share = relative_dir == '@art' or relative_dir.startswith('@art/') or relative_dir == '@art-root'
+    root = ensure_mount(business, art_share)
+    if art_share:
+        relative_dir = '' if relative_dir == '@art-root' else relative_dir[len('@art'):].lstrip('/')
+    if business:
+        relative_dir = relative_dir[len('@business'):].lstrip('/')
     flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
     try:
         fd = os.open(root, flags)
     except OSError as exc:
         raise NasUnavailable('授权 NAS CIFS 挂载不可访问') from exc
     try:
-        for component in relative_dir.split('/'):
+        for component in filter(None, relative_dir.split('/')):
             next_fd = os.open(component, flags, dir_fd=fd)
             os.close(fd)
             fd = next_fd

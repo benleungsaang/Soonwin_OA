@@ -57,8 +57,9 @@ def _admin_error():
     return None
 
 
-def _configured_dir():
-    return SystemConfig.get_config('nas_mobile_upload_dir', DEFAULT_RELATIVE_DIR)
+def _configured_dir(creator_id=None):
+    default = SystemConfig.get_config('nas_mobile_upload_dir', DEFAULT_RELATIVE_DIR)
+    return SystemConfig.get_config(f'nas_mobile_upload_dir_user_{creator_id}', default) if creator_id else default
 
 
 def _key():
@@ -670,7 +671,14 @@ def _publish_task(upload_id, relative_dir, dequeued_at_ns):
 @require_module_permission('nas_mobile_upload_manage')
 @require_auth
 def get_settings():
-    return jsonify({'code': 200, 'data': {'relative_dir': _configured_dir()}})
+    user_id = get_user_id_from_token()
+    data = {'relative_dir': _configured_dir(user_id),
+            'legacy_prefix': os.environ.get('OA_NAS_LEGACY_PREFIX', '美工资料')}
+    if get_user_role_from_token() == 'admin':
+        users = Employee.query.filter_by(status='active').order_by(Employee.name, Employee.emp_id).all()
+        data['users'] = [{'emp_id': user.emp_id, 'name': user.name,
+                          'relative_dir': _configured_dir(user.emp_id)} for user in users]
+    return jsonify({'code': 200, 'data': data})
 
 
 @nas_upload_bp.route('/logs', methods=['GET'])
@@ -718,6 +726,32 @@ def delete_upload_logs():
     return jsonify({'code': 200, 'data': {'deleted': deleted}})
 
 
+@nas_upload_bp.route('/directories', methods=['GET'])
+@require_module_permission('nas_mobile_upload_manage')
+@require_auth
+def list_upload_directories():
+    denied = _admin_error()
+    if denied:
+        return denied
+    try:
+        path = clean_relative_path(request.args.get('relative_dir', ''))
+        directory_fd = open_target_dir(path)
+        try:
+            with os.scandir(directory_fd) as entries:
+                names = sorted((entry.name for entry in entries
+                                if not entry.name.startswith('.') and entry.is_dir(follow_symlinks=False)),
+                               key=str.casefold)
+            if len(names) > 5000:
+                return _error('目录数量过多，无法显示', 400)
+            return jsonify({'code': 200, 'data': {'directories': names}})
+        finally:
+            os.close(directory_fd)
+    except InvalidUploadPath as exc:
+        return _error(str(exc))
+    except (NasUnavailable, OSError):
+        return _error('NAS 目录不可访问，请检查共享连接及权限', 503)
+
+
 @nas_upload_bp.route('/check', methods=['POST'])
 @require_module_permission('nas_mobile_upload_manage')
 @require_auth
@@ -747,7 +781,10 @@ def update_settings():
     try:
         path = clean_relative_path(data.get('relative_dir'))
         check_writable(path)
-        if not SystemConfig.set_config('nas_mobile_upload_dir', path,
+        user_id = data.get('emp_id')
+        if not isinstance(user_id, str) or not Employee.query.filter_by(emp_id=user_id, status='active').first():
+            return _error('请选择有效的用户')
+        if not SystemConfig.set_config(f'nas_mobile_upload_dir_user_{user_id}', path,
                                        'NAS 手机上传目标子目录（共享根相对路径）', db_session=db.session):
             return _error('保存目录配置失败', 500)
         return jsonify({'code': 200, 'data': {'relative_dir': path}})
@@ -761,7 +798,8 @@ def update_settings():
 @require_module_permission('nas_mobile_upload_manage')
 @require_auth
 def create_token():
-    relative_dir = _configured_dir()
+    creator_id = get_user_id_from_token()
+    relative_dir = _configured_dir(creator_id)
     try:
         relative_dir = clean_relative_path(relative_dir)
         check_writable(relative_dir)

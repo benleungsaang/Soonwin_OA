@@ -156,6 +156,37 @@ class NasUploadApiTests(unittest.TestCase):
         with open(path, 'rb') as file:
             self.assertEqual(file.read(), b'keep')
 
+    def test_user_directories_are_independent(self):
+        admin = self.auth('NAS_ADMIN', 'admin')
+        first = self.client.put('/api/nas-upload/settings', headers=admin,
+                                json={'emp_id': 'NAS_SALES', 'relative_dir': 'sales-folder'})
+        second = self.client.put('/api/nas-upload/settings', headers=admin,
+                                 json={'emp_id': 'NAS_ADMIN', 'relative_dir': '//192.168.110.229/业务资料'})
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        sales = self.generated_token()
+        admin_token = self.generated_token('NAS_ADMIN', 'admin')
+        with self.app.app_context():
+            self.assertEqual(nas_upload_routes._configured_dir('NAS_SALES'), 'sales-folder')
+            self.assertEqual(nas_upload_routes._configured_dir('NAS_ADMIN'), '@business')
+            self.assertEqual(nas_upload_routes._resolve_qr_token(sales)['relative_dir'], 'sales-folder')
+            self.assertEqual(nas_upload_routes._resolve_qr_token(admin_token)['relative_dir'], '@business')
+        self.assertEqual(self.client.put('/api/nas-upload/settings', headers=self.auth('NAS_SALES', 'sales'),
+                                         json={'emp_id': 'NAS_ADMIN', 'relative_dir': 'x'}).status_code, 403)
+
+    def test_browse_directories_requires_admin_and_excludes_symlinks(self):
+        os.mkdir(os.path.join(self.temp_dir.name, 'folder'))
+        os.symlink(self.temp_dir.name, os.path.join(self.temp_dir.name, 'linked'))
+        url = '/api/nas-upload/directories?relative_dir=业务资料'
+        self.assertIn(self.client.get(url).status_code, (401, 403))
+        self.assertEqual(self.client.get(url, headers=self.auth('NAS_SALES', 'sales')).status_code, 403)
+        response = self.client.get(url, headers=self.auth('NAS_ADMIN', 'admin'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['data']['directories'], ['folder'])
+        invalid = self.client.get('/api/nas-upload/directories', query_string={'relative_dir': '业务资料/../美工资料'},
+                                  headers=self.auth('NAS_ADMIN', 'admin'))
+        self.assertEqual(invalid.status_code, 400)
+
     def test_auth_isolated_and_admin_only_settings(self):
         self.assertEqual(self.client.get('/api/nas-upload/settings').status_code, 401)
         self.assertIn(self.client.get('/api/employees').status_code, (401, 403))

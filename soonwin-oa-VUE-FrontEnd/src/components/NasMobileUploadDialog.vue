@@ -35,17 +35,18 @@
       <el-divider />
       <div v-if="settingsExpanded" class="admin-settings">
         <div class="admin-heading">NAS 上传目录设置 <el-tag type="warning">仅管理员</el-tag></div>
-        <el-input v-model="pathValue" :readonly="!editing" placeholder="共享根目录下的相对路径" @keyup.enter="editing && checkAndSave()" @keyup.esc="cancelEdit" />
-        <div class="hint">授权上传根目录：\\192.168.110.229\美工资料\2026美工专用。这里只能修改根目录下子目录。</div>
-        <div class="actions admin-actions">
-          <el-button :loading="checking" @click="manualCheck">检查连接</el-button>
-          <el-button v-if="!editing" type="primary" @click="beginEdit">修改地址</el-button>
-          <template v-else>
-            <el-button type="primary" :loading="checking" @click="checkAndSave">检查并修改</el-button>
-            <el-button @click="cancelEdit">取消修改</el-button>
-          </template>
+        <div class="directory-layout">
+          <el-select v-model="selectedUser" class="user-select" placeholder="选择用户" aria-label="选择用户" filterable @change="onSelectUser">
+            <el-option v-for="user in directoryUsers" :key="user.emp_id" :label="`${user.name}（${user.emp_id}）`" :value="user.emp_id" />
+          </el-select>
+          <div class="directory-editor">
+            <div class="chosen-path" :title="pathValue">当前目录：{{ pathValue || '请选择用户和文件夹' }}</div>
+          </div>
         </div>
-        <el-alert v-if="adminMessage" :title="adminMessage" :type="adminMessageType" show-icon :closable="false" />
+        <div class="actions admin-actions">
+          <el-button :disabled="!selectedUser" @click="openDirectoryPicker"><el-icon><FolderOpened /></el-icon>选择文件夹</el-button>
+        </div>
+        <el-alert v-if="adminMessage && !directoryPickerVisible" :title="adminMessage" :type="adminMessageType" show-icon :closable="false" />
         <div class="hint">已生成的二维码继续使用生成时绑定的目录；修改只影响新二维码。</div>
       </div>
       <div class="admin-tools">
@@ -56,6 +57,26 @@
           <el-icon><Document /></el-icon>
         </el-button>
       </div>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="directoryPickerVisible" title="选择上传文件夹" width="min(600px, 94vw)" align-center append-to-body @closed="onDirectoryPickerClosed">
+    <el-select v-model="selectedShare" aria-label="选择共享目录" @change="changeShare">
+      <el-option label="业务资料" value="业务资料" /><el-option label="美工资料" value="美工资料" />
+    </el-select>
+    <div class="picker-path">\\192.168.110.229\{{ pickerPath.replace(/\//g, '\\') }}</div>
+    <el-button :disabled="!pickerPath || pickerPath === selectedShare || directoriesLoading" @click="browseParent">上一级</el-button>
+    <el-button :disabled="directoriesLoading" @click="loadDirectories(selectedShare)">共享根目录</el-button>
+    <div v-loading="directoriesLoading" class="directory-list">
+      <div v-if="directoryError" class="directory-error">{{ directoryError }}</div>
+      <div v-else-if="!directoryNames.length && !directoriesLoading" class="hint">此目录没有子文件夹</div>
+      <button v-for="name in directoryNames" :key="name" type="button" @click="browseDirectory(name)">📁 {{ name }}</button>
+    </div>
+    <el-alert v-if="adminMessage" :title="adminMessage" :type="adminMessageType" show-icon :closable="false" class="message" />
+    <template #footer>
+      <el-button @click="directoryPickerVisible = false">关闭</el-button>
+      <el-button :disabled="directoriesLoading || !!directoryError || !pickerPath" :loading="checking" @click="manualCheck">检查连接</el-button>
+      <el-button v-if="checkedPath === pickerPath && checkedUser === selectedUser && !!pickerPath" type="primary" :loading="checking" :disabled="directoriesLoading || !!directoryError" @click="saveDirectory">保存修改</el-button>
     </template>
   </el-dialog>
 
@@ -90,8 +111,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
-import { Delete, Document, Search, Setting } from '@element-plus/icons-vue';
-import { checkNasUploadDirectory, createNasUploadToken, deleteNasUploadLogs, getNasUploadLogs, getNasUploadQrStatus, getNasUploadSettings, saveNasUploadDirectory } from '@/api/nasUpload';
+import { Delete, Document, FolderOpened, Search, Setting } from '@element-plus/icons-vue';
+import { checkNasUploadDirectory, createNasUploadToken, deleteNasUploadLogs, getNasUploadLogs, getNasUploadQrStatus, getNasUploadSettings, listNasUploadDirectories, saveNasUploadDirectory } from '@/api/nasUpload';
 
 const props = defineProps<{ modelValue: boolean; isAdmin: boolean }>();
 const emit = defineEmits<{ (event: 'update:modelValue', value: boolean): void }>();
@@ -109,7 +130,18 @@ const originalPath = ref('');
 const mobileUrl = ref('');
 const qrToken = ref('');
 const scanned = ref(false);
-const editing = ref(false);
+const directoryUsers = ref<{ emp_id: string; name: string; relative_dir: string }[]>([]);
+const selectedUser = ref('');
+const selectedShare = ref('美工资料');
+const legacyPrefix = ref('美工资料');
+const directoryPickerVisible = ref(false);
+const pickerPath = ref('');
+const directoryNames = ref<string[]>([]);
+const directoriesLoading = ref(false);
+const directoryError = ref('');
+let directoryRequest = 0;
+const checkedPath = ref('');
+const checkedUser = ref('');
 const settingsExpanded = ref(false);
 const logsVisible = ref(false);
 const logsLoading = ref(false);
@@ -129,6 +161,8 @@ const countdown = computed(() => {
   const seconds = Math.max(0, Math.ceil((expiresAt.value - now.value) / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 });
+
+watch(pathValue, () => { checkedPath.value = ''; checkedUser.value = ''; }, { flush: 'sync' });
 
 watch(() => props.modelValue, (open) => {
   if (!open) {
@@ -177,12 +211,69 @@ function startQrTimers(token: string) {
   scanTimer = setInterval(() => { void poll(); }, 1500);
 }
 
+function displayDirectory(path: string) {
+  if (path === '@business' || path.startsWith('@business/')) {
+    return `业务资料${path.slice('@business'.length).replace(/\//g, '\\')}`;
+  }
+  if (path === '@art-root' || path === '@art') return '美工资料';
+  if (path.startsWith('@art/')) return `美工资料\\${path.slice(5).replace(/\//g, '\\')}`;
+  return `${legacyPrefix.value.replace(/\//g, '\\')}\\${path.replace(/\//g, '\\')}`;
+}
+
+function selectUser(user: { emp_id: string; name: string; relative_dir: string }) {
+  selectedUser.value = user.emp_id;
+  pathValue.value = displayDirectory(user.relative_dir);
+  originalPath.value = pathValue.value;
+  selectedShare.value = pathValue.value.split('\\')[0];
+  checkedPath.value = ''; checkedUser.value = ''; adminMessage.value = '';
+}
+
+function onSelectUser(empId: string) {
+  const user = directoryUsers.value.find(item => item.emp_id === empId);
+  if (user) selectUser(user);
+}
+
+function changeShare(share: string) {
+  void loadDirectories(share);
+}
+
+async function loadDirectories(path: string) {
+  const requestId = ++directoryRequest;
+  checkedPath.value = ''; checkedUser.value = ''; adminMessage.value = '';
+  directoriesLoading.value = true; directoryError.value = ''; directoryNames.value = [];
+  try {
+    const response: any = await listNasUploadDirectories(path);
+    if (requestId !== directoryRequest) return;
+    pickerPath.value = path;
+    directoryNames.value = response.directories || [];
+  } catch (error: any) {
+    if (requestId !== directoryRequest) return;
+    directoryError.value = error.response?.data?.msg || '读取文件夹失败';
+  } finally {
+    if (requestId === directoryRequest) directoriesLoading.value = false;
+  }
+}
+
+function onDirectoryPickerClosed() {
+  if (adminMessage.value === '连接成功，目录可写') adminMessage.value = '';
+}
+
+function openDirectoryPicker() {
+  selectedShare.value = pathValue.value.split('\\')[0];
+  adminMessage.value = ''; checkedPath.value = ''; checkedUser.value = '';
+  directoryPickerVisible.value = true;
+  void loadDirectories(pathValue.value.replace(/\\/g, '/'));
+}
+function browseDirectory(name: string) { void loadDirectories(`${pickerPath.value}/${name}`); }
+function browseParent() { void loadDirectories(pickerPath.value.split('/').slice(0, -1).join('/')); }
 async function loadSettings() {
   if (!props.isAdmin) return;
   try {
     const response: any = await getNasUploadSettings();
-    pathValue.value = response.relative_dir || '';
-    originalPath.value = pathValue.value;
+    legacyPrefix.value = response.legacy_prefix || '美工资料';
+    directoryUsers.value = response.users || [];
+    const user = directoryUsers.value.find(item => item.emp_id === selectedUser.value) || directoryUsers.value[0];
+    if (user) selectUser(user);
   } catch { adminMessage.value = '读取 NAS 目录配置失败'; adminMessageType.value = 'error'; }
 }
 
@@ -277,29 +368,37 @@ async function generate() {
 }
 
 async function manualCheck() {
+  const path = pickerPath.value; const user = selectedUser.value;
+  checkedPath.value = ''; checkedUser.value = '';
   checking.value = true;
   try {
-    const response: any = await checkNasUploadDirectory(pathValue.value);
-    adminMessage.value = `连接成功：${response.relative_dir || pathValue.value} 可写`;
-    adminMessageType.value = 'success';
-  } catch (error: any) { adminMessage.value = error.response?.data?.msg || 'NAS 连接失败，请检查路径或联系运维'; adminMessageType.value = 'error'; }
-  finally { checking.value = false; }
+    await checkNasUploadDirectory(path);
+    if (path !== pickerPath.value || user !== selectedUser.value || directoryError.value) return;
+    checkedPath.value = path; checkedUser.value = user;
+    adminMessage.value = '连接成功，目录可写'; adminMessageType.value = 'success';
+  } catch (error: any) {
+    adminMessage.value = error.response?.data?.msg || 'NAS 连接失败，请检查路径或联系运维'; adminMessageType.value = 'error';
+  } finally { checking.value = false; }
 }
 
-function beginEdit() { originalPath.value = pathValue.value; editing.value = true; adminMessage.value = ''; }
-function cancelEdit() { pathValue.value = originalPath.value; editing.value = false; adminMessage.value = ''; }
-
-async function checkAndSave() {
+async function saveDirectory() {
+  if (checkedPath.value !== pickerPath.value || checkedUser.value !== selectedUser.value || directoryError.value) return;
+  const path = pickerPath.value; const user = selectedUser.value;
   checking.value = true;
   try {
-    await checkNasUploadDirectory(pathValue.value);
-    await ElMessageBox.confirm(`新目录检查成功，确认将上传目标修改为：\n${pathValue.value}？`, '确认保存', { type: 'warning' });
-    await saveNasUploadDirectory(pathValue.value);
-    originalPath.value = pathValue.value; editing.value = false;
-    adminMessage.value = '新目标目录已保存；已生成的二维码保持原目录。'; adminMessageType.value = 'success';
+    const response: any = await saveNasUploadDirectory(path, user);
+    const item = directoryUsers.value.find(entry => entry.emp_id === user);
+    if (item) item.relative_dir = response.relative_dir;
+    if (selectedUser.value === user) {
+      pathValue.value = displayDirectory(response.relative_dir);
+      originalPath.value = pathValue.value;
+    }
+    checkedPath.value = ''; checkedUser.value = '';
+    adminMessage.value = '目标目录已保存；已生成的二维码保持原目录。'; adminMessageType.value = 'success';
+    directoryPickerVisible.value = false;
   } catch (error: any) {
-    if (error === 'cancel' || error === 'close') return;
-    adminMessage.value = error.response?.data?.msg || '检查失败，请重新输入目录'; adminMessageType.value = 'error';
+    checkedPath.value = ''; checkedUser.value = '';
+    adminMessage.value = error.response?.data?.msg || '保存失败，请重新检查连接'; adminMessageType.value = 'error';
   } finally { checking.value = false; }
 }
 </script>
@@ -328,6 +427,7 @@ async function checkAndSave() {
 .admin-tools :deep(.el-button){font-size:17px;color:#606266}
 .admin-tools :deep(.el-button:hover){color:#409eff}
 .admin-settings{padding-bottom:4px}
+.directory-layout{display:flex;gap:12px;align-items:flex-start}.user-select{width:155px;flex-shrink:0}.directory-editor{flex:1;min-width:0}.chosen-path,.picker-path{padding:8px 0;overflow-wrap:anywhere;color:#606266}.directory-list{min-height:160px;max-height:350px;overflow:auto;border:1px solid #ebeef5;margin-top:12px;padding:8px}.directory-list button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:8px;cursor:pointer}.directory-list button:hover{background:#ecf5ff}.directory-error{color:#f56c6c}
 .log-search{display:flex;gap:10px;margin-bottom:14px}
 .log-search .el-input{max-width:360px}
 .log-search .log-delete{margin-left:auto;font-size:18px}
