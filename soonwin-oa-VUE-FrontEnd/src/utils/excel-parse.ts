@@ -34,31 +34,8 @@ export const parseJsonToFiles = (inputText: string, fileList: any[]): ParseResul
       throw new Error('请输入匹配信息');
     }
 
-    // 第一步：将所有连续空白（制表符、多个空格、全角空格）统一替换为单个制表符
-    const normalizedText = inputText.replace(/[\s\u00A0]+/g, '\t');
-    // 第二步：按换行符分割行（兼容\r\n和\n）
-    let lines = normalizedText.split(/\r?\n/).filter(line => line.trim() !== '');
-
-    // 核心修复：处理无换行符的场景（所有内容在一行）
-    if (lines.length === 1) {
-      const allFields = lines[0].split('\t').map(field => field.trim()).filter(field => field);
-      // 检查是否是表头+多行数据混在一起的情况（表头5个字段，总字段数>5且能被5整除）
-      if (allFields.length >= 5 && allFields.slice(0, 5).join(',') === '照片文件名,照片标题,关联机器,标签,备注') {
-        // 分离表头和数据
-        const headerFields = allFields.slice(0, 5); // 前5个是表头
-        const dataFields = allFields.slice(5);     // 后面的是数据
-
-        // 按每5个字段为一行拆分数据
-        const newLines = [headerFields.join('\t')]; // 重新构建表头行
-        for (let i = 0; i < dataFields.length; i += 5) {
-          const rowFields = dataFields.slice(i, i + 5);
-          if (rowFields.length >= 1) { // 至少有文件名字段
-            newLines.push(rowFields.join('\t'));
-          }
-        }
-        lines = newLines; // 使用重构后的行数据
-      }
-    }
+    // 保留行和空列，避免文件名、标题中的空格被拆开。
+    const lines = inputText.split(/\r?\n/).filter(line => line.trim() !== '');
 
     if (lines.length === 0) {
       throw new Error('请输入匹配信息');
@@ -111,9 +88,9 @@ export const parseJsonToFiles = (inputText: string, fileList: any[]): ParseResul
 
       // 统一小写进行匹配，增加匹配的健壮性
       const targetFilename = baseFilename.toLowerCase().trim();
-      const matchedData = dataRows.find(data =>
-        data.filename.toLowerCase().trim() === targetFilename
-      );
+      const fullFilename = originalFilename.toLowerCase().trim();
+      const matchedData = dataRows.find(data => data.filename.toLowerCase().trim() === fullFilename)
+        || dataRows.find(data => data.filename.toLowerCase().trim() === targetFilename);
 
       if (matchedData) {
         matchedFiles.push({

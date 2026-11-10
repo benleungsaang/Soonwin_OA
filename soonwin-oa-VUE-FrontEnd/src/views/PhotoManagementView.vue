@@ -440,322 +440,81 @@
     </div>
 
     <!-- 上传照片对话框 -->
-    <el-dialog
-      v-model="showUploadDialog"
-      title="上传照片"
-      width="600px"
-      :before-close="handleUploadDialogClose"
-      class="mobile-dialog"
-    >
-      <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-width="100px">
-        <el-form-item label="照片标题" prop="title">
-          <el-input v-model="uploadForm.title" placeholder="请输入照片标题" />
-        </el-form-item>
-        <el-form-item label="关联机器" prop="machineId">
-          <el-select v-model="uploadForm.machineId" placeholder="选择关联机器" clearable style="width: 100%;">
-            <el-option
-              v-for="machine in machineList"
-              :key="machine.id"
-              :label="`${machine.model} (${machine.original_model})`"
-              :value="machine.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="标签" prop="tags">
-          <!-- 使用 el-input-tag 替换原有自定义标签结构 -->
-          <el-input-tag
-            v-model="uploadFormTags"
-            placeholder="请输入标签，多个标签用逗号分隔"
-            delimiter=","
-            class="tag-input-wrapper"
-            size="small"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="uploadForm.remark"
-            type="textarea"
-            placeholder="请输入备注信息"
-            :rows="2"
-            :show-file-list="true"
-          />
-        </el-form-item>
-        <el-form-item label="照片文件" prop="file">
-          <el-upload
-            ref="uploadRef"
-            drag
-            multiple
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :file-list="fileList"
-            :show-file-list="true"
-            :on-remove="handleFileRemove"
-          >
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">
-              将照片拖到此处，或<em>点击上传</em>
-            </div>
-            <template #tip>
-              <div class="el-upload__tip">
-                只能上传 png/jpg/jpeg/webp 格式图片，大小不超过50MB
-              </div>
-            </template>
-          </el-upload>
-        </el-form-item>
-
-        <!-- 匹配文件按钮 -->
-        <el-form-item v-if="fileList.length > 1">
-          <el-button
-            @click="showJsonInputDialog = true"
-            type="info"
-            :icon="Search"
-          >
-            匹配文件
-          </el-button>
-        </el-form-item>
-
-        <!-- 上传进度条 -->
-        <el-form-item v-if="uploadProgress > 0" label="上传进度">
-          <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
-            <div :style="{width: `${uploadProgress}%`, height: '100%', backgroundColor: uploadProgress === 100 ? '#67c23a' : '#409eff', borderRadius: '4px', transition: 'width 0.3s ease'}"></div>
-          </div>
-          <div style="text-align: right; margin-top: 4px; font-size: 12px; color: #606266;">{{ uploadProgress }}%</div>
-        </el-form-item>
+    <el-dialog v-model="showUploadDialog" title="上传照片" width="min(1080px, 98vw)" :before-close="handleUploadDialogClose" class="photo-upload-v2" destroy-on-close @close="resetPhotoUploadState">
+      <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-position="top" class="pu-form">
+        <div class="pu-layout">
+          <section class="pu-card"><h2>选择照片文件</h2>
+            <el-form-item prop="file" class="pu-file-field"><el-upload ref="uploadRef" drag multiple :auto-upload="false" :on-change="handleFileChange" :file-list="fileList" :show-file-list="true" :on-remove="handleFileRemove" accept=".png,.jpg,.jpeg,.webp" class="pu-upload">
+              <el-icon class="pu-drop-icon"><UploadFilled /></el-icon><strong>拖放照片到此处，或点击选择</strong><span class="pu-muted">PNG / JPG / JPEG / WEBP · 支持多文件选择</span>
+            </el-upload></el-form-item>
+            <p class="pu-hint">单文件最大 50 MB · 文件匹配用于为不同照片批量填写资料</p>
+            <button type="button" class="pu-btn pu-soft" :disabled="uploading" @click="showJsonInputDialog = true">▦ 多文件资料匹配</button>
+          </section>
+          <section class="pu-card"><h2>内容信息</h2>
+            <el-form-item label="照片标题" prop="title"><el-input v-model="uploadForm.title" placeholder="请输入照片标题" /></el-form-item>
+            <el-form-item label="关联机器" prop="machineId"><el-select v-model="uploadForm.machineId" placeholder="选择关联机器（可选）" clearable><el-option v-for="machine in machineList" :key="machine.id" :label="`${machine.model} (${machine.original_model})`" :value="machine.id" /></el-select></el-form-item>
+            <el-form-item label="标签" prop="tags"><el-input-tag v-model="uploadFormTags" placeholder="多个标签用逗号分隔" delimiter="," /></el-form-item>
+            <el-form-item label="备注"><el-input v-model="uploadForm.remark" type="textarea" :rows="4" placeholder="填写备注信息（可选）" /></el-form-item>
+            <p class="pu-muted">普通上传按文件名生成标题；匹配上传仅上传已匹配的文件。</p>
+          </section>
+        </div>
+        <el-progress v-if="uploading" :percentage="uploadProgress" class="pu-progress" />
+        <div class="pu-footer"><div class="pu-muted">{{ fileList.length ? `已选择 ${fileList.length} 个文件` : '尚未选择文件' }}</div><div class="pu-small-actions"><button type="button" class="pu-btn" :disabled="uploading" @click="showUploadDialog = false">取消</button><button type="button" class="pu-btn pu-primary" :disabled="uploading" @click="submitUpload">{{ uploading ? '上传中…' : '上传照片' }}</button></div></div>
       </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showUploadDialog = false">取消</el-button>
-          <el-button type="primary" @click="submitUpload" :loading="uploading">上传</el-button>
-        </span>
-      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showJsonInputDialog" title="多文件资料匹配" width="min(1080px, 98vw)" class="photo-upload-v2 photo-match-v2" append-to-body :close-on-click-modal="!uploading" :close-on-press-escape="!uploading" :show-close="!uploading">
+      <div class="pu-form"><div class="pu-match-head"><div><span class="pu-pill">表格</span><p class="pu-muted">通过照片文件名批量关联标题、机器、标签与备注。</p></div></div>
+        <div class="pu-match-body"><div class="pu-example"><strong>① 示例数据 <span class="pu-muted">可复制到 Excel 修改</span></strong><div class="pu-table-wrap"><table><thead><tr><th>照片文件名</th><th>照片标题</th><th>关联机器</th><th>标签</th><th>备注</th></tr></thead><tbody><tr v-for="file in fileList" :key="file.uid"><td>{{ file.name }}</td><td>{{ photoNameWithoutExtension(file.name) }}</td><td></td><td></td><td></td></tr><tr v-if="!fileList.length"><td colspan="5">请先选择照片文件</td></tr></tbody></table></div><button type="button" class="pu-btn pu-soft" :disabled="!fileList.length || uploading" @click="copyPhotoMatchExample">复制示例到 Excel</button><p class="pu-hint">已按所选文件填入完整文件名和默认标题，可在 Excel 中补充资料。</p></div>
+          <div><strong>② 输入匹配信息</strong><el-input v-model="jsonInputText" type="textarea" :rows="7" :disabled="uploading" placeholder="粘贴从 Excel 复制的五列表格（包含表头）" /><p class="pu-hint">匹配结果只包含当前已选择的文件；未匹配文件不会随匹配上传。</p></div>
+        </div>
+        <div class="pu-footer"><span class="pu-muted">{{ fileList.length ? `已选择 ${fileList.length} 个文件` : '尚未选择文件' }}</span><div class="pu-actions"><button type="button" class="pu-btn" :disabled="uploading" @click="showJsonInputDialog = false">返回</button><button type="button" class="pu-btn pu-primary" :disabled="uploading || !fileList.length" @click="matchJsonToFiles">检查匹配</button></div></div>
+      </div>
+    </el-dialog>
+
+    <el-dialog v-model="showMatchResultDialog" title="匹配结果" width="min(800px, 96vw)" class="photo-upload-v2 photo-match-result-v2" append-to-body :close-on-click-modal="!uploading" :close-on-press-escape="!uploading" :show-close="!uploading">
+      <div class="pu-form"><div class="pu-result">已匹配 {{ matchedFiles.length }} 个文件，未匹配 {{ unmatchedFiles.length }} 个文件。</div>
+        <div class="pu-table-wrap"><table><thead><tr><th>文件名</th><th>标题</th><th>状态</th></tr></thead><tbody><tr v-for="item in matchedFiles" :key="item.file.uid"><td>{{ item.file.name }}</td><td>{{ item.data.title }}</td><td>已匹配</td></tr><tr v-for="name in unmatchedFiles" :key="name"><td>{{ name }}</td><td>—</td><td>未匹配</td></tr></tbody></table></div>
+        <p class="pu-hint">仅上传已匹配文件；未匹配文件不会上传。</p><el-progress v-if="uploading" :percentage="uploadProgress" class="pu-progress" />
+        <div class="pu-footer"><span></span><div class="pu-actions"><button type="button" class="pu-btn" :disabled="uploading" @click="showMatchResultDialog = false">返回修改</button><button type="button" class="pu-btn pu-primary" :disabled="!isMatched || uploading" @click="uploadMatchedFiles">{{ uploading ? '上传中…' : '上传匹配文件' }}</button></div></div>
+      </div>
     </el-dialog>
 
     <!-- 照片详情对话框 -->
-    <el-dialog
-      v-model="showDetailsDialog"
-      title="照片详情"
-      width="900px"
-      :before-close="handleDialogClose"
-      class="mobile-dialog details-dialog"
-    >
-      <div v-if="selectedPhoto" class="photo-details-container">
-        <!-- 左右分栏布局 -->
-        <div class="photo-details-left">
-          <div class="photo-preview-wrapper">
-            <img
-              :src="`${apiBaseUrl}/assets/Media/Photos/${selectedPhoto.normal_path}`"
-              :alt="selectedPhoto.title"
-              @error="onImageError"
-              class="photo-preview-img"
-            />
-            <!-- 预览图底部操作 -->
-            <div class="preview-actions">
-              <el-button
-                v-if="selectedPhoto.original_path"
-                type="text"
-                @click="viewOriginalImage"
-                size="small"
-              >
-                <el-icon class="icon-zoomin"><ZoomIn /></el-icon> 查看原图
-              </el-button>
+    <el-dialog v-model="showDetailsDialog" width="min(1260px, 96vw)" :before-close="handleDialogClose" class="photo-detail-v2-dialog" destroy-on-close>
+      <main v-if="selectedPhoto" class="v2-shell">
+        <div class="v2-headline">
+          <div class="v2-buttons">
+            <button v-if="!isEditingAll" class="v2-btn" @click="startEditingAll">编辑信息</button>
+            <template v-else><button class="v2-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="v2-btn v2-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
+          </div>
+        </div>
+        <div class="v2-layout">
+          <div class="v2-imagecard">
+            <div class="v2-small">IMAGE PREVIEW / 缩略图</div>
+            <img :src="`${apiBaseUrl}/assets/Media/Photos/${selectedPhoto.thumbnail_path}`" :alt="selectedPhoto.title" @error="onImageError" />
+            <div class="v2-imagefoot">
+              <div class="v2-file"><b>{{ photoFilename }}</b><div class="v2-small">{{ photoTechnicalInfo }}</div></div>
+              <button v-if="selectedPhoto.original_path" class="v2-btn" @click="viewOriginalImage">↗ 打开原图</button>
+            </div>
+          </div>
+          <div class="v2-side">
+            <div class="v2-card">
+              <h2>内容信息</h2>
+              <div class="v2-meta"><div class="v2-fieldname">标题</div><div v-if="!isEditingAll" class="v2-fieldvalue">{{ selectedPhoto.title }}</div><input v-else v-model="editTitle" class="v2-editfield" aria-label="标题" /></div>
+              <div v-if="selectedPhoto.machine_info" class="v2-meta"><div class="v2-fieldname">关联机器</div><div class="v2-fieldvalue">{{ selectedPhoto.machine_info.model }} ( {{ selectedPhoto.machine_info.original_model }} )</div></div>
+              <div class="v2-meta"><div class="v2-fieldname">标签</div><div v-if="!isEditingAll"><span v-for="(tag, index) in currentTags" :key="index" class="v2-tag">{{ tag }}</span><span v-if="!currentTags.length" class="v2-fieldvalue">无标签</span></div><input v-else v-model="editTagsInput" class="v2-editfield" placeholder="多个标签用逗号分隔" aria-label="标签" /></div>
+              <div class="v2-meta"><div class="v2-fieldname">备注</div><div v-if="!isEditingAll" class="v2-fieldvalue v2-note">{{ selectedPhoto.remark || '无备注' }}</div><textarea v-else v-model="editRemark" class="v2-editfield" aria-label="备注"></textarea></div>
+            </div>
+            <div class="v2-card">
+              <h2>文件记录</h2>
+              <div class="v2-person"><div class="v2-avatar">{{ (selectedPhoto.uploader || '未').slice(0, 1) }}</div><div><b>{{ selectedPhoto.uploader || '未知' }}</b><div class="v2-small">上传人</div></div></div>
+              <div class="v2-fieldname v2-time">上传时间</div><div class="v2-fieldvalue">{{ formatDate(selectedPhoto.upload_time) }}</div>
+              <div class="v2-fieldname v2-details">照片详情</div><div class="v2-fieldvalue">{{ photoTechnicalInfo }}</div>
             </div>
           </div>
         </div>
-
-        <div class="photo-details-right">
-          <!-- 标题区域 -->
-          <div class="detail-section">
-            <div v-if="!isEditingAll" class="detail-row title-row">
-              <label class="detail-label">标题:</label>
-              <h3 class="detail-title">{{ selectedPhoto.title }}</h3>
-            </div>
-            <div v-else class="detail-row">
-              <label class="detail-label">标题:</label>
-              <el-input
-                v-model="editTitle"
-                placeholder="输入照片标题"
-                class="title-input"
-              />
-            </div>
-          </div>
-
-          <!-- 关联机器 -->
-          <div v-if="selectedPhoto.machine_info" class="detail-section">
-            <div class="detail-row">
-              <label class="detail-label">关联机器:</label>
-              <span class="detail-value machine-value">
-                {{ selectedPhoto.machine_info.model }} ( {{ selectedPhoto.machine_info.original_model }} )
-              </span>
-            </div>
-          </div>
-
-          <!-- 标签区域 -->
-          <div class="detail-section">
-            <label class="detail-label">标签:</label>
-            <div class="tags-container">
-              <el-tooltip
-                v-for="tag in currentTags"
-                :key="tag"
-                :content="tag"
-                placement="top"
-              >
-                <el-tag
-                  closable
-                  :disable-transitions="false"
-                  @close="isEditingAll ? removeTag(tag) : ''"
-                  class="detail-tag"
-                  :class="{ 'tag-disabled': !isEditingAll }"
-                >
-                  {{ tag.trim() }}
-                </el-tag>
-              </el-tooltip>
-              <el-input
-                v-if="isEditingAll"
-                v-model="editTagsInput"
-                class="tag-input"
-                size="small"
-                @keyup.enter="addTagFromInput"
-                placeholder="回车添加标签"
-              />
-            </div>
-          </div>
-
-          <!-- 备注区域 -->
-          <div class="detail-section">
-            <div v-if="!isEditingAll" class="detail-row" style="flex-direction: column;">
-              <label class="detail-label">备注:</label>
-              <div class="detail-value remark-value" style="width: 90%;">
-                {{ selectedPhoto.remark || '无备注' }}
-              </div>
-            </div>
-            <div v-else>
-              <label class="detail-label">备注:</label>
-              <el-input
-                v-model="editRemark"
-                type="textarea"
-                :rows="4"
-                placeholder="请输入备注信息"
-                class="remark-input"
-              />
-            </div>
-          </div>
-
-          <!-- 文件信息区域 -->
-          <div class="detail-section info-section">
-            <div class="info-grid">
-              <div class="info-item">
-                <label class="detail-label small">上传时间:</label>
-                <span class="detail-value small">{{ formatDate(selectedPhoto.upload_time) }}</span>
-              </div>
-              <div class="info-item">
-                <label class="detail-label small">上传者:</label>
-                <span class="detail-value small">{{ selectedPhoto.uploader }}</span>
-              </div>
-              <div class="info-item">
-                <label class="detail-label small">文件大小:</label>
-                <span class="detail-value small">{{ formatFileSize(selectedPhoto.file_size) }}</span>
-              </div>
-              <div class="info-item">
-                <label class="detail-label small">原始尺寸:</label>
-                <span class="detail-value small">{{ selectedPhoto.original_width }} x {{ selectedPhoto.original_height }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 底部操作按钮 -->
-          <div class="detail-actions">
-            <el-button
-              v-if="!isEditingAll"
-              type="primary"
-              @click="startEditingAll"
-            >
-              编辑照片信息
-            </el-button>
-            <div v-else class="edit-actions-group">
-              <el-button
-                type="success"
-                @click="saveAll"
-                :loading="savingAll"
-              >
-                保存所有更改
-              </el-button>
-              <el-button @click="cancelEditingAll">取消</el-button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </el-dialog>
-
-    <!-- JSON匹配多文件对话框 -->
-    <el-dialog
-      v-model="showJsonInputDialog"
-      title="JSON匹配多文件"
-      width="800px"
-      :before-close="handleJsonInputDialogClose"
-      class="mobile-dialog"
-    >
-      <div>
-        <p>请输入匹配信息，格式如下：</p>
-        <!-- 根据返回类型显示图片或文本 -->
-        <div v-if="isImageFormat">
-          <img :src="jsonFormatDescription" alt="匹配格式示例" style="max-width: 100%; height: auto; border: 1px solid #e6e6e6; border-radius: 4px;">
-        </div>
-        <pre v-else style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin: 10px 0; white-space: pre-wrap; word-break: break-all;">
-{{ jsonFormatDescription }}
-        </pre>
-        <el-input
-          v-model="jsonInputText"
-          :rows="10"
-          type="textarea"
-          placeholder="请按上述格式输入匹配信息"
-        />
-
-        <!-- 匹配结果展示 -->
-        <div v-if="isMatched" class="match-results-section" style="margin-top: 20px;">
-          <h4>匹配结果：</h4>
-
-          <!-- 已匹配文件 -->
-          <div v-if="matchedFiles.length > 0" class="matched-files-section">
-            <h5 style="color: #67c23a;">已匹配文件 ({{ matchedFiles.length }}个)：</h5>
-            <el-table :data="matchedFiles" style="width: 100%; margin-top: 8px;">
-              <el-table-column prop="file.name" label="文件名" width="200"></el-table-column>
-              <el-table-column prop="data.title" label="标题" width="150"></el-table-column>
-              <el-table-column prop="data.machineId" label="关联机器" width="150"></el-table-column>
-              <el-table-column prop="data.tags" label="标签" width="150"></el-table-column>
-              <el-table-column prop="data.remark" label="备注" show-overflow-tooltip></el-table-column>
-            </el-table>
-          </div>
-
-          <!-- 未匹配文件 -->
-          <div v-if="unmatchedFiles.length > 0" class="unmatched-files-section" style="margin-top: 15px;">
-            <h5 style="color: #e6a23c;">未匹配文件 ({{ unmatchedFiles.length }}个)：</h5>
-            <div style="background: #fdf6ec; border: 1px solid #faecd8; border-radius: 4px; padding: 10px; margin-top: 8px;">
-              <span v-for="(file, index) in unmatchedFiles" :key="index" class="unmatched-file">
-                {{ file }}{{ index < unmatchedFiles.length - 1 ? ', ' : '' }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showJsonInputDialog = false">取消</el-button>
-          <el-button
-            type="warning"
-            @click="matchJsonToFiles"
-          >
-            匹配文件
-          </el-button>
-          <el-button
-            :disabled="!isMatched"
-            type="primary"
-            @click="uploadMatchedFiles"
-            :loading="uploading"
-          >
-            上传匹配文件
-          </el-button>
-        </span>
-      </template>
+      </main>
     </el-dialog>
 
     <!-- 引入通用日志对话框组件 -->
@@ -770,28 +529,18 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, ZoomIn, Document, Refresh, RefreshLeft, Search, CircleCheck, Back } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, Document, Refresh, RefreshLeft, Search, CircleCheck, Back } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
 import { uploadFile } from '@/utils/upload';
 import { getCurrentUserRole } from '@/utils/authUtils';
 import request, { getMachinesForPhotos, createPhoto, updatePhoto, deletePhoto as deletePhotoAPI, getDeletedPhotos, restorePhoto as restorePhotoAPI, permanentDeletePhotos as permanentDeletePhotosAPI } from '@/utils/request';
-import { parseJsonToFiles, getJsonFormatDescription } from '@/utils/excel-parse';
+import { parseJsonToFiles } from '@/utils/excel-parse';
 
 // 响应式数据
 const photos = ref<any[]>([]);
 
-// 计算属性：JSON格式说明
-const jsonFormatDescription = computed(() => {
-  return getJsonFormatDescription('photo');
-});
-
-// 判断是否为图片格式
-const isImageFormat = computed(() => {
-  const desc = jsonFormatDescription.value;
-  return desc.endsWith('.png') || desc.endsWith('.jpg') || desc.endsWith('.jpeg') || desc.endsWith('.gif') || desc.endsWith('.webp');
-});
 const currentPage = ref(1);
 const pageSize = ref(10);
 const totalPhotos = ref(0);
@@ -816,6 +565,7 @@ const uploadForm = ref({
 const uploadFormTags = ref<string[]>([]);
 const inputValueString = ref('');
 const showJsonInputDialog = ref(false);
+const showMatchResultDialog = ref(false);
 const jsonInputText = ref('');
 // JSON匹配相关状态
 const matchedFiles = ref<any[]>([]);
@@ -1135,6 +885,15 @@ const resetUploadForm = () => {
   uploadProgress.value = 0;
 };
 
+const resetPhotoUploadState = () => {
+  showMatchResultDialog.value = false;
+  showJsonInputDialog.value = false;
+  resetUploadForm();
+  resetMatchState();
+  inputValueString.value = '';
+  uploadFormRef.value?.clearValidate();
+};
+
 // JSON匹配多文件相关函数（核心修复：换行符兼容）
 const matchJsonToFiles = () => {
   try {
@@ -1144,6 +903,7 @@ const matchJsonToFiles = () => {
     matchedFiles.value = result.matchedFiles;
     unmatchedFiles.value = result.unmatchedFiles;
     isMatched.value = result.isMatched;
+    showMatchResultDialog.value = true;
 
     // 提示信息
     if (result.unmatchedFiles.length > 0) {
@@ -1171,26 +931,42 @@ const resetMatchState = () => {
   isMatched.value = false;
 };
 
-// 处理JSON匹配对话框关闭
-const handleJsonInputDialogClose = (done: () => void) => {
-  if (isMatched.value && matchedFiles.value.length > 0) {
-    ElMessageBox.confirm('您有已匹配但未上传的文件，确定要关闭吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }).then(() => {
-      // 用户确认关闭，重置状态
-      resetMatchState();
-      done();
-    }).catch(() => {
-      // 用户取消关闭
-    });
-  } else {
-    // 没有匹配的文件，直接关闭
-    resetMatchState();
-    done();
-  }
+const photoNameWithoutExtension = (name: string) => {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
 };
+const copyPhotoMatchExample = async () => {
+  if (!fileList.value.length) return;
+  if (fileList.value.some(file => /[\t\r\n]/.test(file.name))) {
+    ElMessage.error('文件名包含制表符或换行，无法复制为 Excel 表格');
+    return;
+  }
+  const rows = [
+    ['照片文件名', '照片标题', '关联机器', '标签', '备注'],
+    ...fileList.value.map(file => [file.name, photoNameWithoutExtension(file.name), '', '', '']),
+  ];
+  const text = rows.map(row => row.join('\t')).join('\n');
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(text); copied = true; } catch { /* 使用兼容方式重试 */ }
+  }
+  if (!copied) {
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.setAttribute('readonly', '');
+    input.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    (document.querySelector('.photo-match-v2') || document.body).appendChild(input);
+    try {
+      input.focus();
+      input.select();
+      copied = document.execCommand('copy');
+    } catch { copied = false; }
+    finally { input.remove(); }
+  }
+  if (copied) ElMessage.success('已复制所选照片，可粘贴到 Excel');
+  else ElMessage.error('复制失败，请检查浏览器是否允许复制');
+};
+watch([jsonInputText, fileList], () => { isMatched.value = false; matchedFiles.value = []; unmatchedFiles.value = []; }, { deep: true });
 
 // 上传已匹配的文件（逐个上传，等待后端支持批量接口）
 const uploadMatchedFiles = async () => {
@@ -1244,6 +1020,7 @@ const uploadMatchedFiles = async () => {
     }
 
     ElMessage.success(`批量上传完成: ${successCount} 个成功, ${errorCount} 个失败`);
+    showMatchResultDialog.value = false;
     showJsonInputDialog.value = false;
     showUploadDialog.value = false; // 同时关闭主上传对话框
     resetUploadForm();
@@ -1279,6 +1056,15 @@ const deletePhoto = async (id: number) => {
   }
 };
 
+const photoFilename = computed(() => (selectedPhoto.value?.original_path || selectedPhoto.value?.normal_path || selectedPhoto.value?.thumbnail_path || '').split('/').pop() || '照片');
+const photoTechnicalInfo = computed(() => {
+  const photo = selectedPhoto.value;
+  if (!photo) return '';
+  const extension = photoFilename.value.includes('.') ? photoFilename.value.split('.').pop()?.toUpperCase() : '';
+  const dimensions = photo.original_width && photo.original_height ? `${photo.original_width} × ${photo.original_height}` : '';
+  return [extension, dimensions, photo.file_size != null ? formatFileSize(photo.file_size) : ''].filter(Boolean).join(' / ');
+});
+
 // 查看照片详情
 const viewPhotoDetails = (photo: any) => {
   selectedPhoto.value = photo;
@@ -1291,27 +1077,6 @@ const viewPhotoDetails = (photo: any) => {
   showDetailsDialog.value = true;
 };
 
-// 添加标签
-const addTagFromInput = () => {
-  if (editTagsInput.value.trim()) {
-    const newTags = editTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-    newTags.forEach(tag => {
-      if (!currentTags.value.includes(tag)) {
-        currentTags.value.push(tag);
-      }
-    });
-    editTagsInput.value = '';
-  }
-};
-
-// 移除标签
-const removeTag = (tagToRemove: string) => {
-  const index = currentTags.value.indexOf(tagToRemove);
-  if (index > -1) {
-    currentTags.value.splice(index, 1);
-  }
-};
-
 // 开始编辑所有信息
 const startEditingAll = () => {
   editTitle.value = selectedPhoto.value?.title || '';
@@ -1319,16 +1084,27 @@ const startEditingAll = () => {
   const tagsString = selectedPhoto.value?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
   isEditingAll.value = true;
-  editTagsInput.value = '';
+  editTagsInput.value = currentTags.value.join(',');
 };
 
 // 保存所有更改
 const saveAll = async () => {
   if (!selectedPhoto.value) return;
 
+  const originalTags = selectedPhoto.value.tags || '';
+  const initialTagsInput = originalTags.split(',').map((tag: string) => tag.trim()).filter(Boolean).join(',');
+  const tagsChanged = editTagsInput.value !== initialTagsInput;
+  if (editTitle.value === (selectedPhoto.value.title || '') &&
+      editRemark.value === (selectedPhoto.value.remark || '') && !tagsChanged) {
+    isEditingAll.value = false;
+    return;
+  }
+
   savingAll.value = true;
   try {
-    const tagsString = currentTags.value.join(',');
+    const tagsString = tagsChanged
+      ? [...new Set(editTagsInput.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean))].join(',')
+      : originalTags;
     await updatePhoto(selectedPhoto.value.id, {
       title: editTitle.value,
       tags: tagsString,
@@ -1348,6 +1124,7 @@ const saveAll = async () => {
       photos.value[photoIndex].remark = editRemark.value;
     }
 
+    currentTags.value = tagsString ? tagsString.split(',') : [];
     ElMessage.success('照片信息更新成功');
     isEditingAll.value = false;
   } catch (error) {
@@ -2407,4 +2184,24 @@ onMounted(() => {
 .el-icon{
   margin-right: 5px;
 }
+
+:global(.photo-detail-v2-dialog.el-dialog){--el-dialog-padding-primary:0;padding:0;background:#f8f7f3;border-radius:12px;height:94vh;max-height:94vh;overflow:hidden;margin-top:3vh!important;color:#242a30;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif}
+:global(.photo-detail-v2-dialog .el-dialog__body){height:100%;overflow-y:auto;overflow-x:hidden}
+:global(.photo-detail-v2-dialog .el-dialog__header){padding:0;margin:0}:global(.photo-detail-v2-dialog .el-dialog__headerbtn){z-index:2;top:10px;right:10px}
+.v2-shell,.v2-shell *{box-sizing:border-box}.v2-shell{max-width:1260px;min-height:100%;margin:0 auto;padding:20px 30px 28px;color:#242a30;display:flex;flex-direction:column}
+.v2-shell button,.v2-shell input,.v2-shell textarea{font:inherit}.v2-shell button{cursor:pointer}.v2-shell button:focus-visible,.v2-shell input:focus-visible,.v2-shell textarea:focus-visible{outline:2px solid #4285ef;outline-offset:2px}
+.v2-btn{border:1px solid #d7dce4;background:#fff;color:#273344;border-radius:12px;padding:10px 16px;font-weight:600}.v2-btn:disabled{opacity:.6;cursor:not-allowed}.v2-primary{background:#243d34;color:#fff;border-color:#243d34}
+.v2-headline{display:flex;justify-content:flex-end;align-items:center;flex:none;min-height:44px;margin:0 48px 16px 0}.v2-buttons{display:flex;gap:9px;flex-wrap:nowrap}
+.v2-layout{display:grid;grid-template-columns:1.25fr .75fr;gap:20px;flex:1;align-items:stretch}.v2-imagecard{background:#e4e9e8;border-radius:26px;padding:25px;min-height:620px;display:flex;flex-direction:column;justify-content:space-between;min-width:0}.v2-imagecard img{display:block;width:100%;height:460px;object-fit:contain;border-radius:16px}.v2-imagefoot{display:flex;justify-content:space-between;align-items:center;gap:15px}.v2-file{min-width:0;overflow-wrap:anywhere}
+.v2-small{font-size:12px;color:#66717c}.v2-side{display:grid;grid-template-rows:minmax(390px,auto) auto;gap:17px;min-width:0}.v2-card{background:white;border:1px solid #eae7e0;border-radius:22px;padding:26px;min-width:0}.v2-card h2{margin:0 0 20px;font-size:18px;line-height:normal}.v2-meta{padding:12px 0;border-bottom:1px solid #f0f0ef}.v2-meta:last-child{border-bottom:0}
+.v2-fieldname{color:#8792a2;font-size:12px;margin-bottom:7px}.v2-fieldvalue{color:#263344;font-size:14px;line-height:1.6;overflow-wrap:anywhere}.v2-note{white-space:pre-wrap}.v2-tag{display:inline-flex;background:#eaf1ff;color:#2c60aa;padding:5px 10px;border-radius:7px;margin:3px 5px 3px 0;font-size:13px;overflow-wrap:anywhere;max-width:100%}
+.v2-editfield{width:100%;padding:9px 11px;border:1px solid #ccd4df;border-radius:9px;background:white;color:#233044}.v2-shell textarea.v2-editfield{height:100px;min-height:100px;max-height:100px;resize:none;overflow:auto}.v2-person{display:flex;align-items:center;gap:12px}.v2-avatar{background:#dfecdd;border-radius:50%;width:42px;height:42px;display:grid;place-items:center;color:#3e6d55;font-weight:700}.v2-time{margin-top:22px}.v2-details{margin-top:16px}
+@media(max-width:900px){.v2-layout{grid-template-columns:1fr}.v2-imagecard{min-height:450px}.v2-imagecard img{height:320px}.v2-side{grid-template-rows:minmax(390px,auto) auto}.v2-shell{padding:12px 14px 20px}.v2-card{padding:16px}}
+
+:global(.photo-upload-v2.el-dialog){--el-dialog-padding-primary:0;padding:26px 30px;background:#faf9f6;border-radius:17px;max-height:94vh;overflow-y:auto;margin-top:3vh!important;color:#263138;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+:global(.photo-upload-v2 .el-dialog__header){padding:0;margin:0 0 20px}:global(.photo-upload-v2 .el-dialog__title){font-size:23px;font-weight:700;color:#263138}:global(.photo-upload-v2 .el-dialog__headerbtn){top:18px;right:18px}
+.pu-form,.pu-form *{box-sizing:border-box}.pu-layout{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}.pu-card{border:1px solid #e7e5de;background:#fff;border-radius:21px;padding:22px;min-width:0}.pu-card h2,.pu-match h2{font-size:17px;margin:0 0 16px;color:#263138;line-height:normal}.pu-form :deep(.el-form-item){margin-bottom:15px}.pu-form :deep(.el-form-item__label){font-size:12px;color:#748390;line-height:1.4;margin-bottom:6px;padding:0}.pu-form :deep(.el-select),.pu-form :deep(.el-input-tag){width:100%}.pu-form :deep(.el-input__wrapper),.pu-form :deep(.el-select__wrapper),.pu-form :deep(.el-input-tag__wrapper){min-height:40px;border-radius:9px}.pu-form :deep(.el-textarea__inner){border-radius:9px;min-height:100px!important}.pu-file-field :deep(.el-form-item__content){display:block}.pu-upload{width:100%}.pu-upload :deep(.el-upload){width:100%;display:block}.pu-upload :deep(.el-upload-dragger){width:100%;min-height:190px;border:2px dashed #b7c8c3;background:#e5eae9;border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:16px;color:#263138}.pu-upload :deep(.el-upload-dragger:hover){background:#dceae5;border-color:#31735d}.pu-upload :deep(.el-upload-list){max-height:150px;overflow:auto}.pu-drop-icon{font-size:36px;color:#416e5c}.pu-muted,.pu-hint{font-size:12px;color:#7b8990;line-height:1.5}.pu-hint{margin:12px 0}.pu-btn{border:1px solid #d4dfe2;background:white;border-radius:10px;padding:9px 15px;color:#34434d;cursor:pointer;font:inherit}.pu-btn:disabled{opacity:.45;cursor:not-allowed}.pu-btn.pu-primary{background:#213e33;border-color:#213e33;color:white}.pu-btn.pu-soft{background:#eef4f1;color:#245b47;border-color:#d4e5db}.pu-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:19px}.pu-actions,.pu-small-actions{display:flex;gap:10px;flex-wrap:wrap}.pu-progress{margin-top:15px}
+@media(max-width:800px){.pu-layout{grid-template-columns:1fr}:global(.photo-upload-v2.el-dialog){padding:20px}}
+
+.pu-match{margin-top:18px;background:#fff;border:1px solid #e7e5de;border-radius:21px;padding:23px}.pu-match-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.pu-match-head h2{margin:0}.pu-match-head p{margin:5px 0 0}.pu-pill{font-size:11px;border-radius:99px;padding:3px 8px;background:#e9f1ec;color:#39715a}.pu-match-body{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px}.pu-example{background:#f5f7f5;border:1px solid #e3eae5;border-radius:14px;padding:15px;min-width:0}.pu-table-wrap{overflow:auto;border:1px solid #e1e6e2;border-radius:9px;background:white;margin:12px 0}.pu-table-wrap table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}.pu-table-wrap th,.pu-table-wrap td{padding:9px 11px;text-align:left;border-bottom:1px solid #e9eeea}.pu-table-wrap th{background:#edf2ef;color:#53685d}.pu-match-body :deep(.el-textarea){margin-top:9px}.pu-match-body :deep(.el-textarea__inner){min-height:175px!important;font:12px/1.6 ui-monospace,Consolas,monospace}.pu-small-actions{margin-top:12px}.pu-result{margin-top:13px;border-radius:10px;background:#f0f5f2;padding:11px 13px;color:#375b4d;font-size:12px}@media(max-width:800px){.pu-match-body{grid-template-columns:1fr}.pu-match-head{align-items:flex-start;flex-direction:column}}
 </style>

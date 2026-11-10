@@ -308,271 +308,61 @@
     </div>
 
     <!-- 上传视频对话框 -->
-    <el-dialog
-      v-model="showUploadDialog"
-      title="上传视频"
-      width="600px"
-      :before-close="handleUploadDialogClose"
-      class="mobile-dialog"
-    >
-      <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-width="100px">
-        <el-form-item label="视频标题" prop="title">
-          <el-input v-model="uploadForm.title" placeholder="请输入视频标题" />
-        </el-form-item>
-        <el-form-item label="关联机器" prop="machineId">
-          <el-select v-model="uploadForm.machineId" placeholder="选择关联机器" clearable style="width: 100%;">
-            <el-option
-              v-for="machine in machineList"
-              :key="machine.id"
-              :label="`${machine.model} (${machine.original_model})`"
-              :value="machine.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="标签" prop="tags">
-          <!-- 使用 el-input-tag 替换原有自定义标签结构 -->
-          <el-input-tag
-            v-model="uploadFormTags"
-            placeholder="请输入标签，多个标签用逗号分隔"
-            delimiter=","
-            class="tag-input-wrapper"
-            size="small"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input
-            v-model="uploadForm.remark"
-            type="textarea"
-            placeholder="请输入备注信息"
-            :rows="2"
-          />
-        </el-form-item>
-        <el-form-item label="视频文件" prop="file">
-          <el-upload
-            ref="uploadRef"
-            drag
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :file-list="fileList"
-            :limit="1"
-            :on-remove="handleFileRemove"
-            :accept="'.mp4,.avi,.mov,.mkv,.wmv'"
-          >
-            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">
-              将视频拖到此处，或<em>点击上传</em>
+    <el-dialog v-model="showUploadDialog" title="上传视频" width="min(940px, 96vw)" :before-close="handleUploadDialogClose" class="video-upload-v2" destroy-on-close>
+      <el-form :model="uploadForm" :rules="uploadRules" ref="uploadFormRef" label-position="top" class="vu-form">
+        <div class="vu-layout">
+          <section class="vu-card"><h2>选择视频文件</h2>
+            <el-form-item prop="file" class="vu-file-field"><el-upload ref="uploadRef" drag :auto-upload="false" :on-change="handleFileChange" :file-list="fileList" :limit="1" :on-remove="handleFileRemove" accept=".mp4,.avi,.mov,.mkv,.wmv" class="vu-upload">
+              <el-icon class="vu-drop-icon"><UploadFilled /></el-icon><strong>拖放文件到此处，或点击选择</strong><span class="vu-muted">MP4 / AVI / MOV / MKV / WMV</span>
+            </el-upload></el-form-item>
+            <p class="vu-hint">{{ compressVideoEnabled ? '压缩时按现有上传规则处理' : '不压缩时文件不超过 500 MB' }}</p>
+            <div class="vu-option"><el-checkbox v-model="compressVideoEnabled">压缩视频（默认压缩）</el-checkbox><el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
+              <div v-if="watermarkEnabled" class="vu-watermark"><div class="vu-label">选择水印位置</div><div class="vu-positions"><button v-for="option in watermarkPositionOptions" :key="option.value" type="button" class="vu-position" :class="{ selected: watermarkPosition === option.value }" :aria-pressed="watermarkPosition === option.value" @click="watermarkPosition = option.value"><img :src="`${apiBaseUrl}/assets/Media/Videos/water-mark/${option.image}`" :alt="`水印位置：${option.label}`" /><span>{{ option.label }}</span></button></div></div>
             </div>
-            <template #tip>
-              <div class="el-upload__tip">
-                只能上传 mp4/avi/mov/mkv/wmv 格式视频，{{ compressVideoEnabled ? '压缩时文件大小不超过1GB' : '不压缩时大小不超过500MB' }}
-              </div>
-            </template>
-          </el-upload>
-        </el-form-item>
-        <div class="watermark-settings-panel">
-          <div class="watermark-settings-toggle">
-            <el-checkbox v-model="compressVideoEnabled">压缩视频（默认压缩）</el-checkbox>
-          </div>
-          <div class="watermark-settings-toggle">
-            <el-checkbox v-model="watermarkEnabled">添加 Logo 水印</el-checkbox>
-          </div>
-          <div v-if="watermarkEnabled" class="watermark-position-selector">
-            <div class="watermark-position-label">选择水印位置</div>
-            <div class="watermark-position-grid">
-              <button
-                v-for="option in watermarkPositionOptions"
-                :key="option.value"
-                type="button"
-                class="watermark-position-card"
-                :class="{ selected: watermarkPosition === option.value }"
-                :aria-pressed="watermarkPosition === option.value"
-                @click="watermarkPosition = option.value"
-              >
-                <img
-                  :src="`${apiBaseUrl}/assets/Media/Videos/water-mark/${option.image}`"
-                  :alt="`水印位置：${option.label}`"
-                />
-                <span>{{ option.label }}</span>
-              </button>
-            </div>
-          </div>
+          </section>
+          <section class="vu-card"><h2>内容信息</h2>
+            <el-form-item label="视频标题" prop="title"><el-input v-model="uploadForm.title" placeholder="请输入视频标题" /></el-form-item>
+            <el-form-item label="关联机器" prop="machineId"><el-select v-model="uploadForm.machineId" placeholder="选择关联机器（可选）" clearable><el-option v-for="machine in machineList" :key="machine.id" :label="`${machine.model} (${machine.original_model})`" :value="machine.id" /></el-select></el-form-item>
+            <el-form-item label="标签" prop="tags"><el-input-tag v-model="uploadFormTags" placeholder="多个标签用逗号分隔" delimiter="," /></el-form-item>
+            <el-form-item label="备注"><el-input v-model="uploadForm.remark" type="textarea" :rows="4" placeholder="填写备注信息（可选）" /></el-form-item>
+            <div class="vu-divider"></div><p class="vu-muted">标题和文件为必填项，其余字段可选。</p>
+          </section>
         </div>
-        <!-- 上传进度条 -->
-        <el-form-item v-if="uploadProgress > 0" label="上传进度">
-          <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-top: 8px;">
-            <div :style="{width: `${uploadProgress}%`, height: '100%', backgroundColor: uploadProgress === 100 ? '#67c23a' : '#409eff', borderRadius: '4px', transition: 'width 0.3s ease'}"></div>
-          </div>
-          <div style="text-align: right; margin-top: 4px; font-size: 12px; color: #606266;">{{ uploadProgress }}%</div>
-        </el-form-item>
+        <el-progress v-if="uploading" :percentage="uploadProgress" class="vu-progress" />
+        <div class="vu-footer"><span class="vu-muted">{{ fileList.length ? `已选择 ${fileList.length} 个文件` : '尚未选择文件' }}</span><div class="vu-actions"><button type="button" class="vu-btn" :disabled="uploading" @click="showUploadDialog = false">取消</button><button type="button" class="vu-btn vu-primary" :disabled="uploading" @click="submitUpload">{{ uploading ? '上传中…' : '上传视频' }}</button></div></div>
       </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showUploadDialog = false">取消</el-button>
-          <el-button type="primary" @click="submitUpload" :loading="uploading">上传</el-button>
-        </span>
-      </template>
     </el-dialog>
 
     <!-- 视频详情对话框 -->
-    <el-dialog
-      v-model="showDetailsDialog"
-      title="视频详情"
-      :before-close="handleDialogClose"
-      class="mobile-dialog details-dialog"
-      width="90%"
-    >
-      <div v-if="selectedVideo" class="video-details-container">
-        <!-- 左右分栏布局 -->
-        <div class="video-details-left">
-          <div class="video-preview-wrapper">
-            <video
-              :src="currentVideoSrc || `${apiBaseUrl.value}/assets/Media/Videos/${selectedVideo.compressed_path || selectedVideo.original_path}`"
-              :alt="selectedVideo.title"
-              controls
-              class="video-preview"
-              @error="onVideoError"
-              :key="selectedVideo ? selectedVideo.id : 'default'"
-            />
-            <!-- 预览图底部操作 -->
-            <div class="preview-actions">
-              <el-button
-                v-if="selectedVideo.original_path"
-                :link="true"
-                @click="downloadVideo"
-                size="small"
-              >
-                <el-icon class="icon-download"><Download /></el-icon> 下载视频
-              </el-button>
-            </div>
-          </div>
+    <el-dialog v-model="showDetailsDialog" width="min(1260px, 96vw)" :before-close="handleDialogClose" class="video-detail-v2-dialog" destroy-on-close>
+      <main v-if="selectedVideo" class="vd-shell">
+        <div class="vd-toolbar">
+          <button v-if="!isEditingAll" class="vd-btn" @click="startEditingAll">编辑信息</button>
+          <template v-else><button class="vd-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="vd-btn vd-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
         </div>
-
-        <div class="video-details-right">
-          <!-- 标题区域 -->
-          <div class="detail-section">
-            <div v-if="!isEditingAll" class="detail-row title-row">
-              <label class="detail-label">标题:</label>
-              <span class="detail-value small detail-title">{{ selectedVideo.title }}</span>
-            </div>
-            <div v-else class="detail-row">
-              <label class="detail-label">标题:</label>
-              <el-input
-                v-model="editTitle"
-                placeholder="输入视频标题"
-                class="title-input"
-              />
-            </div>
-          </div>
-
-          <!-- 关联机器 -->
-          <div v-if="selectedVideo.machine_info" class="detail-section">
-            <div class="detail-row">
-              <label class="detail-label">关联机器:</label>
-              <span class="detail-value machine-value">
-                {{ selectedVideo.machine_info.model }} ( {{ selectedVideo.machine_info.original_model }} )
-              </span>
-            </div>
-          </div>
-
-          <!-- 标签区域 -->
-          <div class="detail-section">
-            <label class="detail-label">标签:</label>
-            <div class="tags-container">
-              <el-tooltip
-                v-for="tag in currentTags"
-                :key="tag"
-                :content="tag"
-                placement="top"
-              >
-                <el-tag
-                  closable
-                  :disable-transitions="false"
-                  @close="isEditingAll ? removeTag(tag) : ''"
-                  class="detail-tag"
-                  :class="{ 'tag-disabled': !isEditingAll }"
-                >
-                  {{ tag.trim() }}
-                </el-tag>
-              </el-tooltip>
-              <el-input
-                v-if="isEditingAll"
-                v-model="editTagsInput"
-                class="tag-input"
-                size="small"
-                @keyup.enter="addTagFromInput"
-                placeholder="回车添加标签"
-              />
-            </div>
-          </div>
-
-          <!-- 备注区域 -->
-          <div class="detail-section">
-            <div v-if="!isEditingAll" class="detail-row" style="flex-direction: column;">
-              <label class="detail-label">备注:</label>
-              <div class="detail-value remark-value">
-                {{ selectedVideo.remark || '无备注' }}
-              </div>
-            </div>
-            <div v-else>
-              <label class="detail-label">备注:</label>
-              <el-input
-                v-model="editRemark"
-                type="input"
-                :rows="4"
-                placeholder="请输入备注信息"
-                class="remark-input"
-              />
-            </div>
-          </div>
-
-          <!-- 文件信息区域 -->
-          <div class="detail-section info-section">
-            <div class="info-grid">
-              <div class="info-item">
-                <label class="detail-label small">上传时间:</label>
-                <span class="detail-value small">{{ formatDate(selectedVideo.upload_time) }}</span>
-              </div>
-              <div class="info-item">
-                <label class="detail-label small">上传者:</label>
-                <span class="detail-value small">{{ selectedVideo.uploader }}</span>
-              </div>
-              <div class="info-item">
-                <label class="detail-label small">文件大小:</label>
-                <span class="detail-value small">{{ formatFileSize(selectedVideo.file_size) }}</span>
-              </div>
-              <div class="info-item" v-if="selectedVideo.duration">
-                <label class="detail-label small">视频时长:</label>
-                <span class="detail-value small">{{ formatDuration(selectedVideo.duration) }}</span>
-              </div>
-              <div class="info-item" v-if="selectedVideo.original_width && selectedVideo.original_height">
-                <label class="detail-label small">视频分辨率:</label>
-                <span class="detail-value small">{{ selectedVideo.original_width }} x {{ selectedVideo.original_height }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 底部操作按钮 -->
-          <div class="detail-actions">
-            <el-button
-              v-if="!isEditingAll"
-              type="primary"
-              @click="startEditingAll"
-            >
-              编辑视频信息
-            </el-button>
-            <div v-else class="edit-actions-group">
-              <el-button
-                type="success"
-                @click="saveAll"
-                :loading="savingAll"
-              >
-                保存所有更改
-              </el-button>
-              <el-button @click="cancelEditingAll">取消</el-button>
-            </div>
-          </div>
+        <div class="vd-layout">
+          <section class="vd-preview">
+            <div class="vd-eyebrow">VIDEO PREVIEW / 视频预览</div>
+            <div class="vd-stage"><div class="vd-video-wrap">
+              <video :key="selectedVideo.id" :src="currentVideoSrc" :poster="selectedVideo.thumbnail_path ? `${apiBaseUrl}/assets/Media/Videos/${selectedVideo.thumbnail_path}` : undefined" controls preload="metadata" playsinline class="video-preview" @error="onVideoError">浏览器不支持视频播放。</video>
+            </div></div>
+            <div class="vd-filefoot"><div><div class="vd-filename">{{ videoFilename }}</div><div class="vd-sub">{{ videoTechnicalInfo }}</div></div><button v-if="selectedVideo.original_path" class="vd-btn" @click="downloadVideo">↧ 下载视频</button></div>
+          </section>
+          <aside class="vd-right">
+            <section class="vd-panel vd-content"><h2>内容信息</h2>
+              <div class="vd-field"><div class="vd-label">标题</div><div v-if="!isEditingAll" class="vd-value">{{ selectedVideo.title || '无标题' }}</div><input v-else v-model="editTitle" class="vd-editor" maxlength="255" aria-label="标题" /></div>
+              <div v-if="selectedVideo.machine_info" class="vd-field"><div class="vd-label">关联机器</div><div class="vd-value">{{ selectedVideo.machine_info.model }} ( {{ selectedVideo.machine_info.original_model }} )</div></div>
+              <div class="vd-field"><div class="vd-label">标签</div><div v-if="!isEditingAll" class="vd-value">{{ selectedVideo.tags || '无标签' }}</div><input v-else v-model="editTagsInput" class="vd-editor" placeholder="多个标签用逗号分隔" aria-label="标签" /></div>
+              <div class="vd-field"><div class="vd-label">备注</div><div v-if="!isEditingAll" class="vd-value vd-note">{{ selectedVideo.remark || '无备注' }}</div><textarea v-else v-model="editRemark" class="vd-editor vd-note-editor" aria-label="备注"></textarea></div>
+            </section>
+            <section class="vd-panel vd-record"><h2>文件记录</h2>
+              <div class="vd-avatarrow"><div class="vd-avatar">{{ (selectedVideo.uploader || '未').slice(0, 1) }}</div><div><div class="vd-person">{{ selectedVideo.uploader || '未知' }}</div><div class="vd-sub">上传人</div></div></div>
+              <div class="vd-recorditem"><div class="vd-label">上传时间</div><div class="vd-value">{{ formatDate(selectedVideo.upload_time) }}</div></div>
+              <div class="vd-recorditem"><div class="vd-label">视频详情</div><div class="vd-value">{{ videoTechnicalInfo }}</div></div>
+            </section>
+          </aside>
         </div>
-      </div>
+      </main>
     </el-dialog>
 
     <!-- 引入通用日志对话框组件 -->
@@ -601,7 +391,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { UploadFilled, Delete, Download, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft, MoreFilled } from '@element-plus/icons-vue';
+import { UploadFilled, Delete, VideoPlay, Back, CircleCheck, Refresh, Document, RefreshLeft, MoreFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import CommonHeader from '@/components/CommonHeader.vue';
 import CommonLogDialog from '@/components/CommonLogDialog.vue';
@@ -1111,6 +901,15 @@ const compressVideo = async (video: any) => {
   }
 };
 
+const videoFilename = computed(() => (selectedVideo.value?.compressed_path || selectedVideo.value?.original_path || '').split('/').pop() || '视频');
+const videoTechnicalInfo = computed(() => {
+  const video = selectedVideo.value;
+  if (!video) return '';
+  const extension = videoFilename.value.includes('.') ? videoFilename.value.split('.').pop()?.toUpperCase() : '';
+  const dimensions = video.original_width && video.original_height ? `${video.original_width} × ${video.original_height}` : '';
+  return [extension, dimensions, video.duration ? formatDuration(video.duration) : '', video.file_size != null ? formatFileSize(video.file_size) : ''].filter(Boolean).join(' / ');
+});
+
 // 查看视频详情
 const viewVideoDetails = (video: any) => {
   selectedVideo.value = video;
@@ -1137,30 +936,6 @@ const viewVideoDetails = (video: any) => {
   showDetailsDialog.value = true;
 };
 
-// 添加标签
-const addTagFromInput = () => {
-  if (editTagsInput.value.trim()) {
-    // 按逗号分隔输入的标签
-    const newTags = editTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
-
-    newTags.forEach(tag => {
-      if (!currentTags.value.includes(tag)) {
-        currentTags.value.push(tag);
-      }
-    });
-
-    editTagsInput.value = '';
-  }
-};
-
-// 移除标签
-const removeTag = (tagToRemove: string) => {
-  const index = currentTags.value.indexOf(tagToRemove);
-  if (index > -1) {
-    currentTags.value.splice(index, 1);
-  }
-};
-
 // 开始编辑所有信息
 const startEditingAll = () => {
   editTitle.value = selectedVideo.value?.title || '';
@@ -1168,16 +943,27 @@ const startEditingAll = () => {
   const tagsString = selectedVideo.value?.tags || '';
   currentTags.value = tagsString ? tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
   isEditingAll.value = true;
-  editTagsInput.value = '';
+  editTagsInput.value = currentTags.value.join(',');
 };
 
 // 保存所有更改
 const saveAll = async () => {
   if (!selectedVideo.value) return;
 
+  const originalTags = selectedVideo.value.tags || '';
+  const initialTagsInput = originalTags.split(',').map((tag: string) => tag.trim()).filter(Boolean).join(',');
+  const tagsChanged = editTagsInput.value !== initialTagsInput;
+  if (editTitle.value === (selectedVideo.value.title || '') &&
+      editRemark.value === (selectedVideo.value.remark || '') && !tagsChanged) {
+    isEditingAll.value = false;
+    return;
+  }
+
   savingAll.value = true;
   try {
-    const tagsString = currentTags.value.join(',');
+    const tagsString = tagsChanged
+      ? [...new Set(editTagsInput.value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean))].join(',')
+      : originalTags;
     await updateVideo(selectedVideo.value.id, {
       title: editTitle.value,
       tags: tagsString,
@@ -1198,6 +984,7 @@ const saveAll = async () => {
       videos.value[videoIndex].remark = editRemark.value;
     }
 
+    currentTags.value = tagsString ? tagsString.split(',') : [];
     ElMessage.success('视频信息更新成功');
     isEditingAll.value = false;
   } catch (error) {
@@ -2470,4 +2257,20 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
 }
+
+:global(.video-detail-v2-dialog.el-dialog){--el-dialog-padding-primary:0;padding:0;background:#faf9f6;border-radius:12px;height:94vh;max-height:94vh;overflow:hidden;margin-top:3vh!important;color:#25303b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+:global(.video-detail-v2-dialog .el-dialog__body){height:100%;overflow-y:auto;overflow-x:hidden}:global(.video-detail-v2-dialog .el-dialog__header){padding:0;margin:0}:global(.video-detail-v2-dialog .el-dialog__headerbtn){z-index:2;top:10px;right:10px}
+.vd-shell,.vd-shell *{box-sizing:border-box}.vd-shell{min-height:100%;padding:20px 30px 28px;display:flex;flex-direction:column;color:#25303b}.vd-shell button,.vd-shell input,.vd-shell textarea{font-family:inherit}.vd-toolbar{height:60px;min-height:60px;display:flex;align-items:flex-start;justify-content:flex-end;gap:10px;padding-right:48px}
+.vd-btn{border:1px solid #d4deeb;background:#fff;color:#263849;padding:11px 17px;border-radius:12px;font-size:13px;cursor:pointer;white-space:nowrap}.vd-btn:hover{background:#f3f6f8}.vd-btn:disabled{opacity:.6;cursor:not-allowed}.vd-btn.vd-primary{background:#203d32;color:white;border-color:#203d32}
+.vd-layout{display:grid;grid-template-columns:minmax(0,1.66fr) minmax(340px,1fr);gap:20px;flex:1}.vd-preview{min-height:650px;border-radius:25px;background:#e5eaea;padding:25px;display:flex;flex-direction:column;min-width:0}.vd-eyebrow{font-size:12px;color:#687d90}.vd-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:28px 0}.vd-video-wrap{width:100%;max-width:660px;aspect-ratio:16/9;background:#161c1e;border-radius:7px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 24px #25303b16}.vd-video-wrap .video-preview{width:100%;height:100%;max-height:none;object-fit:contain}
+.vd-filefoot{display:flex;align-items:center;justify-content:space-between;gap:16px}.vd-filename{font-size:14px;font-weight:700;overflow-wrap:anywhere}.vd-sub{font-size:12px;color:#738397;margin-top:2px}.vd-right{display:grid;grid-template-rows:minmax(444px,1fr) minmax(300px,auto);gap:17px;min-width:0}.vd-panel{border:1px solid #eae6df;background:#fff;border-radius:23px;padding:26px;min-width:0}.vd-panel h2{font-size:18px;margin:0 0 30px;font-weight:750;color:#222a32;line-height:normal}.vd-field{padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid #eeefef}.vd-field:last-child{border-bottom:0}.vd-label{font-size:12px;color:#8392a5;margin-bottom:8px}.vd-value{font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-height:23px}.vd-note{white-space:pre-wrap}
+.vd-editor{width:100%;font-size:14px;color:#25303b;border:1px solid #cbd7e5;border-radius:9px;padding:9px 11px;outline:none;background:#fff}.vd-editor:focus{border-color:#769e96}.vd-note-editor{height:100px;resize:none;overflow:auto}.vd-avatarrow{display:flex;align-items:center;gap:12px;margin-bottom:24px}.vd-avatar{height:42px;width:42px;border-radius:50%;background:#e1eddf;color:#3c7757;display:grid;place-items:center;font-weight:700}.vd-person{font-size:14px;font-weight:700}.vd-recorditem{margin-top:17px}
+@media(max-width:850px){.vd-shell{padding:14px}.vd-layout{grid-template-columns:1fr}.vd-preview{min-height:390px}.vd-stage{padding:25px 0}.vd-right{grid-template-rows:auto}.vd-panel{padding:22px}.vd-toolbar{height:52px;min-height:52px}}
+
+:global(.video-upload-v2.el-dialog){--el-dialog-padding-primary:0;padding:26px 30px;background:#faf9f6;border-radius:17px;max-height:94vh;overflow-y:auto;margin-top:3vh!important;color:#263138;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+:global(.video-upload-v2 .el-dialog__header){padding:0;margin:0 0 20px}:global(.video-upload-v2 .el-dialog__title){font-size:23px;font-weight:700;color:#263138}:global(.video-upload-v2 .el-dialog__headerbtn){top:18px;right:18px}
+.vu-form,.vu-form *{box-sizing:border-box}.vu-layout{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}.vu-card{border:1px solid #e7e5de;background:#fff;border-radius:21px;padding:22px;min-width:0}.vu-card h2,.vu-match h2{font-size:17px;margin:0 0 16px;color:#263138;line-height:normal}.vu-form :deep(.el-form-item){margin-bottom:15px}.vu-form :deep(.el-form-item__label){font-size:12px;color:#748390;line-height:1.4;margin-bottom:6px;padding:0}.vu-form :deep(.el-select),.vu-form :deep(.el-input-tag){width:100%}.vu-form :deep(.el-input__wrapper),.vu-form :deep(.el-select__wrapper),.vu-form :deep(.el-input-tag__wrapper){min-height:40px;border-radius:9px}.vu-form :deep(.el-textarea__inner){border-radius:9px;min-height:100px!important}.vu-file-field :deep(.el-form-item__content){display:block}.vu-upload{width:100%}.vu-upload :deep(.el-upload){width:100%;display:block}.vu-upload :deep(.el-upload-dragger){width:100%;min-height:190px;border:2px dashed #b7c8c3;background:#e5eae9;border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:16px;color:#263138}.vu-upload :deep(.el-upload-dragger:hover){background:#dceae5;border-color:#31735d}.vu-upload :deep(.el-upload-list){max-height:150px;overflow:auto}.vu-drop-icon{font-size:36px;color:#416e5c}.vu-muted,.vu-hint{font-size:12px;color:#7b8990;line-height:1.5}.vu-hint{margin:12px 0}.vu-btn{border:1px solid #d4dfe2;background:white;border-radius:10px;padding:9px 15px;color:#34434d;cursor:pointer;font:inherit}.vu-btn:disabled{opacity:.45;cursor:not-allowed}.vu-btn.vu-primary{background:#213e33;border-color:#213e33;color:white}.vu-btn.vu-soft{background:#eef4f1;color:#245b47;border-color:#d4e5db}.vu-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:19px}.vu-actions,.vu-small-actions{display:flex;gap:10px;flex-wrap:wrap}.vu-progress{margin-top:15px}
+@media(max-width:800px){.vu-layout{grid-template-columns:1fr}:global(.video-upload-v2.el-dialog){padding:20px}}
+
+.vu-option{background:#f4f7f6;border:1px solid #e1eae6;border-radius:14px;padding:16px;margin-top:16px}.vu-option :deep(.el-checkbox){display:flex;margin:0 0 9px;color:#236c58}.vu-watermark{border-top:1px solid #e1eae6;padding-top:16px}.vu-label{font-size:12px;color:#748390;margin-bottom:8px}.vu-positions{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.vu-position{background:white;border:2px solid #e3e8e7;border-radius:9px;padding:6px 2px;cursor:pointer;text-align:center;font-size:12px;color:#66777e}.vu-position.selected{border-color:#347963;color:#266a57}.vu-position img{display:block;width:100%;height:37px;object-fit:cover;border-radius:5px}.vu-position span{display:block}.vu-divider{height:1px;background:#eef0ed;margin:18px 0}.vu-upload :deep(.el-upload-dragger){min-height:225px}
 </style>
