@@ -159,17 +159,16 @@ def _initialize_legacy_qr_pointer(raw, signed_claims):
 
 
 def _resolve_qr_token(raw, signed_claims=None):
-    """Resolve and validate the currently active short or legacy QR token."""
+    """Resolve an unexpired account-scoped QR token or a legacy token."""
     digest = _qr_token_digest(raw)
     if not digest:
         return None
     try:
-        active = SystemConfig.get_config(_QR_ACTIVE_KEY, '')
-        if not active:
-            active = _initialize_legacy_qr_pointer(raw, signed_claims)
-        if not active or active != digest:
-            return None
         mapping = _read_qr_mapping(digest)
+        if not mapping and signed_claims:
+            active = _initialize_legacy_qr_pointer(raw, signed_claims)
+            if active == digest:
+                mapping = _read_qr_mapping(digest)
         if not mapping:
             return None
         if signed_claims and (
@@ -193,25 +192,28 @@ def _bearer(purpose):
 
 
 def _replace_active_qr_token(raw, mapping):
-    """Atomically revoke all previous QR mappings and activate the new token."""
+    """Replace this account’s QR while preserving other accounts’ tokens."""
     digest = _qr_token_digest(raw)
     if not digest:
         raise ValueError('上传二维码令牌无效')
     with _qr_state_lock:
         rows = SystemConfig.query.filter(SystemConfig.key.startswith('nas_upload_qr_', autoescape=True)).all()
         for row in rows:
-            if _QR_MAPPING_KEY.fullmatch(row.key):
+            match = _QR_MAPPING_KEY.fullmatch(row.key)
+            if not match:
+                continue
+            previous = _read_qr_mapping(match.group(1))
+            if not previous or previous.get('creator_id') == mapping.get('creator_id'):
                 db.session.delete(row)
         mapping = {**mapping, 'scanned': False}
         _write_qr_config(f'nas_upload_qr_{digest}', json.dumps(mapping, separators=(',', ':')),
                          '短期 NAS 手机上传二维码令牌映射')
-        _write_qr_config(_QR_ACTIVE_KEY, digest)
         db.session.commit()
 
 
 def _mark_qr_scanned(digest):
     with _qr_state_lock:
-        if SystemConfig.get_config(_QR_ACTIVE_KEY, '') != digest:
+        if not _read_qr_mapping(digest):
             return False
         row = SystemConfig.query.filter_by(key=f'nas_upload_qr_{digest}').first()
         if row is None:
@@ -226,8 +228,7 @@ def _mark_qr_scanned(digest):
 
 
 def _active_qr_digest(digest):
-    return bool(digest and SystemConfig.get_config(_QR_ACTIVE_KEY, '') == digest
-                and _read_qr_mapping(digest))
+    return bool(digest and _read_qr_mapping(digest))
 
 
 def _names(upload_id):
@@ -702,6 +703,19 @@ def get_upload_logs():
         'page': page,
         'page_size': page_size,
     }})
+
+
+@nas_upload_bp.route('/logs', methods=['DELETE'])
+@require_admin
+def delete_upload_logs():
+    data = request.get_json(silent=True)
+    ids = data.get('ids') if isinstance(data, dict) else None
+    if (not isinstance(ids, list) or not ids or len(ids) > 100
+            or any(type(value) is not int or value <= 0 for value in ids)):
+        return _error('请选择有效的上传记录（最多 100 条）')
+    deleted = NasUploadLog.query.filter(NasUploadLog.id.in_(set(ids))).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'code': 200, 'data': {'deleted': deleted}})
 
 
 @nas_upload_bp.route('/check', methods=['POST'])

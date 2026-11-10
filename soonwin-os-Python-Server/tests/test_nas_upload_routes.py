@@ -23,6 +23,7 @@ from extensions import db
 from app.models.employee import Employee
 from app.models.simple_permission import SimpleRole, SimpleRolePermission
 from app.models.system_config import SystemConfig
+from app.models.nas_upload_log import NasUploadLog
 from app.routes import nas_upload_routes
 from app.utils.nas_upload_utils import MAX_FILE_SIZE
 from app.utils.nas_upload_utils import NasUnavailable, check_writable, ensure_mount
@@ -112,6 +113,48 @@ class NasUploadApiTests(unittest.TestCase):
                 return status
             time.sleep(0.01)
         return status
+
+    def test_qr_replacement_is_isolated_by_account(self):
+        sales = self.generated_token()
+        sales_task = self.task(sales, 'sales.bin', 3)
+        admin = self.generated_token('NAS_ADMIN', 'admin')
+        admin_task = self.task(admin, 'admin.bin', 3)
+        def status(token):
+            return self.client.get('/api/nas-upload/qr-status',
+                                   headers={'Authorization': f'Bearer {token}'}).status_code
+        self.assertEqual(status(sales), 200)
+        self.assertEqual(status(admin), 200)
+        replacement = self.generated_token()
+        self.assertEqual(status(sales), 410)
+        self.assertEqual(status(admin), 200)
+        self.assertEqual(status(replacement), 200)
+        self.assertEqual(self.client.put(f"/api/nas-upload/sessions/{sales_task['upload_id']}/file",
+                                        data=b'abc', headers={'Authorization': f"Bearer {sales_task['upload_token']}"}).status_code, 410)
+        self.assertEqual(self.client.put(f"/api/nas-upload/sessions/{admin_task['upload_id']}/file",
+                                        data=b'abc', headers={'Authorization': f"Bearer {admin_task['upload_token']}"}).status_code, 200)
+
+    def test_delete_logs_requires_admin_and_preserves_files(self):
+        path = os.path.join(self.temp_dir.name, 'preserved.txt')
+        with open(path, 'wb') as file:
+            file.write(b'keep')
+        with self.app.app_context():
+            rows = [NasUploadLog(upload_id='delete-test-' + str(i), filename='preserved.txt',
+                                 file_size=4, status='success', target_dir='test') for i in range(2)]
+            db.session.add_all(rows)
+            db.session.commit()
+            ids = [row.id for row in rows]
+        url = '/api/nas-upload/logs'
+        self.assertIn(self.client.delete(url, json={'ids': ids}).status_code, (401, 403))
+        self.assertEqual(self.client.delete(url, json={'ids': ids}, headers=self.auth('NAS_SALES', 'sales')).status_code, 403)
+        self.assertEqual(self.client.delete(url, json={'ids': [True]}, headers=self.auth('NAS_ADMIN', 'admin')).status_code, 400)
+        response = self.client.delete(url, json={'ids': ids[:1]}, headers=self.auth('NAS_ADMIN', 'admin'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['data']['deleted'], 1)
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(NasUploadLog, ids[0]))
+            self.assertIsNotNone(db.session.get(NasUploadLog, ids[1]))
+        with open(path, 'rb') as file:
+            self.assertEqual(file.read(), b'keep')
 
     def test_auth_isolated_and_admin_only_settings(self):
         self.assertEqual(self.client.get('/api/nas-upload/settings').status_code, 401)

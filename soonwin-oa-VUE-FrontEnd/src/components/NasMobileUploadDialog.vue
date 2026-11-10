@@ -63,8 +63,9 @@
     <div class="log-search">
       <el-input v-model="logKeyword" clearable placeholder="按文件名搜索" @keyup.enter="searchLogs" @clear="searchLogs" />
       <el-button type="primary" :loading="logsLoading" @click="searchLogs"><el-icon><Search /></el-icon>查询</el-button>
+      <el-button class="log-delete" circle text :disabled="!selectedLogs.length || logsLoading" :loading="logsDeleting" aria-label="删除选中记录" title="删除选中记录" @click="deleteSelectedLogs"><el-icon><Delete /></el-icon></el-button>
     </div>
-    <el-table :data="logRows" v-loading="logsLoading" border stripe empty-text="暂无上传记录">
+    <el-table :data="logRows" v-loading="logsLoading" border stripe empty-text="暂无上传记录" @selection-change="selectedLogs = $event">
       <el-table-column prop="uploaded_at" label="上传时间" width="165" />
       <el-table-column label="OA 用户" width="130">
         <template #default="scope">{{ scope.row.operator_name }}<span v-if="scope.row.operator_id" class="log-emp-id">{{ scope.row.operator_id }}</span></template>
@@ -77,6 +78,7 @@
         <template #default="scope"><el-tag :type="scope.row.status === 'success' ? 'success' : 'danger'">{{ scope.row.status === 'success' ? '成功' : '失败' }}</el-tag></template>
       </el-table-column>
       <el-table-column prop="target_dir" label="NAS 目标目录" min-width="160" show-overflow-tooltip />
+      <el-table-column type="selection" width="55" />
     </el-table>
     <div class="log-pagination">
       <el-pagination v-model:current-page="logPage" v-model:page-size="logPageSize" :page-sizes="[10, 20, 50]" :total="logTotal" layout="total, sizes, prev, pager, next" @current-change="loadLogs" @size-change="onLogPageSizeChange" />
@@ -86,10 +88,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import QRCode from 'qrcode';
-import { Document, Search, Setting } from '@element-plus/icons-vue';
-import { checkNasUploadDirectory, createNasUploadToken, getNasUploadLogs, getNasUploadQrStatus, getNasUploadSettings, saveNasUploadDirectory } from '@/api/nasUpload';
+import { Delete, Document, Search, Setting } from '@element-plus/icons-vue';
+import { checkNasUploadDirectory, createNasUploadToken, deleteNasUploadLogs, getNasUploadLogs, getNasUploadQrStatus, getNasUploadSettings, saveNasUploadDirectory } from '@/api/nasUpload';
 
 const props = defineProps<{ modelValue: boolean; isAdmin: boolean }>();
 const emit = defineEmits<{ (event: 'update:modelValue', value: boolean): void }>();
@@ -111,6 +113,8 @@ const editing = ref(false);
 const settingsExpanded = ref(false);
 const logsVisible = ref(false);
 const logsLoading = ref(false);
+const logsDeleting = ref(false);
+const selectedLogs = ref<{ id: number }[]>([]);
 const logKeyword = ref('');
 const logRows = ref<any[]>([]);
 const logPage = ref(1);
@@ -202,6 +206,25 @@ async function loadLogs() {
   } finally {
     logsLoading.value = false;
   }
+}
+
+async function deleteSelectedLogs() {
+  const ids = selectedLogs.value.map(row => row.id);
+  if (!ids.length) return;
+  try {
+    await ElMessageBox.confirm(`确定删除选中的 ${ids.length} 条上传记录？NAS 文件不会被删除。`, '删除上传记录', {
+      type: 'warning', confirmButtonText: '删除记录', cancelButtonText: '取消',
+    });
+  } catch { return; }
+  logsDeleting.value = true;
+  try {
+    const result: any = await deleteNasUploadLogs(ids);
+    ElMessage.success(`已删除 ${result.deleted} 条上传记录`);
+    if (logPage.value > 1 && ids.length >= logRows.value.length) logPage.value--;
+    await loadLogs();
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.msg || '删除上传记录失败');
+  } finally { logsDeleting.value = false; }
 }
 
 function searchLogs() {
@@ -307,6 +330,7 @@ async function checkAndSave() {
 .admin-settings{padding-bottom:4px}
 .log-search{display:flex;gap:10px;margin-bottom:14px}
 .log-search .el-input{max-width:360px}
+.log-search .log-delete{margin-left:auto;font-size:18px}
 .log-emp-id{display:block;margin-top:2px;color:#909399;font-size:11px}
 .log-pagination{display:flex;justify-content:flex-end;margin-top:16px}
 .hint{margin-top:8px}

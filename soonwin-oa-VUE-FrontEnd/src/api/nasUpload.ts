@@ -17,6 +17,10 @@ export function getNasUploadLogs(params: { page: number; page_size: number; keyw
   return request.get('/api/nas-upload/logs', { params });
 }
 
+export function deleteNasUploadLogs(ids: number[]) {
+  return request.delete('/api/nas-upload/logs', { data: { ids } });
+}
+
 export function createNasUploadToken() {
   return request.post('/api/nas-upload/tokens');
 }
