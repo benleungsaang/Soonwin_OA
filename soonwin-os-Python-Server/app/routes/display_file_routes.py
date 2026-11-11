@@ -2,12 +2,14 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from extensions import db
 from werkzeug.utils import secure_filename
 import os
+import re
 import uuid
 from datetime import datetime
 import shutil
 import zipfile
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 # 添加assets/Components到Python路径
 components_path = Path(__file__).parent.parent.parent / "assets" / "Components"
@@ -24,6 +26,14 @@ SAFE_METADATA_SIZE = 256 * 1024  # 262144字节
 
 # 创建蓝图
 display_file_bp = Blueprint('display_file', __name__)
+
+def display_image_extension(filename):
+    """Recognize normal images and older uploads whose basename was stripped."""
+    extension = os.path.splitext(filename)[1].lower()
+    if extension:
+        return extension
+    match = re.fullmatch(r'[0-9a-fA-F-]{36}_\d{3}_(png|jpg|jpeg|gif)', filename, re.IGNORECASE)
+    return f'.{match.group(1).lower()}' if match else ''
 
 def lightweight_linearize_pdf(input_path, output_path):
     """
@@ -135,6 +145,11 @@ def upload_display_file():
         for file in files:
             if file.filename == '':
                 continue
+            if (file_type == 'image_group' and
+                    (file.filename in {'.', '..'} or '/' in file.filename or '\\' in file.filename
+                     or any(ord(c) < 32 or ord(c) == 127 for c in file.filename)
+                     or len(file.filename.encode('utf-8')) > 200)):
+                return jsonify({'code': 400, 'msg': '图片文件名包含路径、控制字符或过长', 'data': None}), 400
             if '.' not in file.filename:
                 return jsonify({
                     "code": 400,
@@ -193,33 +208,21 @@ def upload_display_file():
 
             os.makedirs(group_path, exist_ok=True)
 
-            # 先对上传的文件按原始文件名进行自然排序
-            import re
-            def natural_sort_key(file_obj):
-                if file_obj.filename == '':
-                    return ''
-                filename = secure_filename(file_obj.filename)
-                return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', filename)]
-
-            # 按原始文件名进行自然排序
-            sorted_files = sorted([f for f in files if f.filename != ''], key=natural_sort_key)
-
-            # 生成一个统一的UUID前缀
-            common_uuid_prefix = str(uuid.uuid4())
-
+            # request.files preserves the order submitted by the upload list.
             saved_files = []
-            # 使用统一的UUID前缀加上序号来保持排序
-            for index, file in enumerate(sorted_files, start=1):
-                if file.filename == '':
+            image_manifest = []
+            for file in files:
+                if not file.filename:
                     continue
-                original_filename = secure_filename(file.filename)
-                # 使用统一UUID前缀+序号来命名文件，这样即使按文件名排序也会保持正确的顺序
-                unique_filename = f"{common_uuid_prefix}_{index:03d}_{original_filename}"
-                save_path = os.path.join(group_path, unique_filename)
-
-                # 保存文件
-                file.save(save_path)
-                saved_files.append(unique_filename)
+                original_name = file.filename
+                stored_name = f"{uuid.uuid4().hex}_{original_name}"
+                file.save(os.path.join(group_path, stored_name))
+                saved_files.append(stored_name)
+                image_manifest.append({
+                    'original_name': original_name,
+                    'stored_name': stored_name,
+                    'position': len(image_manifest) + 1,
+                })
 
             # 存储文件夹路径
             file_path_to_store = os.path.join(DISPLAY_FILE_FOLDER, group_folder)
@@ -246,6 +249,7 @@ def upload_display_file():
             title=title,
             file_type=file_type,
             file_path=file_path_to_store,
+            image_manifest=json.dumps(image_manifest, ensure_ascii=False) if file_type == 'image_group' else None,
             original_filename=original_filename,
             page_count=len(saved_files) if file_type == 'image_group' else None,  # 为图片组设置页数
             created_by=current_user.name if current_user else 'Unknown'
@@ -373,25 +377,21 @@ def get_image_group(uuid):
                 "data": None
             }), 400
 
-        # 获取文件夹中的所有图片文件
-        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
-        image_files = []
+        # New groups have an explicit order; older groups retain their historical order.
+        if display_file.image_manifest is not None:
+            manifest = json.loads(display_file.image_manifest)
+            image_files = [item['stored_name'] for item in sorted(manifest, key=lambda item: item['position'])]
+        else:
+            allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+            image_files = [name for name in os.listdir(group_path)
+                           if display_image_extension(name) in allowed_extensions]
+            def natural_sort_key(name):
+                return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', name)]
+            image_files.sort(key=natural_sort_key)
 
-        for filename in os.listdir(group_path):
-            if os.path.splitext(filename)[1].lower() in allowed_extensions:
-                image_files.append(filename)
-
-        # 按文件名自然排序（处理数字排序如 1,2,3,10 而不是 1,10,2,3）
-        import re
-        def natural_sort_key(s):
-            return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
-        image_files.sort(key=natural_sort_key)
-        # 构建图片URL列表 - 使用新的静态文件服务路由
-        image_urls = []
-        for img_file in image_files:
-            # 提取文件夹名称并构建正确的URL路径
-            folder_name = os.path.basename(file_path)
-            image_urls.append(f"/api/assets/DisplayFiles/{folder_name}/{img_file}")
+        folder_name = os.path.basename(file_path)
+        image_urls = [f"/api/assets/DisplayFiles/{quote(folder_name, safe='')}/{quote(name, safe='')}"
+                      for name in image_files]
 
         return jsonify({
             "code": 200,
@@ -559,6 +559,10 @@ def serve_display_files(filename):
         # 检查文件扩展名，如果是PDF则使用带Range请求支持的逻辑
         import mimetypes
         mimetype, _ = mimetypes.guess_type(requested_path)
+        if not mimetype:
+            extension = display_image_extension(os.path.basename(requested_path))
+            if extension:
+                mimetype = mimetypes.guess_type(f'image{extension}')[0]
         if mimetype == 'application/pdf':
             # 对PDF文件使用Range请求支持的逻辑
             return serve_pdf_with_range_support(requested_path, filename)

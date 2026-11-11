@@ -11,6 +11,7 @@ class DisplayFile(db.Model):
     file_type = db.Column(db.String(10), nullable=False, comment="文件类型（image_group/pdf）")
     file_path = db.Column(db.Text, nullable=False, comment="文件存储路径")
     original_filename = db.Column(db.String(200), nullable=False, comment="原始文件名")
+    image_manifest = db.Column(db.Text, nullable=True, comment="图片原名、存储名和上传顺序")
     page_count = db.Column(db.Integer, nullable=True, comment="页数")  # 新增页数字段，允许为空
     created_by = db.Column(db.String(50), nullable=False, comment="上传者")
     created_at = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
