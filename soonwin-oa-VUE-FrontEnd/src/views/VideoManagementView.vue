@@ -334,22 +334,22 @@
     </el-dialog>
 
     <!-- 视频详情对话框 -->
-    <el-dialog v-model="showDetailsDialog" width="min(1260px, 96vw)" :before-close="handleDialogClose" class="video-detail-v2-dialog" destroy-on-close>
-      <main v-if="selectedVideo" class="vd-shell">
-        <div class="vd-toolbar">
-          <button v-if="!isEditingAll" class="vd-btn" @click="startEditingAll">编辑信息</button>
-          <template v-else><button class="vd-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="vd-btn vd-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
-        </div>
+    <el-dialog v-model="showDetailsDialog" :width="isLandscapeVideo ? 'min(1200px, 96vw)' : 'min(1260px, 96vw)'" :before-close="handleDialogClose" :class="{ 'video-detail-landscape': isLandscapeVideo }" class="video-detail-v2-dialog" destroy-on-close>
+      <main v-if="selectedVideo" class="vd-shell" :class="{ 'vd-landscape': isLandscapeVideo }">
+        <div class="vd-toolbar" aria-hidden="true"></div>
         <div class="vd-layout">
           <section class="vd-preview">
             <div class="vd-eyebrow">VIDEO PREVIEW / 视频预览</div>
-            <div class="vd-stage"><div class="vd-video-wrap">
-              <video :key="selectedVideo.id" :src="currentVideoSrc" :poster="selectedVideo.thumbnail_path ? `${apiBaseUrl}/assets/Media/Videos/${selectedVideo.thumbnail_path}` : undefined" controls preload="metadata" playsinline class="video-preview" @error="onVideoError">浏览器不支持视频播放。</video>
+            <div class="vd-stage"><div class="vd-video-wrap" :style="videoPreviewStyle">
+              <video :key="selectedVideo.id" :src="currentVideoSrc" :poster="selectedVideo.thumbnail_path ? `${apiBaseUrl}/assets/Media/Videos/${selectedVideo.thumbnail_path}` : undefined" controls preload="metadata" playsinline class="video-preview" @loadedmetadata="onVideoMetadata" @error="onVideoError">浏览器不支持视频播放。</video>
             </div></div>
             <div class="vd-filefoot"><div><div class="vd-filename">{{ videoFilename }}</div><div class="vd-sub">{{ videoTechnicalInfo }}</div></div><button v-if="selectedVideo.original_path" class="vd-btn" @click="downloadVideo">↧ 下载视频</button></div>
           </section>
           <aside class="vd-right">
-            <section class="vd-panel vd-content"><h2>内容信息</h2>
+            <section class="vd-panel vd-content"><div class="vd-card-head"><h2>内容信息</h2><div class="vd-buttons">
+          <button v-if="!isEditingAll" class="vd-btn" @click="startEditingAll">编辑信息</button>
+          <template v-else><button class="vd-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="vd-btn vd-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
+              </div></div>
               <div class="vd-field"><div class="vd-label">标题</div><div v-if="!isEditingAll" class="vd-value">{{ selectedVideo.title || '无标题' }}</div><input v-else v-model="editTitle" class="vd-editor" maxlength="255" aria-label="标题" /></div>
               <div v-if="selectedVideo.machine_info" class="vd-field"><div class="vd-label">关联机器</div><div class="vd-value">{{ selectedVideo.machine_info.model }} ( {{ selectedVideo.machine_info.original_model }} )</div></div>
               <div class="vd-field"><div class="vd-label">标签</div><div v-if="!isEditingAll" class="vd-value">{{ selectedVideo.tags || '无标签' }}</div><input v-else v-model="editTagsInput" class="vd-editor" placeholder="多个标签用逗号分隔" aria-label="标签" /></div>
@@ -494,6 +494,21 @@ const machineList = ref<any[]>([]);
 const isShowingOriginal = ref(false);
 const currentPreviewPath = ref('');
 const currentVideoSrc = ref('');
+const videoAspectRatio = ref(16 / 9);
+const isLandscapeVideo = computed(() => videoAspectRatio.value >= 1);
+const videoPreviewStyle = computed(() => ({
+  '--video-ratio': videoAspectRatio.value,
+  '--video-max-width': `calc(${94 * videoAspectRatio.value}vh - ${250 * videoAspectRatio.value}px)`,
+  '--video-mobile-max-width': `${65 * videoAspectRatio.value}vh`,
+  '--video-landscape-max-width': `${42 * videoAspectRatio.value}vh`,
+}));
+
+const onVideoMetadata = (event: Event) => {
+  const video = event.target as HTMLVideoElement;
+  if (video.videoWidth && video.videoHeight) {
+    videoAspectRatio.value = video.videoWidth / video.videoHeight;
+  }
+};
 
 // 编辑相关变量
 const isEditingAll = ref(false);
@@ -613,6 +628,7 @@ const onVideoError = (event: Event) => {
 
     if (newSrc) {
       // 更新视频源
+      videoAspectRatio.value = 16 / 9;
       currentVideoSrc.value = newSrc;
       // 注意：由于Vue的响应式机制，这里可能需要触发重新渲染
       // 通过给video元素添加key来强制重新创建元素
@@ -913,6 +929,7 @@ const videoTechnicalInfo = computed(() => {
 // 查看视频详情
 const viewVideoDetails = (video: any) => {
   selectedVideo.value = video;
+  videoAspectRatio.value = 16 / 9;
   // 初始化编辑值
   editTitle.value = video?.title || '';
   editRemark.value = video?.remark || '';
@@ -2259,13 +2276,15 @@ onBeforeUnmount(() => {
 }
 
 :global(.video-detail-v2-dialog.el-dialog){--el-dialog-padding-primary:0;padding:0;background:#faf9f6;border-radius:12px;height:94vh;max-height:94vh;overflow:hidden;margin-top:3vh!important;color:#25303b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
-:global(.video-detail-v2-dialog .el-dialog__body){height:100%;overflow-y:auto;overflow-x:hidden}:global(.video-detail-v2-dialog .el-dialog__header){padding:0;margin:0}:global(.video-detail-v2-dialog .el-dialog__headerbtn){z-index:2;top:10px;right:10px}
-.vd-shell,.vd-shell *{box-sizing:border-box}.vd-shell{min-height:100%;padding:20px 30px 28px;display:flex;flex-direction:column;color:#25303b}.vd-shell button,.vd-shell input,.vd-shell textarea{font-family:inherit}.vd-toolbar{height:60px;min-height:60px;display:flex;align-items:flex-start;justify-content:flex-end;gap:10px;padding-right:48px}
+:global(.video-detail-v2-dialog .el-dialog__body){height:100%;overflow-y:auto;overflow-x:hidden}:global(.video-detail-v2-dialog.video-detail-landscape.el-dialog){height:auto}:global(.video-detail-v2-dialog.video-detail-landscape .el-dialog__body){height:auto;max-height:94vh}:global(.video-detail-v2-dialog .el-dialog__header){padding:0;margin:0}:global(.video-detail-v2-dialog .el-dialog__headerbtn){z-index:2;top:10px;right:10px}
+.vd-shell,.vd-shell *{box-sizing:border-box}.vd-shell{min-height:100%;padding:20px 30px 28px;display:flex;flex-direction:column;color:#25303b}.vd-shell button,.vd-shell input,.vd-shell textarea{font-family:inherit}.vd-toolbar{height:60px;min-height:60px}.vd-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:42px;margin-bottom:30px}.vd-card-head h2{margin:0;white-space:nowrap;flex:none}.vd-buttons{display:flex;justify-content:flex-end;gap:6px;flex:none;white-space:nowrap}.vd-buttons .vd-btn{padding:8px 10px}
 .vd-btn{border:1px solid #d4deeb;background:#fff;color:#263849;padding:11px 17px;border-radius:12px;font-size:13px;cursor:pointer;white-space:nowrap}.vd-btn:hover{background:#f3f6f8}.vd-btn:disabled{opacity:.6;cursor:not-allowed}.vd-btn.vd-primary{background:#203d32;color:white;border-color:#203d32}
-.vd-layout{display:grid;grid-template-columns:minmax(0,1.66fr) minmax(340px,1fr);gap:20px;flex:1}.vd-preview{min-height:650px;border-radius:25px;background:#e5eaea;padding:25px;display:flex;flex-direction:column;min-width:0}.vd-eyebrow{font-size:12px;color:#687d90}.vd-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:28px 0}.vd-video-wrap{width:100%;max-width:660px;aspect-ratio:16/9;background:#161c1e;border-radius:7px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 24px #25303b16}.vd-video-wrap .video-preview{width:100%;height:100%;max-height:none;object-fit:contain}
-.vd-filefoot{display:flex;align-items:center;justify-content:space-between;gap:16px}.vd-filename{font-size:14px;font-weight:700;overflow-wrap:anywhere}.vd-sub{font-size:12px;color:#738397;margin-top:2px}.vd-right{display:grid;grid-template-rows:minmax(444px,1fr) minmax(300px,auto);gap:17px;min-width:0}.vd-panel{border:1px solid #eae6df;background:#fff;border-radius:23px;padding:26px;min-width:0}.vd-panel h2{font-size:18px;margin:0 0 30px;font-weight:750;color:#222a32;line-height:normal}.vd-field{padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid #eeefef}.vd-field:last-child{border-bottom:0}.vd-label{font-size:12px;color:#8392a5;margin-bottom:8px}.vd-value{font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-height:23px}.vd-note{white-space:pre-wrap}
+.vd-layout{display:grid;grid-template-columns:minmax(0,1.66fr) minmax(340px,1fr);gap:20px;flex:1}.vd-preview{min-height:650px;border-radius:25px;background:#e5eaea;padding:25px;display:flex;flex-direction:column;min-width:0}.vd-eyebrow{font-size:12px;color:#687d90}.vd-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:28px 0}.vd-video-wrap{width:min(100%, var(--video-max-width));aspect-ratio:var(--video-ratio);background:#161c1e;border-radius:7px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 24px #25303b16}.vd-video-wrap .video-preview{width:100%;height:100%;max-height:none;object-fit:contain}
+.vd-filefoot{display:flex;align-items:center;justify-content:space-between;gap:16px}.vd-filename{font-size:14px;font-weight:700;overflow-wrap:anywhere}.vd-sub{font-size:12px;color:#738397;margin-top:2px}.vd-right{display:grid;grid-template-rows:minmax(444px,1fr) minmax(300px,auto);gap:17px;min-width:0}.vd-panel{border:1px solid #eae6df;background:#fff;border-radius:23px;padding:26px;min-width:0}.vd-panel h2{font-size:18px;margin:0 0 30px;font-weight:750;color:#222a32;line-height:normal}.vd-panel .vd-card-head h2{margin:0}.vd-field{padding:0 0 14px;margin-bottom:14px;border-bottom:1px solid #eeefef}.vd-field:last-child{border-bottom:0}.vd-label{font-size:12px;color:#8392a5;margin-bottom:8px}.vd-value{font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-height:23px}.vd-note{white-space:pre-wrap}
 .vd-editor{width:100%;font-size:14px;color:#25303b;border:1px solid #cbd7e5;border-radius:9px;padding:9px 11px;outline:none;background:#fff}.vd-editor:focus{border-color:#769e96}.vd-note-editor{height:100px;resize:none;overflow:auto}.vd-avatarrow{display:flex;align-items:center;gap:12px;margin-bottom:24px}.vd-avatar{height:42px;width:42px;border-radius:50%;background:#e1eddf;color:#3c7757;display:grid;place-items:center;font-weight:700}.vd-person{font-size:14px;font-weight:700}.vd-recorditem{margin-top:17px}
-@media(max-width:850px){.vd-shell{padding:14px}.vd-layout{grid-template-columns:1fr}.vd-preview{min-height:390px}.vd-stage{padding:25px 0}.vd-right{grid-template-rows:auto}.vd-panel{padding:22px}.vd-toolbar{height:52px;min-height:52px}}
+.vd-shell:not(.vd-landscape) .vd-toolbar{height:32px;min-height:32px}.vd-shell:not(.vd-landscape) .vd-right{grid-template-rows:auto auto}.vd-shell:not(.vd-landscape) .vd-card-head{margin-bottom:16px}.vd-shell:not(.vd-landscape) .vd-panel{padding:20px}.vd-shell:not(.vd-landscape) .vd-panel h2{margin-bottom:16px}.vd-shell:not(.vd-landscape) .vd-panel .vd-card-head h2{margin:0}
+.vd-landscape .vd-toolbar{height:32px;min-height:32px}.vd-landscape .vd-layout{grid-template-columns:minmax(0,1fr);align-content:start;gap:12px}.vd-landscape .vd-preview{min-height:0;padding:16px 20px}.vd-landscape .vd-panel{padding:16px 20px}.vd-landscape .vd-card-head{margin-bottom:12px}.vd-landscape .vd-panel h2{margin-bottom:14px}.vd-landscape .vd-panel .vd-card-head h2{margin:0}.vd-landscape .vd-field{padding-bottom:8px;margin-bottom:8px}.vd-landscape .vd-avatarrow{margin-bottom:12px}.vd-landscape .vd-recorditem{margin-top:10px}.vd-landscape .vd-right{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}.vd-landscape .vd-stage{flex:none;padding:10px 0}.vd-landscape .vd-video-wrap{flex:none;width:min(100%, var(--video-landscape-max-width))}
+@media(max-width:850px){.vd-landscape .vd-right{grid-template-columns:1fr}.vd-shell{padding:14px}.vd-layout{grid-template-columns:1fr}.vd-preview{min-height:390px}.vd-stage{padding:25px 0}.vd-video-wrap{width:min(100%, var(--video-mobile-max-width))}.vd-right{grid-template-rows:auto}.vd-panel{padding:22px}.vd-toolbar{height:52px;min-height:52px}}
 
 :global(.video-upload-v2.el-dialog){--el-dialog-padding-primary:0;padding:26px 30px;background:#faf9f6;border-radius:17px;max-height:94vh;overflow-y:auto;margin-top:3vh!important;color:#263138;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
 :global(.video-upload-v2 .el-dialog__header){padding:0;margin:0 0 20px}:global(.video-upload-v2 .el-dialog__title){font-size:23px;font-weight:700;color:#263138}:global(.video-upload-v2 .el-dialog__headerbtn){top:18px;right:18px}
