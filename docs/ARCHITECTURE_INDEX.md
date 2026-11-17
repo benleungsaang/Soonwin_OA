@@ -63,16 +63,16 @@ Production build is `yarn build:prod` (`package.json`: typecheck then Vite produ
 | Customers and layouts | `app/routes/customer_routes.py`; `app/routes/container_layout_routes.py`; `app/routes/warehouse_routes.py` | Customer records, saved container layouts and warehouse map/item APIs. |
 | Schema history | `migrations/env.py`; `migrations/versions/`; `migrations/archive/legacy_versions/`; `docs/database/SCHEMA_BASELINE.md` | Standalone baseline and schema migration policy; archived revisions are historical only. |
 
-`config.py` selects `soonwin_oa_dev.db` for port 5001 and `soonwin_oa.db` otherwise. Application creation no longer calls `db.create_all()`; schema changes belong to explicit Alembic commands. The production WSGI entry does not apply migrations during startup.
+The production configuration selects `soonwin_oa.db`; the separate `/data/projects/oa-dev` runtime uses port 5001 and its configured `OA_DEV_DATABASE_PATH` for the development database. Application creation no longer calls `db.create_all()`; schema changes belong to explicit Alembic commands. The production WSGI entry does not apply migrations during startup.
 
 ## Database Index
 
 - Production SQLite file: `/data/backup/oa/soonwin_oa.db`, bind-mounted read/write into backend as `/app/soonwin_oa.db`.
-- Development SQLite file: `soonwin-os-Python-Server/soonwin_oa_dev.db` (port 5001 configuration).
+- Development runtime: the separate `/data/projects/oa-dev` checkout uses frontend port 5173 and backend port 5001. Its current runtime configuration sets `OA_DEV_DATABASE_PATH` to `/data/projects/oa-dev/.oa-dev/data/soonwin_oa_dev.db`; verify the effective environment and running service before database operations. The repository seed `soonwin-os-Python-Server/soonwin_oa_dev.db` is not the configured running Dev database.
 - DB access: `soonwin-os-Python-Server/extensions.py` (`db`, `migrate`); app configuration: `config.py`; model definitions: `app/models/`.
 - Initialization/migrations: application startup does not mutate schema; active Alembic revisions are in `migrations/versions/`, legacy revisions are archived, and cross-platform maintenance is provided by `soonwin-os-Python-Server/migrations/tools/oa_db.py`.
 - Important tables: `Employee` (staff/account identity); `role` and `role_permission_simple` (simplified roles); `Order` and `order_status` (orders and progress); `OrderRecord`, `OrderRecordItem`, `OrderRecordIncome`, `OrderRecordExpense` (commercial records); `Inquiry` and `InquiryCommunication` (inquiries/history); `Expense` and allocation/target tables (expense workflow); `AttendanceOperation` and `PunchRecord` (attendance operations/punches); `DisplayFile` (display-file metadata); `videos` and `photos` (media metadata); `container_layout` (saved layouts); `warehouse_maps`, `warehouse_items`, `warehouse_objects` (warehouse layouts/items); `task*` and `todo*` (task tracking/todos). Verify each model before changing a table.
-- Backup references: SER9 scheduled Restic job is `/etc/systemd/system/ser9-restic-backup.service` + `.timer`, implemented by `/usr/local/sbin/ser9-restic-backup.sh` (backs up `/data/projects/oa`, `/data/services/oa`, `/data/backup/oa`); Windows-specific SQLite backup code is `windows-tools/oa_database_backup.py` and `windows-tools/oa_backup_scheduler.py`. Backup policy/config is outside this index's authority; verify it before relying on recovery.
+- Backup references: the SER9 disaster-recovery authority is `/data/backup/ser9/SER9_DISASTER_RECOVERY.md`; the current production entry is `/usr/local/sbin/ser9-restic-backup.sh`, with `ser9-restic-backup.service` / `.timer`. Verify backup scope and acceptance against the current production script, effective configuration, exclusions, and actual snapshots. The Windows OA SQLite backup is a separate mechanism: `windows-tools/oa_database_backup.py` and `windows-tools/oa_backup_scheduler.py`.
 - Schema baseline and adoption policy: [`docs/database/SCHEMA_BASELINE.md`](database/SCHEMA_BASELINE.md). Production was adopted to `baseline_20261006` on 2026-10-06 after exact verification.
 
 ## API Index
@@ -124,7 +124,7 @@ Most blueprints are registered under `/api` in `app/__init__.py`. Auth refresh u
 - Backend bind mounts: source `soonwin-os-Python-Server/assets/` → `/app/assets`; production DB `/data/backup/oa/soonwin_oa.db` → `/app/soonwin_oa.db`.
 - Frontend bind mount: `/data/services/oa/nginx.conf` → `/etc/nginx/conf.d/default.conf` (read-only). Frontend static bundle is baked into the image at build time; updating source alone does not update the running image.
 - Production container names observed from Compose: `soonwin-oa-frontend-1` and `soonwin-oa-backend-1`. Recheck `docker ps` for live state; do not restart or rebuild as part of inspection.
-- SER9 Restic backup script includes source, service configuration, and `/data/backup/oa`; this is a backup reference, not a guarantee of a successful recent restore.
+- SER9 disaster-backup scope and acceptance records are maintained in `/data/backup/ser9/SER9_DISASTER_RECOVERY.md`; the source list and restore evidence must be checked there against the live script and selected snapshot. This OA index does not assert current snapshot coverage or restore success.
 
 ## Docker / Build Network
 
