@@ -30,6 +30,49 @@ from app.utils.nas_upload_utils import NasUnavailable, check_writable, ensure_mo
 from app.utils import nas_upload_utils
 
 
+class NasAutomountRecoveryTests(unittest.TestCase):
+    def test_business_automount_rechecks_cifs_source(self):
+        with patch.dict(os.environ, {'OA_NAS_BUSINESS_ROOT': '/test/business'}), \
+             patch.object(nas_upload_utils, '_mount_state', side_effect=[(False, True, False), (False, True, False), (True, True, False)]), \
+             patch.object(nas_upload_utils, '_trigger_automount', return_value=True) as trigger, \
+             patch.object(nas_upload_utils.os.path, 'isdir', return_value=True):
+            self.assertEqual(ensure_mount(business=True), '/test/business')
+            trigger.assert_called_once_with('/test/business')
+
+    def test_local_and_wrong_share_fail_closed_without_trigger(self):
+        for state in [(False, False, False), (False, True, True)]:
+            with self.subTest(state=state), patch.object(nas_upload_utils, '_mount_state', return_value=state), \
+                 patch.object(nas_upload_utils, '_trigger_automount') as trigger:
+                with self.assertRaises(NasUnavailable):
+                    ensure_mount(business=True)
+                trigger.assert_not_called()
+
+    def test_timeout_fails_closed(self):
+        import subprocess
+        with patch.object(nas_upload_utils.subprocess, 'run', side_effect=subprocess.TimeoutExpired('probe', 6)), \
+             patch.object(nas_upload_utils, '_mount_state', return_value=(False, True, False)):
+            with self.assertRaises(NasUnavailable):
+                ensure_mount(business=True)
+
+    def test_concurrent_recovery_is_serialized(self):
+        mounted = threading.Event()
+        calls = []
+        def state(*_):
+            return (mounted.is_set(), True, False)
+        def trigger(_):
+            calls.append(1)
+            time.sleep(0.05)
+            mounted.set()
+            return True
+        with patch.object(nas_upload_utils, '_mount_state', side_effect=state), \
+             patch.object(nas_upload_utils, '_trigger_automount', side_effect=trigger), \
+             patch.object(nas_upload_utils.os.path, 'isdir', return_value=True):
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                results = list(pool.map(lambda _: ensure_mount(business=True), range(6)))
+        self.assertEqual(len(results), 6)
+        self.assertEqual(len(calls), 1)
+
+
 class NasUploadApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

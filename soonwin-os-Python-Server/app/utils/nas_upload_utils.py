@@ -1,5 +1,9 @@
 """Filesystem boundary for mobile uploads. The configured root must be a mountpoint."""
+import logging
 import os
+import subprocess
+import sys
+import threading
 import re
 import secrets
 import unicodedata
@@ -19,6 +23,55 @@ class InvalidUploadPath(Exception):
     pass
 
 
+# Serialize recovery inside each worker to avoid launching parallel automount probes.
+_AUTOMOUNT_LOCK = threading.Lock()
+_AUTOMOUNT_TIMEOUT_SECONDS = 6
+_logger = logging.getLogger(__name__)
+
+
+def _mount_state(root, expected_source):
+    """Return whether the expected CIFS, autofs, or another CIFS is mounted."""
+    expected = autofs = foreign = False
+    with open('/proc/self/mountinfo', 'r', encoding='utf-8') as mounts:
+        for line in mounts:
+            left, separator, right = line.rstrip('\n').partition(' - ')
+            if not separator:
+                continue
+            fields, details = left.split(), right.split()
+            if len(fields) < 5 or len(details) < 2:
+                continue
+            mountpoint, source = fields[4], details[1]
+            for encoded, decoded in (('\\040', ' '), ('\\011', '\t'), ('\\012', '\n'), ('\\134', '\\')):
+                mountpoint = mountpoint.replace(encoded, decoded)
+                source = source.replace(encoded, decoded)
+            if mountpoint != root:
+                continue
+            if details[0] == 'autofs':
+                autofs = True
+            elif details[0] == 'cifs':
+                if source == expected_source:
+                    expected = True
+                else:
+                    foreign = True
+    return expected, autofs, foreign
+
+
+def _trigger_automount(root):
+    # Opening the mountpoint triggers systemd automount without writing to it.
+    # A subprocess bounds the caller's wait if the network mount stalls.
+    probe = ('import os,sys; fd=os.open(sys.argv[1], '
+             'os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW); os.close(fd)')
+    try:
+        subprocess.run([sys.executable, '-c', probe, root], check=True,
+                       timeout=_AUTOMOUNT_TIMEOUT_SECONDS,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError) as exc:
+        _logger.warning('NAS automount trigger failed or timed out: %s', type(exc).__name__)
+        return False
+    return True
+
+
 def ensure_mount(business=False, art_share=False):
     if business:
         root = os.path.abspath(os.environ.get('OA_NAS_BUSINESS_ROOT', '/mnt/oa-dev-business'))
@@ -30,28 +83,21 @@ def ensure_mount(business=False, art_share=False):
         root = os.path.abspath(NAS_UPLOAD_ROOT)
         expected_source = EXPECTED_NAS_SOURCE
     try:
-        # The container bind mount itself is not proof that the SMB mount is live:
-        # require the actual CIFS filesystem/source in mountinfo to prevent local fallback.
-        found = False
-        with open('/proc/self/mountinfo', 'r', encoding='utf-8') as mounts:
-            for line in mounts:
-                left, separator, right = line.rstrip('\n').partition(' - ')
-                if not separator:
-                    continue
-                fields = left.split()
-                details = right.split()
-                if len(fields) < 5 or len(details) < 2:
-                    continue
-                mountpoint = fields[4]
-                for encoded, decoded in (('\\040', ' '), ('\\011', '\t'), ('\\012', '\n'), ('\\134', '\\')):
-                    mountpoint = mountpoint.replace(encoded, decoded)
-                source = details[1]
-                for encoded, decoded in (('\\040', ' '), ('\\011', '\t'), ('\\012', '\n'), ('\\134', '\\')):
-                    source = source.replace(encoded, decoded)
-                if mountpoint == root and details[0] == 'cifs' and source == expected_source:
-                    found = True
-                    break
-        if not found or not os.path.isdir(root):
+        found, automount, foreign = _mount_state(root, expected_source)
+        # Only the configured business automount may be triggered. Never probe
+        # a plain local directory or a different mounted CIFS source.
+        if not found and business and automount and not foreign:
+            if not _AUTOMOUNT_LOCK.acquire(timeout=_AUTOMOUNT_TIMEOUT_SECONDS):
+                raise NasUnavailable('NAS 自动连接繁忙，请稍后重试')
+            try:
+                found, automount, foreign = _mount_state(root, expected_source)
+                if not found and automount and not foreign:
+                    _logger.info('Triggering NAS business automount and checking its source')
+                    _trigger_automount(root)
+                    found, _, foreign = _mount_state(root, expected_source)
+            finally:
+                _AUTOMOUNT_LOCK.release()
+        if not found or foreign or not os.path.isdir(root):
             raise NasUnavailable('授权 NAS CIFS 挂载不可用')
     except OSError as exc:
         raise NasUnavailable('无法确认 NAS CIFS 挂载状态') from exc
