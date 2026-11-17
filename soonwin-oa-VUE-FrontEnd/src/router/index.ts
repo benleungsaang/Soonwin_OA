@@ -36,6 +36,7 @@ const NasMobileUploadView = () => import('@/views/NasMobileUploadView.vue');
 
 // 定义路由规则
 const routes: RouteRecordRaw[] = [
+  { path: '/rich-documents', name: 'richDocuments', component: () => import('@/views/RichDocumentsView.vue'), meta: { title: '图文文档', requiresAuth: true } },
   {
     path: '/',
     name: 'home',

@@ -52,6 +52,7 @@ def create_app(port=5000):
     # 关键：在 create_app 内部导入模型（延迟导入，打破循环）
     with app.app_context():
         from .models.employee import Employee
+        from .models.rich_document import RichDocument, RichMedia
         from .models.employee_device import EmployeeDevice
         from .models.punch_record import PunchRecord
         from .models.device_binding_session import DeviceBindingSession
@@ -115,6 +116,8 @@ def create_app(port=5000):
         app.register_blueprint(upload_bp, url_prefix='/api')
 
         # Isolated NAS upload API; anonymous endpoints use only scoped signed tokens.
+        from .routes.rich_document_routes import rich_document_bp
+        app.register_blueprint(rich_document_bp, url_prefix='/api')
         from .routes.nas_upload_routes import nas_upload_bp
         app.register_blueprint(nas_upload_bp, url_prefix='/api/nas-upload')
 

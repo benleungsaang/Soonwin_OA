@@ -202,6 +202,7 @@
                       <el-icon><Box /></el-icon>
                       <span>货柜排布</span>
                     </el-menu-item>
+                    <el-menu-item index="rich-documents" @click="router.push('/rich-documents')" v-if="hasToken"><el-icon><EditPen /></el-icon><span>图文文档</span></el-menu-item>
                     <el-menu-item index="24" @click="goToWarehouse" v-if="hasToken && permissions.warehouseManage && !hiddenModules.includes('warehouseManage')">
                       <el-icon><Location /></el-icon>
                       <span>仓库查看</span>
