@@ -2752,7 +2752,7 @@
         //  布局算法 (水平排布：所有货物放地面 Y=0，沿 XZ 平面紧密排布)
         //  state.allowOverflow=true 时不限制越界
         // ============================================================
-        function autoLayout(cargos, forceOverflow) {
+        function autoLayout(cargos, forceOverflow, preserveOrientation = false) {
             if (!cargos.length) return;
 
             const { l, w } = state.container;
@@ -2773,10 +2773,10 @@
                 const fitsOrig = cursorX + sx <= l;
                 const fitsRot = cursorX + sz <= l; // 旋转后 sx↔sz
 
-                if (fitsOrig && fitsRot) {
+                if (!preserveOrientation && fitsOrig && fitsRot) {
                     // 两种朝向都能放下：选 X 方向更窄的（给同行其他货物留空间）
                     if (sz < sx) [cargo.sx, cargo.sz] = [cargo.sz, cargo.sx];
-                } else if (!fitsOrig && fitsRot) {
+                } else if (!preserveOrientation && !fitsOrig && fitsRot) {
                     // 只有旋转后才能放下：旋转
                     [cargo.sx, cargo.sz] = [cargo.sz, cargo.sx];
                 }
@@ -4058,7 +4058,7 @@
             if (existingCount > 0) {
                 // ── 已有货物：新货物放到货柜外部，不干扰现有布局 ──
                 // 1) 对新货物单独做 autoLayout（确定相对位置，不交叉）
-                autoLayout(newCargos, true);
+                autoLayout(newCargos, true, true);
                 // 2) 计算现有货物最大 Z 范围
                 let maxZ = 0;
                 for (let i = 0; i < existingCount; i++) {
@@ -4071,7 +4071,7 @@
                 }
             } else {
                 // ── 无现有货物：在货柜内排布，可超出边界 ──
-                autoLayout(state.cargos, true);
+                autoLayout(state.cargos, true, true);
             }
 
             rebuildCargoMeshes();
