@@ -84,15 +84,15 @@ def ensure_mount(business=False, art_share=False):
         expected_source = EXPECTED_NAS_SOURCE
     try:
         found, automount, foreign = _mount_state(root, expected_source)
-        # Only the configured business automount may be triggered. Never probe
+        # Only configured share automounts may be triggered. Never probe
         # a plain local directory or a different mounted CIFS source.
-        if not found and business and automount and not foreign:
+        if not found and (business or art_share) and automount and not foreign:
             if not _AUTOMOUNT_LOCK.acquire(timeout=_AUTOMOUNT_TIMEOUT_SECONDS):
                 raise NasUnavailable('NAS 自动连接繁忙，请稍后重试')
             try:
                 found, automount, foreign = _mount_state(root, expected_source)
                 if not found and automount and not foreign:
-                    _logger.info('Triggering NAS business automount and checking its source')
+                    _logger.info('Triggering NAS share automount and checking its source')
                     _trigger_automount(root)
                     found, _, foreign = _mount_state(root, expected_source)
             finally:

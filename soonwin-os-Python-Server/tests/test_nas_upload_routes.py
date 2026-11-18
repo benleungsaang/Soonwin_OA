@@ -31,6 +31,15 @@ from app.utils import nas_upload_utils
 
 
 class NasAutomountRecoveryTests(unittest.TestCase):
+    def test_art_automount_rechecks_cifs_source(self):
+        with patch.dict(os.environ, {'OA_NAS_ART_ROOT': '/test/art'}), \
+             patch.object(nas_upload_utils, '_mount_state', side_effect=[(False, True, False), (False, True, False), (True, True, False)]) as state, \
+             patch.object(nas_upload_utils, '_trigger_automount', return_value=True) as trigger, \
+             patch.object(nas_upload_utils.os.path, 'isdir', return_value=True):
+            self.assertEqual(ensure_mount(art_share=True), '/test/art')
+            trigger.assert_called_once_with('/test/art')
+            self.assertTrue(all(call.args == ('/test/art', '//192.168.110.229/美工资料') for call in state.call_args_list))
+
     def test_business_automount_rechecks_cifs_source(self):
         with patch.dict(os.environ, {'OA_NAS_BUSINESS_ROOT': '/test/business'}), \
              patch.object(nas_upload_utils, '_mount_state', side_effect=[(False, True, False), (False, True, False), (True, True, False)]), \
@@ -41,11 +50,12 @@ class NasAutomountRecoveryTests(unittest.TestCase):
 
     def test_local_and_wrong_share_fail_closed_without_trigger(self):
         for state in [(False, False, False), (False, True, True)]:
-            with self.subTest(state=state), patch.object(nas_upload_utils, '_mount_state', return_value=state), \
-                 patch.object(nas_upload_utils, '_trigger_automount') as trigger:
-                with self.assertRaises(NasUnavailable):
-                    ensure_mount(business=True)
-                trigger.assert_not_called()
+            for share in ({'business': True}, {'art_share': True}):
+                with self.subTest(state=state, share=share), patch.object(nas_upload_utils, '_mount_state', return_value=state), \
+                     patch.object(nas_upload_utils, '_trigger_automount') as trigger:
+                    with self.assertRaises(NasUnavailable):
+                        ensure_mount(**share)
+                    trigger.assert_not_called()
 
     def test_timeout_fails_closed(self):
         import subprocess
@@ -108,7 +118,7 @@ class NasUploadApiTests(unittest.TestCase):
         nas_upload_routes._publish_queue.join()
         self.client = self.app.test_client()
         with self.app.app_context():
-            SystemConfig.query.filter_by(key='nas_mobile_upload_dir').delete()
+            SystemConfig.query.filter(SystemConfig.key.startswith('nas_mobile_upload_dir', autoescape=True)).delete(synchronize_session=False)
             db.session.commit()
         for entry in os.listdir(self.temp_dir.name):
             path = os.path.join(self.temp_dir.name, entry)
@@ -138,24 +148,27 @@ class NasUploadApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         return response.get_json()['data']
 
-    def chunk(self, task, index, payload, terminated_input=False):
-        return self.client.put(f"/api/nas-upload/sessions/{task['upload_id']}/chunks/{index}", data=payload,
+    def upload(self, task, payload):
+        return self.client.put(f"/api/nas-upload/sessions/{task['upload_id']}/file", data=payload,
                                headers={'Authorization': f"Bearer {task['upload_token']}",
-                                        'Content-Type': 'application/octet-stream'},
-                               environ_overrides={'wsgi.input_terminated': True} if terminated_input else None)
+                                        'Content-Type': 'application/octet-stream'})
 
     def finish(self, task):
-        response = self.client.post(f"/api/nas-upload/sessions/{task['upload_id']}/complete", json={},
-                                    headers={'Authorization': f"Bearer {task['upload_token']}"})
-        if response.status_code != 200:
-            return response
         for _ in range(200):
             status = self.client.get(f"/api/nas-upload/sessions/{task['upload_id']}",
                                      headers={'Authorization': f"Bearer {task['upload_token']}"})
             if status.status_code != 200 or status.get_json()['data']['status'] in ('completed', 'failed'):
                 return status
             time.sleep(0.01)
-        return status
+        self.fail('上传任务未在预期时间内完成')
+
+    def expire_qr(self, token):
+        with self.app.app_context():
+            row = SystemConfig.query.filter_by(key=nas_upload_routes._qr_mapping_key(token)).one()
+            meta = __import__('json').loads(row.value)
+            meta['exp'] = int(time.time()) - 1
+            row.value = __import__('json').dumps(meta)
+            db.session.commit()
 
     def test_qr_replacement_is_isolated_by_account(self):
         sales = self.generated_token()
@@ -261,20 +274,21 @@ class NasUploadApiTests(unittest.TestCase):
         info = self.client.get('/api/nas-upload/public', headers={'Authorization': f'Bearer {token}'})
         self.assertEqual(info.status_code, 200)
         self.assertGreater(info.get_json()['data']['remaining_seconds'], 0)
-        claims = jwt.decode(token, self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithms=['HS256'])
-        self.assertEqual(claims['relative_dir'], '临时中转')
-        expired = jwt.encode({**claims, 'exp': int(datetime.utcnow().timestamp()) - 1},
-                             self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithm='HS256')
-        self.assertEqual(self.client.get('/api/nas-upload/public', headers={'Authorization': f'Bearer {expired}'}).status_code, 410)
+        with self.app.app_context():
+            self.assertEqual(nas_upload_routes._resolve_qr_token(token)['relative_dir'], '临时中转')
+        self.expire_qr(token)
+        self.assertEqual(self.client.get('/api/nas-upload/public', headers={'Authorization': f'Bearer {token}'}).status_code, 410)
 
     def test_admin_save_rechecks_and_old_token_keeps_its_directory(self):
         old = self.generated_token()
-        saved = self.client.put('/api/nas-upload/settings', json={'relative_dir': 'next-folder'},
+        saved = self.client.put('/api/nas-upload/settings', json={'emp_id': 'NAS_SALES', 'relative_dir': 'next-folder'},
                                 headers=self.auth('NAS_ADMIN', 'admin'))
         self.assertEqual(saved.status_code, 200)
-        old_claims = jwt.decode(old, self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithms=['HS256'])
+        with self.app.app_context():
+            old_claims = nas_upload_routes._resolve_qr_token(old)
         new = self.generated_token()
-        new_claims = jwt.decode(new, self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithms=['HS256'])
+        with self.app.app_context():
+            new_claims = nas_upload_routes._resolve_qr_token(new)
         self.assertEqual(old_claims['relative_dir'], '临时中转')
         self.assertEqual(new_claims['relative_dir'], 'next-folder')
 
@@ -284,81 +298,65 @@ class NasUploadApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('token', response.get_json().get('data') or {})
 
-    def test_chunk_upload_tail_duplicate_order_and_completion(self):
-        token = self.generated_token()
-        payload = b'a' * nas_upload_routes.CHUNK_SIZE + b'tail'
-        task = self.task(token, 'photo.jpg', len(payload))
-        order = self.chunk(task, 1, b'tail')
-        self.assertEqual(order.status_code, 409)
-        first = self.chunk(task, 0, payload[:nas_upload_routes.CHUNK_SIZE], terminated_input=True)
-        self.assertEqual(first.status_code, 200, first.get_json())
-        duplicate = self.chunk(task, 0, payload[:nas_upload_routes.CHUNK_SIZE])
-        self.assertTrue(duplicate.get_json()['data']['duplicate'])
-        self.assertEqual(self.chunk(task, 1, b'tail').status_code, 200)
-        completed = self.finish(task)
-        self.assertEqual(completed.status_code, 200, completed.get_json())
-        self.assertEqual(sorted(os.listdir(self.temp_dir.name)), [nas_upload_routes.STATE_DIR_NAME, 'photo.jpg'])
-        self.assertEqual(sorted(os.listdir(os.path.join(self.temp_dir.name, nas_upload_routes.STATE_DIR_NAME))),
-                         ['.oa-upload-' + task['upload_id'] + '.json'])
-        with open(os.path.join(self.temp_dir.name, 'photo.jpg'), 'rb') as uploaded:
-            self.assertEqual(uploaded.read(), payload)
-
-    def test_qr_expiry_blocks_new_task_but_existing_grant_continues(self):
+    def test_qr_expiry_blocks_new_tasks_and_unstarted_uploads(self):
         token = self.generated_token()
         task = self.task(token, 'long.bin', 3)
-        claims = jwt.decode(token, self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithms=['HS256'])
-        expired = jwt.encode({**claims, 'exp': int(datetime.utcnow().timestamp()) - 1},
-                             self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithm='HS256')
+        self.expire_qr(token)
         self.assertEqual(self.client.post('/api/nas-upload/sessions', json={'filename': 'new', 'file_size': 1},
-                                          headers={'Authorization': f'Bearer {expired}'}).status_code, 410)
-        part = self.chunk(task, 0, b'abc')
-        self.assertEqual(part.status_code, 200, part.get_json())
-        self.assertEqual(self.finish(task).status_code, 200)
+                                          headers={'Authorization': f'Bearer {token}'}).status_code, 410)
+        self.assertEqual(self.upload(task, b'abc').status_code, 410)
+        self.assertFalse(os.path.exists(os.path.join(self.temp_dir.name, 'long.bin')))
 
     def test_max_size_and_filename_collision(self):
         token = self.generated_token()
         too_big = self.client.post('/api/nas-upload/sessions', json={'filename': 'huge', 'file_size': MAX_FILE_SIZE + 1},
                                    headers={'Authorization': f'Bearer {token}'})
         self.assertEqual(too_big.status_code, 413)
+        names = []
         for payload in (b'first', b'second'):
             task = self.task(token, 'same.txt', len(payload))
-            self.assertEqual(self.chunk(task, 0, payload).status_code, 200)
-            self.assertEqual(self.finish(task).status_code, 200)
-        self.assertEqual(sorted(name for name in os.listdir(self.temp_dir.name) if not name.startswith('.oa-upload-')),
-                         ['same (1).txt', 'same.txt'])
+            self.assertEqual(self.upload(task, payload).status_code, 200)
+            status = self.finish(task)
+            self.assertEqual(status.status_code, 200)
+            self.assertEqual(status.get_json()['data']['status'], 'completed')
+            name = status.get_json()['data']['published_filename']
+            names.append(name)
+            with open(os.path.join(self.temp_dir.name, name), 'rb') as handle:
+                self.assertEqual(handle.read(), payload)
+        self.assertEqual(len(set(names)), 2)
 
-    def test_failed_chunk_can_retry_and_nas_disconnect_fails_closed(self):
+    def test_failed_whole_upload_can_retry_and_nas_disconnect_fails_closed(self):
         token = self.generated_token()
         task = self.task(token, 'retry.bin', 4)
         with patch.object(nas_upload_routes.os, 'pwrite', side_effect=OSError('simulated NAS write failure')):
-            failed = self.chunk(task, 0, b'data')
+            failed = self.upload(task, b'data')
         self.assertEqual(failed.status_code, 503)
         self.assertEqual(self.client.get(f"/api/nas-upload/sessions/{task['upload_id']}",
                                          headers={'Authorization': f"Bearer {task['upload_token']}"})
-                         .get_json()['data']['next_chunk'], 0)
-        self.assertEqual(self.chunk(task, 0, b'data').status_code, 200)
+                         .get_json()['data']['received_bytes'], 0)
+        self.assertEqual(self.upload(task, b'data').status_code, 200)
         self.assertEqual(self.finish(task).status_code, 200)
 
         next_task = self.task(token, 'offline.bin', 1)
         with patch.object(nas_upload_routes, 'open_target_dir', side_effect=NasUnavailable('offline')):
-            offline = self.chunk(next_task, 0, b'x')
+            offline = self.upload(next_task, b'x')
         self.assertEqual(offline.status_code, 503)
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir.name, 'offline.bin')))
 
     def test_upload_requires_qr_and_task_authorization_and_cleans_expired_task(self):
         token = self.generated_token()
-        expired = jwt.encode({'purpose': 'nas-mobile-upload', 'relative_dir': '临时中转',
-                              'exp': int(datetime.utcnow().timestamp()) - 1},
-                             self.app.config['NAS_UPLOAD_SIGNING_KEY'], algorithm='HS256')
+        self.expire_qr(token)
+        expired = token
         self.assertEqual(self.client.post('/api/nas-upload/sessions', json={'filename': 'x', 'file_size': 1},
                                           headers={'Authorization': f'Bearer {expired}'}).status_code, 410)
         self.assertEqual(os.listdir(self.temp_dir.name), [])
+        token = self.generated_token()
         task = self.task(token, 'x', 5)
-        unauthorized = self.client.put(f"/api/nas-upload/sessions/{task['upload_id']}/chunks/0", data=b'hello')
+        unauthorized = self.client.put(f"/api/nas-upload/sessions/{task['upload_id']}/file", data=b'hello')
         self.assertEqual(unauthorized.status_code, 410)
         with open(self.task_state_path(task['upload_id']), encoding='utf-8') as meta_file:
             meta = __import__('json').load(meta_file)
-        meta['expires_at'] = int(datetime.utcnow().timestamp()) - 10
+        meta['expires_at'] = int(time.time()) - 10
         with open(self.task_state_path(task['upload_id']), 'w', encoding='utf-8') as meta_file:
             __import__('json').dump(meta, meta_file)
         business_file = os.path.join(self.temp_dir.name, 'business.txt')
@@ -368,22 +366,25 @@ class NasUploadApiTests(unittest.TestCase):
         self.assertFalse(os.path.exists(self.task_state_path(task['upload_id'], 'part')))
         self.assertFalse(os.path.exists(self.task_state_path(task['upload_id'])))
         self.assertTrue(os.path.exists(business_file))
-        self.assertEqual(self.chunk(other, 0, b'z').status_code, 200)
+        self.assertEqual(self.upload(other, b'z').status_code, 200)
 
     def test_concurrent_same_name_never_overwrites(self):
         token = self.generated_token()
         tasks = [self.task(token, 'same.bin', len(payload)) for payload in (b'alpha', b'beta')]
-        for task, payload in zip(tasks, (b'alpha', b'beta')):
-            self.assertEqual(self.chunk(task, 0, payload).status_code, 200)
+        def send(pair):
+            task, payload = pair
+            with self.app.test_client() as client:
+                return client.put(f"/api/nas-upload/sessions/{task['upload_id']}/file", data=payload,
+                                  headers={'Authorization': f"Bearer {task['upload_token']}",
+                                           'Content-Type': 'application/octet-stream'}).status_code
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(lambda task: self.finish(task).status_code, tasks))
-        self.assertEqual(results, [200, 200])
-        self.assertEqual(sorted(name for name in os.listdir(self.temp_dir.name) if not name.startswith('.oa-upload-')),
-                         ['same (1).bin', 'same.bin'])
+            self.assertEqual(list(pool.map(send, zip(tasks, (b'alpha', b'beta')))), [200, 200])
+        results = [self.finish(task) for task in tasks]
+        self.assertTrue(all(r.status_code == 200 and r.get_json()['data']['status'] == 'completed' for r in results))
+        names = [r.get_json()['data']['published_filename'] for r in results]
+        self.assertEqual(len(set(names)), 2)
         contents = set()
-        for name in os.listdir(self.temp_dir.name):
-            if name.startswith('.oa-upload-'):
-                continue
+        for name in names:
             with open(os.path.join(self.temp_dir.name, name), 'rb') as uploaded:
                 contents.add(uploaded.read())
         self.assertEqual(contents, {b'alpha', b'beta'})
@@ -391,7 +392,9 @@ class NasUploadApiTests(unittest.TestCase):
     def test_status_poll_recovers_ready_task_and_duplicate_polls_do_not_republish(self):
         token = self.generated_token()
         task = self.task(token, 'recovered.txt', 4)
-        self.assertEqual(self.chunk(task, 0, b'data').status_code, 200)
+        # Hold publication until the test has constructed the restart state.
+        with patch.object(nas_upload_routes, '_enqueue_publish', return_value=False):
+            self.assertEqual(self.upload(task, b'data').status_code, 200)
         meta_path = self.task_state_path(task['upload_id'])
         with open(meta_path, encoding='utf-8') as handle:
             meta = __import__('json').load(handle)
@@ -401,7 +404,7 @@ class NasUploadApiTests(unittest.TestCase):
 
         # New task creation performs the bounded module-only recovery scan.
         other = self.task(token, 'other.txt', 1)
-        self.assertEqual(self.chunk(other, 0, b'x').status_code, 200)
+        self.assertEqual(self.upload(other, b'x').status_code, 200)
         batch = {'tasks': [{'upload_id': task['upload_id'], 'upload_token': task['upload_token']}]}
         for _ in range(200):
             state = self.client.post('/api/nas-upload/sessions/status', json=batch).get_json()['data']['tasks'][0]
@@ -411,7 +414,7 @@ class NasUploadApiTests(unittest.TestCase):
         self.assertEqual(state['status'], 'completed')
         repeated = self.client.post('/api/nas-upload/sessions/status', json=batch).get_json()['data']['tasks'][0]
         self.assertEqual(repeated['status'], 'completed')
-        self.assertEqual(os.listdir(self.temp_dir.name).count('recovered.txt'), 1)
+        self.assertEqual(os.listdir(self.temp_dir.name).count(state['published_filename']), 1)
 
     def test_legacy_root_level_task_is_resolved_and_recovered(self):
         token = self.generated_token()
@@ -422,14 +425,14 @@ class NasUploadApiTests(unittest.TestCase):
                         os.path.join(self.temp_dir.name, f".oa-upload-{task['upload_id']}.{suffix}"))
         os.rmdir(state_dir)
 
-        self.assertEqual(self.chunk(task, 0, b'data').status_code, 200)
+        self.assertEqual(self.upload(task, b'data').status_code, 200)
         status = self.client.get(f"/api/nas-upload/sessions/{task['upload_id']}",
                                  headers={'Authorization': f"Bearer {task['upload_token']}"})
         self.assertEqual(status.status_code, 200, status.get_json())
         self.assertIn(status.get_json()['data']['status'], ('pending', 'processing', 'completed'))
         final = self.finish(task)
         self.assertEqual(final.status_code, 200, final.get_json())
-        self.assertEqual(os.listdir(self.temp_dir.name).count('legacy.txt'), 1)
+        self.assertEqual(os.listdir(self.temp_dir.name).count(final.get_json()['data']['published_filename']), 1)
         self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, f".oa-upload-{task['upload_id']}.json")))
 
     def test_publisher_queue_is_fifo(self):
@@ -438,7 +441,7 @@ class NasUploadApiTests(unittest.TestCase):
         done = threading.Event()
         ids = [f'{i:032x}' for i in range(1, 4)]
 
-        def record(upload_id, _relative_dir):
+        def record(upload_id, _relative_dir, _dequeued_at_ns):
             observed.append(upload_id)
             if len(observed) == len(ids):
                 done.set()
@@ -470,28 +473,28 @@ class NasUploadApiTests(unittest.TestCase):
                 self.assertEqual(isolated_queue.get_nowait(), (upload_id, '临时中转'))
                 isolated_queue.task_done()
 
-    def test_complete_enqueues_without_waiting_for_publish(self):
+    def test_whole_upload_enqueues_without_waiting_for_publish(self):
         token = self.generated_token()
         first = self.task(token, 'first.bin', 1)
         with patch.object(nas_upload_routes, '_enqueue_publish', return_value=False):
-            self.assertEqual(self.chunk(first, 0, b'a').status_code, 200)
-            response = self.client.post(f"/api/nas-upload/sessions/{first['upload_id']}/complete", json={},
-                                        headers={'Authorization': f"Bearer {first['upload_token']}"})
+            self.assertEqual(self.upload(first, b'a').status_code, 200)
+            response = self.client.get(f"/api/nas-upload/sessions/{first['upload_id']}",
+                                       headers={'Authorization': f"Bearer {first['upload_token']}"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()['data']['status'], 'pending')
         # Another upload can initialize while the first remains queued for publication.
         second = self.task(token, 'second.bin', 1)
-        self.assertEqual(self.chunk(second, 0, b'b').status_code, 200)
+        self.assertEqual(self.upload(second, b'b').status_code, 200)
         self.assertEqual(os.listdir(self.temp_dir.name).count('first.bin'), 0)
 
     def test_publish_failure_is_persisted_without_final_file(self):
         token = self.generated_token()
         task = self.task(token, 'publish-fail.bin', 4)
         with patch.object(nas_upload_routes, '_enqueue_publish', return_value=False):
-            self.assertEqual(self.chunk(task, 0, b'data').status_code, 200)
+            self.assertEqual(self.upload(task, b'data').status_code, 200)
         with patch.object(nas_upload_routes.os, 'link', side_effect=OSError('simulated publish failure')):
             with self.app.app_context():
-                nas_upload_routes._publish_task(task['upload_id'], '临时中转')
+                nas_upload_routes._publish_task(task['upload_id'], '临时中转', time.time_ns())
         state = self.client.get(f"/api/nas-upload/sessions/{task['upload_id']}",
                                 headers={'Authorization': f"Bearer {task['upload_token']}"}).get_json()['data']
         self.assertEqual(state['status'], 'failed')

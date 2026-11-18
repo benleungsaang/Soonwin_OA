@@ -2,13 +2,22 @@
   <el-dialog
     :title="dialogTitle"
     v-model="isDialogVisible"
-    width="80%"
+    :width="logType === 'photo' ? 'min(1340px, 96vw)' : '80%'"
+    :class="{ 'photo-log-v2': logType === 'photo' }"
     top="5vh"
     :close-on-click-modal="true"
     :close-on-press-escape="true"
     @close="handleClose"
   >
-    <div v-loading="loading" class="log-container">
+    <div v-if="logType === 'photo'" v-loading="loading" class="pl-shell">
+      <div class="pl-heading"><div><h1>操作日志</h1><div class="pl-sub">照片资料的操作记录与变更历史</div></div><button v-if="isAdmin" class="pl-btn pl-clear" @click="clearAllLogs">清空日志</button></div>
+      <div class="pl-stats"><div class="pl-stat"><span>累计照片</span><strong>{{ statistics.total_main }}</strong></div><div class="pl-stat"><span>符合条件的操作</span><strong>{{ total }}</strong></div><div class="pl-stat"><span>近 30 天照片</span><strong>{{ statistics.monthly_main }}</strong></div><div class="pl-stat"><span>近 30 天新增照片</span><strong>{{ statistics.new_main }}</strong></div></div>
+      <section class="pl-panel"><div class="pl-toolbar"><el-input v-model="photoOperator" placeholder="按操作人搜索" clearable @keyup.enter="searchPhotoLogs" @clear="searchPhotoLogs" /><el-select v-model="photoOperation" placeholder="全部操作类型" clearable @change="searchPhotoLogs"><el-option label="新增" value="create" /><el-option label="更新" value="update" /><el-option label="删除" value="delete" /><el-option label="恢复" value="restore" /></el-select><button class="pl-btn pl-primary" @click="searchPhotoLogs">搜索</button><span class="pl-count">共 {{ total }} 条记录</span></div>
+        <div class="pl-label">最近操作记录</div><div class="pl-list"><article v-for="log in logs" :key="log.id" class="pl-log"><div><span class="pl-tag" :class="{ red: log.operation_type === 'delete', blue: log.operation_type === 'update' }">{{ getOperationTypeText(log.operation_type) }}</span><div class="pl-date">{{ log.create_time }}</div></div><div><div class="pl-logtitle">{{ getOperationTypeText(log.operation_type) }}</div><div class="pl-detail">{{ formatOperationDetailsForLog(log) }}</div><div class="pl-who">操作人：{{ log.operator_info?.name || log.operator_info?.id || '—' }}</div></div><div class="pl-actions"><button v-if="['delete','update','delete_communication','update_communication'].includes(log.operation_type) && isAdmin" class="pl-icon pl-restore" title="恢复记录" aria-label="恢复记录" @click="handleRestoreLog(log.id)"><el-icon><Refresh /></el-icon></button><button class="pl-icon pl-copy" title="复制记录" aria-label="复制记录" @click="copyPhotoLog(log)"><el-icon><DocumentCopy /></el-icon></button><button v-if="log.module === logType && log.biz_id && log.operation_type !== 'delete' && handleJump" class="pl-icon pl-view" title="查看照片" aria-label="查看照片" @click="handleJump(parseInt(log.biz_id))"><el-icon><OfficeBuilding /></el-icon></button><button v-if="isAdmin" class="pl-icon pl-remove" title="删除日志" aria-label="删除日志" @click="handleDeleteLog(log.id)"><el-icon><Delete /></el-icon></button></div></article></div>
+        <div v-if="!logs.length && !loading" class="pl-empty">暂无照片操作日志</div><div class="pl-pagination"><el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10,20,30,50]" :total="total" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange" @current-change="handleCurrentChange" /></div>
+      </section>
+    </div>
+    <div v-else v-loading="loading" class="log-container">
       <!-- 工具栏 -->
       <div class="log-toolbar">
         <el-button
@@ -163,7 +172,7 @@
       </div>
     </div>
 
-    <template #footer>
+    <template v-if="logType !== 'photo'" #footer>
       <span class="dialog-footer">
         <el-button @click="handleClose">关闭</el-button>
       </span>
@@ -176,7 +185,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '@/utils/request';
 import { formatBusinessLog } from '@/utils/logFormatter';
-import { Loading, Refresh, OfficeBuilding, Delete } from '@element-plus/icons-vue';
+import { Loading, Refresh, OfficeBuilding, DocumentCopy, Delete } from '@element-plus/icons-vue';
 import { hasModulePermission, ModuleNames, getCurrentUserRole } from '@/utils/authUtils';
 
 // 定义Props
@@ -198,6 +207,8 @@ const emit = defineEmits(['update:modelValue', 'close']);
 // 响应式数据
 const loading = ref(false);
 const logs = ref<any[]>([]);
+const photoOperator = ref('');
+const photoOperation = ref('');
 const currentPage = ref(1);
 const pageSize = ref(30);
 const total = ref(0);
@@ -220,6 +231,7 @@ const logTypeText = computed(() => {
   const typeMap: Record<string, string> = {
     'inquiry': '询盘',
     'video': '视频',
+    'photo': '照片',
     'image': '图片',
     'order': '订单',
     'user': '人员'
@@ -231,6 +243,7 @@ const mainTypeText = computed(() => {
   const typeMap: Record<string, string> = {
     'inquiry': '询盘',
     'video': '视频',
+    'photo': '照片',
     'image': '图片',
     'order': '订单',
     'user': '人员'
@@ -290,7 +303,8 @@ const loadLogs = async () => {
     const response = await request.get(`/api/${props.logType}-logs`, {
       params: {
         page: currentPage.value,
-        size: pageSize.value
+        size: pageSize.value,
+        ...(props.logType === 'photo' ? { operator_name: photoOperator.value.trim(), operation_type: photoOperation.value } : {})
       }
     });
 
@@ -323,6 +337,8 @@ const loadLogs = async () => {
     } finally {    loading.value = false;
   }
 };
+
+const searchPhotoLogs = () => { currentPage.value = 1; void loadLogs(); };
 
 // 分页处理
 const handleSizeChange = (size: number) => {
@@ -377,12 +393,30 @@ const formatOperationDetailsForLog = (log: any) => {
   }
 };
 
+const copyPhotoLog = async (log: any) => {
+  const text = [getOperationTypeText(log.operation_type), log.operator_info?.name || log.operator_info?.id || '—', log.create_time || '', formatOperationDetailsForLog(log)].join('\t');
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(text); copied = true; } catch { /* 兼容 HTTP 页面 */ }
+  }
+  if (!copied) {
+    const input = document.createElement('textarea');
+    input.value = text; input.setAttribute('readonly', '');
+    input.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    (document.querySelector('.photo-log-v2') || document.body).appendChild(input);
+    try { input.focus(); input.select(); copied = document.execCommand('copy'); } catch { copied = false; }
+    finally { input.remove(); }
+  }
+  if (copied) ElMessage.success('记录已复制'); else ElMessage.error('复制失败，请检查浏览器是否允许复制');
+};
+
 // 删除日志
 const handleDeleteLog = async (logId: number) => {
   try {
     await ElMessageBox.confirm('确定要删除这条日志记录吗？', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
+      customClass: props.logType === 'photo' ? 'photo-v2-confirm photo-v2-danger' : '',
       type: 'warning'
     });
 
@@ -405,6 +439,7 @@ const handleRestoreLog = async (logId: number) => {
     await ElMessageBox.confirm('确定要恢复这条记录吗？此操作将还原被删除或修改的数据。', '警告', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
+      customClass: props.logType === 'photo' ? 'photo-v2-confirm photo-v2-restore' : '',
       type: 'warning'
     });
 
@@ -430,7 +465,8 @@ const clearAllLogs = async () => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning',
+        customClass: props.logType === 'photo' ? 'photo-v2-confirm photo-v2-danger' : '',
+      type: 'warning',
       }
     );
 
@@ -698,4 +734,11 @@ const handleClose = () => {
     font-size: 18px;
   }
 }
+
+:global(.photo-log-v2.el-dialog){--el-dialog-padding-primary:0;background:#f7f6f2;border-radius:20px;padding:28px;max-height:90vh;overflow:auto;color:#27342f;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif}:global(.photo-log-v2 .el-dialog__header){padding:0;margin:0}:global(.photo-log-v2 .el-dialog__title){font-size:0}:global(.photo-log-v2 .el-dialog__headerbtn){top:12px;right:12px;z-index:2}
+.pl-shell,.pl-shell *{box-sizing:border-box}.pl-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:8px 36px 25px 0}.pl-heading h1{font-size:27px;margin:0 0 7px}.pl-sub,.pl-count{font-size:13px;color:#87928b}.pl-btn{border:1px solid #dce3dd;background:#fff;border-radius:10px;padding:9px 14px;color:#34463e;cursor:pointer;white-space:nowrap}.pl-btn:disabled{opacity:.4}.pl-primary{background:#244a3b;color:white;border-color:#244a3b}.pl-danger{color:#b64e4a}.pl-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:21px}.pl-stat{background:#fff;border:1px solid #e8e7df;border-radius:16px;padding:18px 20px;color:#849087;font-size:12px}.pl-stat strong{display:block;color:#27342f;font-size:29px;margin-top:10px}.pl-panel{border:1px solid #e8e7df;border-radius:20px;background:#fff;padding:22px}.pl-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}.pl-toolbar :deep(.el-input){width:230px}.pl-toolbar :deep(.el-select){width:190px}.pl-count{margin-left:auto}.pl-label{font-size:13px;color:#849087;margin-bottom:14px}.pl-list{display:flex;flex-direction:column;gap:10px}.pl-log{border:1px solid #e9e9e2;border-radius:14px;padding:17px 19px;display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:20px;align-items:start}.pl-tag{display:inline-flex;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:650;background:#e9f2eb;color:#38684d}.pl-tag.red{background:#fff0ed;color:#b45c50}.pl-tag.blue{background:#edf2fa;color:#587396}.pl-date,.pl-who{color:#8c968f;font-size:12px;margin-top:8px}.pl-logtitle{font-size:15px;font-weight:700;margin-bottom:8px}.pl-detail{font-size:13px;color:#66736a;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}.pl-actions{display:flex;gap:7px}.pl-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;padding:0;font-size:19px;font-weight:700;cursor:pointer}.pl-icon .el-icon{margin:0}.pl-restore{background:#e8f3eb;color:#237344;border:1px solid #d7e8dc}.pl-copy{background:#f0f1f1;color:#69736d;border:1px solid #e0e3df}.pl-remove{background:#fff0ef;color:#c75551;border:1px solid #f6dedb}.pl-empty{padding:50px;text-align:center;color:#89928b}.pl-pagination{display:flex;justify-content:center;margin-top:20px;overflow:auto}@media(max-width:800px){.pl-stats{grid-template-columns:repeat(2,1fr)}.pl-log{grid-template-columns:1fr;gap:9px}.pl-actions{flex-wrap:wrap}.pl-count{margin-left:0}}
+
+.pl-icon{transition:background-color .15s,color .15s,border-color .15s}.pl-restore:hover{background:#237344;border-color:#237344;color:#fff}.pl-copy:hover{background:#69736d;border-color:#69736d;color:#fff}.pl-remove:hover{background:#c75551;border-color:#c75551;color:#fff}.pl-view{background:#edf2fa;color:#587396;border:1px solid #dce6f1}.pl-view:hover{background:#587396;border-color:#587396;color:#fff}
+
+.pl-clear{transition:background-color .15s,color .15s,border-color .15s}.pl-clear:hover{background:#b64e4a;border-color:#b64e4a;color:#fff}
 </style>

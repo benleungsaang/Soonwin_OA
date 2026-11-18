@@ -1,443 +1,32 @@
 <template>
   <div class="photo-management">
     <CommonHeader title="照片管理" />
-        <div class="header">
-          <div class="title-with-count">
-            <h2>
-              <template v-if="isRecycleBinMode">
-                回收站
-              </template>
-              <template v-else>照片管理</template>
-            </h2>
-            <div v-if="showResultCount && !isRecycleBinMode" class="result-count-container">
-              <span class="result-count">
-                找到 {{ totalPhotos }} 张照片
-              </span>
-              <el-icon
-                @click="clearSearch"
-                class="result-refresh-btn"
-              ><RefreshLeft /></el-icon>
-            </div>
-          </div>
-          <div class="header-buttons">
-
-          <el-button
-            v-if="!isRecycleBinMode && !isMultiSelectMode"
-            type="primary"
-            @click="showUploadDialog = true"
-          >
-            <el-icon><UploadFilled /></el-icon>
-            上传照片
-          </el-button>
-
-          <!-- 普通照片列表多选模式按钮组 -->
-          <div v-if="!isRecycleBinMode && isMultiSelectMode" class="multi-select-buttons">
-            <el-button @click="toggleSelectAll">
-              {{ selectedPhotoIds.length === photos.length ? '取消全选' : '全选' }}
-            </el-button>
-            <el-button
-              type="danger"
-              @click="batchDeletePhotos"
-              :disabled="selectedPhotoIds.length === 0">
-              <el-icon><Delete /></el-icon>
-              批量删除 ({{ selectedPhotoIds.length }})
-            </el-button>
-            <el-button
-              type="warning"
-              @click="toggleMultiSelectMode">
-              取消
-            </el-button>
-          </div>
-
-          <!-- 非多选模式且非回收站模式下的多选按钮 -->
-          <el-button
-            v-if="!isRecycleBinMode && !isMultiSelectMode && photos.length > 0"
-            @click="toggleMultiSelectMode"
-            type="success"
-          >
-            <el-icon><CircleCheck /></el-icon>
-            多选
-          </el-button>
-
-          <el-button
-            v-if="!isRecycleBinMode && isAdmin"
-            @click="showPhotoLogs" >
-            <el-icon><Document /></el-icon>
-            查看日志
-          </el-button>
-          <el-button
-            v-if="isRecycleBinMode"
-            type="primary"
-            @click="batchRestorePhotos"
-            style="margin-right: 10px;"
-          >
-            <el-icon><RefreshLeft /></el-icon>
-            恢复 ({{ selectedDeletedPhotoIds.length }})
-          </el-button>
-          <el-button
-            v-if="isRecycleBinMode"
-            type="danger"
-            @click="batchPermanentDeletePhotos"
-            style="margin-right: 10px;"
-          >
-            <el-icon><Delete /></el-icon>
-            彻底删除 ({{ selectedDeletedPhotoIds.length }})
-          </el-button>
-          <el-button
-            v-if="!isRecycleBinMode && isAdmin"
-            @click="showRecycleBin"
-            style="margin-right: 10px;"
-          >
-            <el-icon><Delete /></el-icon>
-            回收站
-          </el-button>
-          <el-button
-            v-if="isRecycleBinMode && isAdmin"
-            @click="toggleSelectAllDeleted"
-            style="margin-right: 10px;"
-          >
-            <el-icon><CircleCheck /></el-icon>
-            {{ selectedDeletedPhotoIds.length === deletedPhotos.length ? '取消' : '全选' }}
-          </el-button>
-          <el-button
-            v-if="isRecycleBinMode"
-            @click="backToNormalList"
-            style="margin-right: 10px;"
-          >
-            <el-icon><Back /></el-icon>
-            返回
-          </el-button>
-          </div>
+    <main class="pm-shell">
+      <section class="pm-heading"><div><div class="pm-eyebrow">MEDIA LIBRARY / PHOTO ASSETS</div><h1>{{ isRecycleBinMode ? '回收站' : '照片管理' }}</h1><div class="pm-sub">{{ isRecycleBinMode ? '已删除照片可恢复，彻底删除后无法撤销' : '集中查看、检索与整理设备照片资料' }}</div></div>
+        <div class="pm-actions">
+          <template v-if="!isRecycleBinMode">
+            <button v-if="!isMultiSelectMode" class="pm-btn pm-primary" @click="showUploadDialog = true">＋ 上传照片</button>
+            <button v-if="!isMultiSelectMode && photos.length" class="pm-btn pm-soft" @click="toggleMultiSelectMode">▣ 多选</button>
+            <template v-if="isMultiSelectMode"><button class="pm-btn" @click="toggleSelectAll">{{ selectedPhotoIds.length === photos.length ? '取消全选' : '全选' }}</button><button class="pm-btn pm-danger" :disabled="!selectedPhotoIds.length" @click="batchDeletePhotos">批量删除 ({{ selectedPhotoIds.length }})</button><button class="pm-btn" @click="toggleMultiSelectMode">取消</button></template>
+            <button v-if="isAdmin" class="pm-btn" @click="showPhotoLogs">▤ 查看日志</button><button v-if="isAdmin" class="pm-btn" @click="showRecycleBin"><el-icon><Delete /></el-icon> 回收站</button>
+          </template>
+          <template v-else><button class="pm-btn pm-recycle-restore" :disabled="!selectedDeletedPhotoIds.length" @click="batchRestorePhotos">恢复所选 ({{ selectedDeletedPhotoIds.length }})</button><button class="pm-btn pm-recycle-delete" :disabled="!selectedDeletedPhotoIds.length" @click="batchPermanentDeletePhotos">彻底删除 ({{ selectedDeletedPhotoIds.length }})</button><button class="pm-btn" :disabled="!deletedPhotos.length" @click="toggleSelectAllDeleted">{{ selectedDeletedPhotoIds.length === deletedPhotos.length && deletedPhotos.length ? '取消全选' : '全选' }}</button><button class="pm-btn" @click="backToNormalList">← 返回</button></template>
         </div>
-
-    <!-- 搜索和筛选 -->
-    <div class="search-section">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索标题、标签、备注..."
-        prefix-icon="Search"
-        style="width: 300px; margin-right: 10px;"
-        @keyup.enter="searchContent"
-      />
-      <el-button type="primary" @click="searchContent" style="margin-right: 10px;">内容搜索</el-button>
-      <el-select
-        v-model="selectedMachine"
-        placeholder="选择机器"
-        clearable
-        style="width: 200px; margin-right: 10px;"
-      >
-        <el-option value="0" label="无关联机器" />
-        <el-option
-          v-for="machine in machineList"
-          :key="machine.id"
-          :label="`${machine.model} ( ${machine.original_model} )`"
-          :value="machine.id"
-        />
-      </el-select>
-      <el-button type="primary" @click="searchByMachine">机器搜索</el-button>
-    </div>
-
-        <!-- 照片列表或回收站列表 -->
-
-        <div v-if="!isRecycleBinMode && photos.length > 0" class="photo-grid">
-
-          <div
-
-        v-for="photo in photos"
-
-        :key="photo.id"
-
-        class="photo-card"
-
-        :class="{ 'selected': isPhotoSelected(photo.id) }"
-
-        @click="isMultiSelectMode ? selectPhoto(photo.id) : viewPhotoDetails(photo)"
-
-      >
-
-        <!-- 多选模式下的选择框 -->
-
-        <div
-
-          v-if="isMultiSelectMode"
-
-          class="select-checkbox"
-
-          @click.stop="selectPhoto(photo.id)"
-
-        >
-
-          <el-checkbox
-
-            :model-value="isPhotoSelected(photo.id)"
-
-            @change="selectPhoto(photo.id)"
-
-          />
-
-        </div>
-
-
-
-        <!-- 删除按钮 - 右上角圆形X按钮 -->
-
-        <div
-
-          v-if="!isMultiSelectMode"
-
-          class="delete-btn"
-
-          @click.stop="deletePhoto(photo.id)"
-
-        >
-
-          <el-icon style="margin-right: 0;"><Delete /></el-icon>
-
-        </div>
-
-
-
-        <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
-
-        <div class="photo-image" >
-
-
-
-          <img
-
-            :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
-
-            :alt="photo.title"
-
-            @error="onImageError"
-
-          />
-
-
-
-          <!-- 右下角分辨率 -->
-
-          <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
-
-            {{ photo.original_width }} x {{ photo.original_height }}
-
-          </div>
-
-        </div>
-
-
-
-        <div class="photo-info">
-
-
-
-          <div class="photo-title">{{ photo.title }}</div>
-
-          <div class="photo-upload-time">{{ photo.upload_time }}</div>
-
-          <div class="card-tags-container" v-if="photo.tags">
-
-            <div
-
-              v-for="tag in photo.tags.split(',')"
-
-              :key="tag"
-
-              class="card-tags"
-
-            >
-
-              {{ tag.trim() }}
-
-            </div>
-
-          </div>
-
-          <p class="machine" v-if="photo.machine_info">
-
-            机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
-
-          </p>
-
-          <div class="photo-actions">
-
-            <!-- 编辑功能已整合到详情对话框中 -->
-
-          </div>
-
-        </div>
-
-      </div>
-
-        </div>
-
-
-        <!-- 回收站照片列表 -->
-        <div v-if="isRecycleBinMode && deletedPhotos.length > 0" class="photo-grid">
-
-          <div
-
-        v-for="photo in deletedPhotos"
-
-        :key="photo.id"
-
-        class="photo-card deleted-photo"
-
-        :class="{ 'selected': isDeletedPhotoSelected(photo.id) }"
-
-        @click="toggleSelectDeletedPhoto(photo)"
-
-      >
-
-        <!-- 多选复选框（仅在回收站模式下显示） -->
-
-        <div
-
-          class="select-checkbox"
-
-          @click.stop="toggleSelectDeletedPhoto(photo)"
-
-        >
-
-          <el-checkbox
-
-            :model-value="isDeletedPhotoSelected(photo.id)"
-
-            @click.stop="toggleSelectDeletedPhoto(photo)"
-
-          />
-
-        </div>
-
-
-
-        <!-- 图片区域 - 包含标题、分辨率、点击触发详情 -->
-
-        <div class="photo-image" >
-
-
-
-          <img
-
-            :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`"
-
-            :alt="photo.title"
-
-            @error="onImageError"
-
-          />
-
-
-
-          <!-- 右下角分辨率 -->
-
-          <div class="photo-resolution" v-if="photo.original_width && photo.original_height">
-
-            {{ photo.original_width }} x {{ photo.original_height }}
-
-          </div>
-
-          <!-- 已删除标识 -->
-
-          <div class="photo-deleted-badge">
-
-            已删除
-
-          </div>
-
-        </div>
-
-
-
-        <div class="photo-info">
-
-
-
-          <div class="photo-title">{{ photo.title }}</div>
-
-          <div class="photo-upload-time">
-            <div class="recycle-info">
-              <div class="info-item">
-                <span class="time-label">上传:</span> {{ photo.upload_time }}
-              </div>
-              <div class="info-item" v-if="photo.uploader">
-                <span class="time-label">上传人:</span> {{ photo.uploader }}
-              </div>
-              <div class="info-item" v-if="photo.delete_time">
-                <span class="time-label">删除:</span> {{ photo.delete_time }}
-              </div>
-              <div class="info-item" v-if="photo.delete_operator">
-                <span class="time-label">删除人:</span> {{ photo.delete_operator }}
-              </div>
-            </div>
-          </div>
-
-          <div class="card-tags-container" v-if="photo.tags">
-
-            <div
-
-              v-for="tag in photo.tags.split(',')"
-
-              :key="tag"
-
-              class="card-tags"
-
-            >
-
-              {{ tag.trim() }}
-
-            </div>
-
-          </div>
-
-          <p class="machine" v-if="photo.machine_info">
-
-            机器: {{ photo.machine_info.model }} - {{ photo.machine_info.original_model }}
-
-          </p>
-
-        </div>
-
-      </div>
-
-        </div>
-
-            <!-- 无搜索结果提示 -->
-        <div v-else class="no-results" v-if="photos.length === 0">
-          <el-empty
-            :description="isRecycleBinMode ? (searchQuery ? '回收站中没有找到匹配的照片' : '回收站中暂无照片') : (searchQuery || selectedMachine ? '没有找到匹配的照片' : '暂无照片')"
-            :image-size="100">
-          </el-empty>
-          <div v-if="searchQuery || selectedMachine || isRecycleBinMode" class="no-results-actions">
-            <el-button v-if="isRecycleBinMode" type="primary" @click="backToNormalList">返回照片主页</el-button>
-            <el-button v-else-if="searchQuery || selectedMachine" type="primary" @click="clearSearch">返回照片主页</el-button>
-          </div>
-        </div>
-    <!-- 搜索结果统计和分页 -->
-    <div class="result-info" v-if="!isRecycleBinMode && photos.length > 0 || isRecycleBinMode && deletedPhotos.length > 0">
-      <div class="pagination">
-        <el-pagination
-          v-if="!isRecycleBinMode"
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="totalPhotos"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-        <el-pagination
-          v-else
-          v-model:current-page="deletedCurrentPage"
-          v-model:page-size="deletedPageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="deletedTotalPhotos"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleDeletedSizeChange"
-          @current-change="handleDeletedCurrentChange"
-        />
-      </div>
-    </div>
+      </section>
+      <section class="pm-filters"><el-input v-model="searchQuery" placeholder="搜索标题、标签、备注..." prefix-icon="Search" @keyup.enter="searchPhotoList" /><el-select v-model="selectedMachine" placeholder="全部关联机器" clearable><el-option value="0" label="无关联机器" /><el-option v-for="machine in machineList" :key="machine.id" :label="`${machine.model} ( ${machine.original_model} )`" :value="machine.id" /></el-select><button class="pm-btn pm-primary" @click="searchPhotoList">搜索资料</button><button class="pm-btn" @click="resetPhotoFilters">重置</button></section>
+      <div class="pm-stats"><span>共 <strong>{{ isRecycleBinMode ? deletedTotalPhotos : totalPhotos }}</strong> 张照片 <template v-if="isRecycleBinMode && selectedDeletedPhotoIds.length"> · 已选 {{ selectedDeletedPhotoIds.length }} 张</template><template v-else-if="isMultiSelectMode && selectedPhotoIds.length"> · 已选 {{ selectedPhotoIds.length }} 张</template></span><span>按上传时间排序 · 最新优先</span></div>
+      <div v-if="!isRecycleBinMode && photos.length" class="pm-gallery"><article v-for="photo in photos" :key="photo.id" class="pm-tile" :class="{ selected: isPhotoSelected(photo.id) }" @click="isMultiSelectMode ? selectPhoto(photo.id) : viewPhotoDetails(photo)">
+        <el-checkbox v-if="isMultiSelectMode" class="pm-check" :model-value="isPhotoSelected(photo.id)" @click.stop @change="selectPhoto(photo.id)" /><button v-if="!isMultiSelectMode" class="pm-trash" title="移入回收站" aria-label="移入回收站" @click.stop="deletePhoto(photo.id)"><el-icon><Delete /></el-icon></button>
+        <div class="pm-preview"><img :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`" :alt="photo.title" @error="onImageError" /><span v-if="photo.original_width && photo.original_height" class="pm-dim">{{ photo.original_width }} × {{ photo.original_height }}</span></div>
+        <div class="pm-info"><div class="pm-title">{{ photo.title }}</div><div class="pm-meta"><span>{{ photo.machine_info?.model || '未关联机器' }}</span><span>{{ photo.upload_time }}</span></div><div v-if="photo.tags" class="pm-tags">{{ photo.tags }}</div></div>
+      </article></div>
+      <div v-else-if="isRecycleBinMode && deletedPhotos.length" class="pm-gallery pm-recycle"><article v-for="photo in deletedPhotos" :key="photo.id" class="pm-tile" :class="{ selected: isDeletedPhotoSelected(photo.id) }" @click="toggleSelectDeletedPhoto(photo)">
+        <div class="pm-preview"><img :src="`${apiBaseUrl}/assets/Media/Photos/${photo.thumbnail_path}`" :alt="photo.title" @error="onImageError" /><span class="pm-deleted">已删除</span><el-checkbox class="pm-recycle-check" :model-value="isDeletedPhotoSelected(photo.id)" @click.stop @change="toggleSelectDeletedPhoto(photo)" /></div>
+        <div class="pm-info"><div class="pm-title">{{ photo.title }}</div><div class="pm-recycle-meta"><span>上传时间</span><span>{{ photo.upload_time || '—' }}</span><span>上传人</span><span>{{ photo.uploader || '—' }}</span><span>删除时间</span><span>{{ photo.delete_time || '—' }}</span><span>删除人</span><span>{{ photo.delete_operator || '—' }}</span></div><div class="pm-item-actions"><button class="pm-btn pm-recycle-restore" @click.stop="restorePhoto(photo.id)">恢复</button><button class="pm-btn pm-recycle-delete" @click.stop="permanentDeletePhoto(photo.id)">彻底删除</button></div></div>
+      </article></div>
+      <div v-else class="pm-empty">{{ isRecycleBinMode ? '回收站中暂无照片' : '暂无符合条件的照片' }}</div>
+      <div v-if="(!isRecycleBinMode && totalPhotos) || (isRecycleBinMode && deletedTotalPhotos)" class="pm-pagination"><el-pagination v-if="!isRecycleBinMode" v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10,20,50,100]" :total="totalPhotos" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange" @current-change="handleCurrentChange" /><el-pagination v-else v-model:current-page="deletedCurrentPage" v-model:page-size="deletedPageSize" :page-sizes="[10,20,50,100]" :total="deletedTotalPhotos" layout="total, sizes, prev, pager, next, jumper" @size-change="handleDeletedSizeChange" @current-change="handleDeletedCurrentChange" /></div>
+    </main>
 
     <!-- 上传照片对话框 -->
     <el-dialog v-model="showUploadDialog" title="上传照片" width="min(1080px, 98vw)" :before-close="handleUploadDialogClose" class="photo-upload-v2" destroy-on-close @close="resetPhotoUploadState">
@@ -483,12 +72,7 @@
     <!-- 照片详情对话框 -->
     <el-dialog v-model="showDetailsDialog" width="min(1260px, 96vw)" :before-close="handleDialogClose" class="photo-detail-v2-dialog" destroy-on-close>
       <main v-if="selectedPhoto" class="v2-shell">
-        <div class="v2-headline">
-          <div class="v2-buttons">
-            <button v-if="!isEditingAll" class="v2-btn" @click="startEditingAll">编辑信息</button>
-            <template v-else><button class="v2-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="v2-btn v2-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
-          </div>
-        </div>
+        <div class="v2-headline" aria-hidden="true"></div>
         <div class="v2-layout">
           <div class="v2-imagecard">
             <div class="v2-small">IMAGE PREVIEW / 缩略图</div>
@@ -500,7 +84,12 @@
           </div>
           <div class="v2-side">
             <div class="v2-card">
-              <h2>内容信息</h2>
+              <div class="v2-card-head"><h2>内容信息</h2>
+          <div class="v2-buttons">
+            <button v-if="!isEditingAll" class="v2-btn" @click="startEditingAll">编辑信息</button>
+            <template v-else><button class="v2-btn" :disabled="savingAll" @click="cancelEditingAll">取消</button><button class="v2-btn v2-primary" :disabled="savingAll" @click="saveAll">{{ savingAll ? '保存中…' : '保存' }}</button></template>
+          </div>
+              </div>
               <div class="v2-meta"><div class="v2-fieldname">标题</div><div v-if="!isEditingAll" class="v2-fieldvalue">{{ selectedPhoto.title }}</div><input v-else v-model="editTitle" class="v2-editfield" aria-label="标题" /></div>
               <div v-if="selectedPhoto.machine_info" class="v2-meta"><div class="v2-fieldname">关联机器</div><div class="v2-fieldvalue">{{ selectedPhoto.machine_info.model }} ( {{ selectedPhoto.machine_info.original_model }} )</div></div>
               <div class="v2-meta"><div class="v2-fieldname">标签</div><div v-if="!isEditingAll"><span v-for="(tag, index) in currentTags" :key="index" class="v2-tag">{{ tag }}</span><span v-if="!currentTags.length" class="v2-fieldvalue">无标签</span></div><input v-else v-model="editTagsInput" class="v2-editfield" placeholder="多个标签用逗号分隔" aria-label="标签" /></div>
@@ -1039,10 +628,11 @@ const uploadMatchedFiles = async () => {
 // 删除照片
 const deletePhoto = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要删除这张照片吗？', '警告', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm('确定要删除这张照片吗？', '移入回收站', {
+      confirmButtonText: '移入回收站',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-danger'
     });
 
     await deletePhotoAPI(id);
@@ -1161,6 +751,12 @@ const handleDialogClose = () => {
   showDetailsDialog.value = false;
 };
 
+const searchPhotoList = () => {
+  if (isRecycleBinMode.value) { deletedCurrentPage.value = 1; selectedDeletedPhotoIds.value = []; void fetchDeletedPhotos(); }
+  else { currentPage.value = 1; void fetchPhotos(); }
+};
+const resetPhotoFilters = () => { searchQuery.value = ''; selectedMachine.value = ''; searchPhotoList(); };
+
 // 内容搜索
 const searchContent = async () => {
   currentPage.value = 1;
@@ -1210,8 +806,8 @@ const handleLogJump = async (id: number) => {
 
   try {
     const response = await request.get(`/api/photos/${id}`);
-    if (response && response.code === 200) {
-      viewPhotoDetails(response.data);
+    if (response && response.id) {
+      viewPhotoDetails(response);
     } else {
       ElMessage.error('加载照片详情失败');
     }
@@ -1279,11 +875,12 @@ const batchDeletePhotos = async () => {
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedPhotoIds.value.length} 张照片吗？`,
-      '警告',
+      '移入回收站',
       {
-        confirmButtonText: '确定',
+        confirmButtonText: '移入回收站',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-danger'
       }
     );
 
@@ -1327,6 +924,7 @@ const isPhotoSelected = (photoId: number) => {
 
 // 显示回收站
 const showRecycleBin = async () => {
+  searchQuery.value = ''; selectedMachine.value = ''; deletedCurrentPage.value = 1; selectedDeletedPhotoIds.value = [];
   isRecycleBinMode.value = true;
   await fetchDeletedPhotos();
 };
@@ -1337,6 +935,8 @@ const fetchDeletedPhotos = async () => {
     const response = await getDeletedPhotos({
       page: deletedCurrentPage.value,
       per_page: deletedPageSize.value,
+      search: searchQuery.value,
+      machine_id: selectedMachine.value,
     });
 
     // request.ts 自动解包了 response，这里 response 就是解包后的 data 部分
@@ -1351,13 +951,15 @@ const fetchDeletedPhotos = async () => {
 // 从回收站恢复照片
 const restorePhoto = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要恢复这张照片吗？', '警告', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm('确定要恢复这张照片吗？', '恢复照片', {
+      confirmButtonText: '确认恢复',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-restore'
     });
 
     const response = await restorePhotoAPI(id);
+    selectedDeletedPhotoIds.value = selectedDeletedPhotoIds.value.filter(item => item !== id);
     ElMessage.success(response.message || '照片恢复成功');
     // 如果当前在回收站页面，刷新回收站列表；否则刷新正常列表
     if (isRecycleBinMode.value) {
@@ -1376,13 +978,15 @@ const restorePhoto = async (id: number) => {
 // 永久删除照片（从回收站彻底删除）
 const permanentDeletePhoto = async (id: number) => {
   try {
-    await ElMessageBox.confirm('确定要永久删除这张照片吗？此操作不可恢复！', '警告', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm('确定要永久删除这张照片吗？此操作不可恢复！', '彻底删除照片', {
+      confirmButtonText: '彻底删除',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-danger'
     });
 
     await permanentDeletePhotosAPI([id]);
+    selectedDeletedPhotoIds.value = selectedDeletedPhotoIds.value.filter(item => item !== id);
     ElMessage.success('照片已永久删除');
     await fetchDeletedPhotos(); // 刷新回收站列表
   } catch (error) {
@@ -1401,10 +1005,11 @@ const batchRestorePhotos = async () => {
   }
 
   try {
-    await ElMessageBox.confirm(`确定要恢复选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？`, '警告', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm(`确定要恢复选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？`, '恢复照片', {
+      confirmButtonText: '确认恢复',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-restore'
     });
 
     // 批量恢复照片（暂时逐个恢复，因为API可能不支持批量恢复）
@@ -1446,10 +1051,11 @@ const batchPermanentDeletePhotos = async () => {
   }
 
   try {
-    await ElMessageBox.confirm(`确定要永久删除选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？此操作不可恢复！`, '警告', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm(`确定要永久删除选中的 ${selectedDeletedPhotoIds.value.length} 张照片吗？此操作不可恢复！`, '彻底删除照片', {
+      confirmButtonText: '彻底删除',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
+      customClass: 'photo-v2-confirm photo-v2-danger'
     });
 
     const response = await permanentDeletePhotosAPI(selectedDeletedPhotoIds.value);
@@ -1470,6 +1076,7 @@ const batchPermanentDeletePhotos = async () => {
 // 返回正常照片列表
 const backToNormalList = () => {
   isRecycleBinMode.value = false;
+  searchQuery.value = ''; selectedMachine.value = ''; selectedDeletedPhotoIds.value = [];
   fetchPhotos(); // 刷新正常照片列表
 };
 
@@ -1515,12 +1122,14 @@ const toggleSelectDeletedPhoto = (photo: any) => {
 
 // 回收站分页处理
 const handleDeletedSizeChange = (size: number) => {
+  selectedDeletedPhotoIds.value = [];
   deletedPageSize.value = size;
   deletedCurrentPage.value = 1;
   fetchDeletedPhotos();
 };
 
 const handleDeletedCurrentChange = (page: number) => {
+  selectedDeletedPhotoIds.value = [];
   deletedCurrentPage.value = page;
   fetchDeletedPhotos();
 };
@@ -2191,9 +1800,9 @@ onMounted(() => {
 .v2-shell,.v2-shell *{box-sizing:border-box}.v2-shell{max-width:1260px;min-height:100%;margin:0 auto;padding:20px 30px 28px;color:#242a30;display:flex;flex-direction:column}
 .v2-shell button,.v2-shell input,.v2-shell textarea{font:inherit}.v2-shell button{cursor:pointer}.v2-shell button:focus-visible,.v2-shell input:focus-visible,.v2-shell textarea:focus-visible{outline:2px solid #4285ef;outline-offset:2px}
 .v2-btn{border:1px solid #d7dce4;background:#fff;color:#273344;border-radius:12px;padding:10px 16px;font-weight:600}.v2-btn:disabled{opacity:.6;cursor:not-allowed}.v2-primary{background:#243d34;color:#fff;border-color:#243d34}
-.v2-headline{display:flex;justify-content:flex-end;align-items:center;flex:none;min-height:44px;margin:0 48px 16px 0}.v2-buttons{display:flex;gap:9px;flex-wrap:nowrap}
+.v2-headline{flex:none;min-height:44px;margin:0 0 16px}.v2-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:42px;margin-bottom:20px}.v2-card-head h2{margin:0;white-space:nowrap;flex:none}.v2-buttons{display:flex;justify-content:flex-end;gap:6px;flex:none;white-space:nowrap}.v2-buttons .v2-btn{padding:8px 10px;font-size:13px;white-space:nowrap}
 .v2-layout{display:grid;grid-template-columns:1.25fr .75fr;gap:20px;flex:1;align-items:stretch}.v2-imagecard{background:#e4e9e8;border-radius:26px;padding:25px;min-height:620px;display:flex;flex-direction:column;justify-content:space-between;min-width:0}.v2-imagecard img{display:block;width:100%;height:460px;object-fit:contain;border-radius:16px}.v2-imagefoot{display:flex;justify-content:space-between;align-items:center;gap:15px}.v2-file{min-width:0;overflow-wrap:anywhere}
-.v2-small{font-size:12px;color:#66717c}.v2-side{display:grid;grid-template-rows:minmax(390px,auto) auto;gap:17px;min-width:0}.v2-card{background:white;border:1px solid #eae7e0;border-radius:22px;padding:26px;min-width:0}.v2-card h2{margin:0 0 20px;font-size:18px;line-height:normal}.v2-meta{padding:12px 0;border-bottom:1px solid #f0f0ef}.v2-meta:last-child{border-bottom:0}
+.v2-small{font-size:12px;color:#66717c}.v2-side{display:grid;grid-template-rows:minmax(390px,auto) auto;gap:17px;min-width:0}.v2-card{background:white;border:1px solid #eae7e0;border-radius:22px;padding:26px;min-width:0}.v2-card h2{margin:0 0 20px;font-size:18px;line-height:normal}.v2-card .v2-card-head h2{margin:0}.v2-meta{padding:12px 0;border-bottom:1px solid #f0f0ef}.v2-meta:last-child{border-bottom:0}
 .v2-fieldname{color:#8792a2;font-size:12px;margin-bottom:7px}.v2-fieldvalue{color:#263344;font-size:14px;line-height:1.6;overflow-wrap:anywhere}.v2-note{white-space:pre-wrap}.v2-tag{display:inline-flex;background:#eaf1ff;color:#2c60aa;padding:5px 10px;border-radius:7px;margin:3px 5px 3px 0;font-size:13px;overflow-wrap:anywhere;max-width:100%}
 .v2-editfield{width:100%;padding:9px 11px;border:1px solid #ccd4df;border-radius:9px;background:white;color:#233044}.v2-shell textarea.v2-editfield{height:100px;min-height:100px;max-height:100px;resize:none;overflow:auto}.v2-person{display:flex;align-items:center;gap:12px}.v2-avatar{background:#dfecdd;border-radius:50%;width:42px;height:42px;display:grid;place-items:center;color:#3e6d55;font-weight:700}.v2-time{margin-top:22px}.v2-details{margin-top:16px}
 @media(max-width:900px){.v2-layout{grid-template-columns:1fr}.v2-imagecard{min-height:450px}.v2-imagecard img{height:320px}.v2-side{grid-template-rows:minmax(390px,auto) auto}.v2-shell{padding:12px 14px 20px}.v2-card{padding:16px}}
@@ -2204,4 +1813,12 @@ onMounted(() => {
 @media(max-width:800px){.pu-layout{grid-template-columns:1fr}:global(.photo-upload-v2.el-dialog){padding:20px}}
 
 .pu-match{margin-top:18px;background:#fff;border:1px solid #e7e5de;border-radius:21px;padding:23px}.pu-match-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.pu-match-head h2{margin:0}.pu-match-head p{margin:5px 0 0}.pu-pill{font-size:11px;border-radius:99px;padding:3px 8px;background:#e9f1ec;color:#39715a}.pu-match-body{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px}.pu-example{background:#f5f7f5;border:1px solid #e3eae5;border-radius:14px;padding:15px;min-width:0}.pu-table-wrap{overflow:auto;border:1px solid #e1e6e2;border-radius:9px;background:white;margin:12px 0}.pu-table-wrap table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}.pu-table-wrap th,.pu-table-wrap td{padding:9px 11px;text-align:left;border-bottom:1px solid #e9eeea}.pu-table-wrap th{background:#edf2ef;color:#53685d}.pu-match-body :deep(.el-textarea){margin-top:9px}.pu-match-body :deep(.el-textarea__inner){min-height:175px!important;font:12px/1.6 ui-monospace,Consolas,monospace}.pu-small-actions{margin-top:12px}.pu-result{margin-top:13px;border-radius:10px;background:#f0f5f2;padding:11px 13px;color:#375b4d;font-size:12px}@media(max-width:800px){.pu-match-body{grid-template-columns:1fr}.pu-match-head{align-items:flex-start;flex-direction:column}}
+
+.pm-shell,.pm-shell *{box-sizing:border-box}.pm-shell{max-width:1500px;margin:auto;padding:0 18px 65px;color:#26332f;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif}.pm-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:30px 0 22px}.pm-eyebrow{font-size:11px;letter-spacing:1.6px;font-weight:750;color:#a18a6c}.pm-heading h1{font-size:29px;letter-spacing:-.8px;margin:7px 0 5px;color:#26332f}.pm-sub{color:#88918d;font-size:12px}.pm-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pm-btn{border:1px solid #dbe1dd;background:white;color:#35443d;padding:11px 16px;border-radius:10px;font:inherit;font-weight:600;white-space:nowrap;cursor:pointer}.pm-btn:hover{border-color:#9eafa4}.pm-btn:disabled{opacity:.42;cursor:not-allowed}.pm-primary{background:#264b3e;color:#fff;border-color:#264b3e}.pm-soft{background:#eaf1ec;color:#315d49;border-color:#d7e6da}.pm-danger{color:#b34e49}.pm-filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #eae7e0;padding:17px 20px;border-radius:18px;margin-bottom:17px}.pm-filters :deep(.el-input){flex:1;min-width:220px}.pm-filters :deep(.el-select){width:210px}.pm-filters :deep(.el-input__wrapper),.pm-filters :deep(.el-select__wrapper){min-height:43px;border-radius:10px}.pm-stats{display:flex;justify-content:space-between;gap:10px;padding:3px 4px 15px;color:#83918a;font-size:12px}.pm-stats strong{color:#2f4e40}.pm-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.pm-tile{background:#fff;border:1px solid #e9e6df;border-radius:17px;padding:11px;box-shadow:0 4px 16px #23352a08;transition:box-shadow .15s,transform .15s;min-width:0;position:relative;cursor:pointer}.pm-tile:hover{box-shadow:0 9px 25px #23352a13;transform:translateY(-2px)}.pm-tile.selected{outline:1.5px solid #4c7b60;background:#f8fbf8;box-shadow:0 0 0 2px #e6f0e9}.pm-tile.selected:hover{transform:none}.pm-recycle .pm-tile.selected{border-color:#4c7b60;outline:none;box-shadow:0 0 0 1px #4c7b60;background:#f8fbf8}.pm-preview{height:216px;border-radius:11px;background:#e5ebe8;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}.pm-preview img{width:100%;height:100%;object-fit:contain}.pm-dim{position:absolute;right:10px;bottom:10px;background:#263c35b8;color:#fff;font-size:10px;padding:5px 8px;border-radius:6px}.pm-check{position:absolute;top:20px;left:20px;z-index:2}.pm-trash{position:absolute;right:20px;top:20px;border:0;background:#fffdf7e8;color:#b65751;border-radius:9px;width:30px;height:30px;z-index:2;cursor:pointer}.pm-trash :deep(.el-icon){margin:0}.pm-info{padding:15px 6px 7px}.pm-title{font-size:15px;font-weight:700;color:#2b3630;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}.pm-meta{display:flex;justify-content:space-between;gap:10px;color:#97a19b;font-size:11px}.pm-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pm-tags{color:#668476;font-size:12px;margin-top:8px;overflow-wrap:anywhere}.pm-deleted{position:absolute;top:13px;left:13px;background:#fff0ed;color:#b64e4a;font-size:11px;padding:5px 8px;border-radius:7px;font-weight:700}.pm-recycle-check{position:absolute;top:10px;right:13px}.pm-recycle-meta{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px;font-size:12px;color:#65746b}.pm-recycle-meta span:nth-child(odd){color:#9aa49c}.pm-recycle-meta span{overflow-wrap:anywhere}.pm-item-actions{display:flex;gap:8px;margin-top:15px}.pm-item-actions .pm-btn{flex:1;padding:8px}.pm-empty{text-align:center;color:#89968d;padding:75px}.pm-pagination{display:flex;justify-content:center;padding:25px;overflow:auto}@media(max-width:1000px){.pm-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.pm-heading{align-items:flex-start}}@media(max-width:650px){.pm-shell{padding:0 4px 40px}.pm-gallery{grid-template-columns:1fr}.pm-heading{display:block}.pm-actions{margin-top:18px}.pm-filters :deep(.el-select){width:100%}.pm-preview{height:240px}}
+
+.pm-check,.pm-recycle-check{width:27px;height:27px;display:flex;align-items:center;justify-content:center}.pm-recycle-check{top:13px}.pm-check :deep(.el-checkbox__input),.pm-recycle-check :deep(.el-checkbox__input){display:flex;align-items:center;justify-content:center}.pm-check :deep(.el-checkbox__inner),.pm-recycle-check :deep(.el-checkbox__inner){width:27px;height:27px;border-radius:4px;border-color:#88998d;background:#fff}.pm-check :deep(.el-checkbox__inner::after),.pm-recycle-check :deep(.el-checkbox__inner::after){left:50%;top:50%;height:12px;width:6px;border-width:2px}.pm-check :deep(.is-checked .el-checkbox__inner),.pm-recycle-check :deep(.is-checked .el-checkbox__inner){background:#2d6449;border-color:#2d6449}.pm-trash{width:45px;height:45px;font-size:23px;display:grid;place-items:center}.pm-recycle-restore{background:#3d7b5a;border-color:#3d7b5a;color:#fff}.pm-recycle-delete{background:#b64e4a;border-color:#b64e4a;color:#fff}.pm-recycle-restore:hover{background:#31674a;border-color:#31674a}.pm-recycle-delete:hover{background:#9f403d;border-color:#9f403d}
+
+:global(.photo-v2-confirm.el-message-box){width:min(470px,95vw);border:1px solid #e7e5dd;border-radius:19px;background:#faf9f6;padding:26px;box-shadow:0 20px 70px #0003;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif}:global(.photo-v2-confirm .el-message-box__header){padding:0 0 12px}:global(.photo-v2-confirm .el-message-box__title){font-size:16px;font-weight:700;color:#27342f}:global(.photo-v2-confirm .el-message-box__content){padding:0;line-height:1.65;color:#6f7a72;font-size:14px}:global(.photo-v2-confirm .el-message-box__status){display:none}:global(.photo-v2-confirm .el-message-box__message){padding:0!important}:global(.photo-v2-confirm .el-message-box__btns){padding:24px 0 0}:global(.photo-v2-confirm .el-message-box__btns .el-button){border-radius:10px;padding:10px 15px;height:auto}:global(.photo-v2-danger .el-message-box__btns .el-button--primary){background:#b64e4a;border-color:#b64e4a;color:#fff}:global(.photo-v2-restore .el-message-box__btns .el-button--primary){background:#e9f2eb;border-color:#d9e9dd;color:#37634d}
+
+.pm-trash{transition:background-color .15s,color .15s}.pm-trash:hover{background:#b65751;color:#fff}
 </style>
