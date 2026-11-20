@@ -23,7 +23,7 @@
         <el-table-column prop="title" label="文档名" min-width="200" align="left">
           <template #default="{ row }">
             <span class="document-name">{{ row.title }}</span>
-            <el-tag v-if="row.owner === currentOwner" type="success" size="small" effect="plain" style="margin-left: 8px">我的</el-tag>
+            <el-tooltip v-if="row.is_shared" content="共享可见"><el-icon style="margin-left: 8px; vertical-align: middle"><View /></el-icon></el-tooltip>
           </template>
         </el-table-column>
         <el-table-column prop="owner" label="所有者" min-width="110" />
@@ -36,9 +36,10 @@
               <template #dropdown>
                 <el-dropdown-menu v-if="!trash">
                   <el-dropdown-item command="open" :icon="Edit" style="color: #409eff">编辑文档</el-dropdown-item>
-                  <el-dropdown-item command="rename" :icon="EditPen" style="color: #e6a23c">修改文档名</el-dropdown-item>
+                  <el-dropdown-item v-if="row.can_edit" command="rename" :icon="EditPen" style="color: #e6a23c">修改文档名</el-dropdown-item>
+                  <el-dropdown-item v-if="row.owner === currentOwner" command="sharing" :icon="View">{{ row.is_shared ? '设为仅自己可见' : '设为共享可见' }}</el-dropdown-item>
                   <el-dropdown-item command="copy" :icon="DocumentCopy">复制一份</el-dropdown-item>
-                  <el-dropdown-item command="delete" :icon="Delete" divided style="color: #f56c6c">删除</el-dropdown-item>
+                  <el-dropdown-item v-if="row.can_edit" command="delete" :icon="Delete" divided style="color: #f56c6c">删除</el-dropdown-item>
                 </el-dropdown-menu>
                 <el-dropdown-menu v-else>
                   <el-dropdown-item command="restore" :icon="RefreshLeft">恢复</el-dropdown-item>
@@ -67,10 +68,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Back, Delete, DocumentCopy, Edit, EditPen, MoreFilled, Plus, Refresh, RefreshLeft, Search } from '@element-plus/icons-vue';
+import { Back, Delete, DocumentCopy, Edit, EditPen, MoreFilled, Plus, Refresh, RefreshLeft, Search, View } from '@element-plus/icons-vue';
 import CommonHeader from '@/components/CommonHeader.vue';
 
-interface RichDocumentRow { id: number; title: string; owner: string; version: number; created_at: string; updated_at: string; deleted_at: string | null }
+interface RichDocumentRow { id: number; title: string; owner: string; is_shared: boolean; can_edit: boolean; version: number; created_at: string; updated_at: string; deleted_at: string | null }
 const rows = ref<RichDocumentRow[]>([]), search = ref(''), trash = ref(false), loading = ref(false), isAdmin = ref(false);
 const currentOwner = ref(''), scope = ref<'all' | 'mine'>('all'), page = ref(1), perPage = ref(20);
 const copyDialogVisible = ref(false), copying = ref(false);
@@ -136,8 +137,13 @@ async function copyDocument() {
 async function remove(row: RichDocumentRow) { try { await ElMessageBox.confirm('确定删除该文档？', '删除'); await call('/rich-documents/' + row.id, { method: 'DELETE' }); await load(); } catch (e) { if (e !== 'cancel' && e !== 'close') { console.error('删除图文文档失败', e); ElMessage.error('删除失败'); } } }
 async function restore(row: RichDocumentRow) { try { await call('/rich-documents/' + row.id + '/restore', { method: 'POST' }); await load(); } catch (e) { console.error('恢复图文文档失败', e); ElMessage.error('恢复失败'); } }
 async function permanent(row: RichDocumentRow) { try { await ElMessageBox.confirm('永久删除后无法恢复，确定继续？', '永久删除', { type: 'warning' }); await call('/rich-documents/' + row.id + '/permanent', { method: 'DELETE' }); await load(); } catch (e) { if (e !== 'cancel' && e !== 'close') { console.error('永久删除图文文档失败', e); ElMessage.error('删除失败'); } } }
+async function setSharing(row: RichDocumentRow) {
+  try { await call('/rich-documents/' + row.id + '/sharing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_shared: !row.is_shared }) }); await load(); ElMessage.success(row.is_shared ? '已设为仅自己可见' : '已设为共享可见'); }
+  catch (e) { console.error('设置共享状态失败', e); ElMessage.error('设置共享状态失败'); }
+}
 function handleCommand(command: string, row: RichDocumentRow) {
   if (command === 'open') open(row.id);
+  else if (command === 'sharing') void setSharing(row);
   else if (command === 'rename') void rename(row);
   else if (command === 'copy') prepareCopy(row);
   else if (command === 'delete') void remove(row);

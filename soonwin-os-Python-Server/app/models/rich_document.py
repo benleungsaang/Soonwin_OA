@@ -4,6 +4,7 @@ class RichDocument(db.Model):
     __tablename__ = 'rich_document'
     id = db.Column(db.Integer, primary_key=True)
     owner = db.Column(db.String(20), nullable=False, index=True)
+    is_shared = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     title = db.Column(db.String(200), nullable=False)
     html = db.Column(db.Text, nullable=False, default='')
     watermark = db.Column(db.Text, nullable=False, default='{}')

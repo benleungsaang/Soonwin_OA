@@ -8,7 +8,7 @@ import bleach
 from bleach.css_sanitizer import CSSSanitizer
 from bs4 import BeautifulSoup
 from flask import Blueprint, abort, jsonify, request, send_file
-from sqlalchemy import update
+from sqlalchemy import update, or_
 from extensions import db
 from app.models.rich_document import RichDocument, RichMedia
 from app.utils.auth_utils import require_auth, get_user_id_from_token, is_admin_user
@@ -23,13 +23,16 @@ def root():
     if not path: abort(503, description='文档媒体目录未配置')
     p = Path(path).resolve(); p.mkdir(parents=True, exist_ok=True); return p
 
-def doc_or_404(doc_id, deleted=False):
+def doc_or_404(doc_id, deleted=False, write=False):
     d = db.session.get(RichDocument, doc_id)
-    if not d or bool(d.deleted_at) != deleted or (not is_admin_user() and d.owner != get_user_id_from_token()): abort(404)
+    if not d or bool(d.deleted_at) != deleted: abort(404)
+    owner = d.owner == get_user_id_from_token()
+    if write and d.is_shared and not owner: abort(403, description='共享文档只能另存为')
+    if not owner and not is_admin_user() and (write or deleted or not d.is_shared): abort(404)
     return d
 
 def data(d, content=False):
-    result = dict(id=d.id, owner=d.owner, title=d.title, version=d.version, created_at=d.created_at.isoformat(), updated_at=d.updated_at.isoformat(), deleted_at=d.deleted_at.isoformat() if d.deleted_at else None)
+    result = dict(id=d.id, owner=d.owner, is_shared=d.is_shared, can_edit=(d.owner == get_user_id_from_token() or (is_admin_user() and not d.is_shared)), title=d.title, version=d.version, created_at=d.created_at.isoformat(), updated_at=d.updated_at.isoformat(), deleted_at=d.deleted_at.isoformat() if d.deleted_at else None)
     if content: result.update(html=d.html, watermark=json.loads(d.watermark))
     return result
 
@@ -108,7 +111,7 @@ def documents():
     trash=request.args.get('trash') == '1'
     if trash and not is_admin_user(): abort(403)
     q=RichDocument.query.filter(RichDocument.deleted_at.isnot(None) if trash else RichDocument.deleted_at.is_(None))
-    if not is_admin_user(): q=q.filter_by(owner=get_user_id_from_token())
+    if not is_admin_user(): q=q.filter(or_(RichDocument.owner == get_user_id_from_token(), RichDocument.is_shared.is_(True)))
     term=request.args.get('q','').strip()[:200]
     if term: q=q.filter(RichDocument.title.contains(term,autoescape=True))
     return jsonify([data(d) for d in q.order_by(RichDocument.updated_at.desc()).limit(500)])
@@ -116,7 +119,7 @@ def documents():
 @rich_document_bp.route('/rich-documents/<int:doc_id>', methods=['GET','PUT','DELETE'])
 @require_auth
 def document(doc_id):
-    d=doc_or_404(doc_id)
+    d=doc_or_404(doc_id, write=request.method != 'GET')
     if request.method == 'GET': return jsonify(data(d,True))
     if request.method == 'DELETE':
         d.deleted_at=datetime.utcnow(); d.version+=1; db.session.commit(); return jsonify(ok=True)
@@ -130,6 +133,17 @@ def document(doc_id):
     result=db.session.execute(update(RichDocument).where(RichDocument.id==doc_id, RichDocument.version==version, RichDocument.deleted_at.is_(None)).values(title=title,html=html,watermark=json.dumps(wm,ensure_ascii=False),version=version+1,updated_at=datetime.utcnow()))
     if not result.rowcount: db.session.rollback(); return jsonify(error='文档已被修改，请重新打开后处理'),409
     db.session.commit(); db.session.expire_all(); return jsonify(data(db.session.get(RichDocument,doc_id),True))
+
+@rich_document_bp.route('/rich-documents/<int:doc_id>/sharing', methods=['PUT'])
+@require_auth
+def sharing(doc_id):
+    d = doc_or_404(doc_id, write=True)
+    if d.owner != get_user_id_from_token(): abort(403)
+    payload = request.get_json(silent=True) or {}
+    if type(payload.get('is_shared')) is not bool: abort(400)
+    d.is_shared = payload['is_shared']
+    db.session.commit()
+    return jsonify(data(d))
 
 @rich_document_bp.route('/rich-documents/<int:doc_id>/copy', methods=['POST'])
 @require_auth
@@ -207,7 +221,7 @@ def permanent(doc_id):
 @rich_document_bp.route('/rich-documents/<int:doc_id>/media', methods=['POST'])
 @require_auth
 def upload(doc_id):
-    doc_or_404(doc_id); f=request.files.get('file')
+    doc_or_404(doc_id, write=True); f=request.files.get('file')
     if not f or not (f.mimetype.startswith('image/') or f.mimetype.startswith('video/')) or f.mimetype in ('image/svg+xml','text/html'): abort(400)
     mid=uuid.uuid4().hex; path=root()/mid; f.save(path); size=path.stat().st_size
     try:
